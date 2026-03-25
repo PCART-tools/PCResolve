@@ -75,6 +75,9 @@ class APITracer(ast.NodeVisitor):
         elif isinstance(node,ast.Call):
             if self._is_partial_call(node) and node.args:
                 return self.get_base(node.args[0])
+            call_key=self._lookup_key_for_call(node)
+            if call_key:
+                return call_key
             return self.get_base(node.func)
         elif isinstance(node,ast.Attribute):
             return self.get_base(node)
@@ -114,12 +117,33 @@ class APITracer(ast.NodeVisitor):
         if isinstance(func,ast.Attribute) and func.attr=='partial':
             return True
         return False
-    
+
     def _get_slice(self,slice_node):
         if isinstance(slice_node,ast.Constant):
             return slice_node.value
         if isinstance(slice_node,ast.UnaryOp) and isinstance(slice_node.op,ast.USub) and isinstance(slice_node.operand,ast.Constant):
             return -slice_node.operand.value
+        return None
+
+    def _attribute_name(self,node): #属性名
+        parts=[]
+        remain=node
+        while isinstance(remain,ast.Attribute):
+            parts.append(remain.attr)
+            remain=remain.value
+        if isinstance(remain,ast.Name):
+            parts.append(remain.id)
+            return ".".join(reversed(parts))
+        return None
+
+    def _lookup_key_for_call(self,node): #调用者
+        func=node.func
+        if isinstance(func,ast.Attribute):
+            name=self._attribute_name(func.value)
+            if name:
+                return name
+        if isinstance(func,ast.Name):
+            return func.id
         return None
 
     def get_base(self,node):
@@ -176,11 +200,17 @@ class APITracer(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target,ast.Name):
                     self.symbols.add(target.id,right)
+                elif isinstance(target, ast.Attribute):
+                    name=self._attribute_name(target)
+                    if name and name.startswith("self."):
+                        self.symbols.add(name,right)
         self.generic_visit(node)
 
     def visit_Call(self,node):
         api_string=self.get_call(node)
-        base=self.get_base(node.func)
+        base=self._lookup_key_for_call(node)
+        if base is None:
+            base=self.get_base(node.func)
         if base:
             top=self.symbols.get_top(base)
             if top:
@@ -215,7 +245,11 @@ class APITracer(ast.NodeVisitor):
 
     def visit_Attribute(self,node):
         attr_string=ast.unparse(node)
-        base= self.get_base(node)
+        name=self._attribute_name(node)
+        if name and name in self.symbols.direct:
+            base=name
+        else:
+            base=self.get_base(node)
         if base:
             top=self.symbols.get_top(base)
             if top:
@@ -229,13 +263,27 @@ class APITracer(ast.NodeVisitor):
     def visit_FunctionDef(self,node):
         self.local.add(node.name)
         self.symbols.add(node.name,"local")
+        for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
+            if arg.arg!="self":
+                self.symbols.add(arg.arg,"local")
+        if getattr(node.args,"vararg",None) is not None and node.args.vararg.arg!="self":
+            self.symbols.add(node.args.vararg.arg,"local")
+        if getattr(node.args,"kwarg",None) is not None and node.args.kwarg.arg!="self":
+            self.symbols.add(node.args.kwarg.arg,"local")
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
 
     def visit_AsyncFunctionDef(self,node):
         self.local.add(node.name)
-        self.symbols.add(node.name, "local")
+        self.symbols.add(node.name,"local")
+        for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
+            if arg.arg!="self":
+                self.symbols.add(arg.arg,"local")
+        if getattr(node.args,"vararg",None) is not None and node.args.vararg.arg!="self":
+            self.symbols.add(node.args.vararg.arg,"local")
+        if getattr(node.args,"kwarg",None) is not None and node.args.kwarg.arg!="self":
+            self.symbols.add(node.args.kwarg.arg,"local")
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
