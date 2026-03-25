@@ -1,4 +1,4 @@
-# API Call Chain Tracing for Python Third-Party Libraries Based on Static Analysis 2026.3.24
+# API Call Chain Tracing for Python Third-Party Libraries Based on Static Analysis 2026.3.26
 
 ## Project Overview
 The project aims to implement API call chain tracing for Python third-party libraries based on static analysis.
@@ -17,9 +17,9 @@ The project aims to implement API call chain tracing for Python third-party libr
 ### Supported API Call/Tracing Types
 - [x] **Direct import+direct call**:fully supported
 - [x] **From/as import+alias call**:fully supported
-- [ ] **Variable binding/container storage/closure capture**:mostly supported;mixed lists,sets,tuples need adjustments;dictionaries support constant keys
+- [ ] **Variable binding/container storage/closure capture**:mostly supported;mixed sets need adjustments;dictionaries support constant keys
 - [ ] **partial/lambda(lightweight wrappers)**:mostly supported;nested partial function logic needs refinement
-- [ ] **Object‑oriented encapsulation & inheritance**: partially supported (only simple forms such as assignment to ordinary variables followed by calls)
+- [ ] **Object‑oriented encapsulation & inheritance**: partially supported
 - [x] **Cross‑file shared third‑party instances**:fully supported
 - [ ] **Decorator pattern**:not supported
 - [ ] **Context managers/protocols**:partially supported(can recognize third‑party constructor calls like `requests.Session()`,but not `session.get(...)` yet)
