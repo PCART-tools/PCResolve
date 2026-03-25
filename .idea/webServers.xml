@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="21249321-5e1f-40f5-be58-631d4a6dac38" name="mycharm">
+        <fileTransfer rootFolder="/home/fang" accessType="SFTP" host="10.100.216.238" port="22" sshConfigId="9ecafae8-e8ec-4971-baf7-8811f2a19c9e" sshConfig="fang@10.100.216.238:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
