@@ -1,4 +1,4 @@
-# API Call Chain Tracing for Python Third-Party Libraries Based on Static Analysis 2026.3.26
+# API Call Chain Tracing for Python Third-Party Libraries Based on Static Analysis 2026.4.2
 
 ## Project Overview
 The project aims to implement API call chain tracing for Python third-party libraries based on static analysis.
@@ -18,7 +18,7 @@ The project aims to implement API call chain tracing for Python third-party libr
 - [x] **Direct import+direct call**:fully supported
 - [x] **From/as import+alias call**:fully supported
 - [ ] **Variable binding/container storage/closure capture**:mostly supported;mixed sets need adjustments;dictionaries support constant keys
-- [ ] **partial/lambda(lightweight wrappers)**:mostly supported;nested partial function logic needs refinement
+- [x] **partial/lambda(lightweight wrappers)**:fully supported
 - [ ] **Object‑oriented encapsulation & inheritance**: partially supported
 - [x] **Cross‑file shared third‑party instances**:fully supported
 - [ ] **Decorator pattern**:not supported
@@ -38,4 +38,11 @@ The project aims to implement API call chain tracing for Python third-party libr
 
 ## How to Run
 Run `main.py` and input the absolute path to the project root directory.
+
+## Runtime Environment
+- Operating system tested:Windows 10(x64)
+- Python version:3.11+
+- Dependency installation:no extra third-party dependencies required for this project itself
+- Python standard libraries used:`ast`,`os`,`sys`,`copy`,`builtins`,`typing`
+- Input requirement:provide an absolute path to a Python project directory
 

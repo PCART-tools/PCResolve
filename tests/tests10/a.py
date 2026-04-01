@@ -1,4 +1,9 @@
 import requests
+import numpy as np
+
+def abc():
+    arr=np.array([1,2,3])
+    return arr.argmax()
 
 class UserClient:
     def __init__(self,base_url):
@@ -12,3 +17,8 @@ class UserClient:
 
 client=UserClient("https://api.example.com")
 user=client.get_user(1)
+abc()
+
+def _returns_requests_get():
+    return requests.get
+a=_returns_requests_get()("https://api.example.com/status")

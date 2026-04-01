@@ -55,7 +55,9 @@ class APITracer(ast.NodeVisitor):
         self.local=set()
         self._func_stack=[]
         self.container_items={}
+        self.container_lengths={}
         self.container_set_sources={}
+        self.class_methods={}
 
     def visit_Import(self,node):
         for alias in node.names:
@@ -75,7 +77,10 @@ class APITracer(ast.NodeVisitor):
         elif isinstance(node,ast.Call):
             if self._is_partial_call(node) and node.args:
                 return self.get_base(node.args[0])
-            call_key=self._lookup_key_for_call(node)
+            meth=self._resolve_methods(node)
+            if meth:
+                return meth
+            call_key=self.get_base(node,call_lookup=True) #打开
             if call_key:
                 return call_key
             return self.get_base(node.func)
@@ -86,11 +91,12 @@ class APITracer(ast.NodeVisitor):
         elif isinstance(node,ast.Subscript):
             container_name=self.get_base(node.value)
             key_value=self._get_slice(node.slice)
-            if container_name and key_value is not None:
+            if container_name is not None and key_value is not None:
+                key_value=self._container_index(container_name,key_value)
                 lookup_key=(container_name,key_value)
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
-            return container_name
+            return (container_name,key_value) #模块名附上，处理跨文件，单文件字典形式存储
         elif isinstance(node,(ast.Dict,ast.List,ast.Tuple,ast.Set)):
             if isinstance(node,ast.Dict):
                 value_nodes=node.values
@@ -125,7 +131,35 @@ class APITracer(ast.NodeVisitor):
             return -slice_node.operand.value
         return None
 
-    def _attribute_name(self,node): #属性名
+    def _container_index(self,container_name,i):
+        if not isinstance(i,int):
+            return i
+        if i>=0:
+            return i
+        n=self.container_lengths.get(container_name)
+        if n:
+            return i+n
+        return i
+
+    def _resolve_methods(self,node):
+        if not isinstance(node,ast.Call):
+            return None
+        func=node.func
+        if not isinstance(func,ast.Attribute):
+            return None
+        re=func.value
+        if not isinstance(re,ast.Name):
+            return None
+        method_name=func.attr
+        class_name=self.symbols.direct.get(re.id)
+        if not class_name:
+            return None
+        methods=self.class_methods.get(class_name)
+        if not methods or method_name not in methods:
+            return None
+        return method_name
+
+    def _attribute_chain_list(self,node):
         parts=[]
         remain=node
         while isinstance(remain,ast.Attribute):
@@ -133,34 +167,35 @@ class APITracer(ast.NodeVisitor):
             remain=remain.value
         if isinstance(remain,ast.Name):
             parts.append(remain.id)
-            return ".".join(reversed(parts))
+            return list(reversed(parts))
         return None
 
-    def _lookup_key_for_call(self,node): #调用者
-        func=node.func
-        if isinstance(func,ast.Attribute):
-            name=self._attribute_name(func.value)
-            if name:
-                return name
-        if isinstance(func,ast.Name):
-            return func.id
+    def _attribute_name(self,node): #属性名
+        chain=self._attribute_chain_list(node)
+        if chain:
+            return ".".join(chain)
         return None
 
-    def get_base(self,node):
+    def get_base(self,node,call_lookup=False): #默认不解析，只取根
         if isinstance(node,ast.Name):
             return node.id
         elif isinstance(node,ast.Attribute):
-            current=node
-            while isinstance(current,ast.Attribute):
-                current=current.value
-            if isinstance(current,ast.Name):
-                return current.id
+            chain=self._attribute_chain_list(node)
+            if chain:
+                return chain[0]
         elif isinstance(node,ast.Call):
             if self._is_partial_call(node) and node.args:
-                return self.get_base(node.args[0])
-            return self.get_base(node.func)
+                return self.get_base(node.args[0],call_lookup=call_lookup)
+            if call_lookup: #解析接收者
+                func=node.func
+                if isinstance(func,ast.Attribute):
+                    return self._attribute_name(func.value)
+                if isinstance(func,ast.Name):
+                    return func.id
+                return None
+            return self.get_base(node.func,call_lookup=False)
         elif isinstance(node,ast.Lambda):
-            return self.get_base(node.body)
+            return self.get_base(node.body,call_lookup=call_lookup)
         return None
 
     def visit_Assign(self,node):
@@ -174,16 +209,16 @@ class APITracer(ast.NodeVisitor):
                             value_source=self.get_base(value_node)
                             if value_source:
                                 self.container_items[(container_name,key_value)]=value_source
-        if isinstance(node.value,(ast.List,ast.Tuple)): #列表或元组
+        if isinstance(node.value,(ast.List,ast.Tuple)): #列表或元组,跨文件处理
             for target in node.targets:
                 if isinstance(target,ast.Name):
                     container_name=target.id
                     n=len(node.value.elts)
+                    self.container_lengths[container_name]=n
                     for i,elt in enumerate(node.value.elts):
                         value_source=self.get_base(elt)
                         if value_source:
                             self.container_items[(container_name,i)]=value_source
-                            self.container_items[(container_name,i-n)]=value_source
         if isinstance(node.value,ast.Set): #集合
             for target in node.targets:
                 if isinstance(target,ast.Name):
@@ -208,10 +243,14 @@ class APITracer(ast.NodeVisitor):
 
     def visit_Call(self,node):
         api_string=self.get_call(node)
-        base=self._lookup_key_for_call(node)
-        if base is None:
-            base=self.get_base(node.func)
-        if base:
+        base=self._resolve_methods(node) 
+        if base is None: 
+            call_lookup_base=self.get_base(node,call_lookup=True)
+            if call_lookup_base is not None: #如self.session.a.get(url)
+                base=call_lookup_base
+            else: #如_returns_requests_get()(url)
+                base=self.get_base(node.func)
+        if base: #如client.get_user(1)
             top=self.symbols.get_top(base)
             if top:
                 print(f"调用:{api_string}")
@@ -291,6 +330,11 @@ class APITracer(ast.NodeVisitor):
     def visit_ClassDef(self,node):
         self.local.add(node.name)
         self.symbols.add(node.name,"local")
+        methods=[]
+        for item in node.body:
+            if isinstance(item,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                methods.append(item.name)
+        self.class_methods[node.name]=methods
         self.generic_visit(node)
 
     def visit_Return(self,node):
