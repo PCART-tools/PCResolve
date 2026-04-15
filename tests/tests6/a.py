@@ -16,4 +16,3 @@ def call_api(method, url):
     func = HTTP_METHODS[method]
     resp = func(url)
     return resp
-

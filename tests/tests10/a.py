@@ -15,10 +15,6 @@ class UserClient:
         resp=self.session.get(url)
         return resp.json()
 
-client=UserClient("https://api.example.com")
-user=client.get_user(1)
-abc()
-
 def _returns_requests_get():
     return requests.get
 a=_returns_requests_get()("https://api.example.com/status")

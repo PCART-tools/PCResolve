@@ -42,7 +42,7 @@ class TracingTop:
         self.chains[symbol]=chain
         if chain:
             self.top[symbol]=chain[-1]
-            print(f"符号链:{'->'.join(chain)}")
+            print(f"符号链:{'->'.join(map(str,chain))}")
 
 class APITracer(ast.NodeVisitor):
     """
@@ -54,10 +54,13 @@ class APITracer(ast.NodeVisitor):
         self.attr_accesses=[]
         self.local=set()
         self._func_stack=[]
+        self.function_call_tops={}
         self.container_items={}
         self.container_lengths={}
         self.container_set_sources={}
         self.class_methods={}
+        self.class_bases={}
+        self.import_from_symbols={}
 
     def visit_Import(self,node):
         for alias in node.names:
@@ -69,6 +72,7 @@ class APITracer(ast.NodeVisitor):
         for alias in node.names:
             symbol=alias.asname if alias.asname else alias.name
             self.symbols.add(symbol,node.module)
+            self.import_from_symbols[symbol]=node.module
         self.generic_visit(node)
 
     def trace_source(self,node):
@@ -77,9 +81,9 @@ class APITracer(ast.NodeVisitor):
         elif isinstance(node,ast.Call):
             if self._is_partial_call(node) and node.args:
                 return self.get_base(node.args[0])
-            meth=self._resolve_methods(node)
-            if meth:
-                return meth
+            me=self._resolve_methods(node)
+            if me:
+                return me
             call_key=self.get_base(node,call_lookup=True) #打开
             if call_key:
                 return call_key
@@ -90,13 +94,14 @@ class APITracer(ast.NodeVisitor):
             return self.get_base(node.body)
         elif isinstance(node,ast.Subscript):
             container_name=self.get_base(node.value)
-            key_value=self._get_slice(node.slice)
-            if container_name is not None and key_value is not None:
-                key_value=self._container_index(container_name,key_value)
+            key_idx=self._get_slice(node.slice)
+            if container_name is not None and key_idx is not None:
+                key_value=self._container_index(container_name,key_idx)
                 lookup_key=(container_name,key_value)
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
-            return (container_name,key_value) #模块名附上，处理跨文件，单文件字典形式存储
+                return ("container_item",container_name,key_idx) #不在本地
+            return container_name     
         elif isinstance(node,(ast.Dict,ast.List,ast.Tuple,ast.Set)):
             if isinstance(node,ast.Dict):
                 value_nodes=node.values
@@ -131,15 +136,15 @@ class APITracer(ast.NodeVisitor):
             return -slice_node.operand.value
         return None
 
-    def _container_index(self,container_name,i):
-        if not isinstance(i,int):
-            return i
-        if i>=0:
-            return i
+    def _container_index(self,container_name,idx):
+        if not isinstance(idx,int):
+            return idx
+        if idx>=0:
+            return idx
         n=self.container_lengths.get(container_name)
         if n:
-            return i+n
-        return i
+            return idx+n
+        return idx
 
     def _resolve_methods(self,node):
         if not isinstance(node,ast.Call):
@@ -155,9 +160,11 @@ class APITracer(ast.NodeVisitor):
         if not class_name:
             return None
         methods=self.class_methods.get(class_name)
-        if not methods or method_name not in methods:
-            return None
-        return method_name
+        if methods and method_name in methods:
+            return method_name
+        if class_name in self.class_methods or class_name in self.import_from_symbols: #本地或导入
+            return ("instance_method",re.id,method_name)
+        return None
 
     def _attribute_chain_list(self,node):
         parts=[]
@@ -175,6 +182,50 @@ class APITracer(ast.NodeVisitor):
         if chain:
             return ".".join(chain)
         return None
+
+    def _decorator_source(self,deco_node): #装饰器来源
+        return self.trace_source(deco_node)
+
+    def _bind_decorated_target(self,target_name,deco_source):
+        if not deco_source:
+            return
+        if isinstance(deco_source,str) and deco_source in self.function_call_tops:
+            for top in sorted(self.function_call_tops[deco_source]):
+                if top and top not in ("local","python"):
+                    self.symbols.add(target_name,top)
+                    return
+        deco_top=self.symbols.get_top(deco_source)
+        if deco_top:
+            self.symbols.add(target_name,deco_top)
+        else:
+            self.symbols.add(target_name,deco_source)
+
+    def _bind_target_to_source(self,target,source):
+        if not source:
+            return
+        if isinstance(target,ast.Name):
+            self.symbols.add(target.id,source)
+            return
+        if isinstance(target,ast.Attribute):
+            name=self._attribute_name(target)
+            if name and name.startswith("self."):
+                self.symbols.add(name,source)
+            return
+        if isinstance(target,(ast.Tuple,ast.List)):
+            for elt in target.elts:
+                self._bind_target_to_source(elt,source)
+
+    def _iter_source(self,iter_node):
+        if isinstance(iter_node,ast.Name):
+            container_name=iter_node.id
+            has_items=any(k[0]==container_name for k in self.container_items.keys())
+            has_set=container_name in self.container_set_sources
+            if has_items or has_set:
+                return ("container_iter",container_name,"*")
+        source=self.trace_source(iter_node)
+        if source:
+            return source
+        return self.get_base(iter_node)
 
     def get_base(self,node,call_lookup=False): #默认不解析，只取根
         if isinstance(node,ast.Name):
@@ -253,6 +304,11 @@ class APITracer(ast.NodeVisitor):
         if base: #如client.get_user(1)
             top=self.symbols.get_top(base)
             if top:
+                if self._func_stack:
+                    current_func=self._func_stack[-1]
+                    if current_func not in self.function_call_tops:
+                        self.function_call_tops[current_func]=set()
+                    self.function_call_tops[current_func].add(top)
                 print(f"调用:{api_string}")
                 print(f"基符号:{base}")
                 print(f"顶层库:{top}")
@@ -312,6 +368,9 @@ class APITracer(ast.NodeVisitor):
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
+        for deco in node.decorator_list:
+            deco_source=self._decorator_source(deco)
+            self._bind_decorated_target(node.name,deco_source)
 
     def visit_AsyncFunctionDef(self,node):
         self.local.add(node.name)
@@ -326,22 +385,73 @@ class APITracer(ast.NodeVisitor):
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
+        for deco in node.decorator_list:
+            deco_source=self._decorator_source(deco)
+            self._bind_decorated_target(node.name,deco_source)
 
     def visit_ClassDef(self,node):
         self.local.add(node.name)
         self.symbols.add(node.name,"local")
         methods=[]
+        bases=[]
         for item in node.body:
             if isinstance(item,(ast.FunctionDef,ast.AsyncFunctionDef)):
                 methods.append(item.name)
+        for base_node in node.bases:
+            base_symbol=None
+            if isinstance(base_node,ast.Name): #如Class1(Class2)
+                base_symbol=base_node.id
+            elif isinstance(base_node,ast.Attribute): #如Class1(requests.Class3)
+                base_symbol=self._attribute_name(base_node) or self.get_base(base_node)
+            else:
+                base_symbol=self.get_base(base_node)
+            if base_symbol:
+                bases.append(base_symbol)
         self.class_methods[node.name]=methods
+        self.class_bases[node.name]=bases
+        self.generic_visit(node)
+        for deco in node.decorator_list:
+            deco_source=self._decorator_source(deco)
+            self._bind_decorated_target(node.name,deco_source)
+
+    def visit_With(self,node):
+        for item in node.items:
+            source=self.trace_source(item.context_expr)
+            if item.optional_vars is not None:
+                self._bind_target_to_source(item.optional_vars,source)
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self,node):
+        for item in node.items:
+            source=self.trace_source(item.context_expr)
+            if item.optional_vars is not None:
+                self._bind_target_to_source(item.optional_vars,source)
+        self.generic_visit(node)
+
+    def visit_For(self,node):
+        source=self._iter_source(node.iter)
+        self._bind_target_to_source(node.target,source)
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self,node):
+        source=self._iter_source(node.iter)
+        self._bind_target_to_source(node.target,source)
         self.generic_visit(node)
 
     def visit_Return(self,node):
         if self._func_stack and node.value is not None:
             func_name=self._func_stack[-1]
             if not isinstance(node.value,ast.Constant):
-                source=self.trace_source(node.value)
+                source=None
+                if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name):
+                    callee=node.value.func.id
+                    callee_source=self.symbols.direct.get(callee)
+                    if callee_source=="local" and node.value.args:
+                        arg_source=self.trace_source(node.value.args[0])
+                        if arg_source and arg_source in self.symbols.direct:
+                            source=arg_source
+                if source is None:
+                    source=self.trace_source(node.value)
                 if source and source in self.symbols.direct:
                     self.symbols.add(func_name,source)
         self.generic_visit(node)
@@ -356,7 +466,7 @@ class APITracer(ast.NodeVisitor):
         print("符号调用链：")
         for symbol,chain in self.symbols.chains.items():
             if chain:
-                chain_str='->'.join(chain)
+                chain_str='->'.join(map(str,chain))
             print(f"{symbol}:{chain_str}")
         print()
         print("函数调用：")
