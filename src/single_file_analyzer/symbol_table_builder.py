@@ -79,6 +79,12 @@ class APITracer(ast.NodeVisitor):
         if isinstance(node,ast.Name):
             return node.id
         elif isinstance(node,ast.Call):
+            getattr_src=self._resolve_getattr_trace(node)
+            if getattr_src:
+                return getattr_src
+            import_mod=self._resolve_import_module_trace(node)
+            if import_mod:
+                return import_mod
             if self._is_partial_call(node) and node.args:
                 return self.get_base(node.args[0])
             me=self._resolve_methods(node)
@@ -87,6 +93,10 @@ class APITracer(ast.NodeVisitor):
             call_key=self.get_base(node,call_lookup=True) #打开
             if call_key:
                 return call_key
+            if isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Call):
+                inner_source=self.trace_source(node.func.value)
+                if inner_source:
+                    return inner_source
             return self.get_base(node.func)
         elif isinstance(node,ast.Attribute):
             return self.get_base(node)
@@ -119,6 +129,11 @@ class APITracer(ast.NodeVisitor):
             return str(node.value)
         return None
 
+    def _literal_str(self,node):
+        if isinstance(node,ast.Constant) and isinstance(node.value,str):
+            return node.value
+        return None
+
     def _is_partial_call(self,node):
         if not isinstance(node, ast.Call):
             return False
@@ -128,6 +143,58 @@ class APITracer(ast.NodeVisitor):
         if isinstance(func,ast.Attribute) and func.attr=='partial':
             return True
         return False
+
+    def _is_getattr_call(self,node):
+        if not isinstance(node,ast.Call) or len(node.args)<2:
+            return False
+        func=node.func
+        if isinstance(func,ast.Name) and func.id=="getattr":
+            return True
+        if isinstance(func,ast.Attribute) and func.attr=="getattr":
+            return True
+        return False
+
+    def _resolve_getattr_trace(self,node):
+        if not self._is_getattr_call(node):
+            return None
+        name_lit=self._literal_str(node.args[1])
+        if name_lit is None:
+            return None
+        obj_key=self.trace_source(node.args[0])
+        if obj_key is None:
+            return None
+        return obj_key
+
+    def _is_importlib_module(self,symbol):
+        if not isinstance(symbol,str):
+            return False
+        if symbol=="importlib":
+            return True
+        top=self.symbols.get_top(symbol)
+        return top=="importlib"
+
+    def _is_import_module_call(self,node):
+        if not isinstance(node,ast.Call) or not node.args:
+            return False
+        func=node.func
+        if isinstance(func,ast.Attribute) and func.attr=="import_module": #importlib.import_module
+            root=self.get_base(func.value)
+            if root and self._is_importlib_module(root):
+                return True
+            return False
+        if isinstance(func,ast.Name) and func.id=="import_module": #import_module
+            if self.import_from_symbols.get("import_module")=="importlib":
+                return True
+            return False
+        return False
+
+    def _resolve_import_module_trace(self,node):
+        if not self._is_import_module_call(node):
+            return None
+        name=self._literal_str(node.args[0])
+        if name is None:
+            return None
+        return name
 
     def _get_slice(self,slice_node):
         if isinstance(slice_node,ast.Constant):
@@ -183,6 +250,21 @@ class APITracer(ast.NodeVisitor):
             return ".".join(chain)
         return None
 
+    def _resolve_call_receiver(self,receiver_node):
+        if isinstance(receiver_node,ast.Name):
+            return receiver_node.id
+        if isinstance(receiver_node,ast.Attribute):
+            receiver_name=self._attribute_name(receiver_node)
+            if receiver_name is not None:
+                return receiver_name
+            return self._resolve_call_receiver(receiver_node.value)
+        if isinstance(receiver_node,ast.Call):
+            inner_receiver=self.get_base(receiver_node,call_lookup=True)
+            if inner_receiver is not None:
+                return inner_receiver
+            return self.get_base(receiver_node.func,call_lookup=False)
+        return None
+
     def _decorator_source(self,deco_node): #装饰器来源
         return self.trace_source(deco_node)
 
@@ -200,28 +282,32 @@ class APITracer(ast.NodeVisitor):
         else:
             self.symbols.add(target_name,deco_source)
 
-    def _bind_target_to_source(self,target,source):
+    def _target_to_source(self,target,source):
         if not source:
             return
-        if isinstance(target,ast.Name):
+        if isinstance(target,ast.Name): #x
             self.symbols.add(target.id,source)
             return
-        if isinstance(target,ast.Attribute):
+        if isinstance(target,ast.Attribute): #self.x
             name=self._attribute_name(target)
             if name and name.startswith("self."):
                 self.symbols.add(name,source)
             return
-        if isinstance(target,(ast.Tuple,ast.List)):
+        if isinstance(target,(ast.Tuple,ast.List)): #a,b
             for elt in target.elts:
-                self._bind_target_to_source(elt,source)
+                self._target_to_source(elt,source)
 
-    def _iter_source(self,iter_node):
-        if isinstance(iter_node,ast.Name):
+    def _iter_source(self,iter_node): ##for x in iter
+        if isinstance(iter_node,ast.Name): 
             container_name=iter_node.id
-            has_items=any(k[0]==container_name for k in self.container_items.keys())
-            has_set=container_name in self.container_set_sources
+            has_items=False
+            for k in self.container_items.keys(): #容器名是否在con_items里有记录
+                if k[0]==container_name:
+                    has_items=True
+                    break
+            has_set=container_name in self.container_set_sources  #容器名是否在con_sets_sources里有记录
             if has_items or has_set:
-                return ("container_iter",container_name,"*")
+                return ("container_iter",container_name,"*") 
         source=self.trace_source(iter_node)
         if source:
             return source
@@ -240,7 +326,9 @@ class APITracer(ast.NodeVisitor):
             if call_lookup: #解析接收者
                 func=node.func
                 if isinstance(func,ast.Attribute):
-                    return self._attribute_name(func.value)
+                    return self._resolve_call_receiver(func.value)
+                if isinstance(func,ast.Call):
+                    return self._resolve_call_receiver(func)
                 if isinstance(func,ast.Name):
                     return func.id
                 return None
@@ -292,15 +380,27 @@ class APITracer(ast.NodeVisitor):
                         self.symbols.add(name,right)
         self.generic_visit(node)
 
+    def _resolve_call_base_for_api(self,node):
+        if self._is_getattr_call(node):
+            if self._literal_str(node.args[1]) is not None:
+                g=self.trace_source(node.args[0])
+                if g is not None:
+                    return g
+        if self._is_import_module_call(node):
+            im=self._resolve_import_module_trace(node)
+            if im is not None:
+                return im
+        base=self._resolve_methods(node)
+        if base is not None:
+            return base
+        call_lookup_base=self.get_base(node,call_lookup=True)
+        if call_lookup_base is not None:
+            return call_lookup_base
+        return self.get_base(node.func)
+
     def visit_Call(self,node):
         api_string=self.get_call(node)
-        base=self._resolve_methods(node) 
-        if base is None: 
-            call_lookup_base=self.get_base(node,call_lookup=True)
-            if call_lookup_base is not None: #如self.session.a.get(url)
-                base=call_lookup_base
-            else: #如_returns_requests_get()(url)
-                base=self.get_base(node.func)
+        base=self._resolve_call_base_for_api(node)
         if base: #如client.get_user(1)
             top=self.symbols.get_top(base)
             if top:
@@ -323,20 +423,15 @@ class APITracer(ast.NodeVisitor):
 
     def get_call(self,node):
         func_str=ast.unparse(node.func)
-        args_str=ast.unparse(node.args)
-        result=f"{func_str}({args_str})"
+        parts=[ast.unparse(a) for a in node.args]
         if node.keywords:
-            kw_args=[]
             for kw in node.keywords:
                 if kw.arg:
-                    kw_args.append(f"{kw.arg}={ast.unparse(kw.value)}")
+                    parts.append(f"{kw.arg}={ast.unparse(kw.value)}")
                 else:
-                    kw_args.append(f"**{ast.unparse(kw.value)}")
-            if node.args:
-                result+=f",{','.join(kw_args)}"
-            else:
-                result=f"{func_str}({','.join(kw_args)})"
-        return result
+                    parts.append(f"**{ast.unparse(kw.value)}")
+        args_str=", ".join(parts)
+        return f"{func_str}({args_str})"
 
     def visit_Attribute(self,node):
         attr_string=ast.unparse(node)
@@ -418,24 +513,24 @@ class APITracer(ast.NodeVisitor):
         for item in node.items:
             source=self.trace_source(item.context_expr)
             if item.optional_vars is not None:
-                self._bind_target_to_source(item.optional_vars,source)
+                self._target_to_source(item.optional_vars,source)
         self.generic_visit(node)
 
     def visit_AsyncWith(self,node):
         for item in node.items:
             source=self.trace_source(item.context_expr)
             if item.optional_vars is not None:
-                self._bind_target_to_source(item.optional_vars,source)
+                self._target_to_source(item.optional_vars,source)
         self.generic_visit(node)
 
     def visit_For(self,node):
         source=self._iter_source(node.iter)
-        self._bind_target_to_source(node.target,source)
+        self._target_to_source(node.target,source)
         self.generic_visit(node)
 
     def visit_AsyncFor(self,node):
         source=self._iter_source(node.iter)
-        self._bind_target_to_source(node.target,source)
+        self._target_to_source(node.target,source)
         self.generic_visit(node)
 
     def visit_Return(self,node):

@@ -13,7 +13,7 @@ def main():
     if not os.path.exists(project_root):
         print(f"{project_root}不存在")
         return
-    analyzer = CrossFileAnalyzer(project_root)
+    analyzer=CrossFileAnalyzer(project_root)
     analyzer.analyze()
     analyzer.print_results()
     analyzer.print_all_asts()

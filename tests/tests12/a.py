@@ -4,7 +4,7 @@ import requests
 app=Flask(__name__)
 
 
-def fetch_and_print(func):
+def fetch_and_print(func): #TODO:保存函数参数列表
     def wrapper(url):
         resp=requests.get(url)
         return func(resp)
@@ -15,8 +15,8 @@ def hello():
     return "hello"
 
 @fetch_and_print
-def handle_response(resp):
-    return resp.text
+def handle_response(a):
+    return a.text
 
 result=handle_response("https://example.com")
 

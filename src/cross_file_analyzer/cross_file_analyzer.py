@@ -49,14 +49,11 @@ class CrossFileAnalyzer:
                     structured=self._resolve_structured_source(module,base,module_tracers)
                     if structured is not None:
                         _,src_module,src_symbol=structured
-                        top_source=self.global_symbols.get(src_module,{}).get(src_symbol,src_symbol)
+                        top_source=self._top_source(src_module,src_symbol,module_tracers)
                     else:
                         top_source=str(base)
                 else:
-                    if isinstance(base,str) and hasattr(builtins,base):
-                        top_source="python"
-                    else:
-                        top_source=tracer.symbols.get_top(base) or str(base)
+                    top_source=self._top_source(module,base,module_tracers)
                 call_record={
                     'api':call_detail['api'],
                     'top':top_source
@@ -104,57 +101,38 @@ class CrossFileAnalyzer:
                 return (src_module,src_tracer.container_items[src_key])
         return None
 
+    def _container_candidate(self,module,src,tracers,candidates,visited): #混合容器去重
+        if not src:
+            return
+        top_src=self._top_source(module,src,tracers)
+        if top_src and top_src not in visited:
+            visited.add(top_src)
+            candidates.append(top_src)
+
+    def _collect_container_candidates(self,module,tracer,container_name,tracers):
+        candidates=[]
+        visited=set()
+        for (cont_name,idx),src in tracer.container_items.items():
+            if cont_name==container_name:
+                self._container_candidate(module,src,tracers,candidates,visited)
+        for src in sorted(tracer.container_set_sources.get(container_name,set())): #集合
+            self._container_candidate(module,src,tracers,candidates,visited)
+        return candidates
+
     def _resolve_container_iter(self,module,container_name,tracers):
         tracer=tracers.get(module)
         if not tracer:
             return None
-        def to_top_source(src_module,symbol):
-            if not symbol:
-                return None
-            if isinstance(symbol,str) and hasattr(builtins,symbol):
-                return "python"
-            chain=self.trace_symbol(src_module,symbol,tracers,set())
-            if chain:
-                return self.extract_final_source(chain)
-            src_tracer=tracers.get(src_module)
-            if src_tracer:
-                top=src_tracer.symbols.get_top(symbol)
-                if top:
-                    if "." in top:
-                        return top.split(".")[0]
-                    return top
-            if isinstance(symbol,str) and "." in symbol:
-                return symbol.split(".")[0]
-            return symbol
-
-        def collect_candidates(t, name):
-            candidates=[]
-            seen=set()
-            for (c_name,_),src in t.container_items.items():
-                if c_name==name and src:
-                    top_src=to_top_source(module if t is tracer else src_module,src)
-                    if top_src and top_src not in seen:
-                        seen.add(top_src)
-                        candidates.append(top_src)
-            for src in sorted(t.container_set_sources.get(name,set())):
-                if src:
-                    top_src=to_top_source(module if t is tracer else src_module,src)
-                    if top_src and top_src not in seen:
-                        seen.add(top_src)
-                        candidates.append(top_src)
-            return candidates
-
-        local_candidates=collect_candidates(tracer,container_name)
+        local_candidates=self._collect_container_candidates(module,tracer,container_name,tracers) #本模块
         if local_candidates:
             return (module,local_candidates)
-
         container_direct=tracer.symbols.direct.get(container_name)
-        if isinstance(container_direct,str) and self.is_local(container_direct):
+        if isinstance(container_direct,str) and self.is_local(container_direct): #跨文件导入
             src_module=container_direct
             src_tracer=tracers.get(src_module)
             if not src_tracer:
                 return None
-            src_candidates=collect_candidates(src_tracer,container_name)
+            src_candidates=self._collect_container_candidates(src_module,src_tracer,container_name,tracers)
             if src_candidates:
                 return (src_module,src_candidates)
         return None
@@ -182,8 +160,8 @@ class CrossFileAnalyzer:
                     resolved=self._resolve_method_symbol(src_module,base_symbol,method_name,tracers,visited)
                     if resolved:
                         return resolved
-                else: #父类来自第三方库（复数？）
-                    return (module,base_symbol) #父类写成requests.Class2这种（？）
+                else: #父类来自第三方库
+                    return (module,base_symbol)
         class_direct=tracer.symbols.direct.get(class_symbol) #本类没有且无父类，跨文件导入类
         if isinstance(class_direct,str):
             if self.is_local(class_direct): #类从本地模块导入
@@ -263,6 +241,26 @@ class CrossFileAnalyzer:
         else: #第三方库
             return [symbol,direct_source]
 
+    def _top_name(self,name):
+        if isinstance(name,str) and "." in name:
+            return name.split(".")[0]
+        return name
+
+    def _top_source(self,src_module,symbol,tracers):
+        if not symbol:
+            return None
+        if isinstance(symbol,str) and hasattr(builtins,symbol):
+            return "python"
+        chain=self.trace_symbol(src_module,symbol,tracers,set())
+        if chain:
+            return self.extract_final_source(chain)
+        src_tracer=tracers.get(src_module)
+        if src_tracer:
+            top=src_tracer.symbols.get_top(symbol)
+            if top:
+                return self._top_name(top)
+        return self._top_name(symbol)
+
     def extract_final_source(self,chain):
         if not chain:
             return ""
@@ -270,9 +268,7 @@ class CrossFileAnalyzer:
             if isinstance(item,str) and hasattr(builtins, item):
                 return "python"
             if isinstance(item,str) and not self.is_local(item):
-                if "." in item:
-                    return item.split(".")[0]
-                return item
+                return self._top_name(item)
         return chain[-1]
 
     def print_results(self):
