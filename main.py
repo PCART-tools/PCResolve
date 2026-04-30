@@ -17,6 +17,12 @@ def main():
     analyzer.analyze()
     analyzer.print_results()
     analyzer.print_all_asts()
-
 if __name__ == "__main__":
     main()
+
+
+#TODO:
+#第一条:call节点在本地有定义 即使他的顶层库来自三方库也不算三方库的API
+#第二条:call节点在本地找不到定义 看符号链 如果链上有Call节点在本地有定义也不算
+#第三条：self处理
+#第四条：链式调用a().b().c()拆分成a()、a().b()、a().b().c()

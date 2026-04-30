@@ -54,7 +54,7 @@ class APITracer(ast.NodeVisitor):
         self.attr_accesses=[]
         self.local=set()
         self._func_stack=[]
-        self.function_call_tops={}
+        self.function_params={}
         self.container_items={}
         self.container_lengths={}
         self.container_set_sources={}
@@ -265,22 +265,16 @@ class APITracer(ast.NodeVisitor):
             return self.get_base(receiver_node.func,call_lookup=False)
         return None
 
-    def _decorator_source(self,deco_node): #装饰器来源
-        return self.trace_source(deco_node)
-
-    def _bind_decorated_target(self,target_name,deco_source):
-        if not deco_source:
+    def _bind_decorated_target(self,target_name,decorator_nodes):
+        if not decorator_nodes:
             return
-        if isinstance(deco_source,str) and deco_source in self.function_call_tops:
-            for top in sorted(self.function_call_tops[deco_source]):
-                if top and top not in ("local","python"):
-                    self.symbols.add(target_name,top)
-                    return
-        deco_top=self.symbols.get_top(deco_source)
-        if deco_top:
-            self.symbols.add(target_name,deco_top)
-        else:
-            self.symbols.add(target_name,deco_source)
+        current_source=target_name
+        for deco in reversed(decorator_nodes): #从内到外
+            deco_source=self.trace_source(deco)
+            if deco_source:
+                current_source=deco_source
+        if current_source and current_source!=target_name:
+            self.symbols.add(target_name,current_source)
 
     def _target_to_source(self,target,source):
         if not source:
@@ -373,10 +367,24 @@ class APITracer(ast.NodeVisitor):
         if right:
             for target in node.targets:
                 if isinstance(target,ast.Name):
+                    if (
+                        isinstance(right,tuple)
+                        and len(right)==3
+                        and right[0]=="instance_method"
+                        and right[1]==target.id
+                    ):
+                        continue
                     self.symbols.add(target.id,right)
                 elif isinstance(target, ast.Attribute):
                     name=self._attribute_name(target)
                     if name and name.startswith("self."):
+                        if (
+                            isinstance(right,tuple)
+                            and len(right)==3
+                            and right[0]=="instance_method"
+                            and right[1]==name
+                        ):
+                            continue
                         self.symbols.add(name,right)
         self.generic_visit(node)
 
@@ -404,11 +412,6 @@ class APITracer(ast.NodeVisitor):
         if base: #如client.get_user(1)
             top=self.symbols.get_top(base)
             if top:
-                if self._func_stack:
-                    current_func=self._func_stack[-1]
-                    if current_func not in self.function_call_tops:
-                        self.function_call_tops[current_func]=set()
-                    self.function_call_tops[current_func].add(top)
                 print(f"调用:{api_string}")
                 print(f"基符号:{base}")
                 print(f"顶层库:{top}")
@@ -453,36 +456,42 @@ class APITracer(ast.NodeVisitor):
     def visit_FunctionDef(self,node):
         self.local.add(node.name)
         self.symbols.add(node.name,"local")
+        params=[]
         for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
             if arg.arg!="self":
+                params.append(arg.arg)
                 self.symbols.add(arg.arg,"local")
         if getattr(node.args,"vararg",None) is not None and node.args.vararg.arg!="self":
+            params.append(node.args.vararg.arg)
             self.symbols.add(node.args.vararg.arg,"local")
         if getattr(node.args,"kwarg",None) is not None and node.args.kwarg.arg!="self":
+            params.append(node.args.kwarg.arg)
             self.symbols.add(node.args.kwarg.arg,"local")
+        self.function_params[node.name]=params
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
-        for deco in node.decorator_list:
-            deco_source=self._decorator_source(deco)
-            self._bind_decorated_target(node.name,deco_source)
+        self._bind_decorated_target(node.name,node.decorator_list)
 
     def visit_AsyncFunctionDef(self,node):
         self.local.add(node.name)
         self.symbols.add(node.name,"local")
+        params=[]
         for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
             if arg.arg!="self":
+                params.append(arg.arg)
                 self.symbols.add(arg.arg,"local")
         if getattr(node.args,"vararg",None) is not None and node.args.vararg.arg!="self":
+            params.append(node.args.vararg.arg)
             self.symbols.add(node.args.vararg.arg,"local")
         if getattr(node.args,"kwarg",None) is not None and node.args.kwarg.arg!="self":
+            params.append(node.args.kwarg.arg)
             self.symbols.add(node.args.kwarg.arg,"local")
+        self.function_params[node.name]=params
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
-        for deco in node.decorator_list:
-            deco_source=self._decorator_source(deco)
-            self._bind_decorated_target(node.name,deco_source)
+        self._bind_decorated_target(node.name,node.decorator_list)
 
     def visit_ClassDef(self,node):
         self.local.add(node.name)
@@ -505,9 +514,7 @@ class APITracer(ast.NodeVisitor):
         self.class_methods[node.name]=methods
         self.class_bases[node.name]=bases
         self.generic_visit(node)
-        for deco in node.decorator_list:
-            deco_source=self._decorator_source(deco)
-            self._bind_decorated_target(node.name,deco_source)
+        self._bind_decorated_target(node.name,node.decorator_list)
 
     def visit_With(self,node):
         for item in node.items:
@@ -540,11 +547,18 @@ class APITracer(ast.NodeVisitor):
                 source=None
                 if isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name):
                     callee=node.value.func.id
-                    callee_source=self.symbols.direct.get(callee)
-                    if callee_source=="local" and node.value.args:
-                        arg_source=self.trace_source(node.value.args[0])
-                        if arg_source and arg_source in self.symbols.direct:
-                            source=arg_source
+                    is_params=False
+                    for name in reversed(self._func_stack):
+                        if callee in self.function_params.get(name,[]):
+                            is_params=True
+                            break
+                    if is_params:
+                        if node.value.args:
+                            arg_source=self.trace_source(node.value.args[0])
+                            if arg_source:
+                                source=arg_source
+                        if source is None:
+                            source=callee
                 if source is None:
                     source=self.trace_source(node.value)
                 if source and source in self.symbols.direct:
