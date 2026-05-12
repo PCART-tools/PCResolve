@@ -3,3 +3,4 @@ requests
 numpy
 flask
 aiohttp
+sqlalchemy

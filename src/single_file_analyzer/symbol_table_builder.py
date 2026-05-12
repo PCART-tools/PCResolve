@@ -54,6 +54,9 @@ class APITracer(ast.NodeVisitor):
         self.attr_accesses=[]
         self.local=set()
         self._func_stack=[]
+        self._class_stack=[]
+        self._seen_api_call_ids=set()
+        self.defined_functions=set()
         self.function_params={}
         self.container_items={}
         self.container_lengths={}
@@ -220,17 +223,34 @@ class APITracer(ast.NodeVisitor):
         if not isinstance(func,ast.Attribute):
             return None
         re=func.value
-        if not isinstance(re,ast.Name):
-            return None
         method_name=func.attr
-        class_name=self.symbols.direct.get(re.id)
-        if not class_name:
+        def _resolve_on_class(class_name,receiver_key): #在给定类名上判断方法
+            if not class_name:
+                return None
+            methods=self.class_methods.get(class_name,[])
+            if methods and method_name in methods: #本类定义
+                return method_name
+            if class_name in self.class_methods or class_name in self.import_from_symbols: #跨文件导入
+                return ("instance_method",receiver_key,method_name)
             return None
-        methods=self.class_methods.get(class_name)
-        if methods and method_name in methods:
-            return method_name
-        if class_name in self.class_methods or class_name in self.import_from_symbols: #本地或导入
-            return ("instance_method",re.id,method_name)
+        if isinstance(re,ast.Name): 
+            if re.id=="self" and self._class_stack: #self.send_response()
+                cn=self._class_stack[-1] #当前类名
+                return _resolve_on_class(cn,cn)
+            class_name=self.symbols.direct.get(re.id)
+            if not class_name:
+                return None
+            methods=self.class_methods.get(class_name)
+            if methods and method_name in methods:
+                return method_name
+            if class_name in self.class_methods or class_name in self.import_from_symbols:
+                return ("instance_method",re.id,method_name)
+            return None
+        if isinstance(re,ast.Attribute): #self.session.get()
+            chain=self._attribute_chain_list(re)
+            if chain and chain[0]=="self" and self._class_stack:
+                cn=self._class_stack[-1]
+                return _resolve_on_class(cn,cn)
         return None
 
     def _attribute_chain_list(self,node):
@@ -342,7 +362,7 @@ class APITracer(ast.NodeVisitor):
                             value_source=self.get_base(value_node)
                             if value_source:
                                 self.container_items[(container_name,key_value)]=value_source
-        if isinstance(node.value,(ast.List,ast.Tuple)): #列表或元组,跨文件处理
+        if isinstance(node.value,(ast.List,ast.Tuple)): #列表或元组
             for target in node.targets:
                 if isinstance(target,ast.Name):
                     container_name=target.id
@@ -406,22 +426,89 @@ class APITracer(ast.NodeVisitor):
             return call_lookup_base
         return self.get_base(node.func)
 
-    def visit_Call(self,node):
+    def _chained_prefix_calls(self,node):
+        if not isinstance(node,ast.Call):
+            return []
+        out=[]
+        cur=node
+        while isinstance(cur,ast.Call):
+            out.append(cur)
+            f=cur.func
+            if isinstance(f,ast.Attribute) and isinstance(f.value,ast.Call):
+                cur=f.value
+            else:
+                break
+        out.reverse()
+        return out
+
+    def _chain_for_base(self,base): #获取链
+        if not isinstance(base,str):
+            return []
+        ch=self.symbols.chains.get(base)
+        if ch:
+            return ch
+        return self.symbols.trace(base)
+
+    def _ignore_apis(self,node,base):
+        if isinstance(base,tuple): #结构化来源
+            return False
+        if isinstance(node.func,ast.Name) and node.func.id in self.defined_functions: #foo()
+            return True
+        if isinstance(base,str):
+            for link in self._chain_for_base(base): 
+                if isinstance(link,str) and link in self.defined_functions:
+                    return True
+        return False
+
+    def _one_api_call(self,node):
+        if id(node) in self._seen_api_call_ids:
+            return
+        self._seen_api_call_ids.add(id(node))
         api_string=self.get_call(node)
         base=self._resolve_call_base_for_api(node)
-        if base: #如client.get_user(1)
-            top=self.symbols.get_top(base)
-            if top:
-                print(f"调用:{api_string}")
-                print(f"基符号:{base}")
-                print(f"顶层库:{top}")
-                print()
-                self.api_calls.append({
-                    'api':api_string,
-                    'top':top,
-                    'chain':self.symbols.get_chain(base),
-                    'base':base
-                })
+        if not base:
+            return
+        if isinstance(node.func,ast.Name):
+            direct_name=node.func.id  
+        else:
+            direct_name=None
+        if self._ignore_apis(node,base): #链上有本地定义
+            if isinstance(base,str):
+                chain=self.symbols.get_chain(base)
+            else: 
+                chain=[]
+            if isinstance(base,str) and not chain:
+                chain=self.symbols.trace(base)
+            print(f"调用:{api_string}")
+            print(f"基符号:{base}")
+            print(f"顶层库:local")
+            print()
+            self.api_calls.append({
+                'api':api_string,
+                'top':'local',
+                'chain':chain or [],
+                'base':base,
+                'direct_name_callee':direct_name,
+            })
+            return
+        top=self.symbols.get_top(base)
+        if not top:
+            return
+        print(f"调用:{api_string}")
+        print(f"基符号:{base}")
+        print(f"顶层库:{top}")
+        print()
+        self.api_calls.append({
+            'api':api_string,
+            'top':top,
+            'chain':self.symbols.get_chain(base),
+            'base':base,
+            'direct_name_callee':direct_name,
+        })
+
+    def visit_Call(self,node):
+        for sub in self._chained_prefix_calls(node):
+            self._one_api_call(sub)
         self.generic_visit(node)
 
     def get_call(self,node):
@@ -455,6 +542,7 @@ class APITracer(ast.NodeVisitor):
 
     def visit_FunctionDef(self,node):
         self.local.add(node.name)
+        self.defined_functions.add(node.name)
         self.symbols.add(node.name,"local")
         params=[]
         for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
@@ -475,6 +563,7 @@ class APITracer(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self,node):
         self.local.add(node.name)
+        self.defined_functions.add(node.name)
         self.symbols.add(node.name,"local")
         params=[]
         for arg in (getattr(node.args,"posonlyargs",[])+node.args.args+getattr(node.args,"kwonlyargs",[])):
@@ -513,7 +602,9 @@ class APITracer(ast.NodeVisitor):
                 bases.append(base_symbol)
         self.class_methods[node.name]=methods
         self.class_bases[node.name]=bases
+        self._class_stack.append(node.name)
         self.generic_visit(node)
+        self._class_stack.pop()
         self._bind_decorated_target(node.name,node.decorator_list)
 
     def visit_With(self,node):

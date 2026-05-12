@@ -38,10 +38,55 @@ class CrossFileAnalyzer:
         else:
             return False
 
+    def _total_defined_function_names(self,tracers):
+        names=set()
+        for t in tracers.values():
+            names.update(getattr(t,"defined_functions",()))
+        return names
+
+    def _ignore_api(self,module,call_detail,tracers):
+        base=call_detail.get('base')
+        tracer=tracers.get(module)
+        if not tracer:
+            return False
+        if isinstance(base,tuple): #结构化来源
+            return False
+        all_local_funcs=self._total_defined_function_names(tracers)
+        dn=call_detail.get('direct_name_callee') #foo()
+        if dn:
+            if dn in getattr(tracer,"defined_functions",set()): 
+                return True
+            imp=tracer.import_from_symbols.get(dn) #导入
+            if imp and self.is_local(imp) and imp in tracers:
+                src_tr=tracers[imp]
+                if dn in getattr(src_tr,"defined_functions",set()):
+                    return True
+        if not isinstance(base,str):
+            return False
+        chain=self.symbol_chains.get(module,{}).get(base)
+        if not chain:
+            chain=call_detail.get("chain") or []
+        for elem in chain:
+            if isinstance(elem,str) and elem in all_local_funcs: #是本地定义
+                return True
+        return False
+
     def get_calls(self,module_tracers):
         for module,tracer in module_tracers.items():
             self.all_calls[module]=[]
             for call_detail in tracer.api_calls:
+                if call_detail.get('top')=='local':
+                    self.all_calls[module].append({
+                        'api':call_detail['api'],
+                        'top':'local',
+                    }) #单文件来源为本地定义
+                    continue
+                if self._ignore_api(module,call_detail,module_tracers):
+                    self.all_calls[module].append({
+                        'api':call_detail['api'],
+                        'top':'local',
+                    }) #跨文件忽略
+                    continue
                 base=call_detail['base']
                 if base in self.global_symbols.get(module,{}):
                     top_source=self.global_symbols[module][base]
@@ -188,6 +233,8 @@ class CrossFileAnalyzer:
             if not tracer:
                 return None
             class_symbol=tracer.symbols.direct.get(a)
+            if a in tracer.class_methods and class_symbol=="local":
+                class_symbol=a
             if not class_symbol:
                 return None
             resolved=self._resolve_method_symbol(module,class_symbol,b,tracers,set())
