@@ -2,7 +2,16 @@
 
 Static analysis tool that traces every API call in a Python project back to its origin library (e.g. `requests`, `numpy`, `flask`) or identifies it as `local` / `python` builtin.
 
+[![PyPI](https://img.shields.io/pypi/v/pcresolve)](https://pypi.org/project/pcresolve/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 ## Installation
+
+```bash
+pip install pcresolve
+```
+
+For development:
 
 ```bash
 pip install -e .
