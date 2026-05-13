@@ -1,0 +1,802 @@
+## @package pcresolve.single_file
+#  Provide single-file AST-based API call tracing.
+#
+#  Contains the SingleFileAnalyzer class which visits every node in a
+#  Python file's AST and builds a symbol table + list of API calls with
+#  their resolved top-level origin libraries.
+
+import ast
+from .symbol_table import SymbolTable
+from .types import FileAnalysis, ApiCall
+
+
+## AST visitor that traces all symbols and API calls in a single Python file.
+#
+#  Walks the AST to:
+#  - Record import mappings and their aliases
+#  - Track assignments, function/class definitions, decorators
+#  - Resolve with/for return-value flows
+#  - Handle container indexing, class inheritance, method resolution
+#  - Detect and classify all API call expressions
+class SingleFileAnalyzer(ast.NodeVisitor):
+    ## Initialize the analyzer with empty state.
+    def __init__(self):
+        self.symbols = SymbolTable()
+        self.api_calls = []
+        self.attr_accesses = []
+        self.local = set()
+        self._func_stack = []
+        self._class_stack = []
+        self._seen_api_call_ids = set()
+        self.defined_functions = set()
+        self.function_params = {}
+        self.container_items = {}
+        self.container_lengths = {}
+        self.container_set_sources = {}
+        self.class_methods = {}
+        self.class_bases = {}
+        self.import_from_symbols = {}
+
+    ## --- Import visitors ---
+
+    ## Visit an Import node and record alias-to-module mappings.
+    #  @param node The Import AST node.
+    def visit_Import(self, node):
+        for alias in node.names:
+            symbol = alias.asname if alias.asname else alias.name
+            self.symbols.add(symbol, alias.name)
+        self.generic_visit(node)
+
+    ## Visit an ImportFrom node and record alias-to-module mappings.
+    #  @param node The ImportFrom AST node.
+    def visit_ImportFrom(self, node):
+        for alias in node.names:
+            symbol = alias.asname if alias.asname else alias.name
+            self.symbols.add(symbol, node.module)
+            self.import_from_symbols[symbol] = node.module
+        self.generic_visit(node)
+
+    ## --- Source tracing ---
+
+    ## Trace an AST expression node back to its source symbol/structured origin.
+    #
+    #  Handles Name, Call, Attribute, Lambda, Subscript, and literal nodes.
+    #  For Call nodes, tries getattr(), importlib.import_module(), partial(),
+    #  method resolution, and chained-call receiver resolution.
+    #  @param node The AST expression node.
+    #  @return A symbol string, a structured tuple, or None.
+    def trace_source(self, node):
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Call):
+            getattr_src = self._resolve_getattr_trace(node)
+            if getattr_src:
+                return getattr_src
+            import_mod = self._resolve_import_module_trace(node)
+            if import_mod:
+                return import_mod
+            if self._is_partial_call(node) and node.args:
+                return self.get_base(node.args[0])
+            me = self._resolve_methods(node)
+            if me:
+                return me
+            call_key = self.get_base(node, call_lookup=True)
+            if call_key:
+                return call_key
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
+                inner_source = self.trace_source(node.func.value)
+                if inner_source:
+                    return inner_source
+            return self.get_base(node.func)
+        elif isinstance(node, ast.Attribute):
+            return self.get_base(node)
+        elif isinstance(node, ast.Lambda):
+            return self.get_base(node.body)
+        elif isinstance(node, ast.Subscript):
+            container_name = self.get_base(node.value)
+            key_idx = self._get_slice(node.slice)
+            if container_name is not None and key_idx is not None:
+                key_value = self._container_index(container_name, key_idx)
+                lookup_key = (container_name, key_value)
+                if lookup_key in self.container_items:
+                    return self.container_items[lookup_key]
+                return ("container_item", container_name, key_idx)
+            return container_name
+        elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
+            if isinstance(node, ast.Dict):
+                value_nodes = node.values
+            else:
+                value_nodes = node.elts
+            bases = set()
+            for v in value_nodes:
+                base = self.get_base(v)
+                if base:
+                    bases.add(base)
+            if len(bases) == 1:
+                return next(iter(bases))
+            return None
+        elif isinstance(node, ast.Constant):
+            return str(node.value)
+        return None
+
+    ## Extract a string literal from an AST node.
+    #  @param node The AST node.
+    #  @return String value, or None.
+    def _literal_str(self, node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    ## Check if a call node is a functools.partial() call.
+    #  @param node The Call AST node.
+    #  @return True if the call is partial().
+    def _is_partial_call(self, node):
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        if isinstance(func, ast.Name) and func.id == 'partial':
+            return True
+        if isinstance(func, ast.Attribute) and func.attr == 'partial':
+            return True
+        return False
+
+    ## Check if a call node is a getattr() call.
+    #  @param node The Call AST node.
+    #  @return True if the call is getattr().
+    def _is_getattr_call(self, node):
+        if not isinstance(node, ast.Call) or len(node.args) < 2:
+            return False
+        func = node.func
+        if isinstance(func, ast.Name) and func.id == "getattr":
+            return True
+        if isinstance(func, ast.Attribute) and func.attr == "getattr":
+            return True
+        return False
+
+    ## Resolve a getattr(obj, name) call to the object's base.
+    #  @param node The Call AST node.
+    #  @return The object's source, or None.
+    def _resolve_getattr_trace(self, node):
+        if not self._is_getattr_call(node):
+            return None
+        name_lit = self._literal_str(node.args[1])
+        if name_lit is None:
+            return None
+        obj_key = self.trace_source(node.args[0])
+        if obj_key is None:
+            return None
+        return obj_key
+
+    ## Check if a symbol ultimately originates from importlib.
+    #  @param symbol The symbol to check.
+    #  @return True if the symbol traces to importlib.
+    def _is_importlib_module(self, symbol):
+        if not isinstance(symbol, str):
+            return False
+        if symbol == "importlib":
+            return True
+        top = self.symbols.get_top(symbol)
+        return top == "importlib"
+
+    ## Check if a call node is importlib.import_module().
+    #  @param node The Call AST node.
+    #  @return True if the call is import_module().
+    def _is_import_module_call(self, node):
+        if not isinstance(node, ast.Call) or not node.args:
+            return False
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "import_module":
+            root = self.get_base(func.value)
+            if root and self._is_importlib_module(root):
+                return True
+            return False
+        if isinstance(func, ast.Name) and func.id == "import_module":
+            if self.import_from_symbols.get("import_module") == "importlib":
+                return True
+            return False
+        return False
+
+    ## Resolve an importlib.import_module("name") call to the module name.
+    #  @param node The Call AST node.
+    #  @return The module name string, or None.
+    def _resolve_import_module_trace(self, node):
+        if not self._is_import_module_call(node):
+            return None
+        name = self._literal_str(node.args[0])
+        if name is None:
+            return None
+        return name
+
+    ## Extract a constant integer or negated constant from a slice node.
+    #  @param slice_node The AST slice node.
+    #  @return Integer value, or None.
+    def _get_slice(self, slice_node):
+        if isinstance(slice_node, ast.Constant):
+            return slice_node.value
+        if isinstance(slice_node, ast.UnaryOp) and isinstance(slice_node.op, ast.USub) and isinstance(slice_node.operand, ast.Constant):
+            return -slice_node.operand.value
+        return None
+
+    ## Normalize a negative container index to its positive equivalent.
+    #  @param container_name The name of the container variable.
+    #  @param idx The raw index value.
+    #  @return Adjusted index value.
+    def _container_index(self, container_name, idx):
+        if not isinstance(idx, int):
+            return idx
+        if idx >= 0:
+            return idx
+        n = self.container_lengths.get(container_name)
+        if n:
+            return idx + n
+        return idx
+
+    ## --- Method resolution ---
+
+    ## Attempt to resolve an instance method call to a class member.
+    #
+    #  Handles self.method(), known_object.method(), and chained attribute calls.
+    #  @param node The Call AST node.
+    #  @return Method name, structured ("instance_method", ...) tuple, or None.
+    def _resolve_methods(self, node):
+        if not isinstance(node, ast.Call):
+            return None
+        func = node.func
+        if not isinstance(func, ast.Attribute):
+            return None
+        re = func.value
+        method_name = func.attr
+
+        def _resolve_on_class(class_name, receiver_key):
+            if not class_name:
+                return None
+            methods = self.class_methods.get(class_name, [])
+            if methods and method_name in methods:
+                return method_name
+            if class_name in self.class_methods or class_name in self.import_from_symbols:
+                return ("instance_method", receiver_key, method_name)
+            return None
+
+        if isinstance(re, ast.Name):
+            if re.id == "self" and self._class_stack:
+                cn = self._class_stack[-1]
+                return _resolve_on_class(cn, cn)
+            class_name = self.symbols.direct.get(re.id)
+            if not class_name:
+                return None
+            methods = self.class_methods.get(class_name)
+            if methods and method_name in methods:
+                return method_name
+            if class_name in self.class_methods or class_name in self.import_from_symbols:
+                return ("instance_method", re.id, method_name)
+            return None
+
+        if isinstance(re, ast.Attribute):
+            chain = self._attribute_chain_list(re)
+            if chain and chain[0] == "self" and self._class_stack:
+                cn = self._class_stack[-1]
+                return _resolve_on_class(cn, cn)
+        return None
+
+    ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
+    #  @param node The starting Attribute node.
+    #  @return List of name parts from root to leaf, or None.
+    def _attribute_chain_list(self, node):
+        parts = []
+        remain = node
+        while isinstance(remain, ast.Attribute):
+            parts.append(remain.attr)
+            remain = remain.value
+        if isinstance(remain, ast.Name):
+            parts.append(remain.id)
+            return list(reversed(parts))
+        return None
+
+    ## Reconstruct a dotted attribute name from an AST node.
+    #  @param node The Attribute or Name node.
+    #  @return Dotted name string (e.g. "os.path.join"), or None.
+    def _attribute_name(self, node):
+        chain = self._attribute_chain_list(node)
+        if chain:
+            return ".".join(chain)
+        return None
+
+    ## Find the root receiver of a call expression.
+    #
+    #  Unwinds chained calls and attributes to find the base object.
+    #  @param receiver_node The receiver AST node.
+    #  @return Base symbol name, or None.
+    def _resolve_call_receiver(self, receiver_node):
+        if isinstance(receiver_node, ast.Name):
+            return receiver_node.id
+        if isinstance(receiver_node, ast.Attribute):
+            receiver_name = self._attribute_name(receiver_node)
+            if receiver_name is not None:
+                return receiver_name
+            return self._resolve_call_receiver(receiver_node.value)
+        if isinstance(receiver_node, ast.Call):
+            inner_receiver = self.get_base(receiver_node, call_lookup=True)
+            if inner_receiver is not None:
+                return inner_receiver
+            return self.get_base(receiver_node.func, call_lookup=False)
+        return None
+
+    ## --- Decorator binding ---
+
+    ## Bind a decorated target to its decorator's source.
+    #
+    #  Applies decorators from innermost to outermost, so the target resolves
+    #  to whatever the outermost decorator returns.
+    #  @param target_name Name of the decorated function/class.
+    #  @param decorator_nodes List of decorator AST nodes.
+    def _bind_decorated_target(self, target_name, decorator_nodes):
+        if not decorator_nodes:
+            return
+        current_source = target_name
+        for deco in reversed(decorator_nodes):
+            deco_source = self.trace_source(deco)
+            if deco_source:
+                current_source = deco_source
+        if current_source and current_source != target_name:
+            self.symbols.add(target_name, current_source)
+
+    ## --- Assignment helpers ---
+
+    ## Bind assignment targets to a source value.
+    #
+    #  Handles simple names, self.attr, and tuple/list unpacking.
+    #  @param target The assignment target AST node.
+    #  @param source The source symbol or structured tuple.
+    def _target_to_source(self, target, source):
+        if not source:
+            return
+        if isinstance(target, ast.Name):
+            self.symbols.add(target.id, source)
+            return
+        if isinstance(target, ast.Attribute):
+            name = self._attribute_name(target)
+            if name and name.startswith("self."):
+                self.symbols.add(name, source)
+            return
+        if isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                self._target_to_source(elt, source)
+
+    ## Trace the source of a for-loop iterator.
+    #  @param iter_node The iterator AST node.
+    #  @return Source symbol, structured tuple, or None.
+    def _iter_source(self, iter_node):
+        if isinstance(iter_node, ast.Name):
+            container_name = iter_node.id
+            has_items = False
+            for k in self.container_items.keys():
+                if k[0] == container_name:
+                    has_items = True
+                    break
+            has_set = container_name in self.container_set_sources
+            if has_items or has_set:
+                return ("container_iter", container_name, "*")
+        source = self.trace_source(iter_node)
+        if source:
+            return source
+        return self.get_base(iter_node)
+
+    ## --- Base extraction ---
+
+    ## Extract the root/base name from an expression node.
+    #
+    #  For simple names returns the name. For attributes returns the chain root.
+    #  For calls with call_lookup=True, resolves the call receiver.
+    #  @param node The AST expression node.
+    #  @param call_lookup If True, resolve call receivers instead of just func base.
+    #  @return Root symbol name, or None.
+    def get_base(self, node, call_lookup=False):
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Attribute):
+            chain = self._attribute_chain_list(node)
+            if chain:
+                return chain[0]
+        elif isinstance(node, ast.Call):
+            if self._is_partial_call(node) and node.args:
+                return self.get_base(node.args[0], call_lookup=call_lookup)
+            if call_lookup:
+                func = node.func
+                if isinstance(func, ast.Attribute):
+                    return self._resolve_call_receiver(func.value)
+                if isinstance(func, ast.Call):
+                    return self._resolve_call_receiver(func)
+                if isinstance(func, ast.Name):
+                    return func.id
+                return None
+            return self.get_base(node.func, call_lookup=False)
+        elif isinstance(node, ast.Lambda):
+            return self.get_base(node.body, call_lookup=call_lookup)
+        return None
+
+    ## --- Visit handlers ---
+
+    ## Visit an Assign node and record symbol bindings.
+    #
+    #  Handles dict/list/tuple/set container tracking, and traces the
+    #  right-hand side to bind target symbols.
+    #  @param node The Assign AST node.
+    def visit_Assign(self, node):
+        if isinstance(node.value, ast.Dict):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    container_name = target.id
+                    for key_node, value_node in zip(node.value.keys, node.value.values):
+                        if isinstance(key_node, ast.Constant):
+                            key_value = key_node.value
+                            value_source = self.get_base(value_node)
+                            if value_source:
+                                self.container_items[(container_name, key_value)] = value_source
+
+        if isinstance(node.value, (ast.List, ast.Tuple)):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    container_name = target.id
+                    n = len(node.value.elts)
+                    self.container_lengths[container_name] = n
+                    for i, elt in enumerate(node.value.elts):
+                        value_source = self.get_base(elt)
+                        if value_source:
+                            self.container_items[(container_name, i)] = value_source
+
+        if isinstance(node.value, ast.Set):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    container_name = target.id
+                    bases = set()
+                    for elt in node.value.elts:
+                        base = self.get_base(elt)
+                        if base:
+                            bases.add(base)
+                    if bases:
+                        self.container_set_sources[container_name] = bases
+
+        right = self.trace_source(node.value)
+        if right:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    if (
+                        isinstance(right, tuple)
+                        and len(right) == 3
+                        and right[0] == "instance_method"
+                        and right[1] == target.id
+                    ):
+                        continue
+                    self.symbols.add(target.id, right)
+                elif isinstance(target, ast.Attribute):
+                    name = self._attribute_name(target)
+                    if name and name.startswith("self."):
+                        if (
+                            isinstance(right, tuple)
+                            and len(right) == 3
+                            and right[0] == "instance_method"
+                            and right[1] == name
+                        ):
+                            continue
+                        self.symbols.add(name, right)
+        self.generic_visit(node)
+
+    ## --- API call detection ---
+
+    ## Resolve the base of an API call for origin tracking.
+    #
+    #  Tries getattr(), import_module(), method resolution, and
+    #  call-lookup receiver resolution in order.
+    #  @param node The Call AST node.
+    #  @return Base symbol, structured tuple, or None.
+    def _resolve_call_base_for_api(self, node):
+        if self._is_getattr_call(node):
+            if self._literal_str(node.args[1]) is not None:
+                g = self.trace_source(node.args[0])
+                if g is not None:
+                    return g
+        if self._is_import_module_call(node):
+            im = self._resolve_import_module_trace(node)
+            if im is not None:
+                return im
+        base = self._resolve_methods(node)
+        if base is not None:
+            return base
+        call_lookup_base = self.get_base(node, call_lookup=True)
+        if call_lookup_base is not None:
+            return call_lookup_base
+        return self.get_base(node.func)
+
+    ## Collect all prefix calls in a chained call expression.
+    #
+    #  For a.b().c().d(), returns [a.b(), c(), d()] in call order.
+    #  @param node The outermost Call AST node.
+    #  @return List of Call nodes from outermost to innermost chain, reversed.
+    def _chained_prefix_calls(self, node):
+        if not isinstance(node, ast.Call):
+            return []
+        out = []
+        cur = node
+        while isinstance(cur, ast.Call):
+            out.append(cur)
+            f = cur.func
+            if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Call):
+                cur = f.value
+            else:
+                break
+        out.reverse()
+        return out
+
+    ## Get the symbol chain for a given base.
+    #  @param base The base symbol string or structured tuple.
+    #  @return Resolution chain list.
+    def _chain_for_base(self, base):
+        if not isinstance(base, str):
+            return []
+        ch = self.symbols.chains.get(base)
+        if ch:
+            return ch
+        return self.symbols.trace(base)
+
+    ## Determine whether an API call should be classified as local.
+    #
+    #  A call is local if its base symbol or any link in its chain is a
+    #  locally defined function.
+    #  @param node The Call AST node.
+    #  @param base The resolved base symbol or structured tuple.
+    #  @return True if the call should be ignored (treated as local).
+    def _ignore_apis(self, node, base):
+        if isinstance(base, tuple):
+            return False
+        if isinstance(node.func, ast.Name) and node.func.id in self.defined_functions:
+            return True
+        if isinstance(base, str):
+            for link in self._chain_for_base(base):
+                if isinstance(link, str) and link in self.defined_functions:
+                    return True
+        return False
+
+    ## Record a single API call with its resolved top-level origin.
+    #  @param node The Call AST node.
+    def _one_api_call(self, node):
+        if id(node) in self._seen_api_call_ids:
+            return
+        self._seen_api_call_ids.add(id(node))
+        api_string = self.get_call(node)
+        base = self._resolve_call_base_for_api(node)
+        if not base:
+            return
+
+        if isinstance(node.func, ast.Name):
+            direct_name = node.func.id
+        else:
+            direct_name = None
+
+        if self._ignore_apis(node, base):
+            if isinstance(base, str):
+                chain = self.symbols.get_chain(base)
+            else:
+                chain = []
+            if isinstance(base, str) and not chain:
+                chain = self.symbols.trace(base)
+            self.api_calls.append({
+                'api': api_string,
+                'top': 'local',
+                'chain': chain or [],
+                'base': base,
+                'direct_name_callee': direct_name,
+            })
+            return
+
+        top = self.symbols.get_top(base)
+        if not top:
+            return
+
+        self.api_calls.append({
+            'api': api_string,
+            'top': top,
+            'chain': self.symbols.get_chain(base),
+            'base': base,
+            'direct_name_callee': direct_name,
+        })
+
+    ## Reconstruct a call expression as a string.
+    #  @param node The Call AST node.
+    #  @return String representation like "func(arg1, arg2, kw=val)".
+    def get_call(self, node):
+        func_str = ast.unparse(node.func)
+        parts = [ast.unparse(a) for a in node.args]
+        if node.keywords:
+            for kw in node.keywords:
+                if kw.arg:
+                    parts.append(f"{kw.arg}={ast.unparse(kw.value)}")
+                else:
+                    parts.append(f"**{ast.unparse(kw.value)}")
+        args_str = ", ".join(parts)
+        return f"{func_str}({args_str})"
+
+    ## Visit a Call node and record API calls from its chained prefix calls.
+    #  @param node The Call AST node.
+    def visit_Call(self, node):
+        for sub in self._chained_prefix_calls(node):
+            self._one_api_call(sub)
+        self.generic_visit(node)
+
+    ## Visit an Attribute access node and record the top-level origin.
+    #  @param node The Attribute AST node.
+    def visit_Attribute(self, node):
+        attr_string = ast.unparse(node)
+        name = self._attribute_name(node)
+        if name and name in self.symbols.direct:
+            base = name
+        else:
+            base = self.get_base(node)
+        if base:
+            top = self.symbols.get_top(base)
+            if top:
+                self.attr_accesses.append({
+                    'attr': attr_string,
+                    'top': top,
+                    'chain': self.symbols.get_chain(base)
+                })
+        self.generic_visit(node)
+
+    ## Visit a FunctionDef node and register it as a local definition.
+    #  @param node The FunctionDef AST node.
+    def visit_FunctionDef(self, node):
+        self.local.add(node.name)
+        self.defined_functions.add(node.name)
+        self.symbols.add(node.name, "local")
+        params = []
+        for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
+            if arg.arg != "self":
+                params.append(arg.arg)
+                self.symbols.add(arg.arg, "local")
+        if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
+            params.append(node.args.vararg.arg)
+            self.symbols.add(node.args.vararg.arg, "local")
+        if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
+            params.append(node.args.kwarg.arg)
+            self.symbols.add(node.args.kwarg.arg, "local")
+        self.function_params[node.name] = params
+        self._func_stack.append(node.name)
+        self.generic_visit(node)
+        self._func_stack.pop()
+        self._bind_decorated_target(node.name, node.decorator_list)
+
+    ## Visit an AsyncFunctionDef node and register it as a local definition.
+    #  @param node The AsyncFunctionDef AST node.
+    def visit_AsyncFunctionDef(self, node):
+        self.local.add(node.name)
+        self.defined_functions.add(node.name)
+        self.symbols.add(node.name, "local")
+        params = []
+        for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
+            if arg.arg != "self":
+                params.append(arg.arg)
+                self.symbols.add(arg.arg, "local")
+        if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
+            params.append(node.args.vararg.arg)
+            self.symbols.add(node.args.vararg.arg, "local")
+        if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
+            params.append(node.args.kwarg.arg)
+            self.symbols.add(node.args.kwarg.arg, "local")
+        self.function_params[node.name] = params
+        self._func_stack.append(node.name)
+        self.generic_visit(node)
+        self._func_stack.pop()
+        self._bind_decorated_target(node.name, node.decorator_list)
+
+    ## Visit a ClassDef node and register it with its method and base lists.
+    #  @param node The ClassDef AST node.
+    def visit_ClassDef(self, node):
+        self.local.add(node.name)
+        self.symbols.add(node.name, "local")
+        methods = []
+        bases = []
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods.append(item.name)
+        for base_node in node.bases:
+            base_symbol = None
+            if isinstance(base_node, ast.Name):
+                base_symbol = base_node.id
+            elif isinstance(base_node, ast.Attribute):
+                base_symbol = self._attribute_name(base_node) or self.get_base(base_node)
+            else:
+                base_symbol = self.get_base(base_node)
+            if base_symbol:
+                bases.append(base_symbol)
+        self.class_methods[node.name] = methods
+        self.class_bases[node.name] = bases
+        self._class_stack.append(node.name)
+        self.generic_visit(node)
+        self._class_stack.pop()
+        self._bind_decorated_target(node.name, node.decorator_list)
+
+    ## Visit a With node and bind context-variable aliases.
+    #  @param node The With AST node.
+    def visit_With(self, node):
+        for item in node.items:
+            source = self.trace_source(item.context_expr)
+            if item.optional_vars is not None:
+                self._target_to_source(item.optional_vars, source)
+        self.generic_visit(node)
+
+    ## Visit an AsyncWith node and bind context-variable aliases.
+    #  @param node The AsyncWith AST node.
+    def visit_AsyncWith(self, node):
+        for item in node.items:
+            source = self.trace_source(item.context_expr)
+            if item.optional_vars is not None:
+                self._target_to_source(item.optional_vars, source)
+        self.generic_visit(node)
+
+    ## Visit a For node and bind the loop variable to the iterator source.
+    #  @param node The For AST node.
+    def visit_For(self, node):
+        source = self._iter_source(node.iter)
+        self._target_to_source(node.target, source)
+        self.generic_visit(node)
+
+    ## Visit an AsyncFor node and bind the loop variable to the iterator source.
+    #  @param node The AsyncFor AST node.
+    def visit_AsyncFor(self, node):
+        source = self._iter_source(node.iter)
+        self._target_to_source(node.target, source)
+        self.generic_visit(node)
+
+    ## Visit a Return node and trace return-value flow to the enclosing function.
+    #  @param node The Return AST node.
+    def visit_Return(self, node):
+        if self._func_stack and node.value is not None:
+            func_name = self._func_stack[-1]
+            if not isinstance(node.value, ast.Constant):
+                source = None
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                    callee = node.value.func.id
+                    is_params = False
+                    for name in reversed(self._func_stack):
+                        if callee in self.function_params.get(name, []):
+                            is_params = True
+                            break
+                    if is_params:
+                        if node.value.args:
+                            arg_source = self.trace_source(node.value.args[0])
+                            if arg_source:
+                                source = arg_source
+                        if source is None:
+                            source = callee
+                if source is None:
+                    source = self.trace_source(node.value)
+                if source and source in self.symbols.direct:
+                    self.symbols.add(func_name, source)
+        self.generic_visit(node)
+
+
+## Analyze a single Python source string and return structured results.
+#
+#  Convenience function that parses source code and runs a full analysis
+#  pass, returning a FileAnalysis object.
+#  @param source Python source code as a string.
+#  @param file_path Optional file path for the FileAnalysis record.
+#  @return FileAnalysis with symbols, chains, and API calls.
+def analyze_source(source, file_path="<string>"):
+    tree = ast.parse(source)
+    tracer = SingleFileAnalyzer()
+    tracer.visit(tree)
+    return FileAnalysis(
+        file_path=file_path,
+        module_name="",
+        symbols=dict(tracer.symbols.direct),
+        chains=dict(tracer.symbols.chains),
+        api_calls=[
+            ApiCall(
+                expression=c['api'],
+                top_library=c['top'],
+                base_symbol=str(c.get('base', '')),
+                chain=c.get('chain', []),
+            )
+            for c in tracer.api_calls
+        ],
+    )

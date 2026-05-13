@@ -1,48 +1,105 @@
-# API Call Chain Tracing for Python Third-Party Libraries Based on Static Analysis 2026.4.23
+# PCResolve — Python API Call Chain Tracing
 
-## Project Overview
-The project aims to implement API call chain tracing for Python third-party libraries based on static analysis.
+Static analysis tool that traces every API call in a Python project back to its origin library (e.g. `requests`, `numpy`, `flask`) or identifies it as `local` / `python` builtin.
 
-## Project Progress
+## Installation
 
-### Project Timeline
-- [x] Implement scanning of project directories and mapping of file paths to module names based on the `getPath` file from the PCART project.
-- [x] Build an AST using the `ast` module to parse project source code, implement a basic single-file analyzer to extract fundamental API call patterns.
-- [x] Implement complete tracing of symbol source chains and call chains within a single file.
-- [x] Design a global symbol table based on the single-file symbol table and module mapper to enable cross-file symbol tracing.
-- [x] Extend support for various API call forms by designing dedicated analysis modules for complex invocation patterns.
-- [ ] Introduce flow‑sensitive analysis to improve symbol resolution accuracy,using control flow graphs built from the AST to analyze execution paths.
-- [ ] Integrate and refine the above components to implement a complete call analyzer and test it on real‑world projects.
+```bash
+pip install -e .
+```
 
-### Supported API Call/Tracing Types
-- [x] **Direct import+direct call**:fully supported
-- [x] **From/as import+alias call**:fully supported
-- [ ] **Variable binding/container storage/closure capture**:mostly supported；dictionaries support constant keys
-- [x] **partial/lambda(lightweight wrappers)**:fully supported
-- [x] **Object‑oriented encapsulation & inheritance**: fully supported
-- [x] **Cross‑file shared third‑party instances**:fully supported
-- [x] **Decorator pattern**:fully supported
-- [x] **Context managers/protocols**:fully supported
-- [x] **Chained calls/Fluent API/sub‑resource objects**:partially supported; the origin of the root object can usually be determined
-- [x] **Reflection/getattr/importlib dynamic calls**:not supported
-- [ ] **Plugin registries/configuration‑driven calls**:partially supported(currently only recognizes third‑party calls written directly inside registration functions)
-- [ ] **Monkey patch/mock patch**:not supported
-- [ ] **Descriptors/metaclasses/ORM‑style implicit calls**:partially supported (calls directly written inside these methods can be traced)
-- [ ] **Eval/exec/AST dynamic execution**:not supported
+No third-party dependencies — pcresolve uses only the Python standard library (`ast`, `os`, `sys`, `builtins`, `copy`, `typing`).
 
-## Output
-- Global symbol table(symbol→ultimate source)
-- Global trace chain(how symbols recursively resolve to the ultimate source via aliases/return values)
-- Calls(call expression + top‑level source library)
-- Parsed AST tree
+Requires Python 3.9+.
 
-## How to Run
-Run `main.py` and input the absolute path to the project root directory.
+## Quick Start
 
-## Runtime Environment
-- Operating system tested:Windows 10(x64)
-- Python version:3.11+
-- Dependency installation:no extra third-party dependencies required for this project itself
-- Python standard libraries used:`ast`,`os`,`sys`,`copy`,`builtins`,`typing`
-- Input requirement:provide an absolute path to a Python project directory
+### CLI
 
+```bash
+# Human-readable output
+pcresolve /path/to/project
+
+# JSON output
+pcresolve --json /path/to/project
+
+# Or as a module
+python -m pcresolve /path/to/project
+```
+
+### Library API
+
+```python
+from pcresolve import analyze_project, analyze_source
+
+# Analyze an entire project
+result = analyze_project("/path/to/project")
+for call in result.all_api_calls:
+    print(f"{call.expression} -> {call.top_library}")
+
+# Analyze a single source string
+code = '''
+import requests
+resp = requests.get("https://example.com")
+'''
+result = analyze_source(code, file_path="example.py")
+for sym, top in result.symbols.items():
+    print(f"{sym} -> {top}")
+```
+
+## Public API
+
+| Name | Description |
+|------|-------------|
+| `analyze_project(root)` | Full project analysis, returns `ProjectAnalysis` |
+| `analyze_source(code)` | Single-file analysis, returns `FileAnalysis` |
+| `scan_directory(root)` | Discover .py/.pyi files, returns `list[str]` |
+| `ProjectAnalyzer(root)` | Orchestrator class (step-by-step control) |
+| `SingleFileAnalyzer()` | AST visitor class for one file |
+| `ModuleMapper(root)` | File-path to module-name bidirectional mapping |
+| `SymbolTable()` | Per-symbol chain tracking |
+| `FileScanner()` | File system scanner |
+
+## Output Types
+
+```python
+@dataclass
+class ApiCall:
+    expression: str       # "requests.get('url')"
+    top_library: str      # "requests", "python", "local"
+    base_symbol: str      # Root symbol name
+    chain: list           # Resolution chain
+
+@dataclass
+class FileAnalysis:
+    file_path: str
+    module_name: str
+    symbols: dict         # symbol -> top-level source
+    chains: dict          # symbol -> resolution chain
+    api_calls: list[ApiCall]
+
+@dataclass
+class ProjectAnalysis:
+    project_root: str
+    files: list[FileAnalysis]
+    all_api_calls: list[ApiCall]
+```
+
+## Supported Patterns
+
+- Direct import + direct call
+- `from/as` import + alias call
+- Variable binding / container storage (dict, list, tuple, set)
+- `partial` / lambda wrappers
+- Class encapsulation & inheritance
+- Cross-file shared third-party instances
+- Decorator pattern
+- Context managers / protocols (with, async with)
+- Chained calls / fluent API
+- `getattr` / `importlib.import_module` dynamic calls
+
+## Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
