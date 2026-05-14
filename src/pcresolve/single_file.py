@@ -319,6 +319,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if inner_receiver is not None:
                 return inner_receiver
             return self.get_base(receiver_node.func, call_lookup=False)
+        if isinstance(receiver_node, ast.BinOp):
+            left = self.get_base(receiver_node.left, call_lookup=True)
+            if left is not None:
+                return left
+            return self.get_base(receiver_node.right, call_lookup=True)
         return None
 
     ## --- Decorator binding ---
@@ -397,6 +402,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             chain = self._attribute_chain_list(node)
             if chain:
                 return chain[0]
+            return self.get_base(node.value, call_lookup=call_lookup)
         elif isinstance(node, ast.Call):
             if self._is_partial_call(node) and node.args:
                 return self.get_base(node.args[0], call_lookup=call_lookup)
@@ -410,6 +416,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return func.id
                 return None
             return self.get_base(node.func, call_lookup=False)
+        elif isinstance(node, ast.BinOp):
+            left = self.get_base(node.left, call_lookup=call_lookup)
+            if left is not None:
+                return left
+            return self.get_base(node.right, call_lookup=call_lookup)
         elif isinstance(node, ast.Lambda):
             return self.get_base(node.body, call_lookup=call_lookup)
         return None

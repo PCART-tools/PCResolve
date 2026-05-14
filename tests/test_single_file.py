@@ -5,7 +5,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pcresolve.single_file import analyze_source
+import ast
+from pcresolve.single_file import analyze_source, SingleFileAnalyzer
 
 
 def test_basic_imports():
@@ -89,6 +90,41 @@ requests.post('http://example.com', data={'k': 'v'})"""
     assert any("post" in c for c in api_calls)
 
 
+def test_binop_receiver_and_broken_chain():
+    """Methods called on BinOp results and across Call-broken attribute
+    chains should be detected as API calls, and intermediate attribute
+    accesses should be traced."""
+    code = """import polars as pl
+result = ((pl.col("time") - pl.col("time").first()).last().dt.days() + 1).alias("days_in_month")
+"""
+    result = analyze_source(code)
+    expressions = [c.expression for c in result.api_calls]
+
+    # .first() chain: pl.col('time') and pl.col('time').first()
+    assert any(".first()" in e for e in expressions), \
+        f"Missing .first() call in {expressions}"
+
+    # .last() on BinOp(Sub) receiver
+    assert any("last()" in e for e in expressions), \
+        f"Missing .last() call on BinOp receiver in {expressions}"
+
+    # .days() across Call-broken attribute chain (.last().dt.days)
+    assert any(".dt.days()" in e for e in expressions), \
+        f"Missing .days() call across broken chain in {expressions}"
+
+    # .alias() on BinOp(Add) receiver
+    assert any("alias" in e and "days_in_month" in e for e in expressions), \
+        f"Missing .alias() call on BinOp receiver in {expressions}"
+
+    # .dt attribute access on a Call result should be tracked
+    tree = ast.parse(code)
+    tracer = SingleFileAnalyzer()
+    tracer.visit(tree)
+    attr_strings = [a['attr'] for a in tracer.attr_accesses]
+    assert any(".dt" in a for a in attr_strings), \
+        f"Missing .dt attribute access in {attr_strings}"
+
+
 if __name__ == "__main__":
     test_basic_imports()
     test_alias_imports()
@@ -97,4 +133,5 @@ if __name__ == "__main__":
     test_local_class()
     test_decorator_binding()
     test_api_calls_collected()
+    test_binop_receiver_and_broken_chain()
     print("All SingleFileAnalyzer tests passed.")
