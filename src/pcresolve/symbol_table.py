@@ -36,6 +36,8 @@ class SymbolTable:
         if symbol not in self.direct:
             return [symbol]
         source = self.direct[symbol]
+        if not isinstance(source, str):
+            return [symbol, str(source)]
         subchain = self.trace(source, visited)
         return [symbol] + subchain
 
@@ -71,4 +73,5 @@ class SymbolTable:
         chain = self.trace(symbol)
         self.chains[symbol] = chain
         if chain:
-            self.top[symbol] = chain[-1]
+            last = chain[-1]
+            self.top[symbol] = last if isinstance(last, str) else str(last)

@@ -29,7 +29,7 @@ def _print_text(result):
         print(f"\n{f.module_name} module:")
         for symbol, chain in sorted(f.chains.items()):
             if chain:
-                chain_str = " -> ".join(chain)
+                chain_str = " -> ".join(str(item) for item in chain)
                 print(f"  {symbol}: {chain_str}")
 
     print("\nAll API calls:")

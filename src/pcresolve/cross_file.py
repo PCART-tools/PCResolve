@@ -56,8 +56,8 @@ class ProjectAnalyzer:
             files.append(FileAnalysis(
                 file_path=file_path,
                 module_name=module,
-                symbols=dict(tracer.symbols.direct),
-                chains=dict(tracer.symbols.chains),
+                symbols=self.global_symbols.get(module, {}),
+                chains=self.symbol_chains.get(module, {}),
                 api_calls=[
                     ApiCall(
                         expression=c['api'],
