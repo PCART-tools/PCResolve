@@ -16,10 +16,11 @@ import builtins
 #  - top: cached top-level origin for each symbol
 class SymbolTable:
     ## Initialize an empty symbol table.
-    def __init__(self):
+    def __init__(self, return_sources=None):
         self.direct = {}
         self.top = {}
         self.chains = {}
+        self.return_sources = return_sources if return_sources is not None else {}
 
     ## Recursively trace a symbol to build its resolution chain.
     #
@@ -30,12 +31,34 @@ class SymbolTable:
     def trace(self, symbol, visited=None):
         if visited is None:
             visited = set()
+        if isinstance(symbol, tuple) and len(symbol) == 3 and symbol[0] == "call_result":
+            callee = symbol[1]
+            rs = self.return_sources.get(callee)
+            if rs:
+                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                    return self.trace(rs, visited)
+                if isinstance(rs, str):
+                    return self.trace(rs, visited)
+            return self.trace(callee, visited)
         if symbol in visited:
             return []
         visited.add(symbol)
         if symbol not in self.direct:
             return [symbol]
         source = self.direct[symbol]
+        if isinstance(source, tuple) and len(source) == 3 and source[0] == "call_result":
+            callee = source[1]
+            rs = self.return_sources.get(callee)
+            if rs:
+                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                    sub = self.trace(rs, visited)
+                elif isinstance(rs, str):
+                    sub = self.trace(rs, visited)
+                else:
+                    sub = self.trace(callee, visited)
+            else:
+                sub = self.trace(callee, visited)
+            return [symbol] + sub
         if not isinstance(source, str):
             return [symbol, str(source)]
         subchain = self.trace(source, visited)

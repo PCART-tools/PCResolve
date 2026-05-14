@@ -21,7 +21,8 @@ from .types import FileAnalysis, ApiCall
 class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
     def __init__(self):
-        self.symbols = SymbolTable()
+        self.return_sources = {}
+        self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
         self.attr_accesses = []
         self.local = set()
@@ -82,7 +83,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return me
             call_key = self.get_base(node, call_lookup=True)
             if call_key:
-                return call_key
+                return ("call_result", call_key, None)
             if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
                 inner_source = self.trace_source(node.func.value)
                 if inner_source:
@@ -262,20 +263,33 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 cn = self._class_stack[-1]
                 return _resolve_on_class(cn, cn)
             class_name = self.symbols.direct.get(re.id)
+            if isinstance(class_name, tuple) and len(class_name) == 3 and class_name[0] == "call_result":
+                class_name = class_name[1]
             if not class_name:
                 return None
             methods = self.class_methods.get(class_name)
             if methods and method_name in methods:
                 return method_name
-            if class_name in self.class_methods or class_name in self.import_from_symbols:
+            if class_name in self.class_methods:
                 return ("instance_method", re.id, method_name)
+            if class_name in self.import_from_symbols:
+                return ("instance_method", class_name, method_name)
             return None
 
         if isinstance(re, ast.Attribute):
             chain = self._attribute_chain_list(re)
-            if chain and chain[0] == "self" and self._class_stack:
-                cn = self._class_stack[-1]
-                return _resolve_on_class(cn, cn)
+            if chain:
+                if chain[0] == "self" and self._class_stack:
+                    cn = self._class_stack[-1]
+                    return _resolve_on_class(cn, cn)
+                root = chain[0]
+                if root in self.import_from_symbols:
+                    return ("instance_method", root, method_name)
+                root_src = self.symbols.direct.get(root)
+                if isinstance(root_src, tuple) and len(root_src) == 3 and root_src[0] == "call_result":
+                    root_src = root_src[1]
+                if root_src in self.import_from_symbols:
+                    return ("instance_method", root_src, method_name)
         return None
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
@@ -538,35 +552,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         out.reverse()
         return out
 
-    ## Get the symbol chain for a given base.
-    #  @param base The base symbol string or structured tuple.
-    #  @return Resolution chain list.
-    def _chain_for_base(self, base):
-        if not isinstance(base, str):
-            return []
-        ch = self.symbols.chains.get(base)
-        if ch:
-            return ch
-        return self.symbols.trace(base)
-
-    ## Determine whether an API call should be classified as local.
-    #
-    #  A call is local if its base symbol or any link in its chain is a
-    #  locally defined function.
-    #  @param node The Call AST node.
-    #  @param base The resolved base symbol or structured tuple.
-    #  @return True if the call should be ignored (treated as local).
-    def _ignore_apis(self, node, base):
-        if isinstance(base, tuple):
-            return False
-        if isinstance(node.func, ast.Name) and node.func.id in self.defined_functions:
-            return True
-        if isinstance(base, str):
-            for link in self._chain_for_base(base):
-                if isinstance(link, str) and link in self.defined_functions:
-                    return True
-        return False
-
     ## Record a single API call with its resolved top-level origin.
     #  @param node The Call AST node.
     def _one_api_call(self, node):
@@ -583,17 +568,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         else:
             direct_name = None
 
-        if self._ignore_apis(node, base):
-            if isinstance(base, str):
-                chain = self.symbols.get_chain(base)
-            else:
-                chain = []
-            if isinstance(base, str) and not chain:
-                chain = self.symbols.trace(base)
+        if isinstance(base, tuple):
             self.api_calls.append({
                 'api': api_string,
-                'top': 'local',
-                'chain': chain or [],
+                'top': base,
+                'chain': [],
                 'base': base,
                 'direct_name_callee': direct_name,
             })
@@ -757,31 +736,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._target_to_source(node.target, source)
         self.generic_visit(node)
 
-    ## Visit a Return node and trace return-value flow to the enclosing function.
+    ## Visit a Return node and record return-value flow for the function.
     #  @param node The Return AST node.
     def visit_Return(self, node):
         if self._func_stack and node.value is not None:
             func_name = self._func_stack[-1]
             if not isinstance(node.value, ast.Constant):
-                source = None
-                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
-                    callee = node.value.func.id
-                    is_params = False
-                    for name in reversed(self._func_stack):
-                        if callee in self.function_params.get(name, []):
-                            is_params = True
-                            break
-                    if is_params:
-                        if node.value.args:
-                            arg_source = self.trace_source(node.value.args[0])
-                            if arg_source:
-                                source = arg_source
-                        if source is None:
-                            source = callee
-                if source is None:
-                    source = self.trace_source(node.value)
-                if source and source in self.symbols.direct:
-                    self.symbols.add(func_name, source)
+                source = self.trace_source(node.value)
+                if source:
+                    if isinstance(source, str) and source in self.symbols.direct:
+                        s = self.symbols.direct[source]
+                        self.return_sources[func_name] = s if s else source
+                    else:
+                        self.return_sources[func_name] = source
         self.generic_visit(node)
 
 

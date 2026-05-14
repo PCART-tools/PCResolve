@@ -91,63 +91,14 @@ class ProjectAnalyzer:
     def is_local(self, module_name):
         return module_name in self.module_mapper.get_all_modules()
 
-    ## Collect all locally defined function names across all tracers.
-    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
-    #  @return Set of function names.
-    def _total_defined_function_names(self, tracers):
-        names = set()
-        for t in tracers.values():
-            names.update(getattr(t, "defined_functions", ()))
-        return names
-
-    ## Determine whether an API call should be classified as local.
-    #
-    #  A call is local if its base symbol or any link in its chain refers to
-    #  a function defined within the project.
-    #  @param module The module where the call appears.
-    #  @param call_detail The call detail dict from the tracer.
-    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
-    #  @return True if the call should be treated as local.
-    def _ignore_api(self, module, call_detail, tracers):
-        base = call_detail.get('base')
-        tracer = tracers.get(module)
-        if not tracer:
-            return False
-        if isinstance(base, tuple):
-            return False
-        all_local_funcs = self._total_defined_function_names(tracers)
-        dn = call_detail.get('direct_name_callee')
-        if dn:
-            if dn in getattr(tracer, "defined_functions", set()):
-                return True
-            imp = tracer.import_from_symbols.get(dn)
-            if imp and self.is_local(imp) and imp in tracers:
-                src_tr = tracers[imp]
-                if dn in getattr(src_tr, "defined_functions", set()):
-                    return True
-        if not isinstance(base, str):
-            return False
-        chain = self.symbol_chains.get(module, {}).get(base)
-        if not chain:
-            chain = call_detail.get("chain") or []
-        for elem in chain:
-            if isinstance(elem, str) and elem in all_local_funcs:
-                return True
-        return False
-
     ## Collect all API calls across all modules and resolve their top-level origin.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     def get_calls(self, module_tracers):
+        self._call_searched_global = set()
         for module, tracer in module_tracers.items():
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
                 if call_detail.get('top') == 'local':
-                    self.all_calls[module].append({
-                        'api': call_detail['api'],
-                        'top': 'local',
-                    })
-                    continue
-                if self._ignore_api(module, call_detail, module_tracers):
                     self.all_calls[module].append({
                         'api': call_detail['api'],
                         'top': 'local',
@@ -170,6 +121,7 @@ class ProjectAnalyzer:
                     'top': top_source
                 }
                 self.all_calls[module].append(call_record)
+        self._call_searched_global = None
 
     ## Resolve cross-file symbol references across all modules.
     #
@@ -177,15 +129,16 @@ class ProjectAnalyzer:
     #  and assignments to find the final origin.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     def resolve_cross_file_symbols(self, module_tracers):
+        self._call_searched_global = set()
         for module, tracer in module_tracers.items():
             self.global_symbols[module] = {}
             self.symbol_chains[module] = {}
             for symbol, direct_source in tracer.symbols.direct.items():
                 chain = self.trace_symbol(module, symbol, module_tracers, set())
                 if chain:
-                    final_source = self.extract_final_source(chain)
-                    self.global_symbols[module][symbol] = final_source
+                    self.global_symbols[module][symbol] = self.extract_final_source(chain)
                     self.symbol_chains[module][symbol] = chain
+        self._call_searched_global = None
 
     ## Normalize a container index to its positive equivalent.
     #  @param tracer The SingleFileAnalyzer for the module.
@@ -311,6 +264,10 @@ class ProjectAnalyzer:
                 if resolved:
                     return resolved
             base_direct = tracer.symbols.direct.get(base_symbol)
+            if isinstance(base_direct, tuple) and len(base_direct) == 3 and base_direct[0] == "call_result":
+                base_direct = base_direct[1]
+                if base_direct == base_symbol:
+                    base_direct = tracer.import_from_symbols.get(base_symbol, base_direct)
             if isinstance(base_direct, str):
                 if self.is_local(base_direct):
                     src_module = base_direct
@@ -320,6 +277,10 @@ class ProjectAnalyzer:
                 else:
                     return (module, base_symbol)
         class_direct = tracer.symbols.direct.get(class_symbol)
+        if isinstance(class_direct, tuple) and len(class_direct) == 3 and class_direct[0] == "call_result":
+            class_direct = class_direct[1]
+            if class_direct == class_symbol:
+                class_direct = tracer.import_from_symbols.get(class_symbol, class_direct)
         if isinstance(class_direct, str):
             if self.is_local(class_direct):
                 src_module = class_direct
@@ -327,15 +288,20 @@ class ProjectAnalyzer:
                 if resolved:
                     return resolved
             else:
+                if class_direct == "local":
+                    rs = tracer.return_sources.get(class_symbol)
+                    if rs is not None and isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                        return (module, rs[1])
                 return (module, class_symbol)
         return None
 
     ## Resolve a structured (tuple) source to its concrete origin.
     #
-    #  Handles the three structured tuple kinds:
+    #  Handles the four structured tuple kinds:
     #  - "container_item" for subscript access
     #  - "instance_method" for method calls
     #  - "container_iter" for iteration over containers
+    #  - "call_result" for function call return values
     #  @param module The current module.
     #  @param direct_source The structured tuple (kind, arg1, arg2).
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
@@ -356,9 +322,14 @@ class ProjectAnalyzer:
             tracer = tracers.get(module)
             if not tracer:
                 return None
-            class_symbol = tracer.symbols.direct.get(a)
-            if a in tracer.class_methods and class_symbol == "local":
+            if a in tracer.import_from_symbols:
                 class_symbol = a
+            else:
+                class_symbol = tracer.symbols.direct.get(a)
+                if isinstance(class_symbol, tuple) and len(class_symbol) == 3 and class_symbol[0] == "call_result":
+                    class_symbol = class_symbol[1]
+                if a in tracer.class_methods and class_symbol == "local":
+                    class_symbol = a
             if not class_symbol:
                 return None
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
@@ -378,13 +349,50 @@ class ProjectAnalyzer:
                 src_symbol = "[" + ",".join(candidates) + "]"
             return (f"{a}[*]", src_module, src_symbol)
 
+        if kind == "call_result":
+            callee = a
+            gs = getattr(self, '_call_searched_global', None)
+            if gs is not None:
+                if (module, callee) in gs:
+                    return (f"{callee}()", module, callee)
+                gs.add((module, callee))
+            callee_chain = self.trace_symbol(module, callee, tracers, set())
+            def_module = module
+            for item in reversed(callee_chain):
+                if isinstance(item, str) and self.is_local(item):
+                    def_module = item
+                    break
+            cur_module = def_module
+            cur_symbol = callee
+            seen = {(cur_module, cur_symbol)}
+            while True:
+                tr = tracers.get(cur_module)
+                rs = tr.return_sources.get(cur_symbol) if tr else None
+                if rs is None:
+                    return (f"{callee}()", cur_module, cur_symbol)
+                if isinstance(rs, str):
+                    return (f"{callee}()", cur_module, rs)
+                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                    next_chain = self.trace_symbol(cur_module, rs[1], tracers, set())
+                    cur_symbol = rs[1]
+                    for item in reversed(next_chain):
+                        if isinstance(item, str) and self.is_local(item):
+                            cur_module = item
+                            break
+                    if (cur_module, cur_symbol) in seen:
+                        return (f"{callee}()", cur_module, cur_symbol)
+                    seen.add((cur_module, cur_symbol))
+                    continue
+                break
+            return (f"{callee}()", cur_module, cur_symbol)
+
         return None
 
     ## Recursively trace a symbol through cross-file imports to its origin.
     #
     #  Follows direct sources across module boundaries, handling
-    #  structured sources (container items, instance methods, container iters)
-    #  at each step.
+    #  structured sources (container items, instance methods, container iters,
+    #  call results) at each step.
     #  @param module The current module being traced from.
     #  @param symbol The symbol to trace.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
