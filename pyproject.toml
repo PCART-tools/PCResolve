@@ -21,3 +21,6 @@ pcresolve = "pcresolve.cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["pcresolve"]
+
+[tool.pytest.ini_options]
+norecursedirs = ["tests/fixtures/tested_projects"]

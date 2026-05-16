@@ -8,6 +8,7 @@
 
 import sys
 import os
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve import analyze_project
@@ -147,7 +148,7 @@ def test_direct_thirdparty_calls_in_function_bodies_are_still_thirdparty():
 
 def test_multi_level_attribute_chain_classified_as_thirdparty():
     """app.logger.info(...) where app is a Flask instance → flask."""
-    result = analyze_project(os.path.join(FIXTURES, "test_projects", "flask2"))
+    result = analyze_project(os.path.join(FIXTURES, "tested_projects", "flask2"))
     for f in result.files:
         if f.file_path.endswith("app.py"):
             for c in f.api_calls:
@@ -162,7 +163,7 @@ def test_multi_level_attribute_chain_classified_as_thirdparty():
 def test_multi_level_attribute_chain_on_imported_name_is_thirdparty():
     """request.headers.get(...) / request.json.get(...) where request is
     directly imported from flask → flask."""
-    result = analyze_project(os.path.join(FIXTURES, "test_projects", "flask2"))
+    result = analyze_project(os.path.join(FIXTURES, "tested_projects", "flask2"))
     for f in result.files:
         if f.file_path.endswith("app.py"):
             for c in f.api_calls:

@@ -74,7 +74,7 @@ def test_no_structured_tuples(calls_by_top):
     structured = [k for k in calls_by_top if str(k).startswith("(")]
     assert not structured, f"Unresolved: {structured}"
 
-@pytest.mark.xfail(reason="KNOWN: var leak (tokenizer: 1 call) + structured tuple (sys.argv[1]: 2 calls)")
+@pytest.mark.xfail(reason="KNOWN: var leak (tokenizer:1, process_batch():2)")
 def test_local_vars_not_top(calls_by_top):
-    leaked = [v for v in ["tokenizer"] if v in calls_by_top]
+    leaked = [v for v in ["tokenizer", "process_batch()"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

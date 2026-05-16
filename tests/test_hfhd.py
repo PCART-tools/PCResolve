@@ -21,7 +21,7 @@ def test_pandas(calls_by_top): assert "pandas" in calls_by_top
 def test_seaborn(calls_by_top): assert "seaborn" in calls_by_top
 def test_numba(calls_by_top): assert "numba" in calls_by_top
 def test_datetime(calls_by_top): assert "datetime" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: local vars + structured tuples (merged_values:6, hf:2, sim:1, gamma_h:1, hd:1)")
+@pytest.mark.xfail(reason="KNOWN: local vars + structured tuples (merged_values:6, data_pa:3, hf:2, sim:1, gamma_h:1, hd:1)")
 def test_local_vars_not_top(calls_by_top):
-    leaked = [v for v in ["merged_values", "hf", "sim", "gamma_h", "hd"] if v in calls_by_top]
+    leaked = [v for v in ["merged_values", "data_pa", "hf", "sim", "gamma_h", "hd"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
