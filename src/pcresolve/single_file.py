@@ -20,7 +20,9 @@ from .types import FileAnalysis, ApiCall
 #  - Detect and classify all API call expressions
 class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
-    def __init__(self):
+    #  @param module_name Optional dotted module name for resolving relative imports.
+    def __init__(self, module_name=None):
+        self.module_name = module_name
         self.return_sources = {}
         self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
@@ -37,6 +39,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.class_methods = {}
         self.class_bases = {}
         self.import_from_symbols = {}
+        self.wildcard_modules = []
 
     ## --- Import visitors ---
 
@@ -53,9 +56,37 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_ImportFrom(self, node):
         for alias in node.names:
             symbol = alias.asname if alias.asname else alias.name
-            self.symbols.add(symbol, node.module)
-            self.import_from_symbols[symbol] = node.module
+            if symbol == '*':
+                if node.module:
+                    if node.level > 0 and self.module_name:
+                        resolved = self._resolve_relative_import(node.module, node.level)
+                        self.wildcard_modules.append(resolved)
+                    else:
+                        self.wildcard_modules.append(node.module)
+                continue
+            if node.level > 0 and self.module_name:
+                resolved = self._resolve_relative_import(node.module, node.level)
+                self.symbols.add(symbol, resolved)
+                self.import_from_symbols[symbol] = resolved
+            else:
+                self.symbols.add(symbol, node.module)
+                self.import_from_symbols[symbol] = node.module
         self.generic_visit(node)
+
+    ## Resolve a relative import to its full dotted module name.
+    #  @param module The module portion after the dots (may be None for "from . import X").
+    #  @param level The number of leading dots (1 = current package, 2 = parent, etc.).
+    #  @return The full dotted module name.
+    def _resolve_relative_import(self, module, level):
+        if not self.module_name:
+            return module or ''
+        parts = self.module_name.split('.')
+        if level > len(parts):
+            return module or ''
+        base = '.'.join(parts[:-level]) if level < len(parts) else ''
+        if module:
+            return f"{base}.{module}" if base else module
+        return base
 
     ## --- Source tracing ---
 
@@ -338,6 +369,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if left is not None:
                 return left
             return self.get_base(receiver_node.right, call_lookup=True)
+        if isinstance(receiver_node, ast.Subscript):
+            return self._resolve_call_receiver(receiver_node.value)
         return None
 
     ## --- Decorator binding ---
@@ -437,6 +470,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return self.get_base(node.right, call_lookup=call_lookup)
         elif isinstance(node, ast.Lambda):
             return self.get_base(node.body, call_lookup=call_lookup)
+        elif isinstance(node, ast.Subscript):
+            return self.get_base(node.value, call_lookup=call_lookup)
         return None
 
     ## --- Visit handlers ---
@@ -492,6 +527,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         and right[1] == target.id
                     ):
                         continue
+                    if (
+                        isinstance(right, tuple)
+                        and len(right) == 3
+                        and right[0] == "call_result"
+                        and right[1] == target.id
+                    ):
+                        continue
                     self.symbols.add(target.id, right)
                 elif isinstance(target, ast.Attribute):
                     name = self._attribute_name(target)
@@ -504,6 +546,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         ):
                             continue
                         self.symbols.add(name, right)
+                elif isinstance(target, (ast.Tuple, ast.List)):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name):
+                            if (
+                                isinstance(right, tuple)
+                                and len(right) == 3
+                                and right[0] == "instance_method"
+                                and right[1] == elt.id
+                            ):
+                                continue
+                            self.symbols.add(elt.id, right)
+        else:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.symbols.add(target.id, 'local')
+                elif isinstance(target, (ast.Tuple, ast.List)):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name):
+                            self.symbols.add(elt.id, 'local')
         self.generic_visit(node)
 
     ## --- API call detection ---
@@ -734,6 +795,38 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_AsyncFor(self, node):
         source = self._iter_source(node.iter)
         self._target_to_source(node.target, source)
+        self.generic_visit(node)
+
+    ## Visit a ListComp node and bind loop variables to the iterator source.
+    #  @param node The ListComp AST node.
+    def visit_ListComp(self, node):
+        for gen in node.generators:
+            source = self._iter_source(gen.iter)
+            self._target_to_source(gen.target, source)
+        self.generic_visit(node)
+
+    ## Visit a DictComp node and bind loop variables to the iterator source.
+    #  @param node The DictComp AST node.
+    def visit_DictComp(self, node):
+        for gen in node.generators:
+            source = self._iter_source(gen.iter)
+            self._target_to_source(gen.target, source)
+        self.generic_visit(node)
+
+    ## Visit a SetComp node and bind loop variables to the iterator source.
+    #  @param node The SetComp AST node.
+    def visit_SetComp(self, node):
+        for gen in node.generators:
+            source = self._iter_source(gen.iter)
+            self._target_to_source(gen.target, source)
+        self.generic_visit(node)
+
+    ## Visit a GeneratorExp node and bind loop variables to the iterator source.
+    #  @param node The GeneratorExp AST node.
+    def visit_GeneratorExp(self, node):
+        for gen in node.generators:
+            source = self._iter_source(gen.iter)
+            self._target_to_source(gen.target, source)
         self.generic_visit(node)
 
     ## Visit a Return node and record return-value flow for the function.

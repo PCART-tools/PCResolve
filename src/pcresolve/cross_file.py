@@ -42,7 +42,7 @@ class ProjectAnalyzer:
             if file_path and os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                tracer = SingleFileAnalyzer()
+                tracer = SingleFileAnalyzer(module_name=module)
                 tree = ast.parse(code)
                 tracer.visit(tree)
                 module_tracers[module] = tracer
@@ -107,6 +107,12 @@ class ProjectAnalyzer:
                 base = call_detail['base']
                 if base in self.global_symbols.get(module, {}):
                     top_source = self.global_symbols[module][base]
+                elif isinstance(base, str) and '.' in base:
+                    prefix = base.split('.')[0]
+                    if prefix in self.global_symbols.get(module, {}):
+                        top_source = self.global_symbols[module][prefix]
+                    else:
+                        top_source = self._top_source(module, base, module_tracers)
                 elif isinstance(base, tuple):
                     structured = self._resolve_structured_source(module, base, module_tracers)
                     if structured is not None:
@@ -407,22 +413,66 @@ class ProjectAnalyzer:
             return []
         direct_source = tracer.symbols.direct.get(symbol)
         if not direct_source:
+            if isinstance(symbol, str) and '.' in symbol:
+                prefix = symbol.split('.')[0]
+                if prefix in tracer.symbols.direct:
+                    sub_chain = self.trace_symbol(module, prefix, tracers, visited)
+                    if sub_chain:
+                        return [symbol] + sub_chain
+            if tracer.wildcard_modules:
+                tops = []
+                local_found = False
+                for wm in tracer.wildcard_modules:
+                    actual_wm = wm
+                    if wm not in tracers:
+                        for m in tracers:
+                            if m == wm or m.endswith('.' + wm):
+                                actual_wm = m
+                                break
+                    if self.is_local(actual_wm):
+                        local_found = True
+                    else:
+                        top = wm.split('.')[0]
+                        if top not in tops:
+                            tops.append(top)
+                if tops:
+                    if len(tops) == 1:
+                        return [symbol, tops[0]]
+                    else:
+                        return [symbol, "[" + ",".join(tops) + "]"]
+                if local_found:
+                    for wm in tracer.wildcard_modules:
+                        actual_wm = wm
+                        if wm not in tracers:
+                            for m in tracers:
+                                if m == wm or m.endswith('.' + wm):
+                                    actual_wm = m
+                                    break
+                        if self.is_local(actual_wm):
+                            src_tracer = tracers.get(actual_wm)
+                            if src_tracer and symbol in src_tracer.symbols.direct:
+                                sub_chain = self.trace_symbol(actual_wm, symbol, tracers, visited)
+                                if sub_chain:
+                                    return [symbol] + sub_chain
+                    return [symbol, "local"]
             return [symbol]
 
         structured = self._resolve_structured_source(module, direct_source, tracers)
         if structured is not None:
             display_name, src_module, src_symbol = structured
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
-            if sub_chain:
+            if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
-            return [symbol, display_name, src_symbol]
+            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local'):
+                return [symbol, display_name, src_symbol]
+            return [symbol, display_name, src_module]
 
         if isinstance(direct_source, tuple):
             return [symbol, str(direct_source)]
 
         if self.is_local(direct_source):
             sub_chain = self.trace_symbol(direct_source, symbol, tracers, visited)
-            if sub_chain:
+            if sub_chain and sub_chain != [symbol]:
                 return [symbol, direct_source] + sub_chain
             else:
                 return [symbol, direct_source]
@@ -475,12 +525,17 @@ class ProjectAnalyzer:
     def extract_final_source(self, chain):
         if not chain:
             return ""
+        found_local_module = False
         for item in reversed(chain):
             if isinstance(item, str) and hasattr(builtins, item):
                 return "python"
             if isinstance(item, str) and not self.is_local(item):
+                if found_local_module:
+                    return "local"
                 return self._top_name(item)
-        return chain[-1]
+            if isinstance(item, str) and '.' in item:
+                found_local_module = True
+        return "local"
 
 
 ## Analyze an entire project and return structured results.

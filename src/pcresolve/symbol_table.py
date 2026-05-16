@@ -32,6 +32,9 @@ class SymbolTable:
         if visited is None:
             visited = set()
         if isinstance(symbol, tuple) and len(symbol) == 3 and symbol[0] == "call_result":
+            if symbol in visited:
+                return []
+            visited.add(symbol)
             callee = symbol[1]
             rs = self.return_sources.get(callee)
             if rs:
