@@ -1,0 +1,25 @@
+import sys, os, pytest
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from pcresolve import analyze_project
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects", "fuel_forecast_explorer")
+
+@pytest.fixture(scope="module")
+def result(): return analyze_project(FIXTURE)
+
+@pytest.fixture(scope="module")
+def calls_by_top(result):
+    d = {}
+    for f in result.files:
+        for c in f.api_calls: d.setdefault(c.top_library, []).append(c)
+    return d
+
+def test_files_analyzed(result): assert len(result.files) == 1
+
+def test_pandas_calls(calls_by_top):
+    assert "pandas" in calls_by_top
+
+def test_numpy_calls(calls_by_top):
+    assert "numpy" in calls_by_top
+
+def test_df_not_top(calls_by_top):
+    assert "df" not in calls_by_top
