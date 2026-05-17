@@ -21,8 +21,9 @@ from .types import FileAnalysis, ApiCall
 class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
     #  @param module_name Optional dotted module name for resolving relative imports.
-    def __init__(self, module_name=None):
+    def __init__(self, module_name=None, is_package=False):
         self.module_name = module_name
+        self.is_package = is_package
         self.return_sources = {}
         self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
@@ -81,9 +82,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if not self.module_name:
             return module or ''
         parts = self.module_name.split('.')
-        if level > len(parts):
-            return module or ''
-        base = '.'.join(parts[:-level]) if level < len(parts) else ''
+        ## __package__: for packages use module_name, else use parent
+        if self.is_package:
+            pkg_parts = parts
+        else:
+            if len(parts) < 2:
+                return module or ''
+            pkg_parts = parts[:-1]
+        ## level dots = go up (level-1) from __package__
+        strip = level - 1
+        if strip >= len(pkg_parts):
+            base = ''
+        elif strip == 0:
+            base = '.'.join(pkg_parts)
+        else:
+            base = '.'.join(pkg_parts[:-strip])
         if module:
             return f"{base}.{module}" if base else module
         return base
@@ -121,11 +134,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return inner_source
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
+            name = self._attribute_name(node)
+            if name and name in self.symbols.direct:
+                return name
             return self.get_base(node)
         elif isinstance(node, ast.Lambda):
             return self.get_base(node.body)
         elif isinstance(node, ast.Subscript):
-            container_name = self.get_base(node.value)
+            container_name = self.trace_source(node.value)
             key_idx = self._get_slice(node.slice)
             if container_name is not None and key_idx is not None:
                 key_value = self._container_index(container_name, key_idx)
@@ -448,6 +464,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         elif isinstance(node, ast.Attribute):
             chain = self._attribute_chain_list(node)
             if chain:
+                name = '.'.join(chain)
+                if name in self.symbols.direct:
+                    return name
                 return chain[0]
             return self.get_base(node.value, call_lookup=call_lookup)
         elif isinstance(node, ast.Call):
@@ -533,6 +552,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         and right[0] == "call_result"
                         and right[1] == target.id
                     ):
+                        continue
+                    ## skip self-assign: df = df[...] where right resolves to "df"
+                    if isinstance(right, str) and right == target.id:
                         continue
                     self.symbols.add(target.id, right)
                 elif isinstance(target, ast.Attribute):

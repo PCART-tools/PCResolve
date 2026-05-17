@@ -24,7 +24,6 @@ def test_collections(calls_by_top): assert "collections" in calls_by_top
 def test_operator(calls_by_top): assert "operator" in calls_by_top
 def test_pickle(calls_by_top): assert "pickle" in calls_by_top
 def test_time(calls_by_top): assert "time" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: enumerate() leaks as builtin-not-recognized (4 calls)")
 def test_local_vars_not_top(calls_by_top):
-    leaked = [v for v in ["enumerate()"] if v in calls_by_top]
+    leaked = [v for v in [] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

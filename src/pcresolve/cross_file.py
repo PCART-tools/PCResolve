@@ -42,7 +42,10 @@ class ProjectAnalyzer:
             if file_path and os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                tracer = SingleFileAnalyzer(module_name=module)
+                tracer = SingleFileAnalyzer(
+                    module_name=module,
+                    is_package=self.module_mapper.is_package(module),
+                )
                 tree = ast.parse(code)
                 tracer.visit(tree)
                 module_tracers[module] = tracer
@@ -319,10 +322,10 @@ class ProjectAnalyzer:
 
         if kind == "container_item":
             resolved = self._resolve_container_item(module, a, b, tracers)
-            if not resolved:
-                return None
-            src_module, src_symbol = resolved
-            return (f"{a}[{b}]", src_module, src_symbol)
+            if resolved:
+                src_module, src_symbol = resolved
+                return (f"{a}[{b}]", src_module, src_symbol)
+            return (f"{a}[{b}]", module, a)
 
         if kind == "instance_method":
             tracer = tracers.get(module)
@@ -463,7 +466,7 @@ class ProjectAnalyzer:
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
             if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
-            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local'):
+            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or hasattr(builtins, src_symbol)):
                 return [symbol, display_name, src_symbol]
             return [symbol, display_name, src_module]
 

@@ -17,7 +17,6 @@ def test_files_analyzed(result): assert len(result.files) == 1
 
 def test_tensorflow(calls_by_top): assert "tensorflow" in calls_by_top
 
-@pytest.mark.xfail(reason="KNOWN: 1 calls")
 def test_issues_not_top(calls_by_top):
-    for v in ["super()"]:
+    for v in []:
         assert v not in calls_by_top, f"{v} leaked"

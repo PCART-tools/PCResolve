@@ -69,7 +69,6 @@ def test_pandas_calls(calls_by_top):
 def test_big_df_not_top(calls_by_top):
     assert "big_df" not in calls_by_top
 
-@pytest.mark.xfail(reason="KNOWN: unresolved structured tuple sys.argv[1] (2 calls)")
 def test_no_structured_tuples(calls_by_top):
     structured = [k for k in calls_by_top if str(k).startswith("(")]
     assert not structured, f"Unresolved: {structured}"

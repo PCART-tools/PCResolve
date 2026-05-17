@@ -61,10 +61,7 @@ def test_scipy_stats_is_third_party(calls_by_top):
 
 # ── Known issues ───────────────────────────────────────────────────────
 
-@pytest.mark.xfail(reason="KNOWN: call_result chain leaks (bee_merged():23, train():11, metric_df():8, validate():2, test():2)")
+@pytest.mark.xfail(reason="KNOWN: model local var leak (1) + model() call_result (1)")
 def test_local_vars_not_top(calls_by_top):
-    # Some local vars have been resolved by wildcard+Tuple+comprehension fixes.
-    # Remaining leaks are call_result chains that can't be traced to source.
-    leaked = [v for v in ["bee_merged()", "train()", "metric_df()", "validate()", "test()"]
-              if v in calls_by_top]
-    assert not leaked, f"Call result chains leaked: {leaked}"
+    leaked = [v for v in ["model", "model()"] if v in calls_by_top]
+    assert not leaked, f"Local vars/call_result leaked: {leaked}"

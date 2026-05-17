@@ -20,6 +20,7 @@ class ModuleMapper:
         self.project_root = os.path.abspath(project_root)
         self.file_to_module = {}
         self.module_to_file = {}
+        self.package_modules = set()
         self._scanner = FileScanner()
 
     ## Scan the project and build the file <-> module mapping.
@@ -32,6 +33,8 @@ class ModuleMapper:
             if module_path:
                 self.file_to_module[file_path] = module_path
                 self.module_to_file[module_path] = file_path
+                if os.path.basename(file_path) == '__init__.py':
+                    self.package_modules.add(module_path)
         return py_files
 
     ## Convert an absolute file path to a dotted module path.
@@ -81,8 +84,15 @@ class ModuleMapper:
     def get_all_files(self):
         return list(self.file_to_module.keys())
 
+    ## Check whether a module path corresponds to a package (__init__.py).
+    #  @param module_path Dotted module name.
+    #  @return True if the module is a package.
+    def is_package(self, module_path):
+        return module_path in self.package_modules
+
     ## Clear all mappings and scanner state so the mapper can be reused.
     def clear(self):
         self.file_to_module.clear()
         self.module_to_file.clear()
+        self.package_modules.clear()
         self._scanner.clc()

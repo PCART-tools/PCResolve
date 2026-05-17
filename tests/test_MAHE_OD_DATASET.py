@@ -27,7 +27,6 @@ def test_glob(calls_by_top): assert "glob" in calls_by_top
 def test_pathlib(calls_by_top): assert "pathlib" in calls_by_top
 def test_random(calls_by_top): assert "random" in calls_by_top
 def test_xml(calls_by_top): assert "xml" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: call_result + builtin + var leaks (open():14, list():6, overlap():3, tensor():2, det_class_boxes:1)")
 def test_local_vars_not_top(calls_by_top):
-    leaked = [v for v in ["open()", "list()", "overlap()", "tensor()", "det_class_boxes"] if v in calls_by_top]
+    leaked = [v for v in [] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

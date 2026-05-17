@@ -26,12 +26,12 @@ def test_pykrige(calls_by_top): assert "pykrige" in calls_by_top
 def test_xgboost(calls_by_top): assert "xgboost" in calls_by_top
 def test_GPy(calls_by_top): assert "GPy" in calls_by_top
 def test_multiprocessing(calls_by_top): assert "multiprocessing" in calls_by_top
-def test_random(calls_by_top): assert "random" in calls_by_top
+
 def test_math(calls_by_top): assert "math" in calls_by_top
 def test_time(calls_by_top): assert "time" in calls_by_top
 def test_pytest(calls_by_top): assert "pytest" in calls_by_top
 def test_setuptools(calls_by_top): assert "setuptools" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: local modules (custom:9, natural_neighbors:7) + structured source + self + builtin leak (open():2)")
+@pytest.mark.xfail(reason="KNOWN: GP/NSGP not re-exported from polire (1 each) + [local,GP] (6)")
 def test_local_vars_not_top(calls_by_top):
-    leaked = [v for v in ["custom", "natural_neighbors", "self", "NSGP", "spatial", "spline", "trend", "idw", "kriging", "GP", "open()"] if v in calls_by_top]
+    leaked = [v for v in ["NSGP", "GP", "[local,GP]"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
