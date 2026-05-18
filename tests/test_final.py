@@ -61,7 +61,6 @@ def test_scipy_stats_is_third_party(calls_by_top):
 
 # ── Known issues ───────────────────────────────────────────────────────
 
-@pytest.mark.xfail(reason="KNOWN: model local var leak (1) + model() call_result (1)")
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["model", "model()"] if v in calls_by_top]
     assert not leaked, f"Local vars/call_result leaked: {leaked}"

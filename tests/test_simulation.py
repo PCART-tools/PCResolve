@@ -23,7 +23,6 @@ def test_os(calls_by_top): assert "os" in calls_by_top
 def test_sys(calls_by_top): assert "sys" in calls_by_top
 def test_itertools(calls_by_top): assert "itertools" in calls_by_top
 def test_seaborn(calls_by_top): assert "seaborn" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: local vars + structured tuples (~17 calls)")
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["data", "create_grid", "analytical", "discretization", "solve", "export_results"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

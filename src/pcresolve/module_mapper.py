@@ -90,6 +90,30 @@ class ModuleMapper:
     def is_package(self, module_path):
         return module_path in self.package_modules
 
+    ## Resolve a simple module name to its full dotted name within the project.
+    #
+    #  When a package module imports a sibling via 'import data',
+    #  the AST records only "data", but the full module name is "pkg.data".
+    #  This method uses the context module's package prefix to find the
+    #  full name in the known module set.
+    #  @param name The simple module name (e.g. "data").
+    #  @param context_module The full dotted name of the module where the
+    #         import appears (e.g. "pkg.main").
+    #  @return Full dotted module name if resolved, or the original name.
+    def resolve_module_name(self, name, context_module=None):
+        if not isinstance(name, str) or '.' in name:
+            return name
+        all_modules = self.get_all_modules()
+        if name in all_modules:
+            return name
+        if context_module:
+            parts = context_module.split('.')
+            for i in range(len(parts) - 1, -1, -1):
+                candidate = '.'.join(parts[:i + 1] + [name])
+                if candidate in all_modules:
+                    return candidate
+        return name
+
     ## Clear all mappings and scanner state so the mapper can be reused.
     def clear(self):
         self.file_to_module.clear()

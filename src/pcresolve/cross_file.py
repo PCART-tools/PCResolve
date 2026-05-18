@@ -343,7 +343,13 @@ class ProjectAnalyzer:
                 return None
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
             if not resolved:
-                return None
+                if class_symbol != a and isinstance(a, str) and a in tracer.symbols.direct:
+                    resolved = self._resolve_method_symbol(module, a, b, tracers, set())
+                if not resolved:
+                    class_direct = tracer.symbols.direct.get(class_symbol)
+                    if isinstance(class_direct, str) and self.is_local(class_direct):
+                        return (f"{a}.{b}", module, "local")
+                    return None
             src_module, src_symbol = resolved
             return (f"{a}.{b}", src_module, src_symbol)
 
@@ -467,26 +473,36 @@ class ProjectAnalyzer:
             if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
             if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or hasattr(builtins, src_symbol)):
+                if '.' in src_symbol:
+                    first = src_symbol.split('.')[0]
+                    full_first = self.module_mapper.resolve_module_name(first, src_module)
+                    if self.is_local(full_first):
+                        return [symbol, display_name, src_module]
                 return [symbol, display_name, src_symbol]
             return [symbol, display_name, src_module]
 
         if isinstance(direct_source, tuple):
             return [symbol, str(direct_source)]
 
-        if self.is_local(direct_source):
-            sub_chain = self.trace_symbol(direct_source, symbol, tracers, visited)
+        if isinstance(direct_source, str):
+            full_source = self.module_mapper.resolve_module_name(direct_source, module)
+        else:
+            full_source = direct_source
+
+        if self.is_local(full_source):
+            sub_chain = self.trace_symbol(full_source, symbol, tracers, visited)
             if sub_chain and sub_chain != [symbol]:
-                return [symbol, direct_source] + sub_chain
+                return [symbol, full_source] + sub_chain
             else:
-                return [symbol, direct_source]
-        elif direct_source in tracer.symbols.direct:
-            sub_chain = self.trace_symbol(module, direct_source, tracers, visited)
+                return [symbol, full_source]
+        elif isinstance(full_source, str) and full_source in tracer.symbols.direct:
+            sub_chain = self.trace_symbol(module, full_source, tracers, visited)
             if sub_chain:
                 return [symbol] + sub_chain
             else:
-                return [symbol, direct_source]
+                return [symbol, full_source]
         else:
-            return [symbol, direct_source]
+            return [symbol, full_source]
 
     ## Extract the top-level name from a dotted name string.
     #  @param name Possibly dotted name.
@@ -536,7 +552,7 @@ class ProjectAnalyzer:
                 if found_local_module:
                     return "local"
                 return self._top_name(item)
-            if isinstance(item, str) and '.' in item:
+            if isinstance(item, str) and self.is_local(item):
                 found_local_module = True
         return "local"
 

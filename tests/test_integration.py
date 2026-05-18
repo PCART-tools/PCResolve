@@ -166,19 +166,17 @@ def test_tests10_class_method_and_return():
 
 
 def test_tests10_self_attr_method_known_issue():
-    """self.session.get(url) where session=requests.Session() → currently 'local'.
+    """self.session.get(url) where session=requests.Session() → now correctly 'requests'.
 
-    This is a known limitation: _resolve_methods finds self.session.get as an
-    instance method on the local class. Since 'get' is not in the class's method
-    list, it generates a structured tuple. The structured tuple is resolved back
-    to 'local' because the receiver class is locally defined, even though
-    the actual object providing the 'get' method is requests.Session.
+    self.session is assigned from requests.Session(). The call_result chain
+    traces through self.session's source to "requests", then instance_method
+    resolution finds "get" through the requests module.
     """
     result = analyze_project(os.path.join(FIXTURES, "tests10"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     actual = tops_by_expr.get("self.session.get(url)")
-    assert actual == "local", (
-        f"Documented limitation: expected 'local' (self.session not traced), got {actual!r}"
+    assert actual == "requests", (
+        f"Expected 'requests' (self.session from requests.Session), got {actual!r}"
     )
 
 

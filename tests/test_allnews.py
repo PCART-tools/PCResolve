@@ -119,7 +119,6 @@ def test_builtins_not_top(calls_by_top):
     assert not builtin_leaks, f"Builtin names leaked: {builtin_leaks}"
 
 
-@pytest.mark.xfail(reason="KNOWN: instance_method structured tuples leak (3 calls)")
 def test_no_structured_tuples(calls_by_top):
     structured = [k for k in calls_by_top if isinstance(k, tuple) or str(k).startswith("(")]
     assert not structured, f"Structured tuples leaked: {structured}"

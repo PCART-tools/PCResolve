@@ -6,6 +6,7 @@
 #  their resolved top-level origin libraries.
 
 import ast
+import builtins
 from .symbol_table import SymbolTable
 from .types import FileAnalysis, ApiCall
 
@@ -334,7 +335,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if chain:
                 if chain[0] == "self" and self._class_stack:
                     cn = self._class_stack[-1]
-                    return _resolve_on_class(cn, cn)
+                    result = _resolve_on_class(cn, cn)
+                    if isinstance(result, tuple) and len(result) == 3 and result[0] == "instance_method":
+                        attr_name = "self." + ".".join(chain[1:])
+                        attr_source = self.symbols.direct.get(attr_name)
+                        if isinstance(attr_source, tuple) and len(attr_source) == 3 and attr_source[0] == "call_result":
+                            callee = attr_source[1]
+                            if '.' not in callee and callee in self.symbols.direct:
+                                return ("instance_method", callee, method_name)
+                        if isinstance(attr_source, str) and '.' not in attr_source and attr_source in self.symbols.direct:
+                            return ("instance_method", attr_source, method_name)
+                    return result
                 root = chain[0]
                 if root in self.import_from_symbols:
                     return ("instance_method", root, method_name)
@@ -409,7 +420,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         current_source = target_name
         for deco in reversed(decorator_nodes):
             deco_source = self.trace_source(deco)
-            if deco_source:
+            if deco_source and not (isinstance(deco_source, str) and hasattr(builtins, deco_source)):
                 current_source = deco_source
         if current_source and current_source != target_name:
             self.symbols.add(target_name, current_source)
@@ -570,7 +581,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             isinstance(right, tuple)
                             and len(right) == 3
                             and right[0] == "instance_method"
-                            and right[1] == name
                         ):
                             continue
                         self.symbols.add(name, right)
@@ -581,7 +591,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 isinstance(right, tuple)
                                 and len(right) == 3
                                 and right[0] == "instance_method"
-                                and right[1] == elt.id
                             ):
                                 continue
                             self.symbols.add(elt.id, right)
