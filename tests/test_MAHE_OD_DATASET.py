@@ -30,3 +30,8 @@ def test_xml(calls_by_top): assert "xml" in calls_by_top
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in [] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
+
+@pytest.mark.xfail(reason="KNOWN: distortions[*] leaks as top_library (1 call)")
+def test_no_subscript_top(calls_by_top):
+    subscript_keys = [k for k in calls_by_top if "[" in str(k)]
+    assert not subscript_keys, f"Subscript keys leaked: {subscript_keys}"

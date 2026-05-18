@@ -18,7 +18,6 @@ def test_all_files_analyzed(result): assert len(result.files) == 2
 def test_pandas(calls_by_top): assert "pandas" in calls_by_top
 def test_requests(calls_by_top): assert "requests" in calls_by_top
 def test_bs4(calls_by_top): assert "bs4" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: self()/self leak (24 calls)")
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["self", "self()"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

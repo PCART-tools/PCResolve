@@ -27,8 +27,13 @@ def test_matplotlib_calls(calls_by_top):
 def test_IPython_calls(calls_by_top):
     assert "IPython" in calls_by_top
 
+@pytest.mark.xfail(reason="KNOWN: WordCloud() not resolved to wordcloud library (2 calls)")
 def test_wordcloud_calls(calls_by_top):
-    assert "WordCloud()" in calls_by_top
+    assert "wordcloud" in calls_by_top
+
+@pytest.mark.xfail(reason="KNOWN: df_name local var leaks as top_library (10 calls)")
+def test_df_name_not_top(calls_by_top):
+    assert "df_name" not in calls_by_top
 
 def test_item_not_top(calls_by_top):
     assert "item()" not in calls_by_top

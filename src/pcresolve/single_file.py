@@ -125,13 +125,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             me = self._resolve_methods(node)
             if me:
                 return me
+            ## For chained calls (A().B()), resolve via the inner call's
+            ## return source so the outer call traces to the correct library.
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
+                inner_source = self.trace_source(node.func.value)
+                if isinstance(inner_source, str):
+                    rs = self.return_sources.get(inner_source)
+                    if rs is not None:
+                        return rs
+                if inner_source:
+                    return inner_source
             call_key = self.get_base(node, call_lookup=True)
             if call_key:
                 return ("call_result", call_key, None)
-            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
-                inner_source = self.trace_source(node.func.value)
-                if inner_source:
-                    return inner_source
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
             name = self._attribute_name(node)
@@ -610,6 +616,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         base = self._resolve_methods(node)
         if base is not None:
             return base
+        ## For chained calls (A().B()), resolve via the inner call's
+        ## return source so the outer call traces to the correct library.
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
+            inner_source = self.trace_source(node.func.value)
+            if isinstance(inner_source, str):
+                rs = self.return_sources.get(inner_source)
+                if rs is not None:
+                    return rs
         call_lookup_base = self.get_base(node, call_lookup=True)
         if call_lookup_base is not None:
             return call_lookup_base
