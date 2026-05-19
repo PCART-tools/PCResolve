@@ -129,3 +129,7 @@ class ProjectAnalysis:
 ```bash
 python -m pytest tests/ -v
 ```
+
+## License
+
+PCResolve is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
