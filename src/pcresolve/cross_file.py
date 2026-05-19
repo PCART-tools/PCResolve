@@ -592,7 +592,7 @@ class ProjectAnalyzer:
                     return "local"
                 result = self._top_name(item)
                 if result == "self":
-                    continue
+                    return "local"
                 return result
             if isinstance(item, str) and self.is_local(item):
                 found_local_module = True

@@ -145,7 +145,6 @@ def test_baselines_is_third_party(calls_by_top):
     assert "baselines" in calls_by_top
 
 
-@pytest.mark.xfail(reason="KNOWN: remaining local vars (UCB: 1 call)")
 def test_local_variables_are_not_top_library(calls_by_top):
     local_vars = ["UCB"]
     leaked = [v for v in local_vars if v in calls_by_top]

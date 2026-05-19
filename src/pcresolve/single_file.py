@@ -159,7 +159,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return name
             return self.get_base(node)
         elif isinstance(node, ast.Lambda):
-            return self.get_base(node.body)
+            body_base = self.get_base(node.body)
+            if isinstance(body_base, str):
+                param_names = {a.arg for a in node.args.args}
+                if node.args.vararg:
+                    param_names.add(node.args.vararg.arg)
+                if node.args.kwarg:
+                    param_names.add(node.args.kwarg.arg)
+                if body_base in param_names:
+                    return "local"
+            return body_base
         elif isinstance(node, ast.Subscript):
             container_name = self.trace_source(node.value)
             key_idx = self._get_slice(node.slice)
@@ -184,7 +193,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return next(iter(bases))
             return None
         elif isinstance(node, ast.Constant):
-            return str(node.value)
+            return None
         return None
 
     ## Extract a string literal from an AST node.
