@@ -37,5 +37,9 @@ def test_no_df_call_result_in_top(calls_by_top):
     assert "df()" not in calls_by_top
 
 
+def test_no_df_col_in_top(calls_by_top):
+    assert "df_col" not in calls_by_top
+
+
 def test_no_local(calls_by_top):
     assert "local" not in calls_by_top

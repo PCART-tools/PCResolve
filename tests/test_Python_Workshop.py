@@ -20,6 +20,5 @@ def test_matplotlib(calls_by_top): assert "matplotlib" in calls_by_top
 def test_scipy(calls_by_top): assert "scipy" in calls_by_top
 def test_sklearn(calls_by_top): assert "sklearn" in calls_by_top
 
-@pytest.mark.xfail(reason="KNOWN: xrange should be classified as python, not top_library (6 calls)")
 def test_xrange_not_top(calls_by_top):
     assert "xrange" not in calls_by_top

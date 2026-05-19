@@ -8,6 +8,18 @@
 import ast
 import builtins
 from .symbol_table import SymbolTable
+
+## Python 2 builtins not present in Python 3's builtins module.
+_PY2_BUILTINS = frozenset({
+    "apply", "basestring", "buffer", "cmp", "coerce", "execfile",
+    "file", "intern", "long", "raw_input", "reduce", "reload",
+    "StandardError", "unichr", "unicode", "xrange",
+})
+
+
+## Check if a name is a Python builtin (including Python 2 builtins).
+def _is_builtin(name):
+    return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .types import FileAnalysis, ApiCall
 
 
@@ -42,6 +54,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.class_bases = {}
         self.import_from_symbols = {}
         self.wildcard_modules = []
+        self.call_sites = {}
 
     ## --- Import visitors ---
 
@@ -420,7 +433,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         current_source = target_name
         for deco in reversed(decorator_nodes):
             deco_source = self.trace_source(deco)
-            if deco_source and not (isinstance(deco_source, str) and hasattr(builtins, deco_source)):
+            if deco_source and not (isinstance(deco_source, str) and _is_builtin(deco_source)):
                 current_source = deco_source
         if current_source and current_source != target_name:
             self.symbols.add(target_name, current_source)
@@ -567,7 +580,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         isinstance(right, tuple)
                         and len(right) == 3
                         and right[0] == "call_result"
-                        and right[1] == target.id
+                        and (right[1] == target.id or (isinstance(right[1], str) and right[1].startswith(target.id + ".")))
                     ):
                         continue
                     ## skip self-assign: df = df[...] where right resolves to "df"
@@ -716,6 +729,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Call(self, node):
         for sub in self._chained_prefix_calls(node):
             self._one_api_call(sub)
+        if isinstance(node.func, ast.Name) and node.func.id in self.defined_functions:
+            arg_sources = []
+            for arg in node.args:
+                if isinstance(arg, ast.Attribute):
+                    name = self._attribute_name(arg)
+                    arg_sources.append(name if name else self.trace_source(arg))
+                else:
+                    arg_sources.append(self.trace_source(arg))
+            self.call_sites.setdefault(node.func.id, []).append({
+                "module": self.module_name,
+                "args": arg_sources,
+            })
         self.generic_visit(node)
 
     ## Visit an Attribute access node and record the top-level origin.

@@ -31,7 +31,6 @@ def test_IPython_calls(calls_by_top):
 def test_wordcloud_calls(calls_by_top):
     assert "wordcloud" in calls_by_top
 
-@pytest.mark.xfail(reason="KNOWN: df_name local var leaks as top_library (10 calls)")
 def test_df_name_not_top(calls_by_top):
     assert "df_name" not in calls_by_top
 

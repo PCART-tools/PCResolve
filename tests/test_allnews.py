@@ -113,7 +113,6 @@ def test_local_modules_not_top(calls_by_top):
     assert not leaked, f"Local modules leaked: {leaked}"
 
 
-@pytest.mark.xfail(reason="KNOWN: unichr(4) and xrange(1) should be classified as python")
 def test_builtins_not_top(calls_by_top):
     builtin_leaks = [b for b in ["unichr", "xrange"] if b in calls_by_top]
     assert not builtin_leaks, f"Builtin names leaked: {builtin_leaks}"

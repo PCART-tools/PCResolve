@@ -9,6 +9,18 @@ import ast
 import os
 import builtins
 from .module_mapper import ModuleMapper
+
+## Python 2 builtins not present in Python 3's builtins module.
+_PY2_BUILTINS = frozenset({
+    "apply", "basestring", "buffer", "cmp", "coerce", "execfile",
+    "file", "intern", "long", "raw_input", "reduce", "reload",
+    "StandardError", "unichr", "unicode", "xrange",
+})
+
+
+## Check if a name is a Python builtin (including Python 2 builtins).
+def _is_builtin(name):
+    return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .single_file import SingleFileAnalyzer
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
@@ -102,6 +114,15 @@ class ProjectAnalyzer:
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
                 if call_detail.get('top') == 'local':
+                    base = call_detail.get('base')
+                    if isinstance(base, str):
+                        top_source = self._top_source(module, base, module_tracers)
+                        if top_source and top_source != 'local':
+                            self.all_calls[module].append({
+                                'api': call_detail['api'],
+                                'top': top_source,
+                            })
+                            continue
                     self.all_calls[module].append({
                         'api': call_detail['api'],
                         'top': 'local',
@@ -464,7 +485,25 @@ class ProjectAnalyzer:
                                 if sub_chain:
                                     return [symbol] + sub_chain
                     return [symbol, "local"]
+            if symbol == "self" or (isinstance(symbol, str) and symbol.startswith("self.")):
+                return [symbol, "local"]
             return [symbol]
+
+        if direct_source == "local":
+            for func_name, params in tracer.function_params.items():
+                try:
+                    param_idx = params.index(symbol)
+                except ValueError:
+                    continue
+                for call_site in tracer.call_sites.get(func_name, []):
+                    if param_idx < len(call_site["args"]):
+                        arg_src = call_site["args"][param_idx]
+                        if isinstance(arg_src, str):
+                            sub_chain = self.trace_symbol(
+                                call_site["module"], arg_src, tracers, visited
+                            )
+                            if sub_chain:
+                                return [symbol] + sub_chain
 
         structured = self._resolve_structured_source(module, direct_source, tracers)
         if structured is not None:
@@ -472,7 +511,7 @@ class ProjectAnalyzer:
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
             if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
-            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or hasattr(builtins, src_symbol)):
+            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or _is_builtin(src_symbol)):
                 if '.' in src_symbol:
                     first = src_symbol.split('.')[0]
                     full_first = self.module_mapper.resolve_module_name(first, src_module)
@@ -523,7 +562,7 @@ class ProjectAnalyzer:
     def _top_source(self, src_module, symbol, tracers):
         if not symbol:
             return None
-        if isinstance(symbol, str) and hasattr(builtins, symbol):
+        if isinstance(symbol, str) and _is_builtin(symbol):
             return "python"
         chain = self.trace_symbol(src_module, symbol, tracers, set())
         if chain:
@@ -546,12 +585,15 @@ class ProjectAnalyzer:
             return ""
         found_local_module = False
         for item in reversed(chain):
-            if isinstance(item, str) and hasattr(builtins, item):
+            if isinstance(item, str) and _is_builtin(item):
                 return "python"
             if isinstance(item, str) and not self.is_local(item):
                 if found_local_module:
                     return "local"
-                return self._top_name(item)
+                result = self._top_name(item)
+                if result == "self":
+                    continue
+                return result
             if isinstance(item, str) and self.is_local(item):
                 found_local_module = True
         return "local"
