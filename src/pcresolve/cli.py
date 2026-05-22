@@ -14,6 +14,17 @@ import sys
 from .cross_file import analyze_project
 
 
+## Format source location as a string.
+#  @param call ApiCall object.
+#  @return Location string like "(L42:C10-L42:C35)", or "".
+def _format_location(call):
+    if call.end_lineno and call.end_col_offset:
+        return f"(L{call.lineno}:C{call.col_offset}-L{call.end_lineno}:C{call.end_col_offset})"
+    elif call.lineno:
+        return f"(L{call.lineno}:C{call.col_offset})"
+    return ""
+
+
 ## Print analysis results in human-readable format.
 #  @param result ProjectAnalysis result object.
 def _print_text(result):
@@ -37,7 +48,12 @@ def _print_text(result):
         if f.api_calls:
             print(f"\n{f.module_name} module:")
             for call in f.api_calls:
-                print(f"  {call.expression} -> {call.top_library}")
+                loc = _format_location(call)
+                loc_str = f" {loc}" if loc else ""
+                line = f"  {call.expression}{loc_str}  -> {call.top_library}"
+                if call.resolved_func and call.resolved_func != call.func_name:
+                    line += f"    resolved: {call.resolved_func}"
+                print(line)
 
 
 ## Print analysis results in JSON format.

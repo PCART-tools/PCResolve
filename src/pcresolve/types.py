@@ -18,6 +18,24 @@ class ApiCall:
     base_symbol: str
     ## The resolution chain from call site to origin.
     chain: list
+    ## Absolute path to the source file containing this call.
+    file_path: str = ""
+    ## Line number of the call (1-based).
+    lineno: int = 0
+    ## Column offset of the call (0-based).
+    col_offset: int = 0
+    ## End line number of the call.
+    end_lineno: int = 0
+    ## End column offset of the call.
+    end_col_offset: int = 0
+    ## The function expression part (without arguments), e.g. "pl.DataFrame".
+    func_name: str = ""
+    ## The arguments string, e.g. "x, y=1".
+    parameters: str = ""
+    ## The symbol-resolved function path, stripped of concrete arguments.
+    resolved_func: str = ""
+    ## Concise 3-level resolution chain: [func_name, resolved_func, top_library].
+    resolved_chain: list = field(default_factory=list)
 
 
 ## Trace chain for a single symbol.

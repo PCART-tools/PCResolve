@@ -55,6 +55,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.import_from_symbols = {}
         self.wildcard_modules = []
         self.call_sites = {}
+        self.call_assign_funcs = {}
 
     ## --- Import visitors ---
 
@@ -82,10 +83,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
                 self.symbols.add(symbol, resolved)
-                self.import_from_symbols[symbol] = resolved
+                self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
             else:
                 self.symbols.add(symbol, node.module)
-                self.import_from_symbols[symbol] = node.module
+                self.import_from_symbols[symbol] = (node.module + '.' + alias.name) if node.module else alias.name
         self.generic_visit(node)
 
     ## Resolve a relative import to its full dotted module name.
@@ -268,7 +269,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return True
             return False
         if isinstance(func, ast.Name) and func.id == "import_module":
-            if self.import_from_symbols.get("import_module") == "importlib":
+            if (self.import_from_symbols.get("import_module") or "").startswith("importlib"):
                 return True
             return False
         return False
@@ -575,6 +576,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         self.container_set_sources[container_name] = bases
 
         right = self.trace_source(node.value)
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
+            func_full = self._attribute_name(node.value.func)
+            if func_full:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        self.call_assign_funcs[target.id] = func_full
         if right:
             for target in node.targets:
                 if isinstance(target, ast.Name):
@@ -687,6 +694,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
         self._seen_api_call_ids.add(id(node))
         api_string = self.get_call(node)
+        func_name, parameters = self._get_call_parts(node)
         base = self._resolve_call_base_for_api(node)
         if not base:
             return
@@ -696,32 +704,45 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         else:
             direct_name = None
 
+        loc = {
+            'func_name': func_name,
+            'parameters': parameters,
+            'lineno': node.lineno,
+            'col_offset': node.col_offset,
+            'end_lineno': getattr(node, 'end_lineno', 0) or 0,
+            'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
+        }
+
         if isinstance(base, tuple):
-            self.api_calls.append({
+            record = {
                 'api': api_string,
                 'top': base,
                 'chain': [],
                 'base': base,
                 'direct_name_callee': direct_name,
-            })
+            }
+            record.update(loc)
+            self.api_calls.append(record)
             return
 
         top = self.symbols.get_top(base)
         if not top:
             return
 
-        self.api_calls.append({
+        record = {
             'api': api_string,
             'top': top,
             'chain': self.symbols.get_chain(base),
             'base': base,
             'direct_name_callee': direct_name,
-        })
+        }
+        record.update(loc)
+        self.api_calls.append(record)
 
-    ## Reconstruct a call expression as a string.
+    ## Return (func_str, args_str) tuple for a Call node.
     #  @param node The Call AST node.
-    #  @return String representation like "func(arg1, arg2, kw=val)".
-    def get_call(self, node):
+    #  @return Tuple of (function expression, arguments string).
+    def _get_call_parts(self, node):
         func_str = ast.unparse(node.func)
         parts = [ast.unparse(a) for a in node.args]
         if node.keywords:
@@ -731,6 +752,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 else:
                     parts.append(f"**{ast.unparse(kw.value)}")
         args_str = ", ".join(parts)
+        return func_str, args_str
+
+    ## Reconstruct a call expression as a string.
+    #  @param node The Call AST node.
+    #  @return String representation like "func(arg1, arg2, kw=val)".
+    def get_call(self, node):
+        func_str, args_str = self._get_call_parts(node)
         return f"{func_str}({args_str})"
 
     ## Visit a Call node and record API calls from its chained prefix calls.
@@ -946,6 +974,15 @@ def analyze_source(source, file_path="<string>"):
                 top_library=c['top'],
                 base_symbol=str(c.get('base', '')),
                 chain=c.get('chain', []),
+                file_path=file_path,
+                lineno=c.get('lineno', 0),
+                col_offset=c.get('col_offset', 0),
+                end_lineno=c.get('end_lineno', 0),
+                end_col_offset=c.get('end_col_offset', 0),
+                func_name=c.get('func_name', ''),
+                parameters=c.get('parameters', ''),
+                resolved_func=c.get('func_name', ''),
+                resolved_chain=[c.get('func_name', ''), c.get('func_name', ''), c.get('top', '')],
             )
             for c in tracer.api_calls
         ],

@@ -79,6 +79,15 @@ class ProjectAnalyzer:
                         top_library=c['top'],
                         base_symbol=str(c.get('base', '')),
                         chain=c.get('chain', []),
+                        file_path=c.get('file_path', ''),
+                        lineno=c.get('lineno', 0),
+                        col_offset=c.get('col_offset', 0),
+                        end_lineno=c.get('end_lineno', 0),
+                        end_col_offset=c.get('end_col_offset', 0),
+                        func_name=c.get('func_name', ''),
+                        parameters=c.get('parameters', ''),
+                        resolved_func=c.get('resolved_func', ''),
+                        resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
                     )
                     for c in self.all_calls.get(module, [])
                 ],
@@ -92,6 +101,15 @@ class ProjectAnalyzer:
                     top_library=c['top'],
                     base_symbol=str(c.get('base', '')),
                     chain=c.get('chain', []),
+                    file_path=c.get('file_path', ''),
+                    lineno=c.get('lineno', 0),
+                    col_offset=c.get('col_offset', 0),
+                    end_lineno=c.get('end_lineno', 0),
+                    end_col_offset=c.get('end_col_offset', 0),
+                    func_name=c.get('func_name', ''),
+                    parameters=c.get('parameters', ''),
+                    resolved_func=c.get('resolved_func', ''),
+                    resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
                 ))
 
         return ProjectAnalysis(
@@ -111,47 +129,136 @@ class ProjectAnalyzer:
     def get_calls(self, module_tracers):
         self._call_searched_global = set()
         for module, tracer in module_tracers.items():
+            file_path = self.module_mapper.get_file_path(module)
+            for c in tracer.api_calls:
+                c['file_path'] = file_path or ''
+
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
                 if call_detail.get('top') == 'local':
                     base = call_detail.get('base')
                     if isinstance(base, str):
-                        top_source = self._top_source(module, base, module_tracers)
+                        top_source = self._base_top_source(module, base, tracer, module_tracers)
                         if top_source and top_source != 'local':
-                            self.all_calls[module].append({
-                                'api': call_detail['api'],
-                                'top': top_source,
-                            })
+                            record = dict(call_detail)
+                            record['top'] = top_source
+                            self.all_calls[module].append(record)
                             continue
-                    self.all_calls[module].append({
-                        'api': call_detail['api'],
-                        'top': 'local',
-                    })
+                    record = dict(call_detail)
+                    record['top'] = 'local'
+                    self.all_calls[module].append(record)
                     continue
                 base = call_detail['base']
-                if base in self.global_symbols.get(module, {}):
-                    top_source = self.global_symbols[module][base]
-                elif isinstance(base, str) and '.' in base:
-                    prefix = base.split('.')[0]
-                    if prefix in self.global_symbols.get(module, {}):
-                        top_source = self.global_symbols[module][prefix]
-                    else:
-                        top_source = self._top_source(module, base, module_tracers)
-                elif isinstance(base, tuple):
-                    structured = self._resolve_structured_source(module, base, module_tracers)
-                    if structured is not None:
-                        _, src_module, src_symbol = structured
-                        top_source = self._top_source(src_module, src_symbol, module_tracers)
-                    else:
-                        top_source = str(base)
-                else:
-                    top_source = self._top_source(module, base, module_tracers)
-                call_record = {
-                    'api': call_detail['api'],
-                    'top': top_source
-                }
-                self.all_calls[module].append(call_record)
+                top_source = self._base_top_source(module, base, tracer, module_tracers)
+                record = dict(call_detail)
+                record['top'] = top_source
+                self.all_calls[module].append(record)
+
+        for module, tracer in module_tracers.items():
+            for c in self.all_calls.get(module, []):
+                c['resolved_func'] = self._resolve_func_name(c, module, tracer)
+
         self._call_searched_global = None
+
+    ## Resolve the top-level source of a base symbol, preferring call_assign_funcs.
+    #  @param module The current module.
+    #  @param base The base symbol string.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return Top-level library name.
+    def _base_top_source(self, module, base, tracer, module_tracers):
+        if isinstance(base, tuple):
+            structured = self._resolve_structured_source(module, base, module_tracers)
+            if structured is not None:
+                _, src_module, src_symbol = structured
+                return self._top_source(src_module, src_symbol, module_tracers)
+            return str(base)
+        if isinstance(base, str) and '.' in base:
+            prefix = base.split('.')[0]
+            if prefix in self.global_symbols.get(module, {}):
+                return self.global_symbols[module][prefix]
+            return self._top_source(module, base, module_tracers)
+        # Simple string base: check call_assign_funcs first to avoid cross-scope pollution
+        if isinstance(base, str):
+            caf = tracer.call_assign_funcs.get(base)
+            if caf:
+                caf_first = caf.split('.')[0]
+                top = self._top_source(module, caf_first, module_tracers)
+                if top and top != 'local':
+                    return top
+        if base in self.global_symbols.get(module, {}):
+            return self.global_symbols[module][base]
+        return self._top_source(module, base, module_tracers)
+
+    ## Resolve the first segment of func_name to its fully qualified path.
+    #  @param call_dict Dict with 'func_name' and other call data.
+    #  @param module The module where the call occurs.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param _visited Set of already-visited first names (cycle detection).
+    #  @return Resolved function path string.
+    def _resolve_func_name(self, call_dict, module, tracer, _visited=None):
+        func_name = call_dict.get('func_name', '')
+        if not func_name:
+            return func_name
+        parts = func_name.split('.')
+        first = parts[0]
+
+        if _visited is None:
+            _visited = set()
+        if first in _visited:
+            return func_name
+        _visited.add(first)
+
+        replacement = None
+        ifs = tracer.import_from_symbols.get(first)
+        if ifs:
+            ifs_top = ifs.split('.')[0]
+            if not self.is_local(ifs_top):
+                replacement = ifs
+        else:
+            caf = tracer.call_assign_funcs.get(first)
+            if caf and not caf.startswith(first + '.'):
+                resolved_callee = self._resolve_func_name({'func_name': caf}, module, tracer, _visited)
+                if resolved_callee and not resolved_callee.startswith('self.'):
+                    replacement = resolved_callee
+
+            if replacement is None:
+                sd = tracer.symbols.direct.get(first)
+                if isinstance(sd, str):
+                    if sd == 'local' or sd == 'self' or sd.startswith('self.'):
+                        return func_name
+                    # If sd is a simple local name, try to resolve it further
+                    if '.' not in sd:
+                        gs_sd = self.global_symbols.get(module, {}).get(sd)
+                        if gs_sd and gs_sd != 'local' and gs_sd != 'python':
+                            replacement = gs_sd
+                        else:
+                            replacement = sd
+                    else:
+                        replacement = sd
+
+            if replacement is None:
+                gs = self.global_symbols.get(module, {}).get(first)
+                if isinstance(gs, str):
+                    if gs == 'local' or gs == 'python':
+                        return func_name
+                    replacement = gs
+                elif gs is not None:
+                    return func_name
+
+        if replacement is None:
+            return func_name
+
+        # If the replacement's root is a local symbol, don't use it
+        rep_first = replacement.split('.')[0]
+        if rep_first == 'self' or (rep_first and rep_first != first):
+            rep_gs = self.global_symbols.get(module, {}).get(rep_first)
+            if rep_gs == 'local':
+                return func_name
+
+        if len(parts) == 1:
+            return replacement
+        return replacement + '.' + '.'.join(parts[1:])
 
     ## Resolve cross-file symbol references across all modules.
     #
@@ -434,14 +541,14 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param visited Set of already-visited (module, symbol) pairs.
     #  @return Ordered chain list from symbol to origin.
-    def trace_symbol(self, module, symbol, tracers, visited):
+    def trace_symbol(self, module, symbol, tracers, visited, _direct_source=None):
         if (module, symbol) in visited:
             return []
         visited.add((module, symbol))
         tracer = tracers.get(module)
         if not tracer:
             return []
-        direct_source = tracer.symbols.direct.get(symbol)
+        direct_source = _direct_source if _direct_source is not None else tracer.symbols.direct.get(symbol)
         if not direct_source:
             if isinstance(symbol, str) and '.' in symbol:
                 prefix = symbol.split('.')[0]
