@@ -118,7 +118,6 @@ class ProjectAnalysis:
 ## Known Limitations
 
 - **`partial` alias**: `a = partial; a(requests.get, ...)` resolves to `functools` instead of `requests`. The static analysis only recognizes direct `partial(...)` calls, not aliases to `partial`.
-- **`self.session.get(url)`**: When `session = requests.Session()` is assigned as an instance attribute, method calls on it trace to `local` rather than the actual library. The class receiver is locally defined, so the structured tuple resolves back to `local`.
 - **Multiple inheritance method attribution**: When a class inherits from multiple bases, method resolution stops at the first base that traces to an external library. A locally defined method may be misattributed if an external base class appears earlier in the MRO.
 - **Container iteration in single-file mode**: `for f in {requests.get, np.sum}: f(...)` produces an unresolved structured tuple in `SingleFileAnalyzer`. Full resolution to a merged candidate like `[requests,numpy]` happens only in the cross-file stage.
 - **Dynamic `import_module` with variables**: `importlib.import_module(name)` only resolves when `name` is a string literal. Variable arguments produce an unresolved result.
