@@ -208,6 +208,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return inner_source
             call_key = self.get_base(node, call_lookup=True)
             if call_key:
+                if isinstance(call_key, CallResult):
+                    return call_key
                 return CallResult(call_key)
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
