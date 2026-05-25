@@ -369,6 +369,7 @@ class ProjectAnalyzer:
             for symbol, direct_source in tracer.symbols.direct.items():
                 chain = self.trace_symbol(module, symbol, module_tracers, set())
                 if chain:
+                    chain = _dedup_consecutive(chain)
                     self.global_symbols[module][symbol] = self.extract_final_source(chain)
                     self.symbol_chains[module][symbol] = chain
         self._call_searched_global = None

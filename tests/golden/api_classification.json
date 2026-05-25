@@ -59,34 +59,29 @@
           "get_alias",
           "local_lib",
           "get_alias",
-          "requests",
           "requests"
         ],
         "fetcher": [
           "fetcher",
           "local_lib",
           "fetcher",
-          "requests",
           "requests"
         ],
         "local_call": [
           "local_call",
           "fetch_data()",
-          "requests",
           "requests"
         ],
         "alias_call": [
           "alias_call",
           "get_alias()",
           "get_alias",
-          "requests",
           "requests"
         ],
         "partial_call": [
           "partial_call",
           "fetcher()",
           "fetcher",
-          "requests",
           "requests"
         ],
         "client": [
@@ -123,13 +118,11 @@
           "thirdparty_inherited_call",
           "ThirdPartyClient.get",
           "Session",
-          "requests",
           "requests"
         ],
         "nested_call": [
           "nested_call",
           "wrapper()",
-          "requests",
           "requests"
         ]
       },
@@ -464,7 +457,6 @@
             "get_alias",
             "local_lib",
             "get_alias",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -486,7 +478,6 @@
             "fetcher",
             "local_lib",
             "fetcher",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -507,7 +498,6 @@
           "chain": [
             "local_call",
             "fetch_data()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -529,7 +519,6 @@
             "alias_call",
             "get_alias()",
             "get_alias",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -551,7 +540,6 @@
             "partial_call",
             "fetcher()",
             "fetcher",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -678,7 +666,6 @@
             "thirdparty_inherited_call",
             "ThirdPartyClient.get",
             "Session",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -699,7 +686,6 @@
           "chain": [
             "nested_call",
             "wrapper()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -731,7 +717,6 @@
       },
       "chains": {
         "requests": [
-          "requests",
           "requests"
         ],
         "partial": [
@@ -760,7 +745,6 @@
         ],
         "Session": [
           "Session",
-          "requests",
           "requests"
         ],
         "ThirdPartyClient": [
@@ -773,12 +757,10 @@
         ],
         "get_alias": [
           "get_alias",
-          "requests",
           "requests"
         ],
         "fetcher": [
           "fetcher",
-          "requests",
           "requests"
         ]
       },
@@ -879,7 +861,6 @@
             "requests"
           ],
           "chain": [
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -1072,7 +1053,6 @@
           ],
           "chain": [
             "Session",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -1169,7 +1149,6 @@
           ],
           "chain": [
             "get_alias",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -1189,7 +1168,6 @@
           ],
           "chain": [
             "fetcher",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -1619,7 +1597,6 @@
         "get_alias",
         "local_lib",
         "get_alias",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1641,7 +1618,6 @@
         "fetcher",
         "local_lib",
         "fetcher",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1662,7 +1638,6 @@
       "chain": [
         "local_call",
         "fetch_data()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1684,7 +1659,6 @@
         "alias_call",
         "get_alias()",
         "get_alias",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1706,7 +1680,6 @@
         "partial_call",
         "fetcher()",
         "fetcher",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1833,7 +1806,6 @@
         "thirdparty_inherited_call",
         "ThirdPartyClient.get",
         "Session",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1854,7 +1826,6 @@
       "chain": [
         "nested_call",
         "wrapper()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1873,7 +1844,6 @@
         "requests"
       ],
       "chain": [
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -2066,7 +2036,6 @@
       ],
       "chain": [
         "Session",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -2163,7 +2132,6 @@
       ],
       "chain": [
         "get_alias",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -2183,7 +2151,6 @@
       ],
       "chain": [
         "fetcher",
-        "requests",
         "requests"
       ],
       "scope_name": "",

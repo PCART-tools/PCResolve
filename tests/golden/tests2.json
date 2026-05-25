@@ -28,15 +28,12 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "numpy": [
-          "numpy",
           "numpy"
         ],
         "pandas": [
-          "pandas",
           "pandas"
         ],
         "result": [
@@ -53,7 +50,6 @@
         "z": [
           "z",
           "pandas()",
-          "pandas",
           "pandas"
         ]
       },
@@ -182,7 +178,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -209,7 +204,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -228,7 +222,6 @@
             "numpy"
           ],
           "chain": [
-            "numpy",
             "numpy"
           ],
           "scope_name": "",
@@ -247,7 +240,6 @@
             "pandas"
           ],
           "chain": [
-            "pandas",
             "pandas"
           ],
           "scope_name": "",
@@ -309,7 +301,6 @@
           "chain": [
             "z",
             "pandas()",
-            "pandas",
             "pandas"
           ],
           "scope_name": "",
@@ -330,7 +321,6 @@
           "chain": [
             "z",
             "pandas()",
-            "pandas",
             "pandas"
           ],
           "scope_name": "",
@@ -372,7 +362,6 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "my_data": [
@@ -404,7 +393,6 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "test3": [
@@ -471,7 +459,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -548,7 +535,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -629,7 +615,6 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "data": [
@@ -646,7 +631,6 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "my_data": [
@@ -665,7 +649,6 @@
           "c.e.f",
           "url",
           "requests()",
-          "requests",
           "requests"
         ]
       },
@@ -684,7 +667,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -731,7 +713,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -780,7 +761,6 @@
             "c.e.f",
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -804,7 +784,6 @@
       },
       "chains": {
         "requests": [
-          "requests",
           "requests"
         ],
         "np": [
@@ -814,7 +793,6 @@
         "url": [
           "url",
           "requests()",
-          "requests",
           "requests"
         ],
         "data": [
@@ -879,7 +857,6 @@
             "requests"
           ],
           "chain": [
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -919,7 +896,6 @@
           "chain": [
             "url",
             "requests()",
-            "requests",
             "requests"
           ],
           "scope_name": "",
@@ -1122,7 +1098,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1149,7 +1124,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1168,7 +1142,6 @@
         "numpy"
       ],
       "chain": [
-        "numpy",
         "numpy"
       ],
       "scope_name": "",
@@ -1187,7 +1160,6 @@
         "pandas"
       ],
       "chain": [
-        "pandas",
         "pandas"
       ],
       "scope_name": "",
@@ -1249,7 +1221,6 @@
       "chain": [
         "z",
         "pandas()",
-        "pandas",
         "pandas"
       ],
       "scope_name": "",
@@ -1270,7 +1241,6 @@
       "chain": [
         "z",
         "pandas()",
-        "pandas",
         "pandas"
       ],
       "scope_name": "",
@@ -1319,7 +1289,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1396,7 +1365,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1471,7 +1439,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1518,7 +1485,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1567,7 +1533,6 @@
         "c.e.f",
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1586,7 +1551,6 @@
         "requests"
       ],
       "chain": [
-        "requests",
         "requests"
       ],
       "scope_name": "",
@@ -1626,7 +1590,6 @@
       "chain": [
         "url",
         "requests()",
-        "requests",
         "requests"
       ],
       "scope_name": "",
