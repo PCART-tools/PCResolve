@@ -22,6 +22,7 @@ _PY2_BUILTINS = frozenset({
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
+from .ir import SymbolProvenance
 from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        is_structured_source, normalize_source, source_display)
@@ -107,6 +108,8 @@ class ProjectAnalyzer:
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
+        all_provenance = self._build_symbol_provenance(module_tracers)
+
         files = []
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
@@ -115,6 +118,7 @@ class ProjectAnalyzer:
                 module_name=module,
                 symbols=self.global_symbols.get(module, {}),
                 chains=self.symbol_chains.get(module, {}),
+                symbol_provenance=[p for p in all_provenance if p.file_path == file_path],
                 api_calls=[
                     ApiCall(
                         expression=c['api'],
@@ -167,7 +171,36 @@ class ProjectAnalyzer:
             all_api_calls=all_api_calls,
             diagnostics=diagnostics,
             stats=stats,
+            all_symbol_provenance=all_provenance,
         )
+
+    ## Build SymbolProvenance records from each tracer's symbol_refs.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return List of SymbolProvenance records.
+    def _build_symbol_provenance(self, module_tracers):
+        result = []
+        for module, tracer in module_tracers.items():
+            file_path = self.module_mapper.get_file_path(module)
+            for ref in tracer.symbol_refs:
+                try:
+                    chain = self.trace_symbol(module, ref.symbol, module_tracers, set())
+                except RecursionError:
+                    chain = [source_display(ref.source)]
+                top = self.extract_final_source(chain) if chain else ""
+                tops = [top] if top else []
+                prov = SymbolProvenance(
+                    symbol=ref.symbol,
+                    kind=ref.kind,
+                    top_libraries=tops,
+                    top_library=tops[0] if tops else "unknown",
+                    chain=chain,
+                    scope_name=ref.scope_name,
+                    file_path=file_path or "",
+                    lineno=ref.lineno,
+                    col_offset=ref.col_offset,
+                )
+                result.append(prov)
+        return result
 
     ## Check whether a module name belongs to the current project.
     #  @param module_name Dotted module name.

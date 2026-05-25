@@ -72,6 +72,24 @@ def _stable_api_call(call, project_root):
 #  @param f FileAnalysis object.
 #  @param project_root Project root for path normalization.
 #  @return Ordered dict with versioned-schema fields.
+def _stable_symbol_provenance(p, project_root):
+    """Serialize one SymbolProvenance to a stable-ordered dict."""
+    return {
+        "symbol": p.symbol,
+        "kind": p.kind,
+        "top_library": p.top_library,
+        "top_libraries": p.top_libraries,
+        "chain": p.chain,
+        "scope_name": p.scope_name,
+        "file_path": _normalize_path(p.file_path, project_root) if p.file_path else "",
+        "lineno": p.lineno,
+        "col_offset": p.col_offset,
+        "reason": p.reason,
+        "confidence": p.confidence,
+        "alternatives": p.alternatives,
+    }
+
+
 def _stable_file_analysis(f, project_root):
     return {
         "file_path": _normalize_path(f.file_path, project_root),
@@ -80,6 +98,7 @@ def _stable_file_analysis(f, project_root):
         "chains": f.chains,
         "api_calls": [_stable_api_call(c, project_root) for c in f.api_calls],
         "diagnostics": [_stable_diagnostic(d, project_root) for d in f.diagnostics],
+        "symbol_provenance": [_stable_symbol_provenance(p, project_root) for p in f.symbol_provenance],
     }
 
 
@@ -110,6 +129,7 @@ def _stable_project(result):
         "files": [_stable_file_analysis(f, result.project_root) for f in result.files],
         "all_api_calls": [_stable_api_call(c, result.project_root) for c in result.all_api_calls],
         "diagnostics": [_stable_diagnostic(d, result.project_root) for d in result.diagnostics],
+        "all_symbol_provenance": [_stable_symbol_provenance(p, result.project_root) for p in result.all_symbol_provenance],
         "stats": result.stats,
     }
 

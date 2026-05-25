@@ -66,6 +66,8 @@ class FileAnalysis:
     api_calls: list
     ## Diagnostics for this file (parse errors, etc.).
     diagnostics: list = field(default_factory=list)
+    ## Symbol provenance records for this file.
+    symbol_provenance: list = field(default_factory=list)
 
 
 ## Result of analyzing an entire project.
@@ -83,3 +85,5 @@ class ProjectAnalysis:
     diagnostics: list = field(default_factory=list)
     ## Summary statistics about the analysis run.
     stats: dict = field(default_factory=dict)
+    ## Symbol provenance records across all files.
+    all_symbol_provenance: list = field(default_factory=list)

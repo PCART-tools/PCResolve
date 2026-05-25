@@ -8,7 +8,7 @@
 import ast
 import builtins
 from .symbol_table import SymbolTable
-from .ir import CallSite
+from .ir import CallSite, SymbolRef
 from .scope import Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_COMPREHENSION
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        normalize_source, source_display)
@@ -67,6 +67,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.call_assign_funcs = {}
         self._assignment_counter = 0
         self.call_site_objects = []
+        self.symbol_refs = []
         self.module_scope = Scope(SCOPE_MODULE, self.module_name or "<module>")
         self.scope_stack = [self.module_scope]
 
@@ -96,13 +97,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param name Symbol name.
     #  @param source Source value.
     #  @param node Optional AST node for position info.
-    def _bind_target_name(self, name, source, node=None):
+    #  @param kind Optional symbol kind for provenance ("variable", "parameter", "attribute").
+    def _bind_target_name(self, name, source, node=None, kind="variable"):
         self._assignment_counter += 1
         lineno = getattr(node, "lineno", 0) if node is not None else 0
         col = getattr(node, "col_offset", 0) if node is not None else 0
         self.current_scope().bind(name, source, lineno, col, self._assignment_counter)
         if self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
             self.symbols.add(name, source)
+        if kind:
+            self._add_symbol_ref(name, source, kind, node)
 
     ## Look up a name in the lexical scope chain (v2) or return the name as-is.
     #
@@ -117,6 +121,28 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return binding.source
         return name
 
+    ## Record a SymbolRef for provenance tracking.
+    #  @param symbol Display name.
+    #  @param source Source value.
+    #  @param kind Symbol category.
+    #  @param node Optional AST node for position.
+    def _add_symbol_ref(self, symbol, source, kind, node=None):
+        scope_name = ""
+        if self.scope_model == "v2":
+            cs = self.current_scope()
+            if cs.kind != SCOPE_MODULE:
+                scope_name = cs.name
+        self.symbol_refs.append(SymbolRef(
+            symbol=symbol,
+            source=source,
+            kind=kind,
+            module_name=self.module_name or "",
+            file_path=getattr(self, '_file_path', ""),
+            scope_name=scope_name,
+            lineno=getattr(node, "lineno", 0) if node is not None else 0,
+            col_offset=getattr(node, "col_offset", 0) if node is not None else 0,
+        ))
+
     ## --- Import visitors ---
 
     ## Visit an Import node and record alias-to-module mappings.
@@ -124,7 +150,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Import(self, node):
         for alias in node.names:
             symbol = alias.asname if alias.asname else alias.name
-            self._bind_target_name(symbol, alias.name, node)
+            self._bind_target_name(symbol, alias.name, node, "import")
         self.generic_visit(node)
 
     ## Visit an ImportFrom node and record alias-to-module mappings.
@@ -142,10 +168,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 continue
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
-                self._bind_target_name(symbol, resolved, node)
+                self._bind_target_name(symbol, resolved, node, "import")
                 self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
             else:
-                self._bind_target_name(symbol, node.module, node)
+                self._bind_target_name(symbol, node.module, node, "import")
                 self.import_from_symbols[symbol] = (node.module + '.' + alias.name) if node.module else alias.name
         self.generic_visit(node)
 
@@ -520,20 +546,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  Handles simple names, self.attr, and tuple/list unpacking.
     #  @param target The assignment target AST node.
     #  @param source The source symbol or structured tuple.
-    def _target_to_source(self, target, source):
+    def _target_to_source(self, target, source, kind="variable"):
         if not source:
             return
         if isinstance(target, ast.Name):
-            self._bind_target_name(target.id, source, target)
+            self._bind_target_name(target.id, source, target, kind)
             return
         if isinstance(target, ast.Attribute):
             name = self._attribute_name(target)
             if name and name.startswith("self."):
-                self._bind_target_name(name, source, target)
+                self._bind_target_name(name, source, target, "attribute")
             return
         if isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
-                self._target_to_source(elt, source)
+                self._target_to_source(elt, source, kind)
 
     ## Trace the source of a for-loop iterator.
     #  @param iter_node The iterator AST node.
@@ -942,13 +968,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
             if arg.arg != "self":
                 params.append(arg.arg)
-                self._bind_target_name(arg.arg, "local", arg)
+                self._bind_target_name(arg.arg, "local", arg, "parameter")
         if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
             params.append(node.args.vararg.arg)
-            self._bind_target_name(node.args.vararg.arg, "local")
+            self._bind_target_name(node.args.vararg.arg, "local", kind="parameter")
         if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
             params.append(node.args.kwarg.arg)
-            self._bind_target_name(node.args.kwarg.arg, "local")
+            self._bind_target_name(node.args.kwarg.arg, "local", kind="parameter")
         self.function_params[node.name] = params
         self._func_stack.append(node.name)
         self.generic_visit(node)
@@ -1017,14 +1043,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param node The For AST node.
     def visit_For(self, node):
         source = self._iter_source(node.iter)
-        self._target_to_source(node.target, source)
+        self._target_to_source(node.target, source, "iteration")
         self.generic_visit(node)
 
     ## Visit an AsyncFor node and bind the loop variable to the iterator source.
     #  @param node The AsyncFor AST node.
     def visit_AsyncFor(self, node):
         source = self._iter_source(node.iter)
-        self._target_to_source(node.target, source)
+        self._target_to_source(node.target, source, "iteration")
         self.generic_visit(node)
 
     ## Common handler for all comprehension node types.
@@ -1070,6 +1096,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         self.return_sources[func_name] = s if s else source
                     else:
                         self.return_sources[func_name] = source
+                    self._add_symbol_ref(
+                        func_name + ".return", source, "return", node)
         self.generic_visit(node)
 
 

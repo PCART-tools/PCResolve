@@ -236,6 +236,32 @@ def test_callsite_v2_scope_name():
     assert func_calls[0].scope_name == "f"
 
 
+# ── Symbol provenance ──────────────────────────────────────────────────
+
+def test_symbol_refs_collected():
+    """SingleFileAnalyzer populates symbol_refs for imports and variables."""
+    tracer = SingleFileAnalyzer(module_name="test")
+    code = "import requests\ns = requests.Session()\n"
+    tracer.visit(ast.parse(code))
+    kinds = {r.kind for r in tracer.symbol_refs}
+    assert "import" in kinds
+    assert "variable" in kinds
+
+
+def test_symbol_provenance_in_project_mode():
+    """ProjectAnalyzer generates symbol_provenance records."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\ns = requests.Session()\ns.get('')\n")
+        result = analyze_project(td)
+        assert len(result.all_symbol_provenance) >= 2
+        imports = [p for p in result.all_symbol_provenance if p.kind == "import"]
+        assert len(imports) >= 1
+        assert imports[0].top_library == "requests"
+
+
 def test_binding_scope_kind_is_set():
     tracer = SingleFileAnalyzer(scope_model="v2")
     code = """import requests

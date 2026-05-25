@@ -346,7 +346,371 @@
           ]
         }
       ],
-      "diagnostics": []
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "fetch_data",
+          "kind": "import",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "fetch_data",
+            "local_lib",
+            "fetch_data",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "LocalClient",
+          "kind": "import",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "LocalClient",
+            "local_lib",
+            "LocalClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "MixedClient",
+          "kind": "import",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "MixedClient",
+            "local_lib",
+            "MixedClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "ThirdPartyClient",
+          "kind": "import",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "ThirdPartyClient",
+            "local_lib",
+            "ThirdPartyClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "wrapper",
+          "kind": "import",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "wrapper",
+            "local_lib",
+            "wrapper",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get_alias",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "get_alias",
+            "local_lib",
+            "get_alias",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "fetcher",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "fetcher",
+            "local_lib",
+            "fetcher",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "local_call",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "local_call",
+            "fetch_data()",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 12,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "alias_call",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "alias_call",
+            "get_alias()",
+            "get_alias",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 15,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "partial_call",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "partial_call",
+            "fetcher()",
+            "fetcher",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 18,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "client",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "client",
+            "LocalClient()",
+            "LocalClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 21,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "local_method_call",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "local_method_call",
+            "LocalClient.get",
+            "get",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 22,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "m_client",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "m_client",
+            "MixedClient()",
+            "MixedClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 25,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "local_inherited_call",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "local_inherited_call",
+            "MixedClient.get",
+            "get",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 26,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "tp",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "tp",
+            "ThirdPartyClient()",
+            "ThirdPartyClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 29,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "thirdparty_inherited_call",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "thirdparty_inherited_call",
+            "ThirdPartyClient.get",
+            "Session",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 30,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "nested_call",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "nested_call",
+            "wrapper()",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "main.py",
+          "lineno": 33,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
     },
     {
       "file_path": "local_lib.py",
@@ -505,7 +869,338 @@
           ]
         }
       ],
-      "diagnostics": []
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "requests",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "partial",
+          "kind": "import",
+          "top_library": "functools",
+          "top_libraries": [
+            "functools"
+          ],
+          "chain": [
+            "partial",
+            "functools"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 2,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "fetch_data",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "fetch_data",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 5,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "url",
+          "kind": "parameter",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "url",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 5,
+          "col_offset": 15,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "fetch_data.return",
+          "kind": "return",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "fetch_data.return",
+            "fetch_data",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 7,
+          "col_offset": 4,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "LocalClient",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "LocalClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 10,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "get",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 12,
+          "col_offset": 4,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "url",
+          "kind": "parameter",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "url",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 12,
+          "col_offset": 18,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get.return",
+          "kind": "return",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "get.return",
+            "get",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 13,
+          "col_offset": 8,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "MixedClient",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "MixedClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 16,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "Session",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "Session",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 21,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "ThirdPartyClient",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "ThirdPartyClient",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 24,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "wrapper",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "wrapper",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 29,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "url",
+          "kind": "parameter",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "url",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 29,
+          "col_offset": 12,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "wrapper.return",
+          "kind": "return",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "wrapper.return",
+            "wrapper",
+            "local"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 31,
+          "col_offset": 4,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get_alias",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "get_alias",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 34,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "fetcher",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "fetcher",
+            "requests",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "local_lib.py",
+          "lineno": 36,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
     }
   ],
   "all_api_calls": [
@@ -807,6 +1502,699 @@
     }
   ],
   "diagnostics": [],
+  "all_symbol_provenance": [
+    {
+      "symbol": "fetch_data",
+      "kind": "import",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "fetch_data",
+        "local_lib",
+        "fetch_data",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "LocalClient",
+      "kind": "import",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "LocalClient",
+        "local_lib",
+        "LocalClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "MixedClient",
+      "kind": "import",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "MixedClient",
+        "local_lib",
+        "MixedClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "ThirdPartyClient",
+      "kind": "import",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "ThirdPartyClient",
+        "local_lib",
+        "ThirdPartyClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "wrapper",
+      "kind": "import",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "wrapper",
+        "local_lib",
+        "wrapper",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get_alias",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "get_alias",
+        "local_lib",
+        "get_alias",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "fetcher",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "fetcher",
+        "local_lib",
+        "fetcher",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "local_call",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "local_call",
+        "fetch_data()",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 12,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "alias_call",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "alias_call",
+        "get_alias()",
+        "get_alias",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 15,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "partial_call",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "partial_call",
+        "fetcher()",
+        "fetcher",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 18,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "client",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "client",
+        "LocalClient()",
+        "LocalClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 21,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "local_method_call",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "local_method_call",
+        "LocalClient.get",
+        "get",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 22,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "m_client",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "m_client",
+        "MixedClient()",
+        "MixedClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 25,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "local_inherited_call",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "local_inherited_call",
+        "MixedClient.get",
+        "get",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 26,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "tp",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "tp",
+        "ThirdPartyClient()",
+        "ThirdPartyClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 29,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "thirdparty_inherited_call",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "thirdparty_inherited_call",
+        "ThirdPartyClient.get",
+        "Session",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 30,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "nested_call",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "nested_call",
+        "wrapper()",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "main.py",
+      "lineno": 33,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "requests",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "partial",
+      "kind": "import",
+      "top_library": "functools",
+      "top_libraries": [
+        "functools"
+      ],
+      "chain": [
+        "partial",
+        "functools"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 2,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "fetch_data",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "fetch_data",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 5,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "url",
+      "kind": "parameter",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "url",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 5,
+      "col_offset": 15,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "fetch_data.return",
+      "kind": "return",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "fetch_data.return",
+        "fetch_data",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 7,
+      "col_offset": 4,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "LocalClient",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "LocalClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 10,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "get",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 12,
+      "col_offset": 4,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "url",
+      "kind": "parameter",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "url",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 12,
+      "col_offset": 18,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get.return",
+      "kind": "return",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "get.return",
+        "get",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 13,
+      "col_offset": 8,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "MixedClient",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "MixedClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 16,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "Session",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "Session",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 21,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "ThirdPartyClient",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "ThirdPartyClient",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 24,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "wrapper",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "wrapper",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 29,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "url",
+      "kind": "parameter",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "url",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 29,
+      "col_offset": 12,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "wrapper.return",
+      "kind": "return",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "wrapper.return",
+        "wrapper",
+        "local"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 31,
+      "col_offset": 4,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get_alias",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "get_alias",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 34,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "fetcher",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "fetcher",
+        "requests",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "local_lib.py",
+      "lineno": 36,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    }
+  ],
   "stats": {
     "total_modules": 2,
     "parsed_modules": 2,

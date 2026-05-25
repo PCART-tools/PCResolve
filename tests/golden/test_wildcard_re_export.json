@@ -46,7 +46,53 @@
           ]
         }
       ],
-      "diagnostics": []
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "a",
+          "kind": "variable",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "a",
+            "stats()",
+            "stats",
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "b",
+          "kind": "variable",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "b",
+            "stats()",
+            "stats",
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 3,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
     },
     {
       "file_path": "pkg/helper.py",
@@ -61,7 +107,28 @@
         ]
       },
       "api_calls": [],
-      "diagnostics": []
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "stats",
+          "kind": "import",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/helper.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
     },
     {
       "file_path": "pkg/__init__.py",
@@ -69,7 +136,8 @@
       "symbols": {},
       "chains": {},
       "api_calls": [],
-      "diagnostics": []
+      "diagnostics": [],
+      "symbol_provenance": []
     }
   ],
   "all_api_calls": [
@@ -94,6 +162,71 @@
     }
   ],
   "diagnostics": [],
+  "all_symbol_provenance": [
+    {
+      "symbol": "a",
+      "kind": "variable",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "a",
+        "stats()",
+        "stats",
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "b",
+      "kind": "variable",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "b",
+        "stats()",
+        "stats",
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 3,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "stats",
+      "kind": "import",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/helper.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    }
+  ],
   "stats": {
     "total_modules": 3,
     "parsed_modules": 3,
