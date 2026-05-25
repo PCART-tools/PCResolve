@@ -2173,7 +2173,7 @@
       "imports": [
         "partial"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "import": 1
       },
       "has_evidence": true,
@@ -2194,7 +2194,7 @@
         "get_alias",
         "requests"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "import": 4,
         "variable": 7
       },

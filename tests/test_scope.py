@@ -322,6 +322,63 @@ def test_library_usage_files_deduplicated():
         assert len(usage["requests"].files) == len(set(usage["requests"].files))
 
 
+# ── v2 provenance regression ────────────────────────────────────────────
+
+def test_v2_local_var_not_in_library_usage():
+    """v2 local variable 's' must not appear as a library in usage."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\n"
+                    "def f():\n"
+                    "    s = requests.Session()\n"
+                    "    s.get('')\n"
+                    "f()\n")
+        result = analyze_project(td, scope_model="v2")
+        usage = result.library_usage
+        assert "s" not in usage, f"Local var 's' leaked into library_usage: {list(usage.keys())}"
+
+
+def test_v2_param_shadow_not_in_library_usage():
+    """v2 parameter shadowing an import must not contribute to third-party usage."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\n"
+                    "def f(requests):\n"
+                    "    requests.get('')\n"
+                    "f('')\n")
+        result = analyze_project(td, scope_model="v2")
+        # Check that the parameter does NOT contribute to requests' symbol_count
+        usage = result.library_usage
+        if "requests" in usage:
+            prov_for_requests = [p for p in result.all_symbol_provenance
+                                  if p.top_library == "requests"]
+            # Only the module-level import should contribute, not the parameter
+            for p in prov_for_requests:
+                assert p.scope_name != "f", (
+                    f"Parameter shadow in f() mis-attributed to requests: {p.symbol}")
+
+
+def test_v2_s_provenance_is_requests():
+    """v2 local s = requests.Session() must have top_library='requests'."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\n"
+                    "def f():\n"
+                    "    s = requests.Session()\n")
+        result = analyze_project(td, scope_model="v2")
+        for p in result.all_symbol_provenance:
+            if p.symbol == "s":
+                assert p.top_library == "requests", (
+                    f"v2 s provenance should be 'requests', got {p.top_library} chain={p.chain}"
+                )
+
+
 def test_library_usage_same_filename_different_dirs():
     """Same-named files in different directories must not be merged."""
     import tempfile, os

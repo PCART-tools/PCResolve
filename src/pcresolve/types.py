@@ -83,8 +83,8 @@ class LibraryUsage:
     symbol_count: int = 0
     ## Files where the library appears.
     files: list = field(default_factory=list)
-    ## Reason counts, such as DIRECT_IMPORT or RETURN_PROPAGATION.
-    reason_counts: dict = field(default_factory=dict)
+    ## Kind counts from provenance records (import, variable, parameter, etc).
+    kind_counts: dict = field(default_factory=dict)
     ## Whether any evidence was found.
     has_evidence: bool = False
     ## Minimum confidence among related evidence.

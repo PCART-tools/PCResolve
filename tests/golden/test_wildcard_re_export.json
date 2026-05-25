@@ -233,7 +233,7 @@
       "imports": [
         "stats"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "variable": 2,
         "import": 1
       },

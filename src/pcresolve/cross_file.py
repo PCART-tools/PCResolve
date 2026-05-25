@@ -214,7 +214,11 @@ class ProjectAnalyzer:
             file_path = self.module_mapper.get_file_path(module)
             for ref in tracer.symbol_refs:
                 try:
-                    chain = self.trace_symbol(module, ref.symbol, module_tracers, set())
+                    if ref.scope_name:
+                        chain = self.trace_symbol(module, ref.symbol, module_tracers,
+                                                   set(), _direct_source=ref.source)
+                    else:
+                        chain = self.trace_symbol(module, ref.symbol, module_tracers, set())
                 except RecursionError:
                     chain = [source_display(ref.source)]
                 chain = _dedup_consecutive(chain)
@@ -271,7 +275,7 @@ class ProjectAnalyzer:
                 if prov.symbol not in u.imports:
                     u.imports.append(prov.symbol)
             kind = prov.kind if prov.kind else "unknown"
-            u.reason_counts[kind] = u.reason_counts.get(kind, 0) + 1
+            u.kind_counts[kind] = u.kind_counts.get(kind, 0) + 1
             fp = _normalize_path_for_usage(prov.file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)

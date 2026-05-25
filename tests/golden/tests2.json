@@ -1639,7 +1639,7 @@
         "np",
         "numpy"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "import": 4,
         "variable": 3
       },
@@ -1657,7 +1657,7 @@
       "imports": [
         "pandas"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "import": 1,
         "variable": 2
       },
@@ -1683,7 +1683,7 @@
         "result",
         "url"
       ],
-      "reason_counts": {
+      "kind_counts": {
         "import": 7,
         "variable": 7
       },

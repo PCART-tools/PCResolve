@@ -143,7 +143,7 @@ def _stable_library_usage(u):
         "symbol_count": u.symbol_count,
         "files": u.files,
         "imports": u.imports,
-        "reason_counts": u.reason_counts,
+        "kind_counts": u.kind_counts,
         "has_evidence": u.has_evidence,
         "min_confidence": u.min_confidence,
         "max_confidence": u.max_confidence,
