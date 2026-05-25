@@ -769,6 +769,8 @@ class ProjectAnalyzer:
                     return [symbol, "local"]
             if symbol == "self" or (isinstance(symbol, str) and symbol.startswith("self.")):
                 return [symbol, "local"]
+            if isinstance(symbol, str) and _is_builtin(symbol):
+                return [symbol, "python"]
             return [symbol]
 
         if direct_source == "local":
