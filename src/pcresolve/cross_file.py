@@ -23,6 +23,8 @@ def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .single_file import SingleFileAnalyzer
+from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
+                       is_structured_source, normalize_source, source_display)
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
 
@@ -113,7 +115,7 @@ class ProjectAnalyzer:
                     ApiCall(
                         expression=c['api'],
                         top_library=c['top'],
-                        base_symbol=str(c.get('base', '')),
+                        base_symbol=source_display(c.get('base', '')),
                         chain=c.get('chain', []),
                         file_path=c.get('file_path', ''),
                         lineno=c.get('lineno', 0),
@@ -135,7 +137,7 @@ class ProjectAnalyzer:
                 all_api_calls.append(ApiCall(
                     expression=c['api'],
                     top_library=c['top'],
-                    base_symbol=str(c.get('base', '')),
+                    base_symbol=source_display(c.get('base', '')),
                     chain=c.get('chain', []),
                     file_path=c.get('file_path', ''),
                     lineno=c.get('lineno', 0),
@@ -211,7 +213,7 @@ class ProjectAnalyzer:
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return Top-level library name.
     def _base_top_source(self, module, base, tracer, module_tracers):
-        if isinstance(base, tuple):
+        if is_structured_source(base):
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
                 _, src_module, src_symbol = structured
@@ -444,9 +446,9 @@ class ProjectAnalyzer:
                 resolved = self._resolve_method_symbol(module, base_symbol, method_name, tracers, visited)
                 if resolved:
                     return resolved
-            base_direct = tracer.symbols.direct.get(base_symbol)
-            if isinstance(base_direct, tuple) and len(base_direct) == 3 and base_direct[0] == "call_result":
-                base_direct = base_direct[1]
+            base_direct = normalize_source(tracer.symbols.direct.get(base_symbol))
+            if isinstance(base_direct, CallResult):
+                base_direct = base_direct.callee
                 if base_direct == base_symbol:
                     base_direct = tracer.import_from_symbols.get(base_symbol, base_direct)
             if isinstance(base_direct, str):
@@ -457,9 +459,9 @@ class ProjectAnalyzer:
                         return resolved
                 else:
                     return (module, base_symbol)
-        class_direct = tracer.symbols.direct.get(class_symbol)
-        if isinstance(class_direct, tuple) and len(class_direct) == 3 and class_direct[0] == "call_result":
-            class_direct = class_direct[1]
+        class_direct = normalize_source(tracer.symbols.direct.get(class_symbol))
+        if isinstance(class_direct, CallResult):
+            class_direct = class_direct.callee
             if class_direct == class_symbol:
                 class_direct = tracer.import_from_symbols.get(class_symbol, class_direct)
         if isinstance(class_direct, str):
@@ -488,9 +490,19 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return (display_name, src_module, src_symbol) tuple, or None.
     def _resolve_structured_source(self, module, direct_source, tracers):
-        if not (isinstance(direct_source, tuple) and len(direct_source) == 3):
+        direct_source = normalize_source(direct_source)
+        if isinstance(direct_source, ContainerItem):
+            kind, a, b = "container_item", direct_source.container, direct_source.index
+        elif isinstance(direct_source, ContainerIter):
+            kind, a, b = "container_iter", direct_source.container, "*"
+        elif isinstance(direct_source, InstanceMethod):
+            kind, a, b = "instance_method", direct_source.receiver, direct_source.method
+        elif isinstance(direct_source, CallResult):
+            kind, a, b = "call_result", direct_source.callee, None
+        elif isinstance(direct_source, tuple) and len(direct_source) == 3:
+            kind, a, b = direct_source
+        else:
             return None
-        kind, a, b = direct_source
 
         if kind == "container_item":
             resolved = self._resolve_container_item(module, a, b, tracers)
@@ -559,9 +571,10 @@ class ProjectAnalyzer:
                     return (f"{callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     return (f"{callee}()", cur_module, rs)
-                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
-                    next_chain = self.trace_symbol(cur_module, rs[1], tracers, set())
-                    cur_symbol = rs[1]
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
+                    next_chain = self.trace_symbol(cur_module, rs.callee, tracers, set())
+                    cur_symbol = rs.callee
                     for item in reversed(next_chain):
                         if isinstance(item, str) and self.is_local(item):
                             cur_module = item

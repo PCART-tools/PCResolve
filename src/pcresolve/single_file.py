@@ -8,6 +8,8 @@
 import ast
 import builtins
 from .symbol_table import SymbolTable
+from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
+                       normalize_source, source_display)
 
 ## Python 2 builtins not present in Python 3's builtins module.
 _PY2_BUILTINS = frozenset({
@@ -152,7 +154,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return inner_source
             call_key = self.get_base(node, call_lookup=True)
             if call_key:
-                return ("call_result", call_key, None)
+                return CallResult(call_key)
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
             name = self._attribute_name(node)
@@ -178,7 +180,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 lookup_key = (container_name, key_value)
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
-                return ("container_item", container_name, key_idx)
+                return ContainerItem(container_name, key_idx)
             return container_name
         elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
             if isinstance(node, ast.Dict):
@@ -332,7 +334,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if methods and method_name in methods:
                 return method_name
             if class_name in self.class_methods or class_name in self.import_from_symbols:
-                return ("instance_method", receiver_key, method_name)
+                return InstanceMethod(receiver_key, method_name)
             return None
 
         if isinstance(re, ast.Name):
@@ -340,17 +342,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 cn = self._class_stack[-1]
                 return _resolve_on_class(cn, cn)
             class_name = self.symbols.direct.get(re.id)
-            if isinstance(class_name, tuple) and len(class_name) == 3 and class_name[0] == "call_result":
-                class_name = class_name[1]
+            class_name = normalize_source(class_name)
+            if isinstance(class_name, CallResult):
+                class_name = class_name.callee
             if not class_name:
                 return None
             methods = self.class_methods.get(class_name)
             if methods and method_name in methods:
                 return method_name
             if class_name in self.class_methods:
-                return ("instance_method", re.id, method_name)
+                return InstanceMethod(re.id, method_name)
             if class_name in self.import_from_symbols:
-                return ("instance_method", class_name, method_name)
+                return InstanceMethod(class_name, method_name)
             return None
 
         if isinstance(re, ast.Attribute):
@@ -359,24 +362,26 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if chain[0] == "self" and self._class_stack:
                     cn = self._class_stack[-1]
                     result = _resolve_on_class(cn, cn)
-                    if isinstance(result, tuple) and len(result) == 3 and result[0] == "instance_method":
+                    if isinstance(normalize_source(result), InstanceMethod):
                         attr_name = "self." + ".".join(chain[1:])
                         attr_source = self.symbols.direct.get(attr_name)
-                        if isinstance(attr_source, tuple) and len(attr_source) == 3 and attr_source[0] == "call_result":
-                            callee = attr_source[1]
+                        attr_source = normalize_source(attr_source)
+                        if isinstance(attr_source, CallResult):
+                            callee = attr_source.callee
                             if '.' not in callee and callee in self.symbols.direct:
-                                return ("instance_method", callee, method_name)
+                                return InstanceMethod(callee, method_name)
                         if isinstance(attr_source, str) and '.' not in attr_source and attr_source in self.symbols.direct:
-                            return ("instance_method", attr_source, method_name)
+                            return InstanceMethod(attr_source, method_name)
                     return result
                 root = chain[0]
                 if root in self.import_from_symbols:
-                    return ("instance_method", root, method_name)
+                    return InstanceMethod(root, method_name)
                 root_src = self.symbols.direct.get(root)
-                if isinstance(root_src, tuple) and len(root_src) == 3 and root_src[0] == "call_result":
-                    root_src = root_src[1]
+                root_src = normalize_source(root_src)
+                if isinstance(root_src, CallResult):
+                    root_src = root_src.callee
                 if root_src in self.import_from_symbols:
-                    return ("instance_method", root_src, method_name)
+                    return InstanceMethod(root_src, method_name)
         return None
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
@@ -483,7 +488,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     break
             has_set = container_name in self.container_set_sources
             if has_items or has_set:
-                return ("container_iter", container_name, "*")
+                return ContainerIter(container_name)
         source = self.trace_source(iter_node)
         if source:
             return source
@@ -583,20 +588,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if isinstance(target, ast.Name):
                         self.call_assign_funcs[target.id] = func_full
         if right:
+            right_norm = normalize_source(right)
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     if (
-                        isinstance(right, tuple)
-                        and len(right) == 3
-                        and right[0] == "instance_method"
-                        and right[1] == target.id
+                        isinstance(right_norm, InstanceMethod)
+                        and right_norm.receiver == target.id
                     ):
                         continue
                     if (
-                        isinstance(right, tuple)
-                        and len(right) == 3
-                        and right[0] == "call_result"
-                        and (right[1] == target.id or (isinstance(right[1], str) and right[1].startswith(target.id + ".")))
+                        isinstance(right_norm, CallResult)
+                        and (right_norm.callee == target.id or (isinstance(right_norm.callee, str) and right_norm.callee.startswith(target.id + ".")))
                     ):
                         continue
                     ## skip self-assign: df = df[...] where right resolves to "df"
@@ -606,21 +608,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 elif isinstance(target, ast.Attribute):
                     name = self._attribute_name(target)
                     if name and name.startswith("self."):
-                        if (
-                            isinstance(right, tuple)
-                            and len(right) == 3
-                            and right[0] == "instance_method"
-                        ):
+                        if isinstance(right_norm, InstanceMethod):
                             continue
                         self.symbols.add(name, right)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
-                            if (
-                                isinstance(right, tuple)
-                                and len(right) == 3
-                                and right[0] == "instance_method"
-                            ):
+                            if isinstance(right_norm, InstanceMethod):
                                 continue
                             self.symbols.add(elt.id, right)
         else:
@@ -972,7 +966,7 @@ def analyze_source(source, file_path="<string>"):
             ApiCall(
                 expression=c['api'],
                 top_library=c['top'],
-                base_symbol=str(c.get('base', '')),
+                base_symbol=source_display(c.get('base', '')),
                 chain=c.get('chain', []),
                 file_path=file_path,
                 lineno=c.get('lineno', 0),

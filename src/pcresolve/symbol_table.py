@@ -6,6 +6,7 @@
 #  to determine its top-level origin library.
 
 import builtins
+from .sources import CallResult, normalize_source, source_display
 
 
 ## Tracks symbol definitions and resolves each to its top-level source.
@@ -31,14 +32,16 @@ class SymbolTable:
     def trace(self, symbol, visited=None):
         if visited is None:
             visited = set()
-        if isinstance(symbol, tuple) and len(symbol) == 3 and symbol[0] == "call_result":
+        symbol = normalize_source(symbol)
+        if isinstance(symbol, CallResult):
             if symbol in visited:
                 return []
             visited.add(symbol)
-            callee = symbol[1]
+            callee = symbol.callee
             rs = self.return_sources.get(callee)
             if rs:
-                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
                     return self.trace(rs, visited)
                 if isinstance(rs, str):
                     return self.trace(rs, visited)
@@ -46,14 +49,17 @@ class SymbolTable:
         if symbol in visited:
             return []
         visited.add(symbol)
+        if not isinstance(symbol, str):
+            return [source_display(symbol)]
         if symbol not in self.direct:
             return [symbol]
-        source = self.direct[symbol]
-        if isinstance(source, tuple) and len(source) == 3 and source[0] == "call_result":
-            callee = source[1]
+        source = normalize_source(self.direct[symbol])
+        if isinstance(source, CallResult):
+            callee = source.callee
             rs = self.return_sources.get(callee)
             if rs:
-                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
                     sub = self.trace(rs, visited)
                 elif isinstance(rs, str):
                     sub = self.trace(rs, visited)
@@ -63,7 +69,7 @@ class SymbolTable:
                 sub = self.trace(callee, visited)
             return [symbol] + sub
         if not isinstance(source, str):
-            return [symbol, str(source)]
+            return [symbol, source_display(source)]
         subchain = self.trace(source, visited)
         return [symbol] + subchain
 

@@ -225,7 +225,7 @@
         {
           "expression": "client.get('http://d.com')",
           "top_library": "local",
-          "base_symbol": "('instance_method', 'LocalClient', 'get')",
+          "base_symbol": "LocalClient.get",
           "chain": [],
           "file_path": "main.py",
           "lineno": 22,
@@ -266,7 +266,7 @@
         {
           "expression": "m_client.get('http://d2.com')",
           "top_library": "local",
-          "base_symbol": "('instance_method', 'MixedClient', 'get')",
+          "base_symbol": "MixedClient.get",
           "chain": [],
           "file_path": "main.py",
           "lineno": 26,
@@ -307,7 +307,7 @@
         {
           "expression": "tp.get('http://e.com')",
           "top_library": "requests",
-          "base_symbol": "('instance_method', 'ThirdPartyClient', 'get')",
+          "base_symbol": "ThirdPartyClient.get",
           "chain": [],
           "file_path": "main.py",
           "lineno": 30,
@@ -600,7 +600,7 @@
     {
       "expression": "client.get('http://d.com')",
       "top_library": "local",
-      "base_symbol": "('instance_method', 'LocalClient', 'get')",
+      "base_symbol": "LocalClient.get",
       "chain": [],
       "file_path": "main.py",
       "lineno": 22,
@@ -641,7 +641,7 @@
     {
       "expression": "m_client.get('http://d2.com')",
       "top_library": "local",
-      "base_symbol": "('instance_method', 'MixedClient', 'get')",
+      "base_symbol": "MixedClient.get",
       "chain": [],
       "file_path": "main.py",
       "lineno": 26,
@@ -682,7 +682,7 @@
     {
       "expression": "tp.get('http://e.com')",
       "top_library": "requests",
-      "base_symbol": "('instance_method', 'ThirdPartyClient', 'get')",
+      "base_symbol": "ThirdPartyClient.get",
       "chain": [],
       "file_path": "main.py",
       "lineno": 30,
