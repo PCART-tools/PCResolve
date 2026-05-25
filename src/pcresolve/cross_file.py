@@ -29,6 +29,17 @@ from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
 
+## Remove consecutive duplicate items from a list while preserving order.
+#  @param chain Input list.
+#  @return List with no consecutive duplicates.
+def _dedup_consecutive(chain):
+    result = []
+    for item in chain:
+        if not result or item != result[-1]:
+            result.append(item)
+    return result
+
+
 ## Cross-file project analyzer that traces all API calls to their origins.
 #
 #  Steps:
@@ -186,6 +197,7 @@ class ProjectAnalyzer:
                     chain = self.trace_symbol(module, ref.symbol, module_tracers, set())
                 except RecursionError:
                     chain = [source_display(ref.source)]
+                chain = _dedup_consecutive(chain)
                 top = self.extract_final_source(chain) if chain else ""
                 tops = [top] if top else []
                 prov = SymbolProvenance(
