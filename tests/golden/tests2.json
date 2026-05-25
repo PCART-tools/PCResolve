@@ -1630,8 +1630,8 @@
       "files": [
         "a.py",
         "b.py",
-        "d.py",
-        "f.py"
+        "c/d.py",
+        "c/e/f.py"
       ],
       "imports": [
         "data",
@@ -1639,8 +1639,13 @@
         "np",
         "numpy"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "import": 4,
+        "variable": 3
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     },
     "pandas": {
       "library": "pandas",
@@ -1652,8 +1657,13 @@
       "imports": [
         "pandas"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "import": 1,
+        "variable": 2
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     },
     "requests": {
       "library": "requests",
@@ -1662,8 +1672,8 @@
       "files": [
         "a.py",
         "b.py",
-        "d.py",
-        "f.py"
+        "c/d.py",
+        "c/e/f.py"
       ],
       "imports": [
         "get",
@@ -1673,8 +1683,13 @@
         "result",
         "url"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "import": 7,
+        "variable": 7
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     }
   },
   "stats": {

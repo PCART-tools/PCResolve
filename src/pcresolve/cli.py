@@ -145,6 +145,8 @@ def _stable_library_usage(u):
         "imports": u.imports,
         "reason_counts": u.reason_counts,
         "has_evidence": u.has_evidence,
+        "min_confidence": u.min_confidence,
+        "max_confidence": u.max_confidence,
     }
 
 

@@ -40,11 +40,21 @@ def _dedup_consecutive(chain):
     return result
 
 
-def _normalize_path_for_usage(file_path):
-    """Extract a relative display path for library usage reporting."""
+## Normalize a file path to a relative POSIX path for library usage reporting.
+#  @param file_path Absolute file path.
+#  @param project_root Root directory to make relative.
+#  @return Relative POSIX path, or empty string.
+def _normalize_path_for_usage(file_path, project_root):
     if not file_path:
         return ""
-    return os.path.basename(file_path)
+    try:
+        rel = os.path.relpath(file_path, project_root)
+    except ValueError:
+        rel = file_path
+    result = rel.replace(os.sep, "/")
+    if os.altsep:
+        result = result.replace(os.altsep, "/")
+    return result
 
 
 ## Cross-file project analyzer that traces all API calls to their origins.
@@ -230,6 +240,7 @@ class ProjectAnalyzer:
     #  @return Dict of library_name -> LibraryUsage.
     def _build_library_usage(self, all_api_calls, all_provenance):
         usage = {}
+        root = self.project_root
         for call in all_api_calls:
             top = call.top_library
             if top in ("local", "python", "unknown", ""):
@@ -239,7 +250,9 @@ class ProjectAnalyzer:
             u = usage[top]
             u.api_call_count += 1
             u.has_evidence = True
-            fp = _normalize_path_for_usage(call.file_path)
+            u.min_confidence = min(u.min_confidence or 1.0, 1.0)
+            u.max_confidence = max(u.max_confidence, 1.0)
+            fp = _normalize_path_for_usage(call.file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)
 
@@ -252,10 +265,14 @@ class ProjectAnalyzer:
             u = usage[top]
             u.symbol_count += 1
             u.has_evidence = True
+            u.min_confidence = min(u.min_confidence or 1.0, 1.0)
+            u.max_confidence = max(u.max_confidence, 1.0)
             if prov.kind == "import":
                 if prov.symbol not in u.imports:
                     u.imports.append(prov.symbol)
-            fp = _normalize_path_for_usage(prov.file_path)
+            kind = prov.kind if prov.kind else "unknown"
+            u.reason_counts[kind] = u.reason_counts.get(kind, 0) + 1
+            fp = _normalize_path_for_usage(prov.file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)
 

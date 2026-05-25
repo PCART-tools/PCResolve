@@ -227,14 +227,19 @@
       "api_call_count": 1,
       "symbol_count": 3,
       "files": [
-        "helper.py",
-        "main.py"
+        "pkg/helper.py",
+        "pkg/main.py"
       ],
       "imports": [
         "stats"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "variable": 2,
+        "import": 1
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     }
   },
   "stats": {

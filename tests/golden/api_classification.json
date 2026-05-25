@@ -2173,8 +2173,12 @@
       "imports": [
         "partial"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "import": 1
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     },
     "requests": {
       "library": "requests",
@@ -2190,8 +2194,13 @@
         "get_alias",
         "requests"
       ],
-      "reason_counts": {},
-      "has_evidence": true
+      "reason_counts": {
+        "import": 4,
+        "variable": 7
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
     }
   },
   "stats": {
