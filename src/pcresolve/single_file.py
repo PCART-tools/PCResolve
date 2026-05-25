@@ -761,7 +761,34 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
         }
 
-        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, CallResult)):
+        if isinstance(base, CallResult):
+            # Resolve top through the callee so s.get() shows 'requests'
+            # instead of 'requests()' when s = Session().
+            callee = base.callee
+            if isinstance(callee, str):
+                rs = self.return_sources.get(callee)
+                if rs is not None:
+                    resolved = normalize_source(rs)
+                    if isinstance(resolved, CallResult):
+                        inner_callee = resolved.callee
+                        if isinstance(inner_callee, str):
+                            callee = inner_callee
+                top = self.symbols.get_top(callee) or source_display(base)
+            else:
+                top = source_display(base)
+            chain = [source_display(base)] if (self.scope_model == "v2") else []
+            record = {
+                'api': api_string,
+                'top': top,
+                'chain': chain,
+                'base': base,
+                'direct_name_callee': direct_name,
+            }
+            record.update(loc)
+            self.api_calls.append(record)
+            return
+
+        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod)):
             display = source_display(base)
             chain = [display] if (self.scope_model == "v2" and display) else []
             record = {
