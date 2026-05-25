@@ -345,7 +345,8 @@
             "local"
           ]
         }
-      ]
+      ],
+      "diagnostics": []
     },
     {
       "file_path": "local_lib.py",
@@ -503,7 +504,8 @@
             "requests"
           ]
         }
-      ]
+      ],
+      "diagnostics": []
     }
   ],
   "all_api_calls": [
@@ -803,5 +805,11 @@
         "requests"
       ]
     }
-  ]
+  ],
+  "diagnostics": [],
+  "stats": {
+    "total_modules": 2,
+    "parsed_modules": 2,
+    "skipped_modules": 0
+  }
 }

@@ -79,6 +79,7 @@ def _stable_file_analysis(f, project_root):
         "symbols": f.symbols,
         "chains": f.chains,
         "api_calls": [_stable_api_call(c, project_root) for c in f.api_calls],
+        "diagnostics": [_stable_diagnostic(d, project_root) for d in f.diagnostics],
     }
 
 
@@ -87,12 +88,29 @@ def _stable_file_analysis(f, project_root):
 #  Uses fixed field order and normalized paths for deterministic output.
 #  @param result ProjectAnalysis result object.
 #  @return Ordered dict suitable for JSON serialization.
+def _stable_diagnostic(d, project_root):
+    """Serialize one Diagnostic to a stable-ordered dict."""
+    return {
+        "code": d.code,
+        "message": d.message,
+        "severity": d.severity,
+        "file_path": _normalize_path(d.file_path, project_root) if d.file_path else "",
+        "lineno": d.lineno,
+        "col_offset": d.col_offset,
+        "end_lineno": d.end_lineno,
+        "end_col_offset": d.end_col_offset,
+        "module_name": d.module_name,
+    }
+
+
 def _stable_project(result):
     return {
         "schema_version": result.schema_version,
         "project_root": _normalize_path(result.project_root, result.project_root),
         "files": [_stable_file_analysis(f, result.project_root) for f in result.files],
         "all_api_calls": [_stable_api_call(c, result.project_root) for c in result.all_api_calls],
+        "diagnostics": [_stable_diagnostic(d, result.project_root) for d in result.diagnostics],
+        "stats": result.stats,
     }
 
 
@@ -175,6 +193,14 @@ def main():
         "--stdin", action="store_true",
         help="Read project root path from stdin."
     )
+    parser.add_argument(
+        "--verbose", action="store_true",
+        help="Print diagnostics in human-readable mode."
+    )
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="Exit with non-zero code when error diagnostics are present."
+    )
     args = parser.parse_args()
 
     project_root = args.project_root
@@ -197,3 +223,16 @@ def main():
         _print_json_legacy(result)
     else:
         _print_text(result)
+        if args.verbose and result.diagnostics:
+            print("\nDiagnostics:")
+            for d in result.diagnostics:
+                loc = ""
+                if d.lineno:
+                    loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
+                print("  [%s] %s %s%s: %s" % (d.severity.upper(), d.code, d.file_path, loc, d.message))
+            print("\n%d file(s) skipped." % len(result.diagnostics))
+
+    if args.strict:
+        for d in result.diagnostics:
+            if d.severity == "error":
+                sys.exit(1)

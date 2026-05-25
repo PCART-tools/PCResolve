@@ -45,7 +45,8 @@
             "scipy"
           ]
         }
-      ]
+      ],
+      "diagnostics": []
     },
     {
       "file_path": "pkg/helper.py",
@@ -59,14 +60,16 @@
           "scipy"
         ]
       },
-      "api_calls": []
+      "api_calls": [],
+      "diagnostics": []
     },
     {
       "file_path": "pkg/__init__.py",
       "module_name": "pkg",
       "symbols": {},
       "chains": {},
-      "api_calls": []
+      "api_calls": [],
+      "diagnostics": []
     }
   ],
   "all_api_calls": [
@@ -89,5 +92,11 @@
         "scipy"
       ]
     }
-  ]
+  ],
+  "diagnostics": [],
+  "stats": {
+    "total_modules": 3,
+    "parsed_modules": 3,
+    "skipped_modules": 0
+  }
 }

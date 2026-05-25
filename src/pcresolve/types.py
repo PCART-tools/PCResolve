@@ -64,6 +64,8 @@ class FileAnalysis:
     chains: dict
     ## All API calls found in this file.
     api_calls: list
+    ## Diagnostics for this file (parse errors, etc.).
+    diagnostics: list = field(default_factory=list)
 
 
 ## Result of analyzing an entire project.
@@ -77,3 +79,7 @@ class ProjectAnalysis:
     all_api_calls: list
     ## Schema version for the output format.
     schema_version: str = "1.0"
+    ## Diagnostics collected during analysis.
+    diagnostics: list = field(default_factory=list)
+    ## Summary statistics about the analysis run.
+    stats: dict = field(default_factory=dict)

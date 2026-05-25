@@ -21,6 +21,7 @@ _PY2_BUILTINS = frozenset({
 ## Check if a name is a Python builtin (including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
+from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .single_file import SingleFileAnalyzer
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
@@ -48,19 +49,54 @@ class ProjectAnalyzer:
         self.module_mapper.scan_project()
         all_modules = self.module_mapper.get_all_modules()
         module_tracers = {}
+        diagnostics = []
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
-            if file_path and os.path.exists(file_path):
+            if not file_path or not os.path.exists(file_path):
+                continue
+            try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                tracer = SingleFileAnalyzer(
+            except UnicodeDecodeError as e:
+                diagnostics.append(Diagnostic(
+                    code=ENCODING_ERROR,
+                    message="Cannot decode file: %s" % e,
+                    severity="error",
+                    file_path=file_path,
                     module_name=module,
-                    is_package=self.module_mapper.is_package(module),
-                )
+                ))
+                continue
+            except OSError as e:
+                diagnostics.append(Diagnostic(
+                    code=FILE_READ_ERROR,
+                    message="Cannot read file: %s" % e,
+                    severity="error",
+                    file_path=file_path,
+                    module_name=module,
+                ))
+                continue
+            try:
                 tree = ast.parse(code)
-                tracer.visit(tree)
-                module_tracers[module] = tracer
+            except SyntaxError as e:
+                diagnostics.append(Diagnostic(
+                    code=SYNTAX_ERROR,
+                    message=str(e),
+                    severity="error",
+                    file_path=file_path,
+                    lineno=getattr(e, 'lineno', 0),
+                    col_offset=getattr(e, 'offset', 0) if getattr(e, 'offset', 0) else 0,
+                    end_lineno=getattr(e, 'end_lineno', 0) or 0,
+                    end_col_offset=getattr(e, 'end_offset', 0) if getattr(e, 'end_offset', 0) else 0,
+                    module_name=module,
+                ))
+                continue
+            tracer = SingleFileAnalyzer(
+                module_name=module,
+                is_package=self.module_mapper.is_package(module),
+            )
+            tracer.visit(tree)
+            module_tracers[module] = tracer
 
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
@@ -112,10 +148,18 @@ class ProjectAnalyzer:
                     resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
                 ))
 
+        stats = {
+            "total_modules": len(all_modules),
+            "parsed_modules": len(module_tracers),
+            "skipped_modules": len(diagnostics),
+        }
+
         return ProjectAnalysis(
             project_root=self.project_root,
             files=files,
             all_api_calls=all_api_calls,
+            diagnostics=diagnostics,
+            stats=stats,
         )
 
     ## Check whether a module name belongs to the current project.
