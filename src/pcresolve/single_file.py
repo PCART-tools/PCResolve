@@ -8,6 +8,7 @@
 import ast
 import builtins
 from .symbol_table import SymbolTable
+from .ir import CallSite
 from .scope import Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_COMPREHENSION
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        normalize_source, source_display)
@@ -39,10 +40,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param module_name Optional dotted module name for resolving relative imports.
     #  @param is_package Whether the file is a package __init__.py.
     #  @param scope_model "v1" (legacy single-slot) or "v2" (lexical scopes).
-    def __init__(self, module_name=None, is_package=False, scope_model="v1"):
+    def __init__(self, module_name=None, is_package=False, scope_model="v1",
+                 file_path=""):
         self.module_name = module_name
         self.is_package = is_package
         self.scope_model = scope_model
+        self._file_path = file_path
         self.return_sources = {}
         self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
@@ -63,6 +66,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.call_sites = {}
         self.call_assign_funcs = {}
         self._assignment_counter = 0
+        self.call_site_objects = []
         self.module_scope = Scope(SCOPE_MODULE, self.module_name or "<module>")
         self.scope_stack = [self.module_scope]
 
@@ -788,6 +792,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             }
             record.update(loc)
             self.api_calls.append(record)
+            self._collect_call_site(api_string, func_name, parameters,
+                                    base, loc)
             return
 
         if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod)):
@@ -802,6 +808,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             }
             record.update(loc)
             self.api_calls.append(record)
+            self._collect_call_site(api_string, func_name, parameters,
+                                    base, loc)
             return
 
         # Handle "local" base (v2 scope binding returns "local" for params/locals)
@@ -815,6 +823,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             }
             record.update(loc)
             self.api_calls.append(record)
+            self._collect_call_site(api_string, func_name, parameters,
+                                    base, loc)
             return
 
         top = self.symbols.get_top(base)
@@ -830,6 +840,35 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         }
         record.update(loc)
         self.api_calls.append(record)
+        self._collect_call_site(api_string, func_name, parameters,
+                                base, loc)
+
+    ## Collect a CallSite from the raw call data.
+    #  @param expression Full call expression.
+    #  @param func_name Function part.
+    #  @param parameters Arguments string.
+    #  @param base Base symbol or source.
+    #  @param loc Dict with lineno/col_offset/end_lineno/end_col_offset.
+    def _collect_call_site(self, expression, func_name, parameters,
+                           base, loc):
+        scope_name = ""
+        if self.scope_model == "v2":
+            cs = self.current_scope()
+            if cs.kind != SCOPE_MODULE:
+                scope_name = cs.name
+        self.call_site_objects.append(CallSite(
+            expression=expression,
+            func_name=func_name,
+            parameters=parameters,
+            base=base,
+            module_name=self.module_name or "",
+            file_path=getattr(self, '_file_path', ""),
+            lineno=loc.get('lineno', 0),
+            col_offset=loc.get('col_offset', 0),
+            end_lineno=loc.get('end_lineno', 0),
+            end_col_offset=loc.get('end_col_offset', 0),
+            scope_name=scope_name,
+        ))
 
     ## Return (func_str, args_str) tuple for a Call node.
     #  @param node The Call AST node.

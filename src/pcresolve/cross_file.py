@@ -99,6 +99,7 @@ class ProjectAnalyzer:
                 module_name=module,
                 is_package=self.module_mapper.is_package(module),
                 scope_model=self.scope_model,
+                file_path=file_path,
             )
             tracer.visit(tree)
             module_tracers[module] = tracer

@@ -204,6 +204,38 @@ app.logger.info('test')
     )
 
 
+# ── CallSite collection ─────────────────────────────────────────────────
+
+def test_callsite_collected_for_simple_call():
+    """requests.get() produces 1 CallSite."""
+    tracer = SingleFileAnalyzer()
+    code = "import requests\nrequests.get('')\n"
+    tracer.visit(ast.parse(code))
+    assert len(tracer.call_site_objects) == 1
+    cs = tracer.call_site_objects[0]
+    assert cs.expression == "requests.get('')"
+    assert cs.func_name == "requests.get"
+
+
+def test_callsite_module_name_filled():
+    """CallSite.module_name is populated from the analyzer."""
+    tracer = SingleFileAnalyzer(module_name="pkg.mod")
+    code = "import requests\nrequests.get('')\n"
+    tracer.visit(ast.parse(code))
+    cs = tracer.call_site_objects[0]
+    assert cs.module_name == "pkg.mod"
+
+
+def test_callsite_v2_scope_name():
+    """v2 function body calls carry scope_name == function name."""
+    tracer = SingleFileAnalyzer(scope_model="v2")
+    code = "import requests\ndef f():\n    requests.get('')\n"
+    tracer.visit(ast.parse(code))
+    func_calls = [cs for cs in tracer.call_site_objects if cs.scope_name]
+    assert len(func_calls) >= 1
+    assert func_calls[0].scope_name == "f"
+
+
 def test_binding_scope_kind_is_set():
     tracer = SingleFileAnalyzer(scope_model="v2")
     code = """import requests
