@@ -2176,9 +2176,7 @@
       "reason_counts": {
         "import": 1
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     },
     "requests": {
       "library": "requests",
@@ -2198,9 +2196,7 @@
         "import": 4,
         "variable": 7
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     }
   },
   "stats": {

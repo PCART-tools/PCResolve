@@ -320,3 +320,24 @@ def test_library_usage_files_deduplicated():
         usage = result.library_usage
         assert usage["requests"].files == sorted(usage["requests"].files)
         assert len(usage["requests"].files) == len(set(usage["requests"].files))
+
+
+def test_library_usage_same_filename_different_dirs():
+    """Same-named files in different directories must not be merged."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        pkg1 = os.path.join(td, "pkg1")
+        pkg2 = os.path.join(td, "pkg2")
+        os.makedirs(pkg1)
+        os.makedirs(pkg2)
+        with open(os.path.join(pkg1, "__init__.py"), "w") as f:
+            f.write("import requests\nrequests.get('')\n")
+        with open(os.path.join(pkg2, "__init__.py"), "w") as f:
+            f.write("import requests\nrequests.post('')\n")
+        result = analyze_project(td)
+        usage = result.library_usage
+        files = usage["requests"].files
+        assert len(files) == 2, (
+            f"Expected 2 distinct files, got {files}"
+        )

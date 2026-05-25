@@ -1643,9 +1643,7 @@
         "import": 4,
         "variable": 3
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     },
     "pandas": {
       "library": "pandas",
@@ -1661,9 +1659,7 @@
         "import": 1,
         "variable": 2
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     },
     "requests": {
       "library": "requests",
@@ -1687,9 +1683,7 @@
         "import": 7,
         "variable": 7
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     }
   },
   "stats": {

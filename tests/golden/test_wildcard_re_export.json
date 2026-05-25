@@ -237,9 +237,7 @@
         "variable": 2,
         "import": 1
       },
-      "has_evidence": true,
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
+      "has_evidence": true
     }
   },
   "stats": {
