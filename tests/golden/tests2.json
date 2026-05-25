@@ -1622,6 +1622,61 @@
       "alternatives": []
     }
   ],
+  "library_usage": {
+    "numpy": {
+      "library": "numpy",
+      "api_call_count": 2,
+      "symbol_count": 7,
+      "files": [
+        "a.py",
+        "b.py",
+        "d.py",
+        "f.py"
+      ],
+      "imports": [
+        "data",
+        "my_data",
+        "np",
+        "numpy"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    },
+    "pandas": {
+      "library": "pandas",
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "files": [
+        "b.py"
+      ],
+      "imports": [
+        "pandas"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    },
+    "requests": {
+      "library": "requests",
+      "api_call_count": 3,
+      "symbol_count": 14,
+      "files": [
+        "a.py",
+        "b.py",
+        "d.py",
+        "f.py"
+      ],
+      "imports": [
+        "get",
+        "my_url",
+        "req",
+        "requests",
+        "result",
+        "url"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    }
+  },
   "stats": {
     "total_modules": 4,
     "parsed_modules": 4,

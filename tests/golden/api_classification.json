@@ -2162,6 +2162,38 @@
       "alternatives": []
     }
   ],
+  "library_usage": {
+    "functools": {
+      "library": "functools",
+      "api_call_count": 0,
+      "symbol_count": 1,
+      "files": [
+        "local_lib.py"
+      ],
+      "imports": [
+        "partial"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    },
+    "requests": {
+      "library": "requests",
+      "api_call_count": 6,
+      "symbol_count": 11,
+      "files": [
+        "local_lib.py",
+        "main.py"
+      ],
+      "imports": [
+        "Session",
+        "fetcher",
+        "get_alias",
+        "requests"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    }
+  },
   "stats": {
     "total_modules": 2,
     "parsed_modules": 2,

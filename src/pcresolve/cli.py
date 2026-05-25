@@ -130,7 +130,21 @@ def _stable_project(result):
         "all_api_calls": [_stable_api_call(c, result.project_root) for c in result.all_api_calls],
         "diagnostics": [_stable_diagnostic(d, result.project_root) for d in result.diagnostics],
         "all_symbol_provenance": [_stable_symbol_provenance(p, result.project_root) for p in result.all_symbol_provenance],
+        "library_usage": {k: _stable_library_usage(v) for k, v in result.library_usage.items()},
         "stats": result.stats,
+    }
+
+
+def _stable_library_usage(u):
+    """Serialize one LibraryUsage to a stable-ordered dict."""
+    return {
+        "library": u.library,
+        "api_call_count": u.api_call_count,
+        "symbol_count": u.symbol_count,
+        "files": u.files,
+        "imports": u.imports,
+        "reason_counts": u.reason_counts,
+        "has_evidence": u.has_evidence,
     }
 
 
@@ -174,6 +188,8 @@ def _print_json_legacy(result):
     def _serialize(obj):
         if hasattr(obj, '__dataclass_fields__'):
             return {k: _serialize(v) for k, v in obj.__dict__.items()}
+        elif isinstance(obj, dict):
+            return {k: _serialize(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [_serialize(v) for v in obj]
         else:
@@ -225,6 +241,10 @@ def main():
         "--scope-model", choices=("v1", "v2"), default="v1",
         help="Scope model: v1 (legacy single-slot), v2 (lexical scopes). Default: v1."
     )
+    parser.add_argument(
+        "--usage-summary", action="store_true",
+        help="Print aggregated library usage summary in text mode."
+    )
     args = parser.parse_args()
 
     project_root = args.project_root
@@ -247,6 +267,15 @@ def main():
         _print_json_legacy(result)
     else:
         _print_text(result)
+        if args.usage_summary and result.library_usage:
+            print("\nLibrary Usage Summary:")
+            for lib, u in sorted(result.library_usage.items()):
+                print(f"\n{lib}")
+                print(f"  files: {len(u.files)}")
+                print(f"  api calls: {u.api_call_count}")
+                print(f"  symbols: {u.symbol_count}")
+                if u.imports:
+                    print(f"  imports: {', '.join(u.imports)}")
         if args.verbose and result.diagnostics:
             print("\nDiagnostics:")
             for d in result.diagnostics:

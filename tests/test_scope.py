@@ -273,3 +273,50 @@ def f():
     b = tracer.module_scope.lookup("requests")
     assert b is not None
     assert b.scope_kind == SCOPE_MODULE
+
+
+# ── Library Usage Index ─────────────────────────────────────────────────
+
+
+def test_library_usage_groups_by_top():
+    """Library usage aggregates calls and symbols by top-level library."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\nimport numpy as np\n"
+                    "r = requests.get('')\nnp.array([1])\n")
+        result = analyze_project(td)
+        usage = result.library_usage
+        assert "requests" in usage
+        assert "numpy" in usage
+        assert usage["requests"].api_call_count >= 1
+
+
+def test_library_usage_skips_local_and_python():
+    """Library usage must not include local/python entries."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\ndef f():\n    return range(2)\n"
+                    "x = f()\nrequests.get('')\n")
+        result = analyze_project(td)
+        usage = result.library_usage
+        assert "local" not in usage
+        assert "python" not in usage
+
+
+def test_library_usage_files_deduplicated():
+    """LibraryUsage.files must be deduplicated and sorted."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "a.py"), "w") as f:
+            f.write("import requests\nrequests.get('')\n")
+        with open(os.path.join(td, "b.py"), "w") as f:
+            f.write("import requests\nrequests.post('')\n")
+        result = analyze_project(td)
+        usage = result.library_usage
+        assert usage["requests"].files == sorted(usage["requests"].files)
+        assert len(usage["requests"].files) == len(set(usage["requests"].files))

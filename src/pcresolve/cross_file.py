@@ -26,7 +26,7 @@ from .ir import SymbolProvenance
 from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        is_structured_source, normalize_source, source_display)
-from .types import ProjectAnalysis, FileAnalysis, ApiCall
+from .types import ProjectAnalysis, FileAnalysis, ApiCall, LibraryUsage
 
 
 ## Remove consecutive duplicate items from a list while preserving order.
@@ -38,6 +38,13 @@ def _dedup_consecutive(chain):
         if not result or item != result[-1]:
             result.append(item)
     return result
+
+
+def _normalize_path_for_usage(file_path):
+    """Extract a relative display path for library usage reporting."""
+    if not file_path:
+        return ""
+    return os.path.basename(file_path)
 
 
 ## Cross-file project analyzer that traces all API calls to their origins.
@@ -169,6 +176,8 @@ class ProjectAnalyzer:
                     resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
                 ))
 
+        library_usage = self._build_library_usage(all_api_calls, all_provenance)
+
         stats = {
             "total_modules": len(all_modules),
             "parsed_modules": len(module_tracers),
@@ -183,6 +192,7 @@ class ProjectAnalyzer:
             diagnostics=diagnostics,
             stats=stats,
             all_symbol_provenance=all_provenance,
+            library_usage=library_usage,
         )
 
     ## Build SymbolProvenance records from each tracer's symbol_refs.
@@ -213,6 +223,46 @@ class ProjectAnalyzer:
                 )
                 result.append(prov)
         return result
+
+    ## Build a library usage index from calls and provenance.
+    #  @param all_api_calls List of ApiCall records.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @return Dict of library_name -> LibraryUsage.
+    def _build_library_usage(self, all_api_calls, all_provenance):
+        usage = {}
+        for call in all_api_calls:
+            top = call.top_library
+            if top in ("local", "python", "unknown", ""):
+                continue
+            if top not in usage:
+                usage[top] = LibraryUsage(library=top)
+            u = usage[top]
+            u.api_call_count += 1
+            u.has_evidence = True
+            fp = _normalize_path_for_usage(call.file_path)
+            if fp and fp not in u.files:
+                u.files.append(fp)
+
+        for prov in all_provenance:
+            top = prov.top_library
+            if top in ("local", "python", "unknown", ""):
+                continue
+            if top not in usage:
+                usage[top] = LibraryUsage(library=top)
+            u = usage[top]
+            u.symbol_count += 1
+            u.has_evidence = True
+            if prov.kind == "import":
+                if prov.symbol not in u.imports:
+                    u.imports.append(prov.symbol)
+            fp = _normalize_path_for_usage(prov.file_path)
+            if fp and fp not in u.files:
+                u.files.append(fp)
+
+        for u in usage.values():
+            u.files.sort()
+            u.imports.sort()
+        return {k: u for k, u in sorted(usage.items())}
 
     ## Check whether a module name belongs to the current project.
     #  @param module_name Dotted module name.

@@ -221,6 +221,22 @@
       "alternatives": []
     }
   ],
+  "library_usage": {
+    "scipy": {
+      "library": "scipy",
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "files": [
+        "helper.py",
+        "main.py"
+      ],
+      "imports": [
+        "stats"
+      ],
+      "reason_counts": {},
+      "has_evidence": true
+    }
+  },
   "stats": {
     "total_modules": 3,
     "parsed_modules": 3,

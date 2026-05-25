@@ -70,6 +70,29 @@ class FileAnalysis:
     symbol_provenance: list = field(default_factory=list)
 
 
+## Aggregated usage evidence for one top-level library.
+@dataclass
+class LibraryUsage:
+    ## Top-level library name.
+    library: str
+    ## Import aliases related to this library.
+    imports: list = field(default_factory=list)
+    ## Number of API calls traced to this library.
+    api_call_count: int = 0
+    ## Number of symbol provenance records traced to this library.
+    symbol_count: int = 0
+    ## Files where the library appears.
+    files: list = field(default_factory=list)
+    ## Reason counts, such as DIRECT_IMPORT or RETURN_PROPAGATION.
+    reason_counts: dict = field(default_factory=dict)
+    ## Whether any evidence was found.
+    has_evidence: bool = False
+    ## Minimum confidence among related evidence.
+    min_confidence: float = 0.0
+    ## Maximum confidence among related evidence.
+    max_confidence: float = 0.0
+
+
 ## Result of analyzing an entire project.
 @dataclass
 class ProjectAnalysis:
@@ -87,3 +110,5 @@ class ProjectAnalysis:
     stats: dict = field(default_factory=dict)
     ## Symbol provenance records across all files.
     all_symbol_provenance: list = field(default_factory=list)
+    ## Aggregated usage index by top-level library.
+    library_usage: dict = field(default_factory=dict)
