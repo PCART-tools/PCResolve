@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0",
+  "project_root": ".",
+  "files": [
+    {
+      "file_path": "pkg/main.py",
+      "module_name": "pkg.main",
+      "symbols": {
+        "a": "scipy",
+        "b": "scipy"
+      },
+      "chains": {
+        "a": [
+          "a",
+          "stats()",
+          "stats",
+          "stats",
+          "scipy"
+        ],
+        "b": [
+          "b",
+          "stats()",
+          "stats",
+          "stats",
+          "scipy"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "stats.pearsonr([1, 2, 3], [4, 5, 6])",
+          "top_library": "scipy",
+          "base_symbol": "stats",
+          "chain": [],
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 7,
+          "end_lineno": 3,
+          "end_col_offset": 43,
+          "func_name": "stats.pearsonr",
+          "parameters": "[1, 2, 3], [4, 5, 6]",
+          "resolved_func": "stats.pearsonr",
+          "resolved_chain": [
+            "stats.pearsonr",
+            "stats.pearsonr",
+            "scipy"
+          ]
+        }
+      ]
+    },
+    {
+      "file_path": "pkg/helper.py",
+      "module_name": "pkg.helper",
+      "symbols": {
+        "stats": "scipy"
+      },
+      "chains": {
+        "stats": [
+          "stats",
+          "scipy"
+        ]
+      },
+      "api_calls": []
+    },
+    {
+      "file_path": "pkg/__init__.py",
+      "module_name": "pkg",
+      "symbols": {},
+      "chains": {},
+      "api_calls": []
+    }
+  ],
+  "all_api_calls": [
+    {
+      "expression": "stats.pearsonr([1, 2, 3], [4, 5, 6])",
+      "top_library": "scipy",
+      "base_symbol": "stats",
+      "chain": [],
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 7,
+      "end_lineno": 3,
+      "end_col_offset": 43,
+      "func_name": "stats.pearsonr",
+      "parameters": "[1, 2, 3], [4, 5, 6]",
+      "resolved_func": "stats.pearsonr",
+      "resolved_chain": [
+        "stats.pearsonr",
+        "stats.pearsonr",
+        "scipy"
+      ]
+    }
+  ]
+}

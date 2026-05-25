@@ -75,3 +75,5 @@ class ProjectAnalysis:
     files: list
     ## Flat list of all API calls across all files.
     all_api_calls: list
+    ## Schema version for the output format.
+    schema_version: str = "1.0"

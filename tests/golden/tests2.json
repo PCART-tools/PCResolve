@@ -1,0 +1,505 @@
+{
+  "schema_version": "1.0",
+  "project_root": ".",
+  "files": [
+    {
+      "file_path": "b.py",
+      "module_name": "b",
+      "symbols": {
+        "req": "requests",
+        "get": "requests",
+        "numpy": "numpy",
+        "pandas": "pandas",
+        "result": "requests",
+        "check": "local",
+        "z": "pandas"
+      },
+      "chains": {
+        "req": [
+          "req",
+          "requests"
+        ],
+        "get": [
+          "get",
+          "c.d",
+          "get",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "numpy": [
+          "numpy",
+          "numpy"
+        ],
+        "pandas": [
+          "pandas",
+          "pandas"
+        ],
+        "result": [
+          "result",
+          "req()",
+          "req",
+          "requests"
+        ],
+        "check": [
+          "check",
+          "get()",
+          "c.e.f"
+        ],
+        "z": [
+          "z",
+          "pandas()",
+          "pandas",
+          "pandas"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "req.get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "req",
+          "chain": [
+            "req",
+            "requests"
+          ],
+          "file_path": "b.py",
+          "lineno": 7,
+          "col_offset": 9,
+          "end_lineno": 7,
+          "end_col_offset": 38,
+          "func_name": "req.get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "req.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "get",
+          "chain": [
+            "get",
+            "c.d"
+          ],
+          "file_path": "b.py",
+          "lineno": 8,
+          "col_offset": 6,
+          "end_lineno": 8,
+          "end_col_offset": 31,
+          "func_name": "get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "c.d.get",
+          "resolved_chain": [
+            "get",
+            "c.d.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "numpy.foo()",
+          "top_library": "numpy",
+          "base_symbol": "numpy",
+          "chain": [
+            "numpy"
+          ],
+          "file_path": "b.py",
+          "lineno": 10,
+          "col_offset": 2,
+          "end_lineno": 10,
+          "end_col_offset": 13,
+          "func_name": "numpy.foo",
+          "parameters": "",
+          "resolved_func": "numpy.foo",
+          "resolved_chain": [
+            "numpy.foo",
+            "numpy.foo",
+            "numpy"
+          ]
+        },
+        {
+          "expression": "pandas.foo(z)",
+          "top_library": "pandas",
+          "base_symbol": "pandas",
+          "chain": [
+            "pandas"
+          ],
+          "file_path": "b.py",
+          "lineno": 11,
+          "col_offset": 2,
+          "end_lineno": 11,
+          "end_col_offset": 15,
+          "func_name": "pandas.foo",
+          "parameters": "z",
+          "resolved_func": "pandas.foo",
+          "resolved_chain": [
+            "pandas.foo",
+            "pandas.foo",
+            "pandas"
+          ]
+        }
+      ]
+    },
+    {
+      "file_path": "a.py",
+      "module_name": "a",
+      "symbols": {
+        "result": "requests",
+        "my_url": "requests",
+        "my_data": "numpy",
+        "test1": "requests",
+        "test2": "requests",
+        "test3": "numpy",
+        "test4": "requests"
+      },
+      "chains": {
+        "result": [
+          "result",
+          "b",
+          "result",
+          "req()",
+          "req",
+          "requests"
+        ],
+        "my_url": [
+          "my_url",
+          "c.d",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "my_data": [
+          "my_data",
+          "c.d",
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np()",
+          "np",
+          "numpy"
+        ],
+        "test1": [
+          "test1",
+          "result",
+          "b",
+          "result",
+          "req()",
+          "req",
+          "requests"
+        ],
+        "test2": [
+          "test2",
+          "my_url",
+          "c.d",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "test3": [
+          "test3",
+          "my_data",
+          "c.d",
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np()",
+          "np",
+          "numpy"
+        ],
+        "test4": [
+          "test4",
+          "test1",
+          "result",
+          "b",
+          "result",
+          "req()",
+          "req",
+          "requests"
+        ]
+      },
+      "api_calls": []
+    },
+    {
+      "file_path": "c/d.py",
+      "module_name": "c.d",
+      "symbols": {
+        "url": "requests",
+        "data": "numpy",
+        "my_url": "requests",
+        "my_data": "numpy",
+        "get": "requests"
+      },
+      "chains": {
+        "url": [
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "data": [
+          "data",
+          "c.e.f",
+          "data",
+          "np()",
+          "np",
+          "numpy"
+        ],
+        "my_url": [
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "my_data": [
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np()",
+          "np",
+          "numpy"
+        ],
+        "get": [
+          "get",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ]
+      },
+      "api_calls": []
+    },
+    {
+      "file_path": "c/e/f.py",
+      "module_name": "c.e.f",
+      "symbols": {
+        "requests": "requests",
+        "np": "numpy",
+        "url": "requests",
+        "data": "numpy"
+      },
+      "chains": {
+        "requests": [
+          "requests",
+          "requests"
+        ],
+        "np": [
+          "np",
+          "numpy"
+        ],
+        "url": [
+          "url",
+          "requests()",
+          "requests",
+          "requests"
+        ],
+        "data": [
+          "data",
+          "np()",
+          "np",
+          "numpy"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "requests.get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "requests",
+          "chain": [
+            "requests"
+          ],
+          "file_path": "c/e/f.py",
+          "lineno": 4,
+          "col_offset": 4,
+          "end_lineno": 4,
+          "end_col_offset": 38,
+          "func_name": "requests.get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "requests.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "np.array([1, 2, 3])",
+          "top_library": "numpy",
+          "base_symbol": "np",
+          "chain": [
+            "np",
+            "numpy"
+          ],
+          "file_path": "c/e/f.py",
+          "lineno": 5,
+          "col_offset": 5,
+          "end_lineno": 5,
+          "end_col_offset": 24,
+          "func_name": "np.array",
+          "parameters": "[1, 2, 3]",
+          "resolved_func": "numpy.array",
+          "resolved_chain": [
+            "np.array",
+            "numpy.array",
+            "numpy"
+          ]
+        }
+      ]
+    }
+  ],
+  "all_api_calls": [
+    {
+      "expression": "req.get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "req",
+      "chain": [
+        "req",
+        "requests"
+      ],
+      "file_path": "b.py",
+      "lineno": 7,
+      "col_offset": 9,
+      "end_lineno": 7,
+      "end_col_offset": 38,
+      "func_name": "req.get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "req.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "get",
+      "chain": [
+        "get",
+        "c.d"
+      ],
+      "file_path": "b.py",
+      "lineno": 8,
+      "col_offset": 6,
+      "end_lineno": 8,
+      "end_col_offset": 31,
+      "func_name": "get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "c.d.get",
+      "resolved_chain": [
+        "get",
+        "c.d.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "numpy.foo()",
+      "top_library": "numpy",
+      "base_symbol": "numpy",
+      "chain": [
+        "numpy"
+      ],
+      "file_path": "b.py",
+      "lineno": 10,
+      "col_offset": 2,
+      "end_lineno": 10,
+      "end_col_offset": 13,
+      "func_name": "numpy.foo",
+      "parameters": "",
+      "resolved_func": "numpy.foo",
+      "resolved_chain": [
+        "numpy.foo",
+        "numpy.foo",
+        "numpy"
+      ]
+    },
+    {
+      "expression": "pandas.foo(z)",
+      "top_library": "pandas",
+      "base_symbol": "pandas",
+      "chain": [
+        "pandas"
+      ],
+      "file_path": "b.py",
+      "lineno": 11,
+      "col_offset": 2,
+      "end_lineno": 11,
+      "end_col_offset": 15,
+      "func_name": "pandas.foo",
+      "parameters": "z",
+      "resolved_func": "pandas.foo",
+      "resolved_chain": [
+        "pandas.foo",
+        "pandas.foo",
+        "pandas"
+      ]
+    },
+    {
+      "expression": "requests.get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "requests",
+      "chain": [
+        "requests"
+      ],
+      "file_path": "c/e/f.py",
+      "lineno": 4,
+      "col_offset": 4,
+      "end_lineno": 4,
+      "end_col_offset": 38,
+      "func_name": "requests.get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "requests.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "np.array([1, 2, 3])",
+      "top_library": "numpy",
+      "base_symbol": "np",
+      "chain": [
+        "np",
+        "numpy"
+      ],
+      "file_path": "c/e/f.py",
+      "lineno": 5,
+      "col_offset": 5,
+      "end_lineno": 5,
+      "end_col_offset": 24,
+      "func_name": "np.array",
+      "parameters": "[1, 2, 3]",
+      "resolved_func": "numpy.array",
+      "resolved_chain": [
+        "np.array",
+        "numpy.array",
+        "numpy"
+      ]
+    }
+  ]
+}

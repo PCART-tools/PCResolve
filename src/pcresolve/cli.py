@@ -4,6 +4,7 @@
 #  Usage:
 #    pcresolve /path/to/project
 #    pcresolve --json /path/to/project
+#    pcresolve --json-stable /path/to/project
 #    python -m pcresolve /path/to/project
 #    echo /path/to/project | pcresolve --stdin
 
@@ -23,6 +24,76 @@ def _format_location(call):
     elif call.lineno:
         return f"(L{call.lineno}:C{call.col_offset})"
     return ""
+
+
+## Normalize a file path to POSIX-style for stable JSON output.
+#
+#  Converts to a relative path. Paths outside project_root are prefixed
+#  with "<external>/". Both os.sep and os.altsep are unified to "/".
+#  @param file_path Absolute or relative file path.
+#  @param project_root The project root directory.
+#  @return Normalized POSIX-style path string.
+def _normalize_path(file_path, project_root):
+    try:
+        rel = os.path.relpath(file_path, project_root)
+        if rel.startswith(".." + os.sep):
+            rel = "<external>/" + rel
+    except ValueError:
+        rel = "<external>/" + str(file_path)
+    result = rel.replace(os.sep, "/")
+    if os.altsep:
+        result = result.replace(os.altsep, "/")
+    return result
+
+
+## Serialize one ApiCall to a stable-ordered dict.
+#  @param call ApiCall object.
+#  @param project_root Project root for path normalization.
+#  @return Ordered dict with versioned-schema fields.
+def _stable_api_call(call, project_root):
+    return {
+        "expression": call.expression,
+        "top_library": call.top_library,
+        "base_symbol": call.base_symbol,
+        "chain": call.chain,
+        "file_path": _normalize_path(call.file_path, project_root),
+        "lineno": call.lineno,
+        "col_offset": call.col_offset,
+        "end_lineno": call.end_lineno,
+        "end_col_offset": call.end_col_offset,
+        "func_name": call.func_name,
+        "parameters": call.parameters,
+        "resolved_func": call.resolved_func,
+        "resolved_chain": call.resolved_chain,
+    }
+
+
+## Serialize one FileAnalysis to a stable-ordered dict.
+#  @param f FileAnalysis object.
+#  @param project_root Project root for path normalization.
+#  @return Ordered dict with versioned-schema fields.
+def _stable_file_analysis(f, project_root):
+    return {
+        "file_path": _normalize_path(f.file_path, project_root),
+        "module_name": f.module_name,
+        "symbols": f.symbols,
+        "chains": f.chains,
+        "api_calls": [_stable_api_call(c, project_root) for c in f.api_calls],
+    }
+
+
+## Serialize ProjectAnalysis to a stable-ordered dict.
+#
+#  Uses fixed field order and normalized paths for deterministic output.
+#  @param result ProjectAnalysis result object.
+#  @return Ordered dict suitable for JSON serialization.
+def _stable_project(result):
+    return {
+        "schema_version": result.schema_version,
+        "project_root": _normalize_path(result.project_root, result.project_root),
+        "files": [_stable_file_analysis(f, result.project_root) for f in result.files],
+        "all_api_calls": [_stable_api_call(c, result.project_root) for c in result.all_api_calls],
+    }
 
 
 ## Print analysis results in human-readable format.
@@ -56,9 +127,12 @@ def _print_text(result):
                 print(line)
 
 
-## Print analysis results in JSON format.
+## Print analysis results in legacy JSON format (backward-compatible).
+#
+#  Preserves the original dataclasses.__dict__ serialisation and
+#  absolute paths, with schema_version added at the root.
 #  @param result ProjectAnalysis result object.
-def _print_json(result):
+def _print_json_legacy(result):
     def _serialize(obj):
         if hasattr(obj, '__dataclass_fields__'):
             return {k: _serialize(v) for k, v in obj.__dict__.items()}
@@ -67,7 +141,17 @@ def _print_json(result):
         else:
             return obj
 
-    print(json.dumps(_serialize(result), indent=2, ensure_ascii=False))
+    output = _serialize(result)
+    output["schema_version"] = result.schema_version  # type: ignore[index]
+    print(json.dumps(output, indent=2, ensure_ascii=False))
+
+
+## Print analysis results in stable JSON format.
+#
+#  Uses normalized POSIX paths and fixed field order.
+#  @param result ProjectAnalysis result object.
+def _print_json_stable(result):
+    print(json.dumps(_stable_project(result), indent=2, ensure_ascii=False))
 
 
 ## Main entry point for the pcresolve CLI.
@@ -81,7 +165,11 @@ def main():
     )
     parser.add_argument(
         "--json", action="store_true",
-        help="Output results in JSON format."
+        help="Output results in JSON format (backward-compatible, additive fields)."
+    )
+    parser.add_argument(
+        "--json-stable", action="store_true",
+        help="Output results in stable JSON format with normalized paths and fixed field order."
     )
     parser.add_argument(
         "--stdin", action="store_true",
@@ -103,7 +191,9 @@ def main():
 
     result = analyze_project(project_root)
 
-    if args.json:
-        _print_json(result)
+    if args.json_stable:
+        _print_json_stable(result)
+    elif args.json:
+        _print_json_legacy(result)
     else:
         _print_text(result)

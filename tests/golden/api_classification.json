@@ -1,0 +1,807 @@
+{
+  "schema_version": "1.0",
+  "project_root": ".",
+  "files": [
+    {
+      "file_path": "main.py",
+      "module_name": "main",
+      "symbols": {
+        "fetch_data": "local",
+        "LocalClient": "local",
+        "MixedClient": "local",
+        "ThirdPartyClient": "local",
+        "wrapper": "local",
+        "get_alias": "requests",
+        "fetcher": "requests",
+        "local_call": "requests",
+        "alias_call": "requests",
+        "partial_call": "requests",
+        "client": "local",
+        "local_method_call": "local",
+        "m_client": "local",
+        "local_inherited_call": "local",
+        "tp": "local",
+        "thirdparty_inherited_call": "requests",
+        "nested_call": "requests"
+      },
+      "chains": {
+        "fetch_data": [
+          "fetch_data",
+          "local_lib",
+          "fetch_data",
+          "local"
+        ],
+        "LocalClient": [
+          "LocalClient",
+          "local_lib",
+          "LocalClient",
+          "local"
+        ],
+        "MixedClient": [
+          "MixedClient",
+          "local_lib",
+          "MixedClient",
+          "local"
+        ],
+        "ThirdPartyClient": [
+          "ThirdPartyClient",
+          "local_lib",
+          "ThirdPartyClient",
+          "local"
+        ],
+        "wrapper": [
+          "wrapper",
+          "local_lib",
+          "wrapper",
+          "local"
+        ],
+        "get_alias": [
+          "get_alias",
+          "local_lib",
+          "get_alias",
+          "requests",
+          "requests"
+        ],
+        "fetcher": [
+          "fetcher",
+          "local_lib",
+          "fetcher",
+          "requests",
+          "requests"
+        ],
+        "local_call": [
+          "local_call",
+          "fetch_data()",
+          "requests",
+          "requests"
+        ],
+        "alias_call": [
+          "alias_call",
+          "get_alias()",
+          "get_alias",
+          "requests",
+          "requests"
+        ],
+        "partial_call": [
+          "partial_call",
+          "fetcher()",
+          "fetcher",
+          "requests",
+          "requests"
+        ],
+        "client": [
+          "client",
+          "LocalClient()",
+          "LocalClient",
+          "local"
+        ],
+        "local_method_call": [
+          "local_method_call",
+          "LocalClient.get",
+          "get",
+          "local"
+        ],
+        "m_client": [
+          "m_client",
+          "MixedClient()",
+          "MixedClient",
+          "local"
+        ],
+        "local_inherited_call": [
+          "local_inherited_call",
+          "MixedClient.get",
+          "get",
+          "local"
+        ],
+        "tp": [
+          "tp",
+          "ThirdPartyClient()",
+          "ThirdPartyClient",
+          "local"
+        ],
+        "thirdparty_inherited_call": [
+          "thirdparty_inherited_call",
+          "ThirdPartyClient.get",
+          "Session",
+          "requests",
+          "requests"
+        ],
+        "nested_call": [
+          "nested_call",
+          "wrapper()",
+          "requests",
+          "requests"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "fetch_data('http://a.com')",
+          "top_library": "local",
+          "base_symbol": "fetch_data",
+          "chain": [
+            "fetch_data",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 12,
+          "col_offset": 13,
+          "end_lineno": 12,
+          "end_col_offset": 39,
+          "func_name": "fetch_data",
+          "parameters": "'http://a.com'",
+          "resolved_func": "fetch_data",
+          "resolved_chain": [
+            "fetch_data",
+            "fetch_data",
+            "local"
+          ]
+        },
+        {
+          "expression": "get_alias('http://b.com')",
+          "top_library": "requests",
+          "base_symbol": "get_alias",
+          "chain": [
+            "get_alias",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 15,
+          "col_offset": 13,
+          "end_lineno": 15,
+          "end_col_offset": 38,
+          "func_name": "get_alias",
+          "parameters": "'http://b.com'",
+          "resolved_func": "get_alias",
+          "resolved_chain": [
+            "get_alias",
+            "get_alias",
+            "requests"
+          ]
+        },
+        {
+          "expression": "fetcher('http://c.com')",
+          "top_library": "requests",
+          "base_symbol": "fetcher",
+          "chain": [
+            "fetcher",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 18,
+          "col_offset": 15,
+          "end_lineno": 18,
+          "end_col_offset": 38,
+          "func_name": "fetcher",
+          "parameters": "'http://c.com'",
+          "resolved_func": "fetcher",
+          "resolved_chain": [
+            "fetcher",
+            "fetcher",
+            "requests"
+          ]
+        },
+        {
+          "expression": "LocalClient()",
+          "top_library": "local",
+          "base_symbol": "LocalClient",
+          "chain": [
+            "LocalClient",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 21,
+          "col_offset": 9,
+          "end_lineno": 21,
+          "end_col_offset": 22,
+          "func_name": "LocalClient",
+          "parameters": "",
+          "resolved_func": "LocalClient",
+          "resolved_chain": [
+            "LocalClient",
+            "LocalClient",
+            "local"
+          ]
+        },
+        {
+          "expression": "client.get('http://d.com')",
+          "top_library": "local",
+          "base_symbol": "('instance_method', 'LocalClient', 'get')",
+          "chain": [],
+          "file_path": "main.py",
+          "lineno": 22,
+          "col_offset": 20,
+          "end_lineno": 22,
+          "end_col_offset": 46,
+          "func_name": "client.get",
+          "parameters": "'http://d.com'",
+          "resolved_func": "client.get",
+          "resolved_chain": [
+            "client.get",
+            "client.get",
+            "local"
+          ]
+        },
+        {
+          "expression": "MixedClient()",
+          "top_library": "local",
+          "base_symbol": "MixedClient",
+          "chain": [
+            "MixedClient",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 25,
+          "col_offset": 11,
+          "end_lineno": 25,
+          "end_col_offset": 24,
+          "func_name": "MixedClient",
+          "parameters": "",
+          "resolved_func": "MixedClient",
+          "resolved_chain": [
+            "MixedClient",
+            "MixedClient",
+            "local"
+          ]
+        },
+        {
+          "expression": "m_client.get('http://d2.com')",
+          "top_library": "local",
+          "base_symbol": "('instance_method', 'MixedClient', 'get')",
+          "chain": [],
+          "file_path": "main.py",
+          "lineno": 26,
+          "col_offset": 23,
+          "end_lineno": 26,
+          "end_col_offset": 52,
+          "func_name": "m_client.get",
+          "parameters": "'http://d2.com'",
+          "resolved_func": "m_client.get",
+          "resolved_chain": [
+            "m_client.get",
+            "m_client.get",
+            "local"
+          ]
+        },
+        {
+          "expression": "ThirdPartyClient()",
+          "top_library": "local",
+          "base_symbol": "ThirdPartyClient",
+          "chain": [
+            "ThirdPartyClient",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 29,
+          "col_offset": 5,
+          "end_lineno": 29,
+          "end_col_offset": 23,
+          "func_name": "ThirdPartyClient",
+          "parameters": "",
+          "resolved_func": "ThirdPartyClient",
+          "resolved_chain": [
+            "ThirdPartyClient",
+            "ThirdPartyClient",
+            "local"
+          ]
+        },
+        {
+          "expression": "tp.get('http://e.com')",
+          "top_library": "requests",
+          "base_symbol": "('instance_method', 'ThirdPartyClient', 'get')",
+          "chain": [],
+          "file_path": "main.py",
+          "lineno": 30,
+          "col_offset": 28,
+          "end_lineno": 30,
+          "end_col_offset": 50,
+          "func_name": "tp.get",
+          "parameters": "'http://e.com'",
+          "resolved_func": "tp.get",
+          "resolved_chain": [
+            "tp.get",
+            "tp.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "wrapper('http://f.com')",
+          "top_library": "local",
+          "base_symbol": "wrapper",
+          "chain": [
+            "wrapper",
+            "local_lib"
+          ],
+          "file_path": "main.py",
+          "lineno": 33,
+          "col_offset": 14,
+          "end_lineno": 33,
+          "end_col_offset": 37,
+          "func_name": "wrapper",
+          "parameters": "'http://f.com'",
+          "resolved_func": "wrapper",
+          "resolved_chain": [
+            "wrapper",
+            "wrapper",
+            "local"
+          ]
+        }
+      ]
+    },
+    {
+      "file_path": "local_lib.py",
+      "module_name": "local_lib",
+      "symbols": {
+        "requests": "requests",
+        "partial": "functools",
+        "fetch_data": "local",
+        "url": "local",
+        "LocalClient": "local",
+        "get": "local",
+        "MixedClient": "local",
+        "Session": "requests",
+        "ThirdPartyClient": "local",
+        "wrapper": "local",
+        "get_alias": "requests",
+        "fetcher": "requests"
+      },
+      "chains": {
+        "requests": [
+          "requests",
+          "requests"
+        ],
+        "partial": [
+          "partial",
+          "functools"
+        ],
+        "fetch_data": [
+          "fetch_data",
+          "local"
+        ],
+        "url": [
+          "url",
+          "local"
+        ],
+        "LocalClient": [
+          "LocalClient",
+          "local"
+        ],
+        "get": [
+          "get",
+          "local"
+        ],
+        "MixedClient": [
+          "MixedClient",
+          "local"
+        ],
+        "Session": [
+          "Session",
+          "requests",
+          "requests"
+        ],
+        "ThirdPartyClient": [
+          "ThirdPartyClient",
+          "local"
+        ],
+        "wrapper": [
+          "wrapper",
+          "local"
+        ],
+        "get_alias": [
+          "get_alias",
+          "requests",
+          "requests"
+        ],
+        "fetcher": [
+          "fetcher",
+          "requests",
+          "requests"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "requests.get(url)",
+          "top_library": "requests",
+          "base_symbol": "requests",
+          "chain": [
+            "requests"
+          ],
+          "file_path": "local_lib.py",
+          "lineno": 7,
+          "col_offset": 11,
+          "end_lineno": 7,
+          "end_col_offset": 28,
+          "func_name": "requests.get",
+          "parameters": "url",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "requests.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "requests.get(url)",
+          "top_library": "requests",
+          "base_symbol": "requests",
+          "chain": [
+            "requests"
+          ],
+          "file_path": "local_lib.py",
+          "lineno": 13,
+          "col_offset": 15,
+          "end_lineno": 13,
+          "end_col_offset": 32,
+          "func_name": "requests.get",
+          "parameters": "url",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "requests.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "fetch_data(url)",
+          "top_library": "local",
+          "base_symbol": "fetch_data",
+          "chain": [
+            "fetch_data",
+            "local"
+          ],
+          "file_path": "local_lib.py",
+          "lineno": 31,
+          "col_offset": 11,
+          "end_lineno": 31,
+          "end_col_offset": 26,
+          "func_name": "fetch_data",
+          "parameters": "url",
+          "resolved_func": "fetch_data",
+          "resolved_chain": [
+            "fetch_data",
+            "fetch_data",
+            "local"
+          ]
+        },
+        {
+          "expression": "partial(requests.get, timeout=10)",
+          "top_library": "requests",
+          "base_symbol": "requests",
+          "chain": [
+            "requests"
+          ],
+          "file_path": "local_lib.py",
+          "lineno": 36,
+          "col_offset": 10,
+          "end_lineno": 36,
+          "end_col_offset": 43,
+          "func_name": "partial",
+          "parameters": "requests.get, timeout=10",
+          "resolved_func": "functools.partial",
+          "resolved_chain": [
+            "partial",
+            "functools.partial",
+            "requests"
+          ]
+        }
+      ]
+    }
+  ],
+  "all_api_calls": [
+    {
+      "expression": "fetch_data('http://a.com')",
+      "top_library": "local",
+      "base_symbol": "fetch_data",
+      "chain": [
+        "fetch_data",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 12,
+      "col_offset": 13,
+      "end_lineno": 12,
+      "end_col_offset": 39,
+      "func_name": "fetch_data",
+      "parameters": "'http://a.com'",
+      "resolved_func": "fetch_data",
+      "resolved_chain": [
+        "fetch_data",
+        "fetch_data",
+        "local"
+      ]
+    },
+    {
+      "expression": "get_alias('http://b.com')",
+      "top_library": "requests",
+      "base_symbol": "get_alias",
+      "chain": [
+        "get_alias",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 15,
+      "col_offset": 13,
+      "end_lineno": 15,
+      "end_col_offset": 38,
+      "func_name": "get_alias",
+      "parameters": "'http://b.com'",
+      "resolved_func": "get_alias",
+      "resolved_chain": [
+        "get_alias",
+        "get_alias",
+        "requests"
+      ]
+    },
+    {
+      "expression": "fetcher('http://c.com')",
+      "top_library": "requests",
+      "base_symbol": "fetcher",
+      "chain": [
+        "fetcher",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 18,
+      "col_offset": 15,
+      "end_lineno": 18,
+      "end_col_offset": 38,
+      "func_name": "fetcher",
+      "parameters": "'http://c.com'",
+      "resolved_func": "fetcher",
+      "resolved_chain": [
+        "fetcher",
+        "fetcher",
+        "requests"
+      ]
+    },
+    {
+      "expression": "LocalClient()",
+      "top_library": "local",
+      "base_symbol": "LocalClient",
+      "chain": [
+        "LocalClient",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 21,
+      "col_offset": 9,
+      "end_lineno": 21,
+      "end_col_offset": 22,
+      "func_name": "LocalClient",
+      "parameters": "",
+      "resolved_func": "LocalClient",
+      "resolved_chain": [
+        "LocalClient",
+        "LocalClient",
+        "local"
+      ]
+    },
+    {
+      "expression": "client.get('http://d.com')",
+      "top_library": "local",
+      "base_symbol": "('instance_method', 'LocalClient', 'get')",
+      "chain": [],
+      "file_path": "main.py",
+      "lineno": 22,
+      "col_offset": 20,
+      "end_lineno": 22,
+      "end_col_offset": 46,
+      "func_name": "client.get",
+      "parameters": "'http://d.com'",
+      "resolved_func": "client.get",
+      "resolved_chain": [
+        "client.get",
+        "client.get",
+        "local"
+      ]
+    },
+    {
+      "expression": "MixedClient()",
+      "top_library": "local",
+      "base_symbol": "MixedClient",
+      "chain": [
+        "MixedClient",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 25,
+      "col_offset": 11,
+      "end_lineno": 25,
+      "end_col_offset": 24,
+      "func_name": "MixedClient",
+      "parameters": "",
+      "resolved_func": "MixedClient",
+      "resolved_chain": [
+        "MixedClient",
+        "MixedClient",
+        "local"
+      ]
+    },
+    {
+      "expression": "m_client.get('http://d2.com')",
+      "top_library": "local",
+      "base_symbol": "('instance_method', 'MixedClient', 'get')",
+      "chain": [],
+      "file_path": "main.py",
+      "lineno": 26,
+      "col_offset": 23,
+      "end_lineno": 26,
+      "end_col_offset": 52,
+      "func_name": "m_client.get",
+      "parameters": "'http://d2.com'",
+      "resolved_func": "m_client.get",
+      "resolved_chain": [
+        "m_client.get",
+        "m_client.get",
+        "local"
+      ]
+    },
+    {
+      "expression": "ThirdPartyClient()",
+      "top_library": "local",
+      "base_symbol": "ThirdPartyClient",
+      "chain": [
+        "ThirdPartyClient",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 29,
+      "col_offset": 5,
+      "end_lineno": 29,
+      "end_col_offset": 23,
+      "func_name": "ThirdPartyClient",
+      "parameters": "",
+      "resolved_func": "ThirdPartyClient",
+      "resolved_chain": [
+        "ThirdPartyClient",
+        "ThirdPartyClient",
+        "local"
+      ]
+    },
+    {
+      "expression": "tp.get('http://e.com')",
+      "top_library": "requests",
+      "base_symbol": "('instance_method', 'ThirdPartyClient', 'get')",
+      "chain": [],
+      "file_path": "main.py",
+      "lineno": 30,
+      "col_offset": 28,
+      "end_lineno": 30,
+      "end_col_offset": 50,
+      "func_name": "tp.get",
+      "parameters": "'http://e.com'",
+      "resolved_func": "tp.get",
+      "resolved_chain": [
+        "tp.get",
+        "tp.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "wrapper('http://f.com')",
+      "top_library": "local",
+      "base_symbol": "wrapper",
+      "chain": [
+        "wrapper",
+        "local_lib"
+      ],
+      "file_path": "main.py",
+      "lineno": 33,
+      "col_offset": 14,
+      "end_lineno": 33,
+      "end_col_offset": 37,
+      "func_name": "wrapper",
+      "parameters": "'http://f.com'",
+      "resolved_func": "wrapper",
+      "resolved_chain": [
+        "wrapper",
+        "wrapper",
+        "local"
+      ]
+    },
+    {
+      "expression": "requests.get(url)",
+      "top_library": "requests",
+      "base_symbol": "requests",
+      "chain": [
+        "requests"
+      ],
+      "file_path": "local_lib.py",
+      "lineno": 7,
+      "col_offset": 11,
+      "end_lineno": 7,
+      "end_col_offset": 28,
+      "func_name": "requests.get",
+      "parameters": "url",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "requests.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "requests.get(url)",
+      "top_library": "requests",
+      "base_symbol": "requests",
+      "chain": [
+        "requests"
+      ],
+      "file_path": "local_lib.py",
+      "lineno": 13,
+      "col_offset": 15,
+      "end_lineno": 13,
+      "end_col_offset": 32,
+      "func_name": "requests.get",
+      "parameters": "url",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "requests.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "fetch_data(url)",
+      "top_library": "local",
+      "base_symbol": "fetch_data",
+      "chain": [
+        "fetch_data",
+        "local"
+      ],
+      "file_path": "local_lib.py",
+      "lineno": 31,
+      "col_offset": 11,
+      "end_lineno": 31,
+      "end_col_offset": 26,
+      "func_name": "fetch_data",
+      "parameters": "url",
+      "resolved_func": "fetch_data",
+      "resolved_chain": [
+        "fetch_data",
+        "fetch_data",
+        "local"
+      ]
+    },
+    {
+      "expression": "partial(requests.get, timeout=10)",
+      "top_library": "requests",
+      "base_symbol": "requests",
+      "chain": [
+        "requests"
+      ],
+      "file_path": "local_lib.py",
+      "lineno": 36,
+      "col_offset": 10,
+      "end_lineno": 36,
+      "end_col_offset": 43,
+      "func_name": "partial",
+      "parameters": "requests.get, timeout=10",
+      "resolved_func": "functools.partial",
+      "resolved_chain": [
+        "partial",
+        "functools.partial",
+        "requests"
+      ]
+    }
+  ]
+}
