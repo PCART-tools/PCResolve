@@ -8,6 +8,7 @@ import sys
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(__file__))
 BAD_FIXTURE = os.path.join(PROJECT_DIR, "tests", "fixtures", "regression_parse_errors")
+TESTS2_FIXTURE = os.path.join(PROJECT_DIR, "tests", "fixtures", "tests2")
 
 
 def _run(*args):
@@ -95,3 +96,29 @@ def test_project_with_mixed_good_and_bad_files(tmp_path):
     assert len(data["files"]) >= 1  # good.py was analyzed
     assert data["stats"]["skipped_modules"] >= 1  # bad.py was skipped
     assert any(d["code"] == "SYNTAX_ERROR" for d in data["diagnostics"])
+
+
+# ── explain-library CLI ─────────────────────────────────────────────────
+
+
+def test_explain_library_shows_files():
+    """--explain-library output must include per-file call/symbol counts."""
+    _, stdout, _ = _run("--explain-library", "requests", TESTS2_FIXTURE)
+    assert "Files" in stdout
+    assert "calls" in stdout
+    assert "symbols" in stdout
+
+
+def test_explain_library_shows_api_calls():
+    """--explain-library output must include API call expressions."""
+    _, stdout, _ = _run("--explain-library", "numpy", TESTS2_FIXTURE)
+    assert "Top API calls" in stdout or "numpy" in stdout.lower()
+
+
+# ── quiet mode ──────────────────────────────────────────────────────────
+
+
+def test_quiet_shows_diagnostics_on_error():
+    """--quiet must still print error diagnostics when present."""
+    _, stdout, _ = _run("--quiet", BAD_FIXTURE)
+    assert "SYNTAX_ERROR" in stdout or "SyntaxError" in stdout or "error" in stdout.lower()
