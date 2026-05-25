@@ -104,15 +104,16 @@ def test_project_with_mixed_good_and_bad_files(tmp_path):
 def test_explain_library_shows_files():
     """--explain-library output must include per-file call/symbol counts."""
     _, stdout, _ = _run("--explain-library", "requests", TESTS2_FIXTURE)
-    assert "Files" in stdout
-    assert "calls" in stdout
-    assert "symbols" in stdout
+    assert "b.py" in stdout
+    assert "2 calls" in stdout
+    assert "3 symbols" in stdout
 
 
 def test_explain_library_shows_api_calls():
-    """--explain-library output must include API call expressions."""
+    """--explain-library output must include API call expressions and counts."""
     _, stdout, _ = _run("--explain-library", "numpy", TESTS2_FIXTURE)
-    assert "Top API calls" in stdout or "numpy" in stdout.lower()
+    assert "numpy" in stdout
+    assert "API calls: 2" in stdout
 
 
 # ── quiet mode ──────────────────────────────────────────────────────────
@@ -121,4 +122,5 @@ def test_explain_library_shows_api_calls():
 def test_quiet_shows_diagnostics_on_error():
     """--quiet must still print error diagnostics when present."""
     _, stdout, _ = _run("--quiet", BAD_FIXTURE)
-    assert "SYNTAX_ERROR" in stdout or "SyntaxError" in stdout or "error" in stdout.lower()
+    assert "SYNTAX_ERROR" in stdout
+    assert "1 errors" in stdout
