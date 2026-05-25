@@ -38,8 +38,10 @@ from .types import ProjectAnalysis, FileAnalysis, ApiCall
 class ProjectAnalyzer:
     ## Initialize the analyzer for a given project root.
     #  @param project_root Absolute path to the project root directory.
-    def __init__(self, project_root):
+    #  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
+    def __init__(self, project_root, scope_model="v1"):
         self.project_root = project_root
+        self.scope_model = scope_model
         self.module_mapper = ModuleMapper(project_root)
         self.global_symbols = {}
         self.symbol_chains = {}
@@ -96,6 +98,7 @@ class ProjectAnalyzer:
             tracer = SingleFileAnalyzer(
                 module_name=module,
                 is_package=self.module_mapper.is_package(module),
+                scope_model=self.scope_model,
             )
             tracer.visit(tree)
             module_tracers[module] = tracer
@@ -154,6 +157,7 @@ class ProjectAnalyzer:
             "total_modules": len(all_modules),
             "parsed_modules": len(module_tracers),
             "skipped_modules": len(diagnostics),
+            "scope_model": self.scope_model,
         }
 
         return ProjectAnalysis(
@@ -769,6 +773,13 @@ class ProjectAnalyzer:
 #  returns a ProjectAnalysis object.
 #  @param project_root Absolute path to the project root directory.
 #  @return ProjectAnalysis with all per-file and cross-file results.
-def analyze_project(project_root):
-    analyzer = ProjectAnalyzer(project_root)
+## Analyze an entire project and return structured results.
+#
+#  Convenience function: creates a ProjectAnalyzer, runs analysis, and
+#  returns a ProjectAnalysis object.
+#  @param project_root Absolute path to the project root directory.
+#  @param scope_model "v1" (legacy, default) or "v2" (lexical scopes).
+#  @return ProjectAnalysis with all per-file and cross-file results.
+def analyze_project(project_root, scope_model="v1"):
+    analyzer = ProjectAnalyzer(project_root, scope_model=scope_model)
     return analyzer.analyze()

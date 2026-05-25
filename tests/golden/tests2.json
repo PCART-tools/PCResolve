@@ -510,6 +510,7 @@
   "stats": {
     "total_modules": 4,
     "parsed_modules": 4,
-    "skipped_modules": 0
+    "skipped_modules": 0,
+    "scope_model": "v1"
   }
 }

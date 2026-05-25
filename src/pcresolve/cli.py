@@ -201,6 +201,10 @@ def main():
         "--strict", action="store_true",
         help="Exit with non-zero code when error diagnostics are present."
     )
+    parser.add_argument(
+        "--scope-model", choices=("v1", "v2"), default="v1",
+        help="Scope model: v1 (legacy single-slot), v2 (lexical scopes). Default: v1."
+    )
     args = parser.parse_args()
 
     project_root = args.project_root
@@ -215,7 +219,7 @@ def main():
         print(f"Error: {project_root} does not exist.", file=sys.stderr)
         sys.exit(1)
 
-    result = analyze_project(project_root)
+    result = analyze_project(project_root, scope_model=args.scope_model)
 
     if args.json_stable:
         _print_json_stable(result)

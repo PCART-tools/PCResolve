@@ -8,6 +8,7 @@
 import ast
 import builtins
 from .symbol_table import SymbolTable
+from .scope import Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_COMPREHENSION
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        normalize_source, source_display)
 
@@ -36,9 +37,12 @@ from .types import FileAnalysis, ApiCall
 class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
     #  @param module_name Optional dotted module name for resolving relative imports.
-    def __init__(self, module_name=None, is_package=False):
+    #  @param is_package Whether the file is a package __init__.py.
+    #  @param scope_model "v1" (legacy single-slot) or "v2" (lexical scopes).
+    def __init__(self, module_name=None, is_package=False, scope_model="v1"):
         self.module_name = module_name
         self.is_package = is_package
+        self.scope_model = scope_model
         self.return_sources = {}
         self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
@@ -58,6 +62,56 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.wildcard_modules = []
         self.call_sites = {}
         self.call_assign_funcs = {}
+        self._assignment_counter = 0
+        self.module_scope = Scope(SCOPE_MODULE, self.module_name or "<module>")
+        self.scope_stack = [self.module_scope]
+
+    ## Return the current innermost scope.
+    def current_scope(self):
+        return self.scope_stack[-1]
+
+    ## Push a new scope onto the stack.
+    #  @param kind Scope kind constant.
+    #  @param name Human-readable scope name.
+    #  @return The new Scope.
+    def push_scope(self, kind, name):
+        parent = self.current_scope()
+        scope = Scope(kind, name, parent)
+        self.scope_stack.append(scope)
+        return scope
+
+    ## Pop the current scope from the stack.
+    #  @return The popped Scope.
+    def pop_scope(self):
+        return self.scope_stack.pop()
+
+    ## Bind a name in the current scope and optionally in the compat symbols table.
+    #
+    #  In v2 mode, only module-scope bindings also go into self.symbols.
+    #  In v1 mode, all bindings write to self.symbols (legacy behaviour).
+    #  @param name Symbol name.
+    #  @param source Source value.
+    #  @param node Optional AST node for position info.
+    def _bind_target_name(self, name, source, node=None):
+        self._assignment_counter += 1
+        lineno = getattr(node, "lineno", 0) if node is not None else 0
+        col = getattr(node, "col_offset", 0) if node is not None else 0
+        self.current_scope().bind(name, source, lineno, col, self._assignment_counter)
+        if self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
+            self.symbols.add(name, source)
+
+    ## Look up a name in the lexical scope chain (v2) or return the name as-is.
+    #
+    #  Unified helper so that trace_source, get_base, and _resolve_call_receiver
+    #  all use the same scope-aware resolution.
+    #  @param name The raw AST name string.
+    #  @return Scope binding source in v2, or the name itself in v1 / not found.
+    def _lookup_name_source(self, name):
+        if self.scope_model == "v2":
+            binding = self.current_scope().lookup(name)
+            if binding is not None:
+                return binding.source
+        return name
 
     ## --- Import visitors ---
 
@@ -66,7 +120,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Import(self, node):
         for alias in node.names:
             symbol = alias.asname if alias.asname else alias.name
-            self.symbols.add(symbol, alias.name)
+            self._bind_target_name(symbol, alias.name, node)
         self.generic_visit(node)
 
     ## Visit an ImportFrom node and record alias-to-module mappings.
@@ -84,10 +138,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 continue
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
-                self.symbols.add(symbol, resolved)
+                self._bind_target_name(symbol, resolved, node)
                 self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
             else:
-                self.symbols.add(symbol, node.module)
+                self._bind_target_name(symbol, node.module, node)
                 self.import_from_symbols[symbol] = (node.module + '.' + alias.name) if node.module else alias.name
         self.generic_visit(node)
 
@@ -129,7 +183,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return A symbol string, a structured tuple, or None.
     def trace_source(self, node):
         if isinstance(node, ast.Name):
-            return node.id
+            return self._lookup_name_source(node.id)
         elif isinstance(node, ast.Call):
             getattr_src = self._resolve_getattr_trace(node)
             if getattr_src:
@@ -414,7 +468,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return Base symbol name, or None.
     def _resolve_call_receiver(self, receiver_node):
         if isinstance(receiver_node, ast.Name):
-            return receiver_node.id
+            return self._lookup_name_source(receiver_node.id)
         if isinstance(receiver_node, ast.Attribute):
             receiver_name = self._attribute_name(receiver_node)
             if receiver_name is not None:
@@ -451,7 +505,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if deco_source and not (isinstance(deco_source, str) and _is_builtin(deco_source)):
                 current_source = deco_source
         if current_source and current_source != target_name:
-            self.symbols.add(target_name, current_source)
+            self._bind_target_name(target_name, current_source)
 
     ## --- Assignment helpers ---
 
@@ -464,12 +518,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if not source:
             return
         if isinstance(target, ast.Name):
-            self.symbols.add(target.id, source)
+            self._bind_target_name(target.id, source, target)
             return
         if isinstance(target, ast.Attribute):
             name = self._attribute_name(target)
             if name and name.startswith("self."):
-                self.symbols.add(name, source)
+                self._bind_target_name(name, source, target)
             return
         if isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
@@ -505,7 +559,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return Root symbol name, or None.
     def get_base(self, node, call_lookup=False):
         if isinstance(node, ast.Name):
-            return node.id
+            return self._lookup_name_source(node.id)
         elif isinstance(node, ast.Attribute):
             chain = self._attribute_chain_list(node)
             if chain:
@@ -524,7 +578,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if isinstance(func, ast.Call):
                     return self._resolve_call_receiver(func)
                 if isinstance(func, ast.Name):
-                    return func.id
+                    return self._lookup_name_source(func.id)
                 return None
             return self.get_base(node.func, call_lookup=False)
         elif isinstance(node, ast.BinOp):
@@ -604,27 +658,27 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     ## skip self-assign: df = df[...] where right resolves to "df"
                     if isinstance(right, str) and right == target.id:
                         continue
-                    self.symbols.add(target.id, right)
+                    self._bind_target_name(target.id, right, target)
                 elif isinstance(target, ast.Attribute):
                     name = self._attribute_name(target)
                     if name and name.startswith("self."):
                         if isinstance(right_norm, InstanceMethod):
                             continue
-                        self.symbols.add(name, right)
+                        self._bind_target_name(name, right, target)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
                             if isinstance(right_norm, InstanceMethod):
                                 continue
-                            self.symbols.add(elt.id, right)
+                            self._bind_target_name(elt.id, right, elt)
         else:
             for target in node.targets:
                 if isinstance(target, ast.Name):
-                    self.symbols.add(target.id, 'local')
+                    self._bind_target_name(target.id, 'local', target)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
-                            self.symbols.add(elt.id, 'local')
+                            self._bind_target_name(elt.id, 'local', elt)
         self.generic_visit(node)
 
     ## --- API call detection ---
@@ -707,12 +761,27 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
         }
 
-        if isinstance(base, tuple):
+        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, CallResult)):
+            display = source_display(base)
+            chain = [display] if (self.scope_model == "v2" and display) else []
             record = {
                 'api': api_string,
-                'top': base,
-                'chain': [],
+                'top': display,
+                'chain': chain,
                 'base': base,
+                'direct_name_callee': direct_name,
+            }
+            record.update(loc)
+            self.api_calls.append(record)
+            return
+
+        # Handle "local" base (v2 scope binding returns "local" for params/locals)
+        if base == "local":
+            record = {
+                'api': api_string,
+                'top': 'local',
+                'chain': ['local'],
+                'base': 'local',
                 'direct_name_callee': direct_name,
             }
             record.update(loc)
@@ -795,55 +864,45 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
     ## Visit a FunctionDef node and register it as a local definition.
     #  @param node The FunctionDef AST node.
-    def visit_FunctionDef(self, node):
+    def _visit_function_def(self, node):
+        """Common handler for FunctionDef and AsyncFunctionDef."""
         self.local.add(node.name)
         self.defined_functions.add(node.name)
-        self.symbols.add(node.name, "local")
+        self._bind_target_name(node.name, "local", node)
         params = []
+        self.push_scope(SCOPE_FUNCTION, node.name)
         for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
             if arg.arg != "self":
                 params.append(arg.arg)
-                self.symbols.add(arg.arg, "local")
+                self._bind_target_name(arg.arg, "local", arg)
         if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
             params.append(node.args.vararg.arg)
-            self.symbols.add(node.args.vararg.arg, "local")
+            self._bind_target_name(node.args.vararg.arg, "local")
         if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
             params.append(node.args.kwarg.arg)
-            self.symbols.add(node.args.kwarg.arg, "local")
+            self._bind_target_name(node.args.kwarg.arg, "local")
         self.function_params[node.name] = params
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
+        self.pop_scope()
         self._bind_decorated_target(node.name, node.decorator_list)
+
+    ## Visit a FunctionDef node and register it as a local definition.
+    #  @param node The FunctionDef AST node.
+    def visit_FunctionDef(self, node):
+        self._visit_function_def(node)
 
     ## Visit an AsyncFunctionDef node and register it as a local definition.
     #  @param node The AsyncFunctionDef AST node.
     def visit_AsyncFunctionDef(self, node):
-        self.local.add(node.name)
-        self.defined_functions.add(node.name)
-        self.symbols.add(node.name, "local")
-        params = []
-        for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
-            if arg.arg != "self":
-                params.append(arg.arg)
-                self.symbols.add(arg.arg, "local")
-        if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
-            params.append(node.args.vararg.arg)
-            self.symbols.add(node.args.vararg.arg, "local")
-        if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
-            params.append(node.args.kwarg.arg)
-            self.symbols.add(node.args.kwarg.arg, "local")
-        self.function_params[node.name] = params
-        self._func_stack.append(node.name)
-        self.generic_visit(node)
-        self._func_stack.pop()
-        self._bind_decorated_target(node.name, node.decorator_list)
+        self._visit_function_def(node)
 
     ## Visit a ClassDef node and register it with its method and base lists.
     #  @param node The ClassDef AST node.
     def visit_ClassDef(self, node):
         self.local.add(node.name)
-        self.symbols.add(node.name, "local")
+        self._bind_target_name(node.name, "local", node)
         methods = []
         bases = []
         for item in node.body:
@@ -862,7 +921,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.class_methods[node.name] = methods
         self.class_bases[node.name] = bases
         self._class_stack.append(node.name)
+        self.push_scope(SCOPE_CLASS, node.name)
         self.generic_visit(node)
+        self.pop_scope()
         self._class_stack.pop()
         self._bind_decorated_target(node.name, node.decorator_list)
 
@@ -898,37 +959,35 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._target_to_source(node.target, source)
         self.generic_visit(node)
 
-    ## Visit a ListComp node and bind loop variables to the iterator source.
-    #  @param node The ListComp AST node.
-    def visit_ListComp(self, node):
+    ## Common handler for all comprehension node types.
+    #  @param node A ListComp, SetComp, DictComp, or GeneratorExp AST node.
+    def _visit_comprehension(self, node):
+        self.push_scope(SCOPE_COMPREHENSION, "<comprehension>")
         for gen in node.generators:
             source = self._iter_source(gen.iter)
             self._target_to_source(gen.target, source)
         self.generic_visit(node)
+        self.pop_scope()
+
+    ## Visit a ListComp node and bind loop variables to the iterator source.
+    #  @param node The ListComp AST node.
+    def visit_ListComp(self, node):
+        self._visit_comprehension(node)
 
     ## Visit a DictComp node and bind loop variables to the iterator source.
     #  @param node The DictComp AST node.
     def visit_DictComp(self, node):
-        for gen in node.generators:
-            source = self._iter_source(gen.iter)
-            self._target_to_source(gen.target, source)
-        self.generic_visit(node)
+        self._visit_comprehension(node)
 
     ## Visit a SetComp node and bind loop variables to the iterator source.
     #  @param node The SetComp AST node.
     def visit_SetComp(self, node):
-        for gen in node.generators:
-            source = self._iter_source(gen.iter)
-            self._target_to_source(gen.target, source)
-        self.generic_visit(node)
+        self._visit_comprehension(node)
 
     ## Visit a GeneratorExp node and bind loop variables to the iterator source.
     #  @param node The GeneratorExp AST node.
     def visit_GeneratorExp(self, node):
-        for gen in node.generators:
-            source = self._iter_source(gen.iter)
-            self._target_to_source(gen.target, source)
-        self.generic_visit(node)
+        self._visit_comprehension(node)
 
     ## Visit a Return node and record return-value flow for the function.
     #  @param node The Return AST node.
@@ -953,9 +1012,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 #  @param source Python source code as a string.
 #  @param file_path Optional file path for the FileAnalysis record.
 #  @return FileAnalysis with symbols, chains, and API calls.
-def analyze_source(source, file_path="<string>"):
+## Analyze a single source string and return per-file results.
+#  @param source Python source code string.
+#  @param file_path Optional file path for reporting.
+#  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
+#  @return FileAnalysis object.
+def analyze_source(source, file_path="<string>", scope_model="v1"):
     tree = ast.parse(source)
-    tracer = SingleFileAnalyzer()
+    tracer = SingleFileAnalyzer(scope_model=scope_model)
     tracer.visit(tree)
     return FileAnalysis(
         file_path=file_path,

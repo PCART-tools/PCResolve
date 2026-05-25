@@ -810,6 +810,7 @@
   "stats": {
     "total_modules": 2,
     "parsed_modules": 2,
-    "skipped_modules": 0
+    "skipped_modules": 0,
+    "scope_model": "v1"
   }
 }

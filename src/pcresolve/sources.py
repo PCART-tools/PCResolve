@@ -58,6 +58,13 @@ class UnknownSource:
 SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod, CallResult, UnknownSource]
 
 
+## Ordered set of possible sources (for multi-value bindings).
+@dataclass(frozen=True)
+class SourceSet:
+    ## Tuple of possible sources.
+    sources: tuple
+
+
 ## Check whether a value is a structured source (dataclass or legacy tuple).
 #
 #  @param value Source value to test.
