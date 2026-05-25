@@ -214,11 +214,8 @@ class ProjectAnalyzer:
             file_path = self.module_mapper.get_file_path(module)
             for ref in tracer.symbol_refs:
                 try:
-                    if ref.scope_name:
-                        chain = self.trace_symbol(module, ref.symbol, module_tracers,
-                                                   set(), _direct_source=ref.source)
-                    else:
-                        chain = self.trace_symbol(module, ref.symbol, module_tracers, set())
+                    chain = self.trace_symbol(module, ref.symbol, module_tracers,
+                                               set(), _direct_source=ref.source)
                 except RecursionError:
                     chain = [source_display(ref.source)]
                 chain = _dedup_consecutive(chain)

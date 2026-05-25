@@ -362,6 +362,22 @@ def test_v2_param_shadow_not_in_library_usage():
                     f"Parameter shadow in f() mis-attributed to requests: {p.symbol}")
 
 
+def test_module_level_reassignment_provenance_distinct():
+    """x = requests.Session() then x = np.array([]): each x must keep its own provenance."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import requests\nimport numpy as np\n"
+                    "x = requests.Session()\n"
+                    "x = np.array([])\n")
+        result = analyze_project(td)
+        x_provs = [p for p in result.all_symbol_provenance if p.symbol == "x"]
+        tops = {p.top_library for p in x_provs}
+        assert "requests" in tops, f"First assignment should be requests, got tops={tops}"
+        assert "numpy" in tops, f"Second assignment should be numpy, got tops={tops}"
+
+
 def test_v2_s_provenance_is_requests():
     """v2 local s = requests.Session() must have top_library='requests'."""
     import tempfile, os
