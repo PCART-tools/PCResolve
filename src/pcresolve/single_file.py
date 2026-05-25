@@ -1087,7 +1087,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 #  @return FileAnalysis object.
 def analyze_source(source, file_path="<string>", scope_model="v1"):
     tree = ast.parse(source)
-    tracer = SingleFileAnalyzer(scope_model=scope_model)
+    tracer = SingleFileAnalyzer(scope_model=scope_model, file_path=file_path)
     tracer.visit(tree)
     return FileAnalysis(
         file_path=file_path,
