@@ -191,8 +191,12 @@ def _print_explain_library(result, lib, top=20):
     print("Files: %d" % len(v["files"]))
     if v["imports"]:
         print("Imports: %s" % ", ".join(v["imports"]))
-    if v["files"]:
+    file_stats = v.get("file_stats", {})
+    if file_stats:
         print("\nFiles")
+        for fp in sorted(file_stats):
+            fs = file_stats[fp]
+            print("  %-30s %d calls   %d symbols" % (fp, fs["calls"], fs["symbols"]))
     if v["top_calls"]:
         print("\nTop API calls")
         for c in v["top_calls"]:
@@ -299,7 +303,7 @@ def main():
     parser.add_argument("--usage-summary", action="store_true",
                         help="Print library usage summary in text mode.")
     parser.add_argument("--quiet", action="store_true",
-                        help="Suppress summary output; only show diagnostics on error.")
+                        help="Suppress summary; show only error diagnostics and library usage.")
     parser.add_argument("--top", type=int, default=20,
                         help="Max entries in lists (0 = unlimited). Default: 20.")
     parser.add_argument("--explain-library", default=None,
@@ -346,6 +350,16 @@ def main():
             _print_debug_dump(result)
         elif not args.quiet:
             _print_summary(result, top=args.top)
+        if args.quiet:
+            diag_errors = [d for d in result.diagnostics if d.severity == "error"]
+            if diag_errors:
+                print("Diagnostics (%d errors):" % len(diag_errors))
+                for d in diag_errors:
+                    loc = ""
+                    if d.lineno:
+                        loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
+                    print("  [%s] %s %s%s: %s" % (
+                        d.severity.upper(), d.code, d.file_path, loc, d.message))
         if args.usage_summary and result.library_usage:
             print("\nLibrary Usage Summary:")
             for lib, u in sorted(result.library_usage.items()):

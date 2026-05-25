@@ -110,6 +110,18 @@ def build_explain_library_view(result, library, top=20):
         return None
     calls = [c for c in result.all_api_calls if c.top_library == library]
     provs = [p for p in result.all_symbol_provenance if p.top_library == library]
+    # Per-file call/symbol counts
+    file_stats = {}
+    for c in calls:
+        fp = _relpath(c.file_path, result.project_root)
+        if fp not in file_stats:
+            file_stats[fp] = {"calls": 0, "symbols": 0}
+        file_stats[fp]["calls"] += 1
+    for p in provs:
+        fp = _relpath(p.file_path, result.project_root)
+        if fp not in file_stats:
+            file_stats[fp] = {"calls": 0, "symbols": 0}
+        file_stats[fp]["symbols"] += 1
     if top > 0:
         calls = calls[:top]
         provs = provs[:top]
@@ -119,6 +131,7 @@ def build_explain_library_view(result, library, top=20):
         "symbol_count": usage.symbol_count,
         "files": usage.files,
         "imports": usage.imports,
+        "file_stats": file_stats,
         "top_calls": [_full_api_call(c, result.project_root) for c in calls],
         "top_symbols": [_full_provenance(p, result.project_root) for p in provs],
     }
@@ -176,13 +189,15 @@ def build_explain_call_view(result, query, top=20):
 # ── internal helpers ────────────────────────────────────────────────────
 
 def _relpath(file_path, project_root):
-    """Return a relative POSIX path."""
+    """Return a relative POSIX path with <external>/ prefix for external paths."""
     if not file_path:
         return ""
     try:
         rel = os.path.relpath(file_path, project_root)
+        if rel.startswith(".." + os.sep):
+            rel = "<external>/" + rel
     except ValueError:
-        rel = file_path
+        rel = "<external>/" + str(file_path)
     result = rel.replace(os.sep, "/")
     if os.altsep:
         result = result.replace(os.altsep, "/")
