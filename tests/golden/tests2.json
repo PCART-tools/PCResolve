@@ -27,7 +27,7 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "numpy": [
@@ -38,7 +38,7 @@
         ],
         "result": [
           "result",
-          "req()",
+          "req.get()",
           "req",
           "requests"
         ],
@@ -49,7 +49,7 @@
         ],
         "z": [
           "z",
-          "pandas()",
+          "pandas.foo()",
           "pandas"
         ]
       },
@@ -165,20 +165,13 @@
         {
           "symbol": "get",
           "kind": "import",
-          "top_library": "requests",
+          "top_library": "pandas",
           "top_libraries": [
-            "requests"
+            "pandas"
           ],
           "chain": [
             "get",
-            "c.d",
-            "get",
-            "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests()",
-            "requests"
+            "pandas"
           ],
           "scope_name": "",
           "file_path": "b.py",
@@ -203,7 +196,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -259,7 +252,7 @@
           ],
           "chain": [
             "result",
-            "req()",
+            "req.get()",
             "req",
             "requests"
           ],
@@ -294,14 +287,14 @@
         {
           "symbol": "z",
           "kind": "variable",
-          "top_library": "pandas",
+          "top_library": "numpy",
           "top_libraries": [
-            "pandas"
+            "numpy"
           ],
           "chain": [
             "z",
-            "pandas()",
-            "pandas"
+            "numpy.foo()",
+            "numpy"
           ],
           "scope_name": "",
           "file_path": "b.py",
@@ -320,7 +313,7 @@
           ],
           "chain": [
             "z",
-            "pandas()",
+            "pandas.foo()",
             "pandas"
           ],
           "scope_name": "",
@@ -350,7 +343,7 @@
           "result",
           "b",
           "result",
-          "req()",
+          "req.get()",
           "req",
           "requests"
         ],
@@ -361,7 +354,7 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "my_data": [
@@ -371,7 +364,7 @@
           "data",
           "c.e.f",
           "data",
-          "np()",
+          "np.array()",
           "np",
           "numpy"
         ],
@@ -380,7 +373,7 @@
           "result",
           "b",
           "result",
-          "req()",
+          "req.get()",
           "req",
           "requests"
         ],
@@ -392,7 +385,7 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "test3": [
@@ -403,7 +396,7 @@
           "data",
           "c.e.f",
           "data",
-          "np()",
+          "np.array()",
           "np",
           "numpy"
         ],
@@ -413,7 +406,7 @@
           "result",
           "b",
           "result",
-          "req()",
+          "req.get()",
           "req",
           "requests"
         ]
@@ -432,7 +425,7 @@
             "result",
             "b",
             "result",
-            "req()",
+            "req.get()",
             "req",
             "requests"
           ],
@@ -458,7 +451,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -483,7 +476,7 @@
             "data",
             "c.e.f",
             "data",
-            "np()",
+            "np.array()",
             "np",
             "numpy"
           ],
@@ -507,7 +500,7 @@
             "result",
             "b",
             "result",
-            "req()",
+            "req.get()",
             "req",
             "requests"
           ],
@@ -534,7 +527,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -560,7 +553,7 @@
             "data",
             "c.e.f",
             "data",
-            "np()",
+            "np.array()",
             "np",
             "numpy"
           ],
@@ -585,7 +578,7 @@
             "result",
             "b",
             "result",
-            "req()",
+            "req.get()",
             "req",
             "requests"
           ],
@@ -614,14 +607,14 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "data": [
           "data",
           "c.e.f",
           "data",
-          "np()",
+          "np.array()",
           "np",
           "numpy"
         ],
@@ -630,7 +623,7 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "my_data": [
@@ -638,7 +631,7 @@
           "data",
           "c.e.f",
           "data",
-          "np()",
+          "np.array()",
           "np",
           "numpy"
         ],
@@ -648,7 +641,7 @@
           "url",
           "c.e.f",
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ]
       },
@@ -666,7 +659,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -688,7 +681,7 @@
             "data",
             "c.e.f",
             "data",
-            "np()",
+            "np.array()",
             "np",
             "numpy"
           ],
@@ -712,7 +705,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -735,7 +728,7 @@
             "data",
             "c.e.f",
             "data",
-            "np()",
+            "np.array()",
             "np",
             "numpy"
           ],
@@ -760,7 +753,7 @@
             "url",
             "c.e.f",
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -792,12 +785,12 @@
         ],
         "url": [
           "url",
-          "requests()",
+          "requests.get()",
           "requests"
         ],
         "data": [
           "data",
-          "np()",
+          "np.array()",
           "np",
           "numpy"
         ]
@@ -895,7 +888,7 @@
           ],
           "chain": [
             "url",
-            "requests()",
+            "requests.get()",
             "requests"
           ],
           "scope_name": "",
@@ -915,7 +908,7 @@
           ],
           "chain": [
             "data",
-            "np()",
+            "np.array()",
             "np",
             "numpy"
           ],
@@ -1085,20 +1078,13 @@
     {
       "symbol": "get",
       "kind": "import",
-      "top_library": "requests",
+      "top_library": "pandas",
       "top_libraries": [
-        "requests"
+        "pandas"
       ],
       "chain": [
         "get",
-        "c.d",
-        "get",
-        "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests()",
-        "requests"
+        "pandas"
       ],
       "scope_name": "",
       "file_path": "b.py",
@@ -1123,7 +1109,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1179,7 +1165,7 @@
       ],
       "chain": [
         "result",
-        "req()",
+        "req.get()",
         "req",
         "requests"
       ],
@@ -1214,14 +1200,14 @@
     {
       "symbol": "z",
       "kind": "variable",
-      "top_library": "pandas",
+      "top_library": "numpy",
       "top_libraries": [
-        "pandas"
+        "numpy"
       ],
       "chain": [
         "z",
-        "pandas()",
-        "pandas"
+        "numpy.foo()",
+        "numpy"
       ],
       "scope_name": "",
       "file_path": "b.py",
@@ -1240,7 +1226,7 @@
       ],
       "chain": [
         "z",
-        "pandas()",
+        "pandas.foo()",
         "pandas"
       ],
       "scope_name": "",
@@ -1262,7 +1248,7 @@
         "result",
         "b",
         "result",
-        "req()",
+        "req.get()",
         "req",
         "requests"
       ],
@@ -1288,7 +1274,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1313,7 +1299,7 @@
         "data",
         "c.e.f",
         "data",
-        "np()",
+        "np.array()",
         "np",
         "numpy"
       ],
@@ -1337,7 +1323,7 @@
         "result",
         "b",
         "result",
-        "req()",
+        "req.get()",
         "req",
         "requests"
       ],
@@ -1364,7 +1350,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1390,7 +1376,7 @@
         "data",
         "c.e.f",
         "data",
-        "np()",
+        "np.array()",
         "np",
         "numpy"
       ],
@@ -1415,7 +1401,7 @@
         "result",
         "b",
         "result",
-        "req()",
+        "req.get()",
         "req",
         "requests"
       ],
@@ -1438,7 +1424,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1460,7 +1446,7 @@
         "data",
         "c.e.f",
         "data",
-        "np()",
+        "np.array()",
         "np",
         "numpy"
       ],
@@ -1484,7 +1470,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1507,7 +1493,7 @@
         "data",
         "c.e.f",
         "data",
-        "np()",
+        "np.array()",
         "np",
         "numpy"
       ],
@@ -1532,7 +1518,7 @@
         "url",
         "c.e.f",
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1589,7 +1575,7 @@
       ],
       "chain": [
         "url",
-        "requests()",
+        "requests.get()",
         "requests"
       ],
       "scope_name": "",
@@ -1609,7 +1595,7 @@
       ],
       "chain": [
         "data",
-        "np()",
+        "np.array()",
         "np",
         "numpy"
       ],
@@ -1626,7 +1612,7 @@
     "numpy": {
       "library": "numpy",
       "api_call_count": 2,
-      "symbol_count": 7,
+      "symbol_count": 8,
       "files": [
         "a.py",
         "b.py",
@@ -1641,7 +1627,7 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 3
+        "variable": 4
       },
       "has_evidence": true,
       "min_confidence": 1.0,
@@ -1655,11 +1641,12 @@
         "b.py"
       ],
       "imports": [
+        "get",
         "pandas"
       ],
       "kind_counts": {
-        "import": 1,
-        "variable": 2
+        "import": 2,
+        "variable": 1
       },
       "has_evidence": true,
       "min_confidence": 1.0,
@@ -1668,7 +1655,7 @@
     "requests": {
       "library": "requests",
       "api_call_count": 3,
-      "symbol_count": 14,
+      "symbol_count": 13,
       "files": [
         "a.py",
         "b.py",
@@ -1684,7 +1671,7 @@
         "url"
       ],
       "kind_counts": {
-        "import": 7,
+        "import": 6,
         "variable": 7
       },
       "has_evidence": true,

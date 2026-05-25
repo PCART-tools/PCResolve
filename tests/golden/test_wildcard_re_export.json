@@ -12,13 +12,13 @@
       "chains": {
         "a": [
           "a",
-          "stats()",
+          "stats.pearsonr()",
           "stats",
           "scipy"
         ],
         "b": [
           "b",
-          "stats()",
+          "stats.pearsonr()",
           "stats",
           "scipy"
         ]
@@ -55,7 +55,7 @@
           ],
           "chain": [
             "a",
-            "stats()",
+            "stats.pearsonr()",
             "stats",
             "scipy"
           ],
@@ -76,7 +76,7 @@
           ],
           "chain": [
             "b",
-            "stats()",
+            "stats.pearsonr()",
             "stats",
             "scipy"
           ],
@@ -168,7 +168,7 @@
       ],
       "chain": [
         "a",
-        "stats()",
+        "stats.pearsonr()",
         "stats",
         "scipy"
       ],
@@ -189,7 +189,7 @@
       ],
       "chain": [
         "b",
-        "stats()",
+        "stats.pearsonr()",
         "stats",
         "scipy"
       ],

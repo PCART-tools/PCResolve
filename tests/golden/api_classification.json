@@ -931,14 +931,14 @@
         {
           "symbol": "fetch_data.return",
           "kind": "return",
-          "top_library": "local",
+          "top_library": "requests",
           "top_libraries": [
-            "local"
+            "requests"
           ],
           "chain": [
             "fetch_data.return",
-            "fetch_data",
-            "local"
+            "requests.get()",
+            "requests"
           ],
           "scope_name": "",
           "file_path": "local_lib.py",
@@ -1008,14 +1008,14 @@
         {
           "symbol": "get.return",
           "kind": "return",
-          "top_library": "local",
+          "top_library": "requests",
           "top_libraries": [
-            "local"
+            "requests"
           ],
           "chain": [
             "get.return",
-            "get",
-            "local"
+            "requests.get()",
+            "requests"
           ],
           "scope_name": "",
           "file_path": "local_lib.py",
@@ -1123,14 +1123,14 @@
         {
           "symbol": "wrapper.return",
           "kind": "return",
-          "top_library": "local",
+          "top_library": "requests",
           "top_libraries": [
-            "local"
+            "requests"
           ],
           "chain": [
             "wrapper.return",
-            "wrapper",
-            "local"
+            "fetch_data()",
+            "requests"
           ],
           "scope_name": "",
           "file_path": "local_lib.py",
@@ -1914,14 +1914,14 @@
     {
       "symbol": "fetch_data.return",
       "kind": "return",
-      "top_library": "local",
+      "top_library": "requests",
       "top_libraries": [
-        "local"
+        "requests"
       ],
       "chain": [
         "fetch_data.return",
-        "fetch_data",
-        "local"
+        "requests.get()",
+        "requests"
       ],
       "scope_name": "",
       "file_path": "local_lib.py",
@@ -1991,14 +1991,14 @@
     {
       "symbol": "get.return",
       "kind": "return",
-      "top_library": "local",
+      "top_library": "requests",
       "top_libraries": [
-        "local"
+        "requests"
       ],
       "chain": [
         "get.return",
-        "get",
-        "local"
+        "requests.get()",
+        "requests"
       ],
       "scope_name": "",
       "file_path": "local_lib.py",
@@ -2106,14 +2106,14 @@
     {
       "symbol": "wrapper.return",
       "kind": "return",
-      "top_library": "local",
+      "top_library": "requests",
       "top_libraries": [
-        "local"
+        "requests"
       ],
       "chain": [
         "wrapper.return",
-        "wrapper",
-        "local"
+        "fetch_data()",
+        "requests"
       ],
       "scope_name": "",
       "file_path": "local_lib.py",
@@ -2183,7 +2183,7 @@
     "requests": {
       "library": "requests",
       "api_call_count": 6,
-      "symbol_count": 11,
+      "symbol_count": 14,
       "files": [
         "local_lib.py",
         "main.py"
@@ -2196,7 +2196,8 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 7
+        "variable": 7,
+        "return": 3
       },
       "has_evidence": true,
       "min_confidence": 1.0,

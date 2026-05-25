@@ -610,6 +610,7 @@ class ProjectAnalyzer:
     #  @return (display_name, src_module, src_symbol) tuple, or None.
     def _resolve_structured_source(self, module, direct_source, tracers):
         direct_source = normalize_source(direct_source)
+        callee_display = None
         if isinstance(direct_source, ContainerItem):
             kind, a, b = "container_item", direct_source.container, direct_source.index
         elif isinstance(direct_source, ContainerIter):
@@ -618,6 +619,7 @@ class ProjectAnalyzer:
             kind, a, b = "instance_method", direct_source.receiver, direct_source.method
         elif isinstance(direct_source, CallResult):
             kind, a, b = "call_result", direct_source.callee, None
+            callee_display = direct_source.display_name or direct_source.callee
         elif isinstance(direct_source, tuple) and len(direct_source) == 3:
             kind, a, b = direct_source
         else:
@@ -672,7 +674,7 @@ class ProjectAnalyzer:
             gs = getattr(self, '_call_searched_global', None)
             if gs is not None:
                 if (module, callee) in gs:
-                    return (f"{callee}()", module, callee)
+                    return (f"{callee_display or callee}()", module, callee)
                 gs.add((module, callee))
             callee_chain = self.trace_symbol(module, callee, tracers, set())
             def_module = module
@@ -687,9 +689,9 @@ class ProjectAnalyzer:
                 tr = tracers.get(cur_module)
                 rs = tr.return_sources.get(cur_symbol) if tr else None
                 if rs is None:
-                    return (f"{callee}()", cur_module, cur_symbol)
+                    return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
-                    return (f"{callee}()", cur_module, rs)
+                    return (f"{callee_display or callee}()", cur_module, rs)
                 rs = normalize_source(rs)
                 if isinstance(rs, CallResult):
                     next_chain = self.trace_symbol(cur_module, rs.callee, tracers, set())
@@ -699,11 +701,11 @@ class ProjectAnalyzer:
                             cur_module = item
                             break
                     if (cur_module, cur_symbol) in seen:
-                        return (f"{callee}()", cur_module, cur_symbol)
+                        return (f"{callee_display or callee}()", cur_module, cur_symbol)
                     seen.add((cur_module, cur_symbol))
                     continue
                 break
-            return (f"{callee}()", cur_module, cur_symbol)
+            return (f"{callee_display or callee}()", cur_module, cur_symbol)
 
         return None
 

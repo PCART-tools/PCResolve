@@ -55,55 +55,81 @@ def _normalize_symbols(files):
     return result
 
 
+def _normalize_provenance(provenance):
+    """Extract stable key fields from provenance records, sorted by location."""
+    keys = ("symbol", "kind", "top_library", "chain",
+            "scope_name", "file_path", "lineno", "col_offset")
+    result = []
+    for p in provenance:
+        result.append({k: p.get(k) for k in keys})
+    result.sort(key=lambda r: (r["file_path"], r["lineno"], r["col_offset"], r["symbol"]))
+    return result
+
+
+def _normalize_library_usage(usage):
+    """Sort library_usage values for stable comparison."""
+    result = {}
+    for lib, u in sorted(usage.items()):
+        result[lib] = {
+            "api_call_count": u.get("api_call_count", 0),
+            "symbol_count": u.get("symbol_count", 0),
+            "files": sorted(u.get("files", [])),
+            "imports": sorted(u.get("imports", [])),
+        }
+    return result
+
+
+def _normalize_diagnostics(diags):
+    """Extract diagnostic key fields for comparison."""
+    keys = ("code", "message", "severity", "file_path", "lineno")
+    return sorted([{k: d.get(k) for k in keys} for d in diags],
+                  key=lambda r: (r["file_path"], r["lineno"]))
+
+
+def _golden_assert(current, golden):
+    """Run all golden comparisons for a fixture."""
+    assert current["schema_version"] == golden["schema_version"]
+    assert len(current["files"]) == len(golden["files"])
+
+    current_calls = _normalize_calls(current["all_api_calls"])
+    golden_calls = _normalize_calls(golden["all_api_calls"])
+    assert current_calls == golden_calls, "API calls differ from golden"
+
+    current_sym = _normalize_symbols(current["files"])
+    golden_sym = _normalize_symbols(golden["files"])
+    assert current_sym == golden_sym, "Symbols/chains differ from golden"
+
+    current_prov = _normalize_provenance(current.get("all_symbol_provenance", []))
+    golden_prov = _normalize_provenance(golden.get("all_symbol_provenance", []))
+    assert current_prov == golden_prov, "Symbol provenance differs from golden"
+
+    current_usage = _normalize_library_usage(current.get("library_usage", {}))
+    golden_usage = _normalize_library_usage(golden.get("library_usage", {}))
+    assert current_usage == golden_usage, "Library usage differs from golden"
+
+    current_diag = _normalize_diagnostics(current.get("diagnostics", []))
+    golden_diag = _normalize_diagnostics(golden.get("diagnostics", []))
+    assert current_diag == golden_diag, "Diagnostics differ from golden"
+
+    assert current.get("stats", {}) == golden.get("stats", {}), "Stats differ from golden"
+
+
 # ── golden fixtures ──────────────────────────────────────────────────────
 
 
 def test_golden_tests2():
     """Cross-file return/source behaviour."""
-    current = _run_analyze("tests/fixtures/tests2/")
-    golden = _load_golden("tests2.json")
-
-    assert current["schema_version"] == golden["schema_version"]
-    assert len(current["files"]) == len(golden["files"])
-
-    current_calls = _normalize_calls(current["all_api_calls"])
-    golden_calls = _normalize_calls(golden["all_api_calls"])
-    assert current_calls == golden_calls, "API calls differ from golden"
-
-    current_sym = _normalize_symbols(current["files"])
-    golden_sym = _normalize_symbols(golden["files"])
-    assert current_sym == golden_sym, "Symbols/chains differ from golden"
+    _golden_assert(_run_analyze("tests/fixtures/tests2/"),
+                   _load_golden("tests2.json"))
 
 
 def test_golden_api_classification():
     """Local vs third-party classification boundary."""
-    current = _run_analyze("tests/fixtures/api_classification/")
-    golden = _load_golden("api_classification.json")
-
-    assert current["schema_version"] == golden["schema_version"]
-    assert len(current["files"]) == len(golden["files"])
-
-    current_calls = _normalize_calls(current["all_api_calls"])
-    golden_calls = _normalize_calls(golden["all_api_calls"])
-    assert current_calls == golden_calls, "API calls differ from golden"
-
-    current_sym = _normalize_symbols(current["files"])
-    golden_sym = _normalize_symbols(golden["files"])
-    assert current_sym == golden_sym, "Symbols/chains differ from golden"
+    _golden_assert(_run_analyze("tests/fixtures/api_classification/"),
+                   _load_golden("api_classification.json"))
 
 
 def test_golden_wildcard_re_export():
     """Wildcard/re-export historical compatibility."""
-    current = _run_analyze("tests/fixtures/test_wildcard_re_export/")
-    golden = _load_golden("test_wildcard_re_export.json")
-
-    assert current["schema_version"] == golden["schema_version"]
-    assert len(current["files"]) == len(golden["files"])
-
-    current_calls = _normalize_calls(current["all_api_calls"])
-    golden_calls = _normalize_calls(golden["all_api_calls"])
-    assert current_calls == golden_calls, "API calls differ from golden"
-
-    current_sym = _normalize_symbols(current["files"])
-    golden_sym = _normalize_symbols(golden["files"])
-    assert current_sym == golden_sym, "Symbols/chains differ from golden"
+    _golden_assert(_run_analyze("tests/fixtures/test_wildcard_re_export/"),
+                   _load_golden("test_wildcard_re_export.json"))

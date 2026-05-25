@@ -45,6 +45,8 @@ class InstanceMethod:
 class CallResult:
     ## Callee symbol or source.
     callee: "SourceLike"
+    ## Optional display name (e.g. "np.array") for provenance chains.
+    display_name: str = ""
 
 
 ## Unknown source that preserves display context.
@@ -125,6 +127,8 @@ def source_display(value):
     if isinstance(value, InstanceMethod):
         return "%s.%s" % (source_display(value.receiver), value.method)
     if isinstance(value, CallResult):
+        if value.display_name:
+            return "%s()" % value.display_name
         return "%s()" % source_display(value.callee)
     if isinstance(value, NameSource):
         return value.name

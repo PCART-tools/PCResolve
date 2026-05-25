@@ -240,7 +240,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if call_key:
                 if isinstance(call_key, CallResult):
                     return call_key
-                return CallResult(call_key)
+                display = ""
+                try:
+                    display = ast.unparse(node.func)
+                except Exception:
+                    pass
+                if isinstance(call_key, str) and '.' not in display:
+                    display = ""
+                return CallResult(call_key, display_name=display)
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
             name = self._attribute_name(node)
