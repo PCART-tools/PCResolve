@@ -4,15 +4,19 @@
 #  Usage:
 #    pcresolve /path/to/project
 #    pcresolve --json /path/to/project
-#    pcresolve --json-stable /path/to/project
+#    pcresolve --json-summary /path/to/project
+#    pcresolve --json-full /path/to/project
+#    pcresolve --debug-dump /path/to/project
 #    python -m pcresolve /path/to/project
-#    echo /path/to/project | pcresolve --stdin
 
 import argparse
 import json
 import os
 import sys
 from .cross_file import analyze_project
+from .views import (build_summary_view, build_full_view,
+                     build_explain_library_view, build_explain_symbol_view,
+                     build_explain_call_view)
 
 
 ## Format source location as a string.
@@ -26,13 +30,8 @@ def _format_location(call):
     return ""
 
 
-## Normalize a file path to POSIX-style for stable JSON output.
-#
-#  Converts to a relative path. Paths outside project_root are prefixed
-#  with "<external>/". Both os.sep and os.altsep are unified to "/".
-#  @param file_path Absolute or relative file path.
-#  @param project_root The project root directory.
-#  @return Normalized POSIX-style path string.
+# ── legacy serializers (kept for --json backward-compat) ─────────────────
+
 def _normalize_path(file_path, project_root):
     try:
         rel = os.path.relpath(file_path, project_root)
@@ -46,10 +45,6 @@ def _normalize_path(file_path, project_root):
     return result
 
 
-## Serialize one ApiCall to a stable-ordered dict.
-#  @param call ApiCall object.
-#  @param project_root Project root for path normalization.
-#  @return Ordered dict with versioned-schema fields.
 def _stable_api_call(call, project_root):
     return {
         "expression": call.expression,
@@ -68,24 +63,14 @@ def _stable_api_call(call, project_root):
     }
 
 
-## Serialize one FileAnalysis to a stable-ordered dict.
-#  @param f FileAnalysis object.
-#  @param project_root Project root for path normalization.
-#  @return Ordered dict with versioned-schema fields.
 def _stable_symbol_provenance(p, project_root):
-    """Serialize one SymbolProvenance to a stable-ordered dict."""
     return {
-        "symbol": p.symbol,
-        "kind": p.kind,
-        "top_library": p.top_library,
-        "top_libraries": p.top_libraries,
-        "chain": p.chain,
-        "scope_name": p.scope_name,
+        "symbol": p.symbol, "kind": p.kind,
+        "top_library": p.top_library, "top_libraries": p.top_libraries,
+        "chain": p.chain, "scope_name": p.scope_name,
         "file_path": _normalize_path(p.file_path, project_root) if p.file_path else "",
-        "lineno": p.lineno,
-        "col_offset": p.col_offset,
-        "reason": p.reason,
-        "confidence": p.confidence,
+        "lineno": p.lineno, "col_offset": p.col_offset,
+        "reason": p.reason, "confidence": p.confidence,
         "alternatives": p.alternatives,
     }
 
@@ -94,30 +79,19 @@ def _stable_file_analysis(f, project_root):
     return {
         "file_path": _normalize_path(f.file_path, project_root),
         "module_name": f.module_name,
-        "symbols": f.symbols,
-        "chains": f.chains,
+        "symbols": f.symbols, "chains": f.chains,
         "api_calls": [_stable_api_call(c, project_root) for c in f.api_calls],
         "diagnostics": [_stable_diagnostic(d, project_root) for d in f.diagnostics],
         "symbol_provenance": [_stable_symbol_provenance(p, project_root) for p in f.symbol_provenance],
     }
 
 
-## Serialize ProjectAnalysis to a stable-ordered dict.
-#
-#  Uses fixed field order and normalized paths for deterministic output.
-#  @param result ProjectAnalysis result object.
-#  @return Ordered dict suitable for JSON serialization.
 def _stable_diagnostic(d, project_root):
-    """Serialize one Diagnostic to a stable-ordered dict."""
     return {
-        "code": d.code,
-        "message": d.message,
-        "severity": d.severity,
+        "code": d.code, "message": d.message, "severity": d.severity,
         "file_path": _normalize_path(d.file_path, project_root) if d.file_path else "",
-        "lineno": d.lineno,
-        "col_offset": d.col_offset,
-        "end_lineno": d.end_lineno,
-        "end_col_offset": d.end_col_offset,
+        "lineno": d.lineno, "col_offset": d.col_offset,
+        "end_lineno": d.end_lineno, "end_col_offset": d.end_col_offset,
         "module_name": d.module_name,
     }
 
@@ -136,30 +110,24 @@ def _stable_project(result):
 
 
 def _stable_library_usage(u):
-    """Serialize one LibraryUsage to a stable-ordered dict."""
     return {
-        "library": u.library,
-        "api_call_count": u.api_call_count,
-        "symbol_count": u.symbol_count,
-        "files": u.files,
-        "imports": u.imports,
-        "kind_counts": u.kind_counts,
-        "has_evidence": u.has_evidence,
-        "min_confidence": u.min_confidence,
-        "max_confidence": u.max_confidence,
+        "library": u.library, "api_call_count": u.api_call_count,
+        "symbol_count": u.symbol_count, "files": u.files, "imports": u.imports,
+        "kind_counts": u.kind_counts, "has_evidence": u.has_evidence,
+        "min_confidence": u.min_confidence, "max_confidence": u.max_confidence,
     }
 
 
-## Print analysis results in human-readable format.
-#  @param result ProjectAnalysis result object.
-def _print_text(result):
+# ── text output ──────────────────────────────────────────────────────────
+
+def _print_debug_dump(result):
+    """Legacy full text output (--debug-dump)."""
     print("Global symbol table:")
     for f in result.files:
         print(f"\n{f.module_name} module:")
         for symbol, source in sorted(f.symbols.items()):
             if source:
                 print(f"  {symbol} -> {source}")
-
     print("\nGlobal symbol tracing chains:")
     for f in result.files:
         print(f"\n{f.module_name} module:")
@@ -167,7 +135,6 @@ def _print_text(result):
             if chain:
                 chain_str = " -> ".join(str(item) for item in chain)
                 print(f"  {symbol}: {chain_str}")
-
     print("\nAll API calls:")
     for f in result.files:
         if f.api_calls:
@@ -181,11 +148,103 @@ def _print_text(result):
                 print(line)
 
 
-## Print analysis results in legacy JSON format (backward-compatible).
-#
-#  Preserves the original dataclasses.__dict__ serialisation and
-#  absolute paths, with schema_version added at the root.
-#  @param result ProjectAnalysis result object.
+def _print_summary(result, top=20):
+    """Compact summary text output (default)."""
+    stats = result.stats
+    libs = result.library_usage
+    print("PCResolve Summary")
+    print("Project: %s" % result.project_root)
+    print("Scope model: %s" % stats.get("scope_model", "v1"))
+    print("Files: %d parsed, %d skipped" % (
+        stats.get("parsed_modules", 0), stats.get("skipped_modules", 0)))
+    print("Libraries: %d" % len(libs))
+    print("API calls: %d" % len(result.all_api_calls))
+    diag_errors = sum(1 for d in result.diagnostics if d.severity == "error")
+    diag_warns = sum(1 for d in result.diagnostics if d.severity == "warning")
+    print("Diagnostics: %d errors, %d warnings" % (diag_errors, diag_warns))
+    if libs:
+        print("\nLibraries")
+        items = sorted(libs.items())
+        if top > 0:
+            items = items[:top]
+        for lib, u in items:
+            print("  %-20s %d calls   %d symbols   %d files" % (
+                lib, u.api_call_count, u.symbol_count, len(u.files)))
+    if result.diagnostics:
+        print("\nDiagnostics")
+        for d in result.diagnostics:
+            loc = ""
+            if d.lineno:
+                loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
+            print("  [%s] %s %s%s: %s" % (
+                d.severity.upper(), d.code, d.file_path, loc, d.message))
+
+
+def _print_explain_library(result, lib, top=20):
+    v = build_explain_library_view(result, lib, top=top)
+    if not v:
+        print("Library not found: %s" % lib, file=sys.stderr)
+        return
+    print("Library: %s" % lib)
+    print("API calls: %d" % v["api_call_count"])
+    print("Symbols: %d" % v["symbol_count"])
+    print("Files: %d" % len(v["files"]))
+    if v["imports"]:
+        print("Imports: %s" % ", ".join(v["imports"]))
+    if v["files"]:
+        print("\nFiles")
+    if v["top_calls"]:
+        print("\nTop API calls")
+        for c in v["top_calls"]:
+            print("  %s:%d  %s" % (c["file_path"], c["lineno"], c["expression"]))
+    if v["top_symbols"]:
+        print("\nSymbol provenance")
+        for p in v["top_symbols"]:
+            chain_str = " -> ".join(str(x) for x in p["chain"])
+            print("  %-10s %-10s %s" % (p["symbol"], p["kind"], chain_str))
+
+
+def _print_explain_symbol(result, symbol, top=20):
+    v = build_explain_symbol_view(result, symbol, top=top)
+    print("Symbol: %s" % symbol)
+    if v["matches"]:
+        print("\nMatches")
+        for p in v["matches"]:
+            chain_str = " -> ".join(str(x) for x in p["chain"])
+            print("  %s:%d  %s" % (p["file_path"], p["lineno"], p["symbol"]))
+            print("    kind: %s" % p["kind"])
+            print("    scope: %s" % (p.get("scope_name") or "<module>"))
+            print("    top: %s" % p["top_library"])
+            print("    chain: %s" % chain_str)
+    else:
+        print("No matches found for symbol: %s" % symbol)
+    if v["related_calls"]:
+        print("\nRelated calls")
+        for c in v["related_calls"]:
+            print("  %s:%d  %s -> %s" % (c["file_path"], c["lineno"],
+                                          c["expression"], c["top_library"]))
+
+
+def _print_explain_call(result, query, top=20):
+    v = build_explain_call_view(result, query, top=top)
+    print("Call Query: %s" % query)
+    print("Matches: %d" % v["count"])
+    if v["matches"]:
+        for c in v["matches"]:
+            chain_str = " -> ".join(str(x) for x in c["chain"])
+            print("  %s:%d" % (c["file_path"], c["lineno"]))
+            print("    expression: %s" % c["expression"])
+            print("    top: %s" % c["top_library"])
+            print("    base: %s" % c["base_symbol"])
+            print("    resolved: %s" % c["resolved_func"])
+            if c["chain"]:
+                print("    chain: %s" % chain_str)
+    else:
+        print("No matching calls found for query: %s" % query)
+
+
+# ── JSON output ──────────────────────────────────────────────────────────
+
 def _print_json_legacy(result):
     def _serialize(obj):
         if hasattr(obj, '__dataclass_fields__'):
@@ -196,57 +255,59 @@ def _print_json_legacy(result):
             return [_serialize(v) for v in obj]
         else:
             return obj
-
     output = _serialize(result)
-    output["schema_version"] = result.schema_version  # type: ignore[index]
+    output["schema_version"] = result.schema_version
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
 
-## Print analysis results in stable JSON format.
-#
-#  Uses normalized POSIX paths and fixed field order.
-#  @param result ProjectAnalysis result object.
-def _print_json_stable(result):
-    print(json.dumps(_stable_project(result), indent=2, ensure_ascii=False))
+def _print_json_summary(result, top=20):
+    v = build_summary_view(result, top=top)
+    print(json.dumps(v, indent=2, ensure_ascii=False))
 
 
-## Main entry point for the pcresolve CLI.
+def _print_json_full(result):
+    v = build_full_view(result)
+    print(json.dumps(v, indent=2, ensure_ascii=False))
+
+
+# ── main ─────────────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(
         description="Trace API calls in a Python project to their origin libraries."
     )
-    parser.add_argument(
-        "project_root", nargs="?",
-        help="Absolute path to the project root directory."
-    )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="Output results in JSON format (backward-compatible, additive fields)."
-    )
-    parser.add_argument(
-        "--json-stable", action="store_true",
-        help="Output results in stable JSON format with normalized paths and fixed field order."
-    )
-    parser.add_argument(
-        "--stdin", action="store_true",
-        help="Read project root path from stdin."
-    )
-    parser.add_argument(
-        "--verbose", action="store_true",
-        help="Print diagnostics in human-readable mode."
-    )
-    parser.add_argument(
-        "--strict", action="store_true",
-        help="Exit with non-zero code when error diagnostics are present."
-    )
-    parser.add_argument(
-        "--scope-model", choices=("v1", "v2"), default="v1",
-        help="Scope model: v1 (legacy single-slot), v2 (lexical scopes). Default: v1."
-    )
-    parser.add_argument(
-        "--usage-summary", action="store_true",
-        help="Print aggregated library usage summary in text mode."
-    )
+    parser.add_argument("project_root", nargs="?", default=None,
+                        help="Absolute path to the project root directory.")
+    parser.add_argument("--json", action="store_true",
+                        help="Legacy JSON output (backward-compatible).")
+    parser.add_argument("--json-summary", action="store_true",
+                        help="Summary JSON profile (small, stable, for CI).")
+    parser.add_argument("--json-full", action="store_true",
+                        help="Full JSON profile (schema-backed, for debugging).")
+    parser.add_argument("--json-stable", action="store_true",
+                        help="Alias for --json-full.")
+    parser.add_argument("--debug-dump", action="store_true",
+                        help="Full text output (old default, for debugging).")
+    parser.add_argument("--stdin", action="store_true",
+                        help="Read project root path from stdin.")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Print diagnostics in human-readable mode.")
+    parser.add_argument("--strict", action="store_true",
+                        help="Exit non-zero when error diagnostics are present.")
+    parser.add_argument("--scope-model", choices=("v1", "v2"), default="v1",
+                        help="Scope model: v1 (legacy), v2 (lexical scopes). Default: v1.")
+    parser.add_argument("--usage-summary", action="store_true",
+                        help="Print library usage summary in text mode.")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Suppress summary output; only show diagnostics on error.")
+    parser.add_argument("--top", type=int, default=20,
+                        help="Max entries in lists (0 = unlimited). Default: 20.")
+    parser.add_argument("--explain-library", default=None,
+                        help="Explain one library usage.")
+    parser.add_argument("--explain-symbol", default=None,
+                        help="Explain one symbol's provenance.")
+    parser.add_argument("--explain-call", default=None,
+                        help="Explain matching call expressions.")
     args = parser.parse_args()
 
     project_root = args.project_root
@@ -258,33 +319,50 @@ def main():
         sys.exit(1)
 
     if not os.path.exists(project_root):
-        print(f"Error: {project_root} does not exist.", file=sys.stderr)
+        print("Error: %s does not exist." % project_root, file=sys.stderr)
         sys.exit(1)
 
     result = analyze_project(project_root, scope_model=args.scope_model)
 
-    if args.json_stable:
-        _print_json_stable(result)
+    # ── explain modes ────────────────────────────────────────────────
+    if args.explain_library:
+        _print_explain_library(result, args.explain_library, top=args.top)
+    elif args.explain_symbol:
+        _print_explain_symbol(result, args.explain_symbol, top=args.top)
+    elif args.explain_call:
+        _print_explain_call(result, args.explain_call, top=args.top)
+
+    # ── JSON modes ───────────────────────────────────────────────────
+    elif args.json_summary:
+        _print_json_summary(result, top=args.top)
+    elif args.json_full or args.json_stable:
+        _print_json_full(result)
     elif args.json:
         _print_json_legacy(result)
+
+    # ── text modes ───────────────────────────────────────────────────
     else:
-        _print_text(result)
+        if args.debug_dump:
+            _print_debug_dump(result)
+        elif not args.quiet:
+            _print_summary(result, top=args.top)
         if args.usage_summary and result.library_usage:
             print("\nLibrary Usage Summary:")
             for lib, u in sorted(result.library_usage.items()):
-                print(f"\n{lib}")
-                print(f"  files: {len(u.files)}")
-                print(f"  api calls: {u.api_call_count}")
-                print(f"  symbols: {u.symbol_count}")
+                print("\n%s" % lib)
+                print("  files: %d" % len(u.files))
+                print("  api calls: %d" % u.api_call_count)
+                print("  symbols: %d" % u.symbol_count)
                 if u.imports:
-                    print(f"  imports: {', '.join(u.imports)}")
+                    print("  imports: %s" % ", ".join(u.imports))
         if args.verbose and result.diagnostics:
             print("\nDiagnostics:")
             for d in result.diagnostics:
                 loc = ""
                 if d.lineno:
                     loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
-                print("  [%s] %s %s%s: %s" % (d.severity.upper(), d.code, d.file_path, loc, d.message))
+                print("  [%s] %s %s%s: %s" % (
+                    d.severity.upper(), d.code, d.file_path, loc, d.message))
             print("\n%d file(s) skipped." % len(result.diagnostics))
 
     if args.strict:

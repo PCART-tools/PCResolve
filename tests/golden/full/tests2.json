@@ -1,0 +1,1689 @@
+{
+  "schema_version": "1.0",
+  "profile": "full",
+  "project_root": ".",
+  "files": [
+    {
+      "file_path": "b.py",
+      "module_name": "b",
+      "symbols": {
+        "req": "requests",
+        "get": "requests",
+        "numpy": "numpy",
+        "pandas": "pandas",
+        "result": "requests",
+        "check": "local",
+        "z": "pandas"
+      },
+      "chains": {
+        "req": [
+          "req",
+          "requests"
+        ],
+        "get": [
+          "get",
+          "c.d",
+          "get",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "numpy": [
+          "numpy"
+        ],
+        "pandas": [
+          "pandas"
+        ],
+        "result": [
+          "result",
+          "req.get()",
+          "req",
+          "requests"
+        ],
+        "check": [
+          "check",
+          "get()",
+          "c.e.f"
+        ],
+        "z": [
+          "z",
+          "pandas.foo()",
+          "pandas"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "req.get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "req",
+          "chain": [
+            "req",
+            "requests"
+          ],
+          "file_path": "b.py",
+          "lineno": 7,
+          "col_offset": 9,
+          "end_lineno": 7,
+          "end_col_offset": 38,
+          "func_name": "req.get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "req.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "get",
+          "chain": [
+            "get",
+            "c.d"
+          ],
+          "file_path": "b.py",
+          "lineno": 8,
+          "col_offset": 6,
+          "end_lineno": 8,
+          "end_col_offset": 31,
+          "func_name": "get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "c.d.get",
+          "resolved_chain": [
+            "get",
+            "c.d.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "numpy.foo()",
+          "top_library": "numpy",
+          "base_symbol": "numpy",
+          "chain": [
+            "numpy"
+          ],
+          "file_path": "b.py",
+          "lineno": 10,
+          "col_offset": 2,
+          "end_lineno": 10,
+          "end_col_offset": 13,
+          "func_name": "numpy.foo",
+          "parameters": "",
+          "resolved_func": "numpy.foo",
+          "resolved_chain": [
+            "numpy.foo",
+            "numpy.foo",
+            "numpy"
+          ]
+        },
+        {
+          "expression": "pandas.foo(z)",
+          "top_library": "pandas",
+          "base_symbol": "pandas",
+          "chain": [
+            "pandas"
+          ],
+          "file_path": "b.py",
+          "lineno": 11,
+          "col_offset": 2,
+          "end_lineno": 11,
+          "end_col_offset": 15,
+          "func_name": "pandas.foo",
+          "parameters": "z",
+          "resolved_func": "pandas.foo",
+          "resolved_chain": [
+            "pandas.foo",
+            "pandas.foo",
+            "pandas"
+          ]
+        }
+      ],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "req",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "req",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get",
+          "kind": "import",
+          "top_library": "pandas",
+          "top_libraries": [
+            "pandas"
+          ],
+          "chain": [
+            "get",
+            "pandas"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 2,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "get",
+            "c.d",
+            "get",
+            "my_url",
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 3,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "numpy",
+          "kind": "import",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 4,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "pandas",
+          "kind": "import",
+          "top_library": "pandas",
+          "top_libraries": [
+            "pandas"
+          ],
+          "chain": [
+            "pandas"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 5,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "result",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "result",
+            "req.get()",
+            "req",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 7,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "check",
+          "kind": "variable",
+          "top_library": "local",
+          "top_libraries": [
+            "local"
+          ],
+          "chain": [
+            "check",
+            "get()",
+            "c.e.f"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 8,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "z",
+          "kind": "variable",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "z",
+            "numpy.foo()",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 10,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "z",
+          "kind": "variable",
+          "top_library": "pandas",
+          "top_libraries": [
+            "pandas"
+          ],
+          "chain": [
+            "z",
+            "pandas.foo()",
+            "pandas"
+          ],
+          "scope_name": "",
+          "file_path": "b.py",
+          "lineno": 11,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    },
+    {
+      "file_path": "a.py",
+      "module_name": "a",
+      "symbols": {
+        "result": "requests",
+        "my_url": "requests",
+        "my_data": "numpy",
+        "test1": "requests",
+        "test2": "requests",
+        "test3": "numpy",
+        "test4": "requests"
+      },
+      "chains": {
+        "result": [
+          "result",
+          "b",
+          "result",
+          "req.get()",
+          "req",
+          "requests"
+        ],
+        "my_url": [
+          "my_url",
+          "c.d",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "my_data": [
+          "my_data",
+          "c.d",
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np.array()",
+          "np",
+          "numpy"
+        ],
+        "test1": [
+          "test1",
+          "result",
+          "b",
+          "result",
+          "req.get()",
+          "req",
+          "requests"
+        ],
+        "test2": [
+          "test2",
+          "my_url",
+          "c.d",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "test3": [
+          "test3",
+          "my_data",
+          "c.d",
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np.array()",
+          "np",
+          "numpy"
+        ],
+        "test4": [
+          "test4",
+          "test1",
+          "result",
+          "b",
+          "result",
+          "req.get()",
+          "req",
+          "requests"
+        ]
+      },
+      "api_calls": [],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "result",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "result",
+            "b",
+            "result",
+            "req.get()",
+            "req",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "my_url",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "my_url",
+            "c.d",
+            "my_url",
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 2,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "my_data",
+          "kind": "import",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "my_data",
+            "c.d",
+            "my_data",
+            "data",
+            "c.e.f",
+            "data",
+            "np.array()",
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 2,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "test1",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "test1",
+            "result",
+            "b",
+            "result",
+            "req.get()",
+            "req",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 4,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "test2",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "test2",
+            "my_url",
+            "c.d",
+            "my_url",
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 5,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "test3",
+          "kind": "variable",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "test3",
+            "my_data",
+            "c.d",
+            "my_data",
+            "data",
+            "c.e.f",
+            "data",
+            "np.array()",
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 6,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "test4",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "test4",
+            "test1",
+            "result",
+            "b",
+            "result",
+            "req.get()",
+            "req",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "a.py",
+          "lineno": 7,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    },
+    {
+      "file_path": "c/d.py",
+      "module_name": "c.d",
+      "symbols": {
+        "url": "requests",
+        "data": "numpy",
+        "my_url": "requests",
+        "my_data": "numpy",
+        "get": "requests"
+      },
+      "chains": {
+        "url": [
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "data": [
+          "data",
+          "c.e.f",
+          "data",
+          "np.array()",
+          "np",
+          "numpy"
+        ],
+        "my_url": [
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "my_data": [
+          "my_data",
+          "data",
+          "c.e.f",
+          "data",
+          "np.array()",
+          "np",
+          "numpy"
+        ],
+        "get": [
+          "get",
+          "my_url",
+          "url",
+          "c.e.f",
+          "url",
+          "requests.get()",
+          "requests"
+        ]
+      },
+      "api_calls": [],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "url",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "c/d.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "data",
+          "kind": "import",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "data",
+            "c.e.f",
+            "data",
+            "np.array()",
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "c/d.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "my_url",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "my_url",
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "c/d.py",
+          "lineno": 3,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "my_data",
+          "kind": "variable",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "my_data",
+            "data",
+            "c.e.f",
+            "data",
+            "np.array()",
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "c/d.py",
+          "lineno": 4,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "get",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "get",
+            "my_url",
+            "url",
+            "c.e.f",
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "c/d.py",
+          "lineno": 5,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    },
+    {
+      "file_path": "c/e/f.py",
+      "module_name": "c.e.f",
+      "symbols": {
+        "requests": "requests",
+        "np": "numpy",
+        "url": "requests",
+        "data": "numpy"
+      },
+      "chains": {
+        "requests": [
+          "requests"
+        ],
+        "np": [
+          "np",
+          "numpy"
+        ],
+        "url": [
+          "url",
+          "requests.get()",
+          "requests"
+        ],
+        "data": [
+          "data",
+          "np.array()",
+          "np",
+          "numpy"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "requests.get('http://example.com')",
+          "top_library": "requests",
+          "base_symbol": "requests",
+          "chain": [
+            "requests"
+          ],
+          "file_path": "c/e/f.py",
+          "lineno": 4,
+          "col_offset": 4,
+          "end_lineno": 4,
+          "end_col_offset": 38,
+          "func_name": "requests.get",
+          "parameters": "'http://example.com'",
+          "resolved_func": "requests.get",
+          "resolved_chain": [
+            "requests.get",
+            "requests.get",
+            "requests"
+          ]
+        },
+        {
+          "expression": "np.array([1, 2, 3])",
+          "top_library": "numpy",
+          "base_symbol": "np",
+          "chain": [
+            "np",
+            "numpy"
+          ],
+          "file_path": "c/e/f.py",
+          "lineno": 5,
+          "col_offset": 5,
+          "end_lineno": 5,
+          "end_col_offset": 24,
+          "func_name": "np.array",
+          "parameters": "[1, 2, 3]",
+          "resolved_func": "numpy.array",
+          "resolved_chain": [
+            "np.array",
+            "numpy.array",
+            "numpy"
+          ]
+        }
+      ],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "requests",
+          "kind": "import",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "c/e/f.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "np",
+          "kind": "import",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "c/e/f.py",
+          "lineno": 2,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "url",
+          "kind": "variable",
+          "top_library": "requests",
+          "top_libraries": [
+            "requests"
+          ],
+          "chain": [
+            "url",
+            "requests.get()",
+            "requests"
+          ],
+          "scope_name": "",
+          "file_path": "c/e/f.py",
+          "lineno": 4,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "data",
+          "kind": "variable",
+          "top_library": "numpy",
+          "top_libraries": [
+            "numpy"
+          ],
+          "chain": [
+            "data",
+            "np.array()",
+            "np",
+            "numpy"
+          ],
+          "scope_name": "",
+          "file_path": "c/e/f.py",
+          "lineno": 5,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    }
+  ],
+  "all_api_calls": [
+    {
+      "expression": "req.get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "req",
+      "chain": [
+        "req",
+        "requests"
+      ],
+      "file_path": "b.py",
+      "lineno": 7,
+      "col_offset": 9,
+      "end_lineno": 7,
+      "end_col_offset": 38,
+      "func_name": "req.get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "req.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "get",
+      "chain": [
+        "get",
+        "c.d"
+      ],
+      "file_path": "b.py",
+      "lineno": 8,
+      "col_offset": 6,
+      "end_lineno": 8,
+      "end_col_offset": 31,
+      "func_name": "get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "c.d.get",
+      "resolved_chain": [
+        "get",
+        "c.d.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "numpy.foo()",
+      "top_library": "numpy",
+      "base_symbol": "numpy",
+      "chain": [
+        "numpy"
+      ],
+      "file_path": "b.py",
+      "lineno": 10,
+      "col_offset": 2,
+      "end_lineno": 10,
+      "end_col_offset": 13,
+      "func_name": "numpy.foo",
+      "parameters": "",
+      "resolved_func": "numpy.foo",
+      "resolved_chain": [
+        "numpy.foo",
+        "numpy.foo",
+        "numpy"
+      ]
+    },
+    {
+      "expression": "pandas.foo(z)",
+      "top_library": "pandas",
+      "base_symbol": "pandas",
+      "chain": [
+        "pandas"
+      ],
+      "file_path": "b.py",
+      "lineno": 11,
+      "col_offset": 2,
+      "end_lineno": 11,
+      "end_col_offset": 15,
+      "func_name": "pandas.foo",
+      "parameters": "z",
+      "resolved_func": "pandas.foo",
+      "resolved_chain": [
+        "pandas.foo",
+        "pandas.foo",
+        "pandas"
+      ]
+    },
+    {
+      "expression": "requests.get('http://example.com')",
+      "top_library": "requests",
+      "base_symbol": "requests",
+      "chain": [
+        "requests"
+      ],
+      "file_path": "c/e/f.py",
+      "lineno": 4,
+      "col_offset": 4,
+      "end_lineno": 4,
+      "end_col_offset": 38,
+      "func_name": "requests.get",
+      "parameters": "'http://example.com'",
+      "resolved_func": "requests.get",
+      "resolved_chain": [
+        "requests.get",
+        "requests.get",
+        "requests"
+      ]
+    },
+    {
+      "expression": "np.array([1, 2, 3])",
+      "top_library": "numpy",
+      "base_symbol": "np",
+      "chain": [
+        "np",
+        "numpy"
+      ],
+      "file_path": "c/e/f.py",
+      "lineno": 5,
+      "col_offset": 5,
+      "end_lineno": 5,
+      "end_col_offset": 24,
+      "func_name": "np.array",
+      "parameters": "[1, 2, 3]",
+      "resolved_func": "numpy.array",
+      "resolved_chain": [
+        "np.array",
+        "numpy.array",
+        "numpy"
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "all_symbol_provenance": [
+    {
+      "symbol": "req",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "req",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get",
+      "kind": "import",
+      "top_library": "pandas",
+      "top_libraries": [
+        "pandas"
+      ],
+      "chain": [
+        "get",
+        "pandas"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 2,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "get",
+        "c.d",
+        "get",
+        "my_url",
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 3,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "numpy",
+      "kind": "import",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 4,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "pandas",
+      "kind": "import",
+      "top_library": "pandas",
+      "top_libraries": [
+        "pandas"
+      ],
+      "chain": [
+        "pandas"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 5,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "result",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "result",
+        "req.get()",
+        "req",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 7,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "check",
+      "kind": "variable",
+      "top_library": "local",
+      "top_libraries": [
+        "local"
+      ],
+      "chain": [
+        "check",
+        "get()",
+        "c.e.f"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 8,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "z",
+      "kind": "variable",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "z",
+        "numpy.foo()",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 10,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "z",
+      "kind": "variable",
+      "top_library": "pandas",
+      "top_libraries": [
+        "pandas"
+      ],
+      "chain": [
+        "z",
+        "pandas.foo()",
+        "pandas"
+      ],
+      "scope_name": "",
+      "file_path": "b.py",
+      "lineno": 11,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "result",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "result",
+        "b",
+        "result",
+        "req.get()",
+        "req",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "my_url",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "my_url",
+        "c.d",
+        "my_url",
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 2,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "my_data",
+      "kind": "import",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "my_data",
+        "c.d",
+        "my_data",
+        "data",
+        "c.e.f",
+        "data",
+        "np.array()",
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 2,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "test1",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "test1",
+        "result",
+        "b",
+        "result",
+        "req.get()",
+        "req",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 4,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "test2",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "test2",
+        "my_url",
+        "c.d",
+        "my_url",
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 5,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "test3",
+      "kind": "variable",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "test3",
+        "my_data",
+        "c.d",
+        "my_data",
+        "data",
+        "c.e.f",
+        "data",
+        "np.array()",
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 6,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "test4",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "test4",
+        "test1",
+        "result",
+        "b",
+        "result",
+        "req.get()",
+        "req",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "a.py",
+      "lineno": 7,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "url",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "c/d.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "data",
+      "kind": "import",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "data",
+        "c.e.f",
+        "data",
+        "np.array()",
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "c/d.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "my_url",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "my_url",
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "c/d.py",
+      "lineno": 3,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "my_data",
+      "kind": "variable",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "my_data",
+        "data",
+        "c.e.f",
+        "data",
+        "np.array()",
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "c/d.py",
+      "lineno": 4,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "get",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "get",
+        "my_url",
+        "url",
+        "c.e.f",
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "c/d.py",
+      "lineno": 5,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "requests",
+      "kind": "import",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "c/e/f.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "np",
+      "kind": "import",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "c/e/f.py",
+      "lineno": 2,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "url",
+      "kind": "variable",
+      "top_library": "requests",
+      "top_libraries": [
+        "requests"
+      ],
+      "chain": [
+        "url",
+        "requests.get()",
+        "requests"
+      ],
+      "scope_name": "",
+      "file_path": "c/e/f.py",
+      "lineno": 4,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "data",
+      "kind": "variable",
+      "top_library": "numpy",
+      "top_libraries": [
+        "numpy"
+      ],
+      "chain": [
+        "data",
+        "np.array()",
+        "np",
+        "numpy"
+      ],
+      "scope_name": "",
+      "file_path": "c/e/f.py",
+      "lineno": 5,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    }
+  ],
+  "library_usage": {
+    "numpy": {
+      "library": "numpy",
+      "api_call_count": 2,
+      "symbol_count": 8,
+      "files": [
+        "a.py",
+        "b.py",
+        "c/d.py",
+        "c/e/f.py"
+      ],
+      "imports": [
+        "data",
+        "my_data",
+        "np",
+        "numpy"
+      ],
+      "kind_counts": {
+        "import": 4,
+        "variable": 4
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
+    },
+    "pandas": {
+      "library": "pandas",
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "files": [
+        "b.py"
+      ],
+      "imports": [
+        "get",
+        "pandas"
+      ],
+      "kind_counts": {
+        "import": 2,
+        "variable": 1
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
+    },
+    "requests": {
+      "library": "requests",
+      "api_call_count": 3,
+      "symbol_count": 13,
+      "files": [
+        "a.py",
+        "b.py",
+        "c/d.py",
+        "c/e/f.py"
+      ],
+      "imports": [
+        "get",
+        "my_url",
+        "req",
+        "requests",
+        "result",
+        "url"
+      ],
+      "kind_counts": {
+        "import": 6,
+        "variable": 7
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
+    }
+  },
+  "stats": {
+    "total_modules": 4,
+    "parsed_modules": 4,
+    "skipped_modules": 0,
+    "scope_model": "v1"
+  }
+}

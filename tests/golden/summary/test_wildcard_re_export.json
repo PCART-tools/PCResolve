@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "profile": "summary",
+  "project_root": ".",
+  "stats": {
+    "total_modules": 3,
+    "parsed_modules": 3,
+    "skipped_modules": 0,
+    "scope_model": "v1",
+    "api_call_count": 1,
+    "library_count": 1,
+    "diagnostic_error_count": 0,
+    "diagnostic_warning_count": 0
+  },
+  "diagnostics": [],
+  "libraries": {
+    "scipy": {
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "file_count": 2,
+      "files": [
+        "pkg/helper.py",
+        "pkg/main.py"
+      ],
+      "imports": [
+        "stats"
+      ],
+      "kind_counts": {
+        "variable": 2,
+        "import": 1
+      },
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
+    }
+  }
+}
