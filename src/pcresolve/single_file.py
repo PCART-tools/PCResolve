@@ -11,7 +11,7 @@ from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
 from .scope import Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_COMPREHENSION
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
-                       normalize_source, source_display)
+                       SourceSet, normalize_source, source_display, make_source_set)
 
 ## Python 2 builtins not present in Python 3's builtins module.
 _PY2_BUILTINS = frozenset({
@@ -1160,9 +1160,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if source:
                     if isinstance(source, str) and source in self.symbols.direct:
                         s = self.symbols.direct[source]
-                        self.return_sources[func_name] = s if s else source
+                        new_src = s if s else source
                     else:
-                        self.return_sources[func_name] = source
+                        new_src = source
+                    old = self.return_sources.get(func_name)
+                    self.return_sources[func_name] = make_source_set([old, new_src] if old else [new_src])
                     self._add_symbol_ref(
                         func_name + ".return", source, "return", node)
         self.generic_visit(node)

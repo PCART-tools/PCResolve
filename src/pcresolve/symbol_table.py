@@ -6,7 +6,7 @@
 #  to determine its top-level origin library.
 
 import builtins
-from .sources import CallResult, normalize_source, source_display
+from .sources import CallResult, SourceSet, normalize_source, source_display
 
 
 ## Tracks symbol definitions and resolves each to its top-level source.
@@ -43,6 +43,11 @@ class SymbolTable:
                 rs = normalize_source(rs)
                 if isinstance(rs, CallResult):
                     return self.trace(rs, visited)
+                if isinstance(rs, SourceSet):
+                    for src in rs.sources:
+                        sub = self.trace(src, visited)
+                        if sub and sub != [source_display(src)]:
+                            return sub
                 if isinstance(rs, str):
                     return self.trace(rs, visited)
             return self.trace(callee, visited)
@@ -61,6 +66,14 @@ class SymbolTable:
                 rs = normalize_source(rs)
                 if isinstance(rs, CallResult):
                     sub = self.trace(rs, visited)
+                elif isinstance(rs, SourceSet):
+                    sub = None
+                    for src in rs.sources:
+                        sub = self.trace(src, visited)
+                        if sub and sub != [source_display(src)]:
+                            break
+                    if not sub:
+                        sub = self.trace(callee, visited)
                 elif isinstance(rs, str):
                     sub = self.trace(rs, visited)
                 else:

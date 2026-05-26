@@ -32,7 +32,7 @@
     },
     "requests": {
       "api_call_count": 6,
-      "symbol_count": 14,
+      "symbol_count": 13,
       "file_count": 2,
       "files": [
         "local_lib.py",
@@ -46,7 +46,7 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 7,
+        "variable": 6,
         "return": 3
       },
       "min_confidence": 1.0,

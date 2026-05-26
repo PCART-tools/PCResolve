@@ -67,6 +67,28 @@ class SourceSet:
     sources: tuple
 
 
+## Build a SourceSet from a sequence of source values, deduplicating by display.
+#
+#  @param values Iterable of source values.
+#  @return SourceSet with deduplicated, stable-ordered sources.
+def make_source_set(values):
+    items = []
+    for value in values:
+        norm = normalize_source(value)
+        if isinstance(norm, SourceSet):
+            items.extend(norm.sources)
+        elif norm is not None:
+            items.append(norm)
+    seen = set()
+    deduped = []
+    for item in items:
+        key = source_display(item)
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+    return SourceSet(tuple(deduped))
+
+
 ## Check whether a value is a structured source (dataclass or legacy tuple).
 #
 #  @param value Source value to test.

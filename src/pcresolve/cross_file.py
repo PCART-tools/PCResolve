@@ -25,7 +25,8 @@ from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERR
 from .ir import SymbolProvenance
 from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
-                       is_structured_source, normalize_source, source_display)
+                       SourceSet, is_structured_source, normalize_source,
+                       source_display)
 from .types import ProjectAnalysis, FileAnalysis, ApiCall, LibraryUsage
 
 
@@ -766,6 +767,13 @@ class ProjectAnalyzer:
             while True:
                 tr = tracers.get(cur_module)
                 rs = tr.return_sources.get(cur_symbol) if tr else None
+                rs = normalize_source(rs)
+                if isinstance(rs, SourceSet):
+                    for src in rs.sources:
+                        if isinstance(src, str):
+                            return (f"{callee_display or callee}()", cur_module, src)
+                        if isinstance(src, CallResult):
+                            return (f"{callee_display or callee}()", cur_module, src.callee)
                 if rs is None:
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):

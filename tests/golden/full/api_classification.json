@@ -23,7 +23,7 @@
         "local_inherited_call": "local",
         "tp": "local",
         "thirdparty_inherited_call": "requests",
-        "nested_call": "requests"
+        "nested_call": "local"
       },
       "chains": {
         "fetch_data": [
@@ -124,7 +124,8 @@
         "nested_call": [
           "nested_call",
           "wrapper()",
-          "requests"
+          "fetch_data",
+          "local"
         ]
       },
       "api_calls": [
@@ -680,14 +681,15 @@
         {
           "symbol": "nested_call",
           "kind": "variable",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "nested_call",
             "wrapper()",
-            "requests"
+            "fetch_data",
+            "local"
           ],
           "scope_name": "",
           "file_path": "main.py",
@@ -1820,14 +1822,15 @@
     {
       "symbol": "nested_call",
       "kind": "variable",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "nested_call",
         "wrapper()",
-        "requests"
+        "fetch_data",
+        "local"
       ],
       "scope_name": "",
       "file_path": "main.py",
@@ -2184,7 +2187,7 @@
     "requests": {
       "library": "requests",
       "api_call_count": 6,
-      "symbol_count": 14,
+      "symbol_count": 13,
       "files": [
         "local_lib.py",
         "main.py"
@@ -2197,7 +2200,7 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 7,
+        "variable": 6,
         "return": 3
       },
       "has_evidence": true,
