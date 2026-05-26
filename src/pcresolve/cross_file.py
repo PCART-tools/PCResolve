@@ -1100,12 +1100,32 @@ class ProjectAnalyzer:
                 if isinstance(rs, SourceSet):
                     for src in rs.sources:
                         if isinstance(src, str):
+                            arg_src = self._resolve_param_to_arg(
+                                cur_module, cur_symbol, src, tracers)
+                            if arg_src is not None:
+                                arg_src = normalize_source(arg_src)
+                                if isinstance(arg_src, CallResult):
+                                    return (f"{callee_display or callee}()",
+                                            cur_module, arg_src.callee)
+                                if isinstance(arg_src, str):
+                                    return (f"{callee_display or callee}()",
+                                            cur_module, arg_src)
                             return (f"{callee_display or callee}()", cur_module, src)
                         if isinstance(src, CallResult):
                             return (f"{callee_display or callee}()", cur_module, src.callee)
                 if rs is None:
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
+                    arg_src = self._resolve_param_to_arg(
+                        cur_module, cur_symbol, rs, tracers)
+                    if arg_src is not None:
+                        arg_src = normalize_source(arg_src)
+                        if isinstance(arg_src, CallResult):
+                            return (f"{callee_display or callee}()",
+                                    cur_module, arg_src.callee)
+                        if isinstance(arg_src, str):
+                            return (f"{callee_display or callee}()",
+                                    cur_module, arg_src)
                     return (f"{callee_display or callee}()", cur_module, rs)
                 rs = normalize_source(rs)
                 if isinstance(rs, CallResult):
@@ -1122,6 +1142,30 @@ class ProjectAnalyzer:
                 break
             return (f"{callee_display or callee}()", cur_module, cur_symbol)
 
+        return None
+
+    ## Resolve a parameter name to its call-site argument for a specific callee.
+    #
+    #  Unlike _trace_parameter_source, this only searches the given callee's
+    #  call-sites, preventing false positives from same-named parameters in
+    #  other functions.
+    #  @param module The module where the call occurs.
+    #  @param callee The function name whose parameter is being resolved.
+    #  @param param_name The parameter name to resolve.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return A source value from the call-site argument, or None.
+    def _resolve_param_to_arg(self, module, callee, param_name, tracers):
+        tr = tracers.get(module)
+        if not tr or not isinstance(param_name, str):
+            return None
+        params = tr.function_params.get(callee, [])
+        if param_name not in params:
+            return None
+        param_idx = params.index(param_name)
+        for call_site in tr.call_sites.get(callee, []):
+            if param_idx >= len(call_site["args"]):
+                continue
+            return call_site["args"][param_idx]
         return None
 
     ## Recursively trace a symbol through cross-file imports to its origin.
@@ -1189,11 +1233,6 @@ class ProjectAnalyzer:
                 return [symbol, "local"]
             if isinstance(symbol, str) and _is_builtin(symbol):
                 return [symbol, "python"]
-            if isinstance(symbol, str):
-                param_chain = self._trace_parameter_source(
-                    module, symbol, symbol, tracer, tracers, visited)
-                if param_chain:
-                    return param_chain
             return [symbol]
 
         if direct_source == "local":
@@ -1229,11 +1268,6 @@ class ProjectAnalyzer:
                     if self.is_local(full_first):
                         return [symbol, display_name, src_module]
                 return [symbol, display_name, src_symbol]
-            if sub_chain == [src_symbol] and isinstance(src_symbol, str) and src_tracer:
-                param_chain = self._trace_parameter_source(
-                    src_module, src_symbol, src_symbol, src_tracer, tracers, visited)
-                if param_chain:
-                    return [symbol, display_name] + param_chain
             return [symbol, display_name, src_module]
 
         if isinstance(direct_source, tuple):

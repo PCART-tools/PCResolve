@@ -35,3 +35,23 @@ def test_return_value_head_traces_to_pandas(result):
         for c in f.api_calls:
             if "result.head" in c.expression:
                 assert c.top_library == "pandas", f"{c.expression} -> {c.top_library}"
+
+
+def test_unbound_name_not_traced_to_same_named_parameter():
+    """An unbound module-level name must not be traced to a parameter
+    of a function that happens to use the same name."""
+    import tempfile, os
+    code = ("import pandas as pd\n"
+            "def identity(df):\n"
+            "    return df\n"
+            "all_df = pd.read_csv('x')\n"
+            "identity(all_df)\n"
+            "df.head()\n")
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        r = analyze_project(td, scope_model="v2")
+        head_calls = [c for c in r.all_api_calls if "df.head" in c.expression]
+        assert len(head_calls) >= 1
+        assert head_calls[0].top_library != "pandas", (
+            "Unbound df.head() must NOT be traced to identity's df param")
