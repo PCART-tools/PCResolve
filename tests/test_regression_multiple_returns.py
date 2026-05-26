@@ -79,3 +79,45 @@ def test_chained_call_through_return():
     assert calls, "make().get() call not found"
     get_call = list(calls.values())[0]
     assert "local" not in str(get_call).lower(), f"Expected not local, got {get_call}"
+
+
+def test_value_get_top_library_v2():
+    """value.get(...) must resolve to requests or numpy in v2 (regression check)."""
+    result_v2 = analyze_project(FIXTURE, scope_model="v2")
+    value_calls = [c for c in result_v2.all_api_calls if "get" in c.expression]
+    assert len(value_calls) == 1
+    assert value_calls[0].top_library in ("requests", "numpy"), \
+        f"Expected requests or numpy, got {value_calls[0].top_library}"
+
+
+def test_no_sourceset_leak_in_top_library():
+    """No SourceSet dataclass repr must leak into top_library or library_usage keys."""
+    for scope_model in ("v1", "v2"):
+        result = analyze_project(FIXTURE, scope_model=scope_model)
+        for call in result.all_api_calls:
+            assert "SourceSet(" not in str(call.top_library), \
+                f"[{scope_model}] Leaked SourceSet in top_library: {call.top_library}"
+        for lib in result.library_usage:
+            assert "SourceSet(" not in str(lib), \
+                f"[{scope_model}] Leaked SourceSet in library_usage key: {lib}"
+
+
+def test_make_chained_call_project_level():
+    """make(True).get() at project level must resolve to requests or numpy."""
+    code = "import requests\nimport numpy as np\n"
+    code += "def make(flag):\n"
+    code += "    if flag:\n        return requests.Session()\n"
+    code += "    return np.array([1])\n"
+    code += "make(True).get('https://example.com')\n"
+
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        for scope_model in ("v1", "v2"):
+            result = analyze_project(tmpdir, scope_model=scope_model)
+            get_calls = [c for c in result.all_api_calls if "get" in c.expression]
+            assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
+            assert get_calls[0].top_library in ("requests", "numpy"), \
+                f"[{scope_model}] Expected requests or numpy, got {get_calls[0].top_library}"

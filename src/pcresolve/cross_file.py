@@ -340,7 +340,7 @@ class ProjectAnalyzer:
             for call_detail in tracer.api_calls:
                 if call_detail.get('top') == 'local':
                     base = call_detail.get('base')
-                    if isinstance(base, str):
+                    if isinstance(base, str) or is_structured_source(base):
                         top_source = self._base_top_source(module, base, tracer, module_tracers)
                         if top_source and top_source != 'local':
                             record = dict(call_detail)
@@ -684,6 +684,18 @@ class ProjectAnalyzer:
     #  @return (display_name, src_module, src_symbol) tuple, or None.
     def _resolve_structured_source(self, module, direct_source, tracers):
         direct_source = normalize_source(direct_source)
+        if isinstance(direct_source, SourceSet):
+            for src in direct_source.sources:
+                resolved = self._resolve_structured_source(module, src, tracers)
+                if resolved is not None:
+                    _, src_module, src_symbol = resolved
+                    if src_symbol and not self.is_local(src_symbol) and src_symbol != "python":
+                        return resolved
+            for src in direct_source.sources:
+                resolved = self._resolve_structured_source(module, src, tracers)
+                if resolved is not None:
+                    return resolved
+            return None
         callee_display = None
         if isinstance(direct_source, ContainerItem):
             kind, a, b = "container_item", direct_source.container, direct_source.index

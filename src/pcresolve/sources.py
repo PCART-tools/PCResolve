@@ -65,6 +65,7 @@ class SourceSet:
 
 ## Union of all Source IR types and plain strings.
 SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod, CallResult, SourceSet, UnknownSource]
+## Build a SourceSet from an iterable of source values, deduplicating by display.
 #
 #  @param values Iterable of source values.
 #  @return SourceSet with deduplicated, stable-ordered sources.

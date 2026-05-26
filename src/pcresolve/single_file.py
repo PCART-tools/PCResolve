@@ -861,6 +861,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         inner_callee = resolved.callee
                         if isinstance(inner_callee, str):
                             callee = inner_callee
+                    elif isinstance(resolved, SourceSet):
+                        top = source_display(base)
+                        chain = [top] if (self.scope_model == "v2") else []
+                        record = {
+                            'api': api_string,
+                            'top': top,
+                            'chain': chain,
+                            'base': base,
+                            'direct_name_callee': direct_name,
+                        }
+                        record.update(loc)
+                        self.api_calls.append(record)
+                        self._collect_call_site(api_string, func_name, parameters,
+                                                base, loc)
+                        return
                 top = self.symbols.get_top(callee) or source_display(base)
             else:
                 top = source_display(base)
