@@ -189,8 +189,13 @@ def _print_explain_library(result, lib, top=20):
     print("API calls: %d" % v["api_call_count"])
     print("Symbols: %d" % v["symbol_count"])
     print("Files: %d" % len(v["files"]))
+    print("Confidence: %.2f-%.2f" % (v.get("min_confidence", 0), v.get("max_confidence", 0)))
     if v["imports"]:
         print("Imports: %s" % ", ".join(v["imports"]))
+    reason_counts = v.get("reason_counts", {})
+    if reason_counts:
+        print("Reasons: %s" % ", ".join(
+            "%s=%d" % (r, c) for r, c in sorted(reason_counts.items())))
     file_stats = v.get("file_stats", {})
     if file_stats:
         print("\nFiles")
