@@ -155,3 +155,25 @@ def test_v1_still_works_for_local_functions():
     assert len(helper_calls) >= 1
     for c in helper_calls:
         assert c.top_library == "local", f"v1 helper() not local: {c.top_library}"
+
+
+# ── Test 10: dotted import descendant must be library ─────────────────
+
+def test_dotted_import_descendant_is_library():
+    code = ("import gensim.models\n"
+            "gensim.models.fasttext.FastText()\n")
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "FastText" in c.expression]
+    assert len(calls) >= 1
+    assert calls[0].top_library == "gensim", \
+        f"Expected gensim, got {calls[0].top_library}"
+
+
+def test_deep_dotted_import_descendant_is_library():
+    code = ("import tornado.ioloop\n"
+            "tornado.ioloop.IOLoop.instance()\n")
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "instance" in c.expression]
+    assert len(calls) >= 1
+    assert calls[0].top_library == "tornado", \
+        f"Expected tornado, got {calls[0].top_library}"

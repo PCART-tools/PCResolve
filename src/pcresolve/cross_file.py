@@ -74,14 +74,19 @@ def _is_legal_library_name(name):
 def _is_import_origin(tracer, symbol):
     if tracer is None or not isinstance(symbol, str):
         return False
+    def _matches(value):
+        if not isinstance(value, str):
+            return False
+        return (value == symbol
+                or value.startswith(symbol + ".")
+                or symbol.startswith(value + "."))
     for value in tracer.symbols.direct.values():
         if isinstance(value, SourceSet):
             for src in value.sources:
-                if isinstance(src, str) and (src == symbol or src.startswith(symbol + ".")):
+                if _matches(src):
                     return True
-        elif isinstance(value, str):
-            if value == symbol or value.startswith(symbol + "."):
-                return True
+        elif _matches(value):
+            return True
     return False
 
 
