@@ -9,7 +9,8 @@ import ast
 import builtins
 from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
-from .scope import Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_COMPREHENSION
+from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
+                       SCOPE_COMPREHENSION, merge_snapshots)
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, normalize_source, source_display, make_source_set)
 
@@ -1142,6 +1143,130 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         source = self._iter_source(node.iter)
         self._target_to_source(node.target, source, "iteration")
         self.generic_visit(node)
+
+    ## Visit an If node with branch merging in v2 mode.
+    #
+    #  At module level, snapshots the current scope before the if, visits
+    #  each branch independently, then merges the resulting bindings.  At
+    #  function level, falls back to generic_visit (deferred to Phase 6 CFG).
+    #  TYPE_CHECKING guards are skipped at all levels.
+    #  @param node The If AST node.
+    def visit_If(self, node):
+        if self.scope_model != "v2":
+            self.generic_visit(node)
+            return
+
+        self.visit(node.test)
+
+        if self._is_type_checking_guard(node):
+            if node.orelse:
+                for stmt in node.orelse:
+                    self.visit(stmt)
+            return
+
+        if self.current_scope().kind != SCOPE_MODULE or not node.orelse:
+            for stmt in node.body:
+                self.visit(stmt)
+            for stmt in node.orelse:
+                self.visit(stmt)
+            return
+
+        scope_base = self.current_scope().snapshot()
+        symbols_base = self.symbols.snapshot()
+
+        for stmt in node.body:
+            self.visit(stmt)
+        scope_left = self.current_scope().snapshot()
+
+        self.current_scope().restore(scope_base)
+        self.symbols.restore(symbols_base)
+
+        for stmt in node.orelse:
+            self.visit(stmt)
+        scope_right = self.current_scope().snapshot()
+
+        merged = merge_snapshots(scope_base, scope_left, scope_right)
+        for name, value in list(merged.items()):
+            if not isinstance(value, Binding):
+                merged[name] = Binding(
+                    name=name, source=value,
+                    scope_kind=self.current_scope().kind,
+                )
+        self.current_scope().restore(merged)
+
+        for name, binding in merged.items():
+            if isinstance(binding, Binding):
+                self.symbols.add(name, binding.source)
+
+    ## Check whether an If node guards on TYPE_CHECKING.
+    #  @param node The If AST node.
+    #  @return True if the test is a bare TYPE_CHECKING reference.
+    def _is_type_checking_guard(self, node):
+        if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+            return True
+        if isinstance(node.test, ast.Attribute):
+            if node.test.attr == "TYPE_CHECKING":
+                return True
+        return False
+
+    ## Visit a Try node with conservative branch merging in v2 mode.
+    #
+    #  At module level, each except handler and the else clause are treated
+    #  as independent branches merged conservatively.  At function level,
+    #  falls back to generic_visit (deferred to Phase 6 CFG).
+    #  @param node The Try AST node.
+    def visit_Try(self, node):
+        if self.scope_model != "v2":
+            self.generic_visit(node)
+            return
+
+        if self.current_scope().kind != SCOPE_MODULE:
+            self.generic_visit(node)
+            return
+
+        scope_base = self.current_scope().snapshot()
+        symbols_base = self.symbols.snapshot()
+
+        for stmt in node.body:
+            self.visit(stmt)
+        scope_try = self.current_scope().snapshot()
+
+        all_branches = [scope_try]
+        for handler in node.handlers:
+            self.current_scope().restore(scope_base)
+            self.symbols.restore(symbols_base)
+            if handler.type:
+                self.visit(handler.type)
+            if handler.name:
+                self._bind_target_name(handler.name, "local", handler, "variable")
+            for stmt in handler.body:
+                self.visit(stmt)
+            all_branches.append(self.current_scope().snapshot())
+
+        if node.orelse:
+            self.current_scope().restore(scope_base)
+            self.symbols.restore(symbols_base)
+            for stmt in node.orelse:
+                self.visit(stmt)
+            all_branches.append(self.current_scope().snapshot())
+
+        merged = scope_base
+        for branch in all_branches:
+            merged = merge_snapshots(scope_base, merged, branch)
+        for name, value in list(merged.items()):
+            if not isinstance(value, Binding):
+                merged[name] = Binding(
+                    name=name, source=value,
+                    scope_kind=self.current_scope().kind,
+                )
+        self.current_scope().restore(merged)
+
+        for name, binding in merged.items():
+            if isinstance(binding, Binding):
+                self.symbols.add(name, binding.source)
+
+        for stmt in node.finalbody:
+            self.visit(stmt)
 
     ## Common handler for all comprehension node types.
     #  @param node A ListComp, SetComp, DictComp, or GeneratorExp AST node.

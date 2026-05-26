@@ -686,13 +686,20 @@ class ProjectAnalyzer:
         direct_source = normalize_source(direct_source)
         if isinstance(direct_source, SourceSet):
             for src in direct_source.sources:
-                resolved = self._resolve_structured_source(module, src, tracers)
-                if resolved is not None:
-                    _, src_module, src_symbol = resolved
-                    top = self._top_source(src_module, src_symbol, tracers)
+                if isinstance(src, str):
+                    top = self._top_source(module, src, tracers)
                     if top and top not in ("local", "python", "unknown", ""):
-                        return resolved
+                        return (source_display(direct_source), module, src)
+                else:
+                    resolved = self._resolve_structured_source(module, src, tracers)
+                    if resolved is not None:
+                        _, src_module, src_symbol = resolved
+                        top = self._top_source(src_module, src_symbol, tracers)
+                        if top and top not in ("local", "python", "unknown", ""):
+                            return resolved
             for src in direct_source.sources:
+                if isinstance(src, str):
+                    return (source_display(direct_source), module, src)
                 resolved = self._resolve_structured_source(module, src, tracers)
                 if resolved is not None:
                     return resolved

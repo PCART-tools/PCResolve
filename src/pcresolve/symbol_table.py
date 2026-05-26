@@ -120,3 +120,16 @@ class SymbolTable:
         if chain:
             last = chain[-1]
             self.top[symbol] = last if isinstance(last, str) else str(last)
+
+    ## Snapshot direct/chains/top for branch analysis rollback.
+    #  @return Tuple of (direct, chains, top) dict copies.
+    def snapshot(self):
+        return (dict(self.direct), dict(self.chains), dict(self.top))
+
+    ## Restore direct/chains/top from a snapshot.
+    #  @param state Tuple of (direct, chains, top) dicts.
+    def restore(self, state):
+        direct, chains, top = state
+        self.direct = dict(direct)
+        self.chains = dict(chains)
+        self.top = dict(top)
