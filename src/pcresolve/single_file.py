@@ -61,6 +61,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.container_set_sources = {}
         self.class_methods = {}
         self.class_bases = {}
+        self.instance_attrs = {}
         self.import_from_symbols = {}
         self.wildcard_modules = []
         self.call_sites = {}
@@ -105,6 +106,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.current_scope().bind(name, source, lineno, col, self._assignment_counter)
         if self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
             self.symbols.add(name, source)
+        if name.startswith("self.") and self._class_stack:
+            self.instance_attrs[(self._class_stack[-1], name)] = source
         if kind:
             self._add_symbol_ref(name, source, kind, node)
 
@@ -236,7 +239,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         return rs
                 if inner_source:
                     return inner_source
-            call_key = self.get_base(node, call_lookup=True)
+            if isinstance(node.func, ast.Name) and (
+                node.func.id in self.defined_functions or node.func.id in self.class_methods
+            ):
+                call_key = node.func.id
+            else:
+                call_key = self.get_base(node, call_lookup=True)
             if call_key:
                 if isinstance(call_key, CallResult):
                     return call_key
@@ -420,6 +428,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         re = func.value
         method_name = func.attr
 
+        def _lookup_instance_attr(attr_name):
+            if self._class_stack:
+                class_name = self._class_stack[-1]
+                if (class_name, attr_name) in self.instance_attrs:
+                    return self.instance_attrs[(class_name, attr_name)]
+            return self.symbols.direct.get(attr_name)
+
         def _resolve_on_class(class_name, receiver_key):
             if not class_name:
                 return None
@@ -439,6 +454,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if isinstance(class_name, CallResult):
                 class_name = class_name.callee
             if not class_name:
+                if self.scope_model == "v2":
+                    binding = self.current_scope().lookup(re.id)
+                    if binding is not None and binding.source == "local":
+                        return InstanceMethod(re.id, method_name)
                 return None
             methods = self.class_methods.get(class_name)
             if methods and method_name in methods:
@@ -457,13 +476,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     result = _resolve_on_class(cn, cn)
                     if isinstance(normalize_source(result), InstanceMethod):
                         attr_name = "self." + ".".join(chain[1:])
-                        attr_source = self.symbols.direct.get(attr_name)
+                        attr_source = _lookup_instance_attr(attr_name)
                         attr_source = normalize_source(attr_source)
                         if isinstance(attr_source, CallResult):
                             callee = attr_source.callee
                             if '.' not in callee and callee in self.symbols.direct:
                                 return InstanceMethod(callee, method_name)
                         if isinstance(attr_source, str) and '.' not in attr_source and attr_source in self.symbols.direct:
+                            return InstanceMethod(attr_source, method_name)
+                        if isinstance(attr_source, str) and attr_source != "local":
                             return InstanceMethod(attr_source, method_name)
                     return result
                 root = chain[0]
@@ -703,7 +724,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if name and name.startswith("self."):
                         if isinstance(right_norm, InstanceMethod):
                             continue
-                        self._bind_target_name(name, right, target)
+                        attr_source = right
+                        if (
+                            self.scope_model == "v2"
+                            and isinstance(node.value, ast.Name)
+                            and right == "local"
+                        ):
+                            attr_source = node.value.id
+                        self._bind_target_name(name, attr_source, target)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
@@ -942,6 +970,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 "module": self.module_name,
                 "args": arg_sources,
             })
+        elif isinstance(node.func, ast.Name) and node.func.id in self.class_methods:
+            arg_sources = []
+            for arg in node.args:
+                if isinstance(arg, ast.Attribute):
+                    name = self._attribute_name(arg)
+                    arg_sources.append(name if name else self.trace_source(arg))
+                else:
+                    arg_sources.append(self.trace_source(arg))
+            self.call_sites.setdefault(node.func.id + ".__init__", []).append({
+                "module": self.module_name,
+                "args": arg_sources,
+            })
         self.generic_visit(node)
 
     ## Visit an Attribute access node and record the top-level origin.
@@ -983,6 +1023,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             params.append(node.args.kwarg.arg)
             self._bind_target_name(node.args.kwarg.arg, "local", kind="parameter")
         self.function_params[node.name] = params
+        if self._class_stack:
+            self.function_params[self._class_stack[-1] + "." + node.name] = params
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()

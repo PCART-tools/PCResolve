@@ -395,6 +395,64 @@ def test_v2_s_provenance_is_requests():
                 )
 
 
+def test_v2_alias_call_result_provenance_keeps_external_origin():
+    """v2 x = np.array(...) must attribute x to numpy, not the local module."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("import numpy as np\n"
+                    "x = np.array([])\n"
+                    "y = np.sum(x)\n")
+        result = analyze_project(td, scope_model="v2")
+        by_symbol = {}
+        for p in result.all_symbol_provenance:
+            by_symbol.setdefault(p.symbol, []).append(p)
+        assert by_symbol["x"][0].top_library == "numpy", by_symbol["x"][0].chain
+        assert by_symbol["y"][0].top_library == "numpy", by_symbol["y"][0].chain
+        assert result.library_usage["numpy"].symbol_count >= 3
+
+
+def test_v2_local_function_call_result_uses_return_source():
+    """v2 x = local_func() must keep the callee name to follow return_sources."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("from scipy.sparse import dia_matrix\n"
+                    "def make():\n"
+                    "    return dia_matrix(([1], [0]), shape=(1, 1))\n"
+                    "x = make()\n")
+        result = analyze_project(td, scope_model="v2")
+        x_provs = [p for p in result.all_symbol_provenance if p.symbol == "x"]
+        assert x_provs
+        assert x_provs[0].top_library == "scipy", x_provs[0].chain
+
+
+def test_v2_constructor_arg_flows_to_self_attribute_methods():
+    """v2 should trace constructor parameters stored on self across methods."""
+    import tempfile, os
+    from pcresolve.cross_file import analyze_project
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write("from ext.api import Client\n"
+                    "class Wrapper:\n"
+                    "    def __init__(self, client):\n"
+                    "        client.open()\n"
+                    "        self.client = client\n"
+                    "    def run(self):\n"
+                    "        return self.client.close()\n"
+                    "def build():\n"
+                    "    c = Client()\n"
+                    "    w = Wrapper(c)\n"
+                    "    return w.run()\n")
+        result = analyze_project(td, scope_model="v2")
+        calls = {c.expression: c.top_library for c in result.all_api_calls}
+        assert calls.get("client.open()") == "ext", calls
+        assert calls.get("self.client.close()") == "ext", calls
+        assert "InstanceMethod(receiver='client', method='close')" not in result.library_usage
+
+
 def test_library_usage_same_filename_different_dirs():
     """Same-named files in different directories must not be merged."""
     import tempfile, os

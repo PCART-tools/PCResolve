@@ -40,6 +40,21 @@ def _dedup_consecutive(chain):
     return result
 
 
+## Check whether a symbol is an imported external origin in this tracer.
+#  @param tracer Single-file analyzer.
+#  @param symbol Candidate external origin.
+#  @return True if symbol matches an import source or its top-level package.
+def _is_import_origin(tracer, symbol):
+    if tracer is None or not isinstance(symbol, str):
+        return False
+    for value in tracer.symbols.direct.values():
+        if not isinstance(value, str):
+            continue
+        if value == symbol or value.startswith(symbol + "."):
+            return True
+    return False
+
+
 ## Normalize a file path to a relative POSIX path for library usage reporting.
 #  @param file_path Absolute file path.
 #  @param project_root Root directory to make relative.
@@ -597,6 +612,41 @@ class ProjectAnalyzer:
                 return (module, class_symbol)
         return None
 
+    ## Trace a function or constructor parameter through collected call sites.
+    #  @param module Module containing the parameter.
+    #  @param param_name Parameter name to resolve.
+    #  @param display_symbol Symbol to use at the start of the returned chain.
+    #  @param tracer Single-file analyzer for module.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param visited Set of visited trace keys.
+    #  @return Chain from display_symbol to argument origin, or None.
+    def _trace_parameter_source(self, module, param_name, display_symbol, tracer, tracers, visited):
+        for func_name, params in tracer.function_params.items():
+            try:
+                param_idx = params.index(param_name)
+            except ValueError:
+                continue
+            for call_site in tracer.call_sites.get(func_name, []):
+                if param_idx >= len(call_site["args"]):
+                    continue
+                arg_src = call_site["args"][param_idx]
+                if isinstance(arg_src, str):
+                    sub_chain = self.trace_symbol(
+                        call_site["module"], arg_src, tracers, visited
+                    )
+                elif arg_src is not None:
+                    sub_chain = self.trace_symbol(
+                        call_site["module"], param_name, tracers, set(),
+                        _direct_source=arg_src,
+                    )
+                else:
+                    sub_chain = None
+                if sub_chain:
+                    if sub_chain[0] == display_symbol:
+                        return sub_chain
+                    return [display_symbol] + sub_chain
+        return None
+
     ## Resolve a structured (tuple) source to its concrete origin.
     #
     #  Handles the four structured tuple kinds:
@@ -645,6 +695,11 @@ class ProjectAnalyzer:
                 if a in tracer.class_methods and class_symbol == "local":
                     class_symbol = a
             if not class_symbol:
+                receiver_chain = self.trace_symbol(
+                    module, a, tracers, set(), _direct_source="local")
+                receiver_top = self.extract_final_source(receiver_chain)
+                if receiver_top:
+                    return (f"{a}.{b}", module, receiver_top)
                 return None
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
             if not resolved:
@@ -777,20 +832,16 @@ class ProjectAnalyzer:
             return [symbol]
 
         if direct_source == "local":
-            for func_name, params in tracer.function_params.items():
-                try:
-                    param_idx = params.index(symbol)
-                except ValueError:
-                    continue
-                for call_site in tracer.call_sites.get(func_name, []):
-                    if param_idx < len(call_site["args"]):
-                        arg_src = call_site["args"][param_idx]
-                        if isinstance(arg_src, str):
-                            sub_chain = self.trace_symbol(
-                                call_site["module"], arg_src, tracers, visited
-                            )
-                            if sub_chain:
-                                return [symbol] + sub_chain
+            param_chain = self._trace_parameter_source(
+                module, symbol, symbol, tracer, tracers, visited)
+            if param_chain:
+                return param_chain
+
+        if isinstance(direct_source, str) and direct_source != symbol:
+            param_chain = self._trace_parameter_source(
+                module, direct_source, symbol, tracer, tracers, visited)
+            if param_chain:
+                return param_chain
 
         structured = self._resolve_structured_source(module, direct_source, tracers)
         if structured is not None:
@@ -798,6 +849,14 @@ class ProjectAnalyzer:
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
             if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
+            src_tracer = tracers.get(src_module)
+            if (
+                sub_chain == [src_symbol]
+                and isinstance(src_symbol, str)
+                and src_tracer is not None
+                and _is_import_origin(src_tracer, src_symbol)
+            ):
+                return [symbol, display_name, src_symbol]
             if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or _is_builtin(src_symbol)):
                 if '.' in src_symbol:
                     first = src_symbol.split('.')[0]
