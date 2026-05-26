@@ -57,6 +57,5 @@ def test_networkx_calls(calls_by_top):
 
 # ── Known issues ───────────────────────────────────────────────────────
 
-@pytest.mark.xfail(reason="KNOWN: Parameter (apgl class, import not visible) leaks (2 calls)")
 def test_parameter_is_apgl(calls_by_top):
     assert "Parameter" not in calls_by_top
