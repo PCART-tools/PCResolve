@@ -1226,7 +1226,22 @@ class ProjectAnalyzer:
             return "local"
         chain = self.trace_symbol(src_module, symbol, tracers, set())
         if chain:
-            return self.extract_final_source(chain)
+            top = self.extract_final_source(chain)
+            if top in ("local", "python", "unknown", ""):
+                return top
+            if isinstance(symbol, str) and chain == [symbol]:
+                if self.is_local(symbol):
+                    return "local"
+                if src_tracer and _is_import_origin(src_tracer, symbol):
+                    return self._top_name(symbol)
+                return "unknown"
+            if isinstance(symbol, str) and chain == [self._top_name(symbol)]:
+                if self.is_local(symbol):
+                    return "local"
+                if src_tracer and _is_import_origin(src_tracer, symbol):
+                    return self._top_name(symbol)
+                return "unknown"
+            return top
         if src_tracer:
             top = src_tracer.symbols.get_top(symbol)
             if top:

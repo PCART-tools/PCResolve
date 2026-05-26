@@ -179,7 +179,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 continue
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
-                self.import_aliases.add(symbol)
                 self._bind_target_name(symbol, resolved, node, "import")
                 self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
             else:
