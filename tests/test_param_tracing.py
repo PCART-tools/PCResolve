@@ -55,3 +55,30 @@ def test_unbound_name_not_traced_to_same_named_parameter():
         assert len(head_calls) >= 1
         assert head_calls[0].top_library != "pandas", (
             "Unbound df.head() must NOT be traced to identity's df param")
+
+
+def test_return_parameter_uses_matching_callsite_arg():
+    """Multiple calls to the same function must resolve to their
+    respective call-site arguments, not the first call-site."""
+    import tempfile, os
+    code = ("import pandas as pd\n"
+            "import numpy as np\n"
+            "def identity(x):\n"
+            "    return x\n"
+            "pd_df = pd.read_csv('x')\n"
+            "np_arr = np.array([1])\n"
+            "a = identity(pd_df)\n"
+            "b = identity(np_arr)\n"
+            "a.head()\n"
+            "b.reshape(1, 1)\n")
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        r = analyze_project(td, scope_model="v2")
+        for c in r.all_api_calls:
+            if "head" in c.expression:
+                assert c.top_library == "pandas", \
+                    f"a.head() should be pandas, got {c.top_library}"
+            if "reshape" in c.expression:
+                assert c.top_library == "numpy", \
+                    f"b.reshape() should be numpy, got {c.top_library}"

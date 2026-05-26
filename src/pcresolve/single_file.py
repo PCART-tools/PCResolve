@@ -278,7 +278,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     pass
                 if isinstance(call_key, str) and '.' not in display:
                     display = ""
-                return CallResult(call_key, display_name=display)
+                return CallResult(call_key, display_name=display,
+                                  call_lineno=node.lineno,
+                                  call_col_offset=node.col_offset)
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
             name = self._attribute_name(node)
@@ -1016,6 +1018,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             self.call_sites.setdefault(node.func.id, []).append({
                 "module": self.module_name,
                 "args": arg_sources,
+                "lineno": node.lineno,
+                "col_offset": node.col_offset,
             })
         elif isinstance(node.func, ast.Name) and node.func.id in self.class_methods:
             arg_sources = []
@@ -1028,6 +1032,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             self.call_sites.setdefault(node.func.id + ".__init__", []).append({
                 "module": self.module_name,
                 "args": arg_sources,
+                "lineno": node.lineno,
+                "col_offset": node.col_offset,
             })
         self.generic_visit(node)
 

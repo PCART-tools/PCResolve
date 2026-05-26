@@ -1070,6 +1070,8 @@ class ProjectAnalyzer:
 
         if kind == "call_result":
             callee = a
+            cr_lineno = getattr(direct_source, 'call_lineno', 0) or 0
+            cr_col = getattr(direct_source, 'call_col_offset', 0) or 0
             if isinstance(callee, SourceSet):
                 for src in callee.sources:
                     if isinstance(src, str):
@@ -1082,9 +1084,12 @@ class ProjectAnalyzer:
             gs = getattr(self, '_call_searched_global', None)
             if gs is not None:
                 if (module, callee) in gs:
-                    return (f"{callee_display or callee}()", module, callee)
-                gs.add((module, callee))
-            callee_chain = self.trace_symbol(module, callee, tracers, set())
+                    callee_chain = [callee]
+                else:
+                    gs.add((module, callee))
+                    callee_chain = self.trace_symbol(module, callee, tracers, set())
+            else:
+                callee_chain = self.trace_symbol(module, callee, tracers, set())
             def_module = module
             for item in reversed(callee_chain):
                 if isinstance(item, str) and self.is_local(item):
@@ -1101,7 +1106,8 @@ class ProjectAnalyzer:
                     for src in rs.sources:
                         if isinstance(src, str):
                             arg_src = self._resolve_param_to_arg(
-                                cur_module, cur_symbol, src, tracers)
+                                cur_module, cur_symbol, src, tracers,
+                                call_lineno=cr_lineno, call_col_offset=cr_col)
                             if arg_src is not None:
                                 arg_src = normalize_source(arg_src)
                                 if isinstance(arg_src, CallResult):
@@ -1117,7 +1123,8 @@ class ProjectAnalyzer:
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     arg_src = self._resolve_param_to_arg(
-                        cur_module, cur_symbol, rs, tracers)
+                        cur_module, cur_symbol, rs, tracers,
+                        call_lineno=cr_lineno, call_col_offset=cr_col)
                     if arg_src is not None:
                         arg_src = normalize_source(arg_src)
                         if isinstance(arg_src, CallResult):
@@ -1154,7 +1161,8 @@ class ProjectAnalyzer:
     #  @param param_name The parameter name to resolve.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return A source value from the call-site argument, or None.
-    def _resolve_param_to_arg(self, module, callee, param_name, tracers):
+    def _resolve_param_to_arg(self, module, callee, param_name, tracers,
+                               call_lineno=0, call_col_offset=0):
         tr = tracers.get(module)
         if not tr or not isinstance(param_name, str):
             return None
@@ -1162,11 +1170,17 @@ class ProjectAnalyzer:
         if param_name not in params:
             return None
         param_idx = params.index(param_name)
+        best = None
         for call_site in tr.call_sites.get(callee, []):
             if param_idx >= len(call_site["args"]):
                 continue
-            return call_site["args"][param_idx]
-        return None
+            best = call_site["args"][param_idx]
+            if call_lineno and call_col_offset:
+                cs_lineno = call_site.get("lineno", 0)
+                cs_col = call_site.get("col_offset", 0)
+                if cs_lineno == call_lineno and cs_col == call_col_offset:
+                    return best
+        return best
 
     ## Recursively trace a symbol through cross-file imports to its origin.
     #

@@ -47,6 +47,10 @@ class CallResult:
     callee: "SourceLike"
     ## Optional display name (e.g. "np.array") for provenance chains.
     display_name: str = ""
+    ## Line number of the call site that produced this result (0 = unknown).
+    call_lineno: int = 0
+    ## Column offset of the call site (0 = unknown).
+    call_col_offset: int = 0
 
 
 ## Unknown source that preserves display context.
