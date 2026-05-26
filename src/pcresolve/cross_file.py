@@ -1189,6 +1189,11 @@ class ProjectAnalyzer:
                 return [symbol, "local"]
             if isinstance(symbol, str) and _is_builtin(symbol):
                 return [symbol, "python"]
+            if isinstance(symbol, str):
+                param_chain = self._trace_parameter_source(
+                    module, symbol, symbol, tracer, tracers, visited)
+                if param_chain:
+                    return param_chain
             return [symbol]
 
         if direct_source == "local":
@@ -1224,6 +1229,11 @@ class ProjectAnalyzer:
                     if self.is_local(full_first):
                         return [symbol, display_name, src_module]
                 return [symbol, display_name, src_symbol]
+            if sub_chain == [src_symbol] and isinstance(src_symbol, str) and src_tracer:
+                param_chain = self._trace_parameter_source(
+                    src_module, src_symbol, src_symbol, src_tracer, tracers, visited)
+                if param_chain:
+                    return [symbol, display_name] + param_chain
             return [symbol, display_name, src_module]
 
         if isinstance(direct_source, tuple):

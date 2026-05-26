@@ -7,7 +7,7 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "test_param_tracin
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE)
+    return analyze_project(FIXTURE, scope_model="v2")
 
 
 @pytest.fixture(scope="module")
@@ -30,7 +30,6 @@ def test_param_df_traces_to_pandas(result):
                 assert c.top_library == "pandas", f"{c.expression} -> {c.top_library}"
 
 
-@pytest.mark.xfail(reason="KNOWN: function return value not traced to call-site arg")
 def test_return_value_head_traces_to_pandas(result):
     for f in result.files:
         for c in f.api_calls:

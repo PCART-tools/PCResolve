@@ -1337,6 +1337,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         new_src = s if s else source
                     else:
                         new_src = source
+                    if (source == "local" and isinstance(node.value, ast.Name)
+                            and node.value.id in self.function_params.get(func_name, [])):
+                        new_src = node.value.id
                     old = self.return_sources.get(func_name)
                     self.return_sources[func_name] = make_source_set([old, new_src] if old else [new_src])
                     self._add_symbol_ref(
