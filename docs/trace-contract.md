@@ -52,16 +52,22 @@ In the current implementation, trace and classify are **coupled** in several pla
 
 ## Classification Pipeline (Phase 8A/8B)
 
-Rule priority order (from Plans.md):
+Rule priority order:
 
 1. Local function/method definition → `"local"`
-2. Python builtin / stdlib → `"python"`
-3. Direct third-party import → library name
-4. Cross-file re-export → library name
-5. Parameter propagation → library name, confidence < 1.0
-6. Return value propagation → library name, confidence < 1.0
-7. Branch/fork multi-source → alternatives, confidence < 1.0
-8. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
+2. Python builtin / implicit builtin (no import required) → `"python"`
+3. Imported stdlib module (via import/from import) → top-level module name
+4. Imported third-party module (via import/from import) → top-level package name
+5. Cross-file re-export → library name
+6. Parameter propagation → library name, confidence < 1.0
+7. Return value propagation → library name, confidence < 1.0
+8. Branch/fork multi-source → alternatives, confidence < 1.0
+9. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
+
+Compatibility note: in the current pre-8B implementation, unresolved non-builtin
+symbols may retain their raw symbol name as the `top_library` (e.g. a local
+variable whose chain resolution falls through). Phase 8B should normalise all
+unresolved cases to `"unknown"` with `REASON_UNRESOLVED`.
 
 ## Reason Constants (Phase 8A)
 
@@ -70,7 +76,7 @@ Rule priority order (from Plans.md):
 | `DIRECT_IMPORT` | Symbol is an import alias or from-import |
 | `TRANSITIVE_IMPORT` | Symbol traces through a re-export chain |
 | `LOCAL_DEFINITION` | Symbol resolves to a locally defined function/class |
-| `BUILTIN` | Symbol is a Python builtin |
+| `BUILTIN` | Symbol is a Python builtin (no import required) |
 | `PARAMETER_PROPAGATION` | Symbol traces through a function parameter |
 | `RETURN_PROPAGATION` | Symbol traces through a function return value |
 | `FLOW_MERGE` | Multiple branches merged (if/else, try/except) |
