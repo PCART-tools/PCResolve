@@ -51,3 +51,47 @@ def test_branch_imports_no_sourceset_leak(result_v2):
         assert "SourceSet(" not in str(call.top_library)
     for lib in result_v2.library_usage:
         assert "SourceSet(" not in str(lib)
+
+
+def test_if_without_else_merges_with_base():
+    """if without else should merge body changes with base as alternatives."""
+    code = "import requests as lib\n"
+    code += "FLAG = True\n"
+    code += "if FLAG:\n"
+    code += "    import numpy as lib\n"
+    code += "lib.get('https://example.com')\n"
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        lib_calls = [c for c in result.all_api_calls if "lib.get" in c.expression]
+        assert len(lib_calls) == 1
+        assert lib_calls[0].top_library in ("requests", "numpy")
+        assert "SourceSet(" not in str(lib_calls[0].top_library)
+
+
+def test_try_else_inherits_try_bindings():
+    """try/else should inherit from try body state, not from pre-try base."""
+    code = "try:\n"
+    code += "    import numpy as lib\n"
+    code += "except Exception:\n"
+    code += "    import pandas as lib\n"
+    code += "else:\n"
+    code += "    value = lib.array([1])\n"
+    code += "value.sum()\n"
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        lib_calls = [c for c in result.all_api_calls if "lib.array" in c.expression]
+        assert len(lib_calls) == 1
+        assert lib_calls[0].top_library in ("numpy", "pandas"), \
+            f"Expected numpy or pandas, got {lib_calls[0].top_library}"
+        sum_calls = [c for c in result.all_api_calls if "sum()" in c.expression]
+        assert len(sum_calls) == 1
+        assert sum_calls[0].top_library in ("numpy", "pandas"), \
+            f"Expected numpy or pandas, got {sum_calls[0].top_library}"

@@ -1164,7 +1164,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     self.visit(stmt)
             return
 
-        if self.current_scope().kind != SCOPE_MODULE or not node.orelse:
+        if self.current_scope().kind != SCOPE_MODULE:
             for stmt in node.body:
                 self.visit(stmt)
             for stmt in node.orelse:
@@ -1181,9 +1181,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.current_scope().restore(scope_base)
         self.symbols.restore(symbols_base)
 
-        for stmt in node.orelse:
-            self.visit(stmt)
-        scope_right = self.current_scope().snapshot()
+        if node.orelse:
+            for stmt in node.orelse:
+                self.visit(stmt)
+            scope_right = self.current_scope().snapshot()
+        else:
+            scope_right = scope_base
 
         merged = merge_snapshots(scope_base, scope_left, scope_right)
         for name, value in list(merged.items()):
@@ -1230,6 +1233,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         for stmt in node.body:
             self.visit(stmt)
         scope_try = self.current_scope().snapshot()
+        symbols_try = self.symbols.snapshot()
 
         all_branches = [scope_try]
         for handler in node.handlers:
@@ -1244,8 +1248,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             all_branches.append(self.current_scope().snapshot())
 
         if node.orelse:
-            self.current_scope().restore(scope_base)
-            self.symbols.restore(symbols_base)
+            self.current_scope().restore(scope_try)
+            self.symbols.restore(symbols_try)
             for stmt in node.orelse:
                 self.visit(stmt)
             all_branches.append(self.current_scope().snapshot())

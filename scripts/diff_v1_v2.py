@@ -39,6 +39,7 @@ def compare(path):
     # Classify API call differences
     call_regressions = []
     call_improvements = []
+    call_precision = []
     call_same = 0
     for key in v1_calls:
         v1_top = v1_calls[key]
@@ -51,6 +52,8 @@ def compare(path):
             call_regressions.append((key, v1_top, v2_top))
         elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             call_improvements.append((key, v1_top, v2_top))
+        elif v1_top not in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
+            call_precision.append((key, v1_top, v2_top))
         else:
             call_regressions.append((key, v1_top, v2_top))
 
@@ -65,9 +68,9 @@ def compare(path):
     print("v1 time: %.3fs, v2 time: %.3fs" % (t1, t2))
     print()
 
-    print("API Calls: v1=%d v2=%d same=%d regressions=%d improvements=%d only_v2=%d" % (
+    print("API Calls: v1=%d v2=%d same=%d regressions=%d improvements=%d precision=%d only_v2=%d" % (
         len(v1_calls), len(v2_calls), call_same, len(call_regressions),
-        len(call_improvements), len(only_v2_calls)))
+        len(call_improvements), len(call_precision), len(only_v2_calls)))
 
     if call_regressions:
         print("\nRegressions (v1 third-party -> v2 local/unknown):")
@@ -77,6 +80,11 @@ def compare(path):
     if call_improvements:
         print("\nImprovements (v1 local -> v2 third-party):")
         for key, v1t, v2t in call_improvements[:10]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    if call_precision:
+        print("\nPrecision changes (third-party -> another third-party, e.g. SourceSet alternatives):")
+        for key, v1t, v2t in call_precision[:10]:
             print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
 
     print("\nLibraries: v1=%d v2=%d v2_only=%d" % (
