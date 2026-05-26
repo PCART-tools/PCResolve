@@ -40,6 +40,25 @@ def _dedup_consecutive(chain):
     return result
 
 
+## Check whether a library name string is suitable for library_usage.
+#  @param name Candidate library name.
+#  @return True if not a dataclass repr or structured source display.
+def _is_legal_library_name(name):
+    if not isinstance(name, str):
+        return False
+    if name.startswith("InstanceMethod("):
+        return False
+    if name.startswith("ContainerItem("):
+        return False
+    if name.startswith("ContainerIter("):
+        return False
+    if name.startswith("CallResult("):
+        return False
+    if name.startswith("UnknownSource("):
+        return False
+    return True
+
+
 ## Check whether a symbol is an imported external origin in this tracer.
 #  @param tracer Single-file analyzer.
 #  @param symbol Candidate external origin.
@@ -261,6 +280,8 @@ class ProjectAnalyzer:
             top = call.top_library
             if top in ("local", "python", "unknown", ""):
                 continue
+            if not _is_legal_library_name(top):
+                continue
             if top not in usage:
                 usage[top] = LibraryUsage(library=top)
             u = usage[top]
@@ -275,6 +296,8 @@ class ProjectAnalyzer:
         for prov in all_provenance:
             top = prov.top_library
             if top in ("local", "python", "unknown", ""):
+                continue
+            if not _is_legal_library_name(top):
                 continue
             if top not in usage:
                 usage[top] = LibraryUsage(library=top)
