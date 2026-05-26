@@ -91,7 +91,21 @@ def compare(path):
     v2_sym_count = len(v2_syms)
     print("\nSymbol Provenance: v1=%d v2=%d" % (v1_sym_count, v2_sym_count))
 
-    return len(call_regressions)
+    # Check for illegal library keys in v2
+    illegal = [lib for lib in v2.library_usage if _is_illegal_key(lib)]
+    if illegal:
+        print("  Illegal library keys: %s" % sorted(illegal))
+
+    return len(call_regressions), len(illegal), len(v2_only_libs)
+
+
+def _is_illegal_key(name):
+    """Check if a library name looks like a dataclass repr."""
+    for prefix in ("InstanceMethod(", "CallResult(", "ContainerItem(",
+                   "ContainerIter(", "UnknownSource("):
+        if name.startswith(prefix):
+            return True
+    return False
 
 
 def main():
@@ -100,17 +114,43 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
-    total_regressions = 0
-    for path in sys.argv[1:]:
-        if not os.path.exists(path):
-            print("Not found: %s" % path, file=sys.stderr)
+    paths = []
+    for arg in sys.argv[1:]:
+        if not os.path.exists(arg):
+            print("Not found: %s" % arg, file=sys.stderr)
             continue
-        regs = compare(path)
+        # If a directory contains subdirectories each with .py files,
+        # treat them as individual projects.
+        if os.path.isdir(arg):
+            subdirs = [os.path.join(arg, d) for d in os.listdir(arg)
+                       if os.path.isdir(os.path.join(arg, d))]
+            py_files = [f for f in os.listdir(arg) if f.endswith('.py')
+                        and os.path.isfile(os.path.join(arg, f))]
+            if subdirs and not py_files:
+                paths.extend(sorted(subdirs))
+            else:
+                paths.append(arg)
+        else:
+            paths.append(arg)
+
+    total_regressions = 0
+    total_illegal = 0
+    summary_lines = []
+    for path in paths:
+        regs, illegal_count, _ = compare(path)
         total_regressions += regs
+        total_illegal += illegal_count
+        summary_lines.append("%s: regressions=%d" % (
+            os.path.basename(path), regs))
         print()
 
+    print("SUMMARY")
+    for line in summary_lines:
+        print("  %s" % line)
+    print("  TOTAL regressions: %d" % total_regressions)
+    print("  TOTAL illegal keys: %d" % total_illegal)
+
     if total_regressions:
-        print("TOTAL regressions: %d" % total_regressions)
         sys.exit(1)
 
 

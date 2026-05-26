@@ -456,7 +456,7 @@ def test_v2_constructor_arg_flows_to_self_attribute_methods():
 # ── global / nonlocal ────────────────────────────────────────────────────
 
 def test_global_writes_to_module_scope():
-    """global x; x = ... inside a function must bind the module scope."""
+    """global x; x = np.array(...) must update module-level x to numpy."""
     code = """import numpy as np
 x = 1
 def f():
@@ -465,8 +465,12 @@ def f():
 f()
 """
     result = analyze_source(code, scope_model="v2")
-    # Module-level x should now trace to numpy, not stay as local
     assert result.symbols.get("x") is not None
+    # Module-level x must trace to numpy after the global assignment
+    chain = result.chains.get("x", [])
+    assert chain and (chain[-1] == "numpy" or "numpy" in chain), (
+        f"Expected x chain to end with numpy, got {chain}"
+    )
 
 
 def test_global_does_not_crash():
@@ -481,7 +485,7 @@ def f():
 
 
 def test_nonlocal_does_not_crash():
-    """nonlocal declaration must not crash analysis."""
+    """nonlocal declaration must not crash, first-edition no-crash only."""
     code = """def outer():
     x = 1
     def inner():
@@ -491,6 +495,7 @@ def test_nonlocal_does_not_crash():
 """
     result = analyze_source(code, scope_model="v2")
     assert result is not None
+    # First edition: no semantic resolution, just verify no crash
 
 
 def test_library_usage_same_filename_different_dirs():

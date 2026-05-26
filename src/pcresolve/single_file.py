@@ -67,6 +67,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.call_sites = {}
         self.call_assign_funcs = {}
         self._assignment_counter = 0
+        self._global_names = set()
         self.call_site_objects = []
         self.symbol_refs = []
         self.module_scope = Scope(SCOPE_MODULE, self.module_name or "<module>")
@@ -104,7 +105,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         lineno = getattr(node, "lineno", 0) if node is not None else 0
         col = getattr(node, "col_offset", 0) if node is not None else 0
         self.current_scope().bind(name, source, lineno, col, self._assignment_counter)
-        if self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
+        if name in self._global_names or self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
             self.symbols.add(name, source)
         if name.startswith("self.") and self._class_stack:
             self.instance_attrs[(self._class_stack[-1], name)] = source
@@ -1132,23 +1133,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_GeneratorExp(self, node):
         self._visit_comprehension(node)
 
-    ## Visit a Global node and bind declared names to the module scope.
+    ## Visit a Global node and mark names for module-scope routing.
     #  @param node The Global AST node.
     def visit_Global(self, node):
         for name in node.names:
-            # Rebind the name to the module scope so subsequent assignments
-            # in this function write to the module-level symbol table.
-            module_src = self.module_scope.lookup(name)
-            src = module_src.source if module_src else "local"
-            self.current_scope().bind(name, src)
+            self._global_names.add(name)
         self.generic_visit(node)
 
-    ## Visit a Nonlocal node and record a conservative diagnostic.
+    ## Visit a Nonlocal node. First edition: no-crash only.
     #  @param node The Nonlocal AST node.
     def visit_Nonlocal(self, node):
-        # Nonlocal resolution is complex; for now record that it was seen
-        # but don't attempt full resolution. The enclosing scope binding
-        # is untouched.
         self.generic_visit(node)
 
     ## Visit a Return node and record return-value flow for the function.
