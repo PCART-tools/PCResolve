@@ -68,10 +68,13 @@ def _is_import_origin(tracer, symbol):
     if tracer is None or not isinstance(symbol, str):
         return False
     for value in tracer.symbols.direct.values():
-        if not isinstance(value, str):
-            continue
-        if value == symbol or value.startswith(symbol + "."):
-            return True
+        if isinstance(value, SourceSet):
+            for src in value.sources:
+                if isinstance(src, str) and (src == symbol or src.startswith(symbol + ".")):
+                    return True
+        elif isinstance(value, str):
+            if value == symbol or value.startswith(symbol + "."):
+                return True
     return False
 
 
@@ -770,6 +773,15 @@ class ProjectAnalyzer:
 
         if kind == "call_result":
             callee = a
+            if isinstance(callee, SourceSet):
+                for src in callee.sources:
+                    if isinstance(src, str):
+                        top = self._top_source(module, src, tracers)
+                        if top and top not in ("local", "python", "unknown", ""):
+                            return (f"{callee_display or callee}()", module, src)
+                for src in callee.sources:
+                    if isinstance(src, str):
+                        return (f"{callee_display or callee}()", module, src)
             gs = getattr(self, '_call_searched_global', None)
             if gs is not None:
                 if (module, callee) in gs:

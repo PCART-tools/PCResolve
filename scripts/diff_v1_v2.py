@@ -118,11 +118,13 @@ def compare(path):
 
 
 def _is_illegal_key(name):
-    """Check if a library name looks like a dataclass repr."""
+    """Check if a library name looks like a dataclass repr or SourceSet display."""
     for prefix in ("InstanceMethod(", "CallResult(", "ContainerItem(",
-                   "ContainerIter(", "UnknownSource("):
+                   "ContainerIter(", "UnknownSource(", "SourceSet("):
         if name.startswith(prefix):
             return True
+    if isinstance(name, str) and name.startswith("[") and "SourceSet" in name:
+        return True
     return False
 
 

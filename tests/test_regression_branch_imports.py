@@ -95,3 +95,42 @@ def test_try_else_inherits_try_bindings():
         assert len(sum_calls) == 1
         assert sum_calls[0].top_library in ("numpy", "pandas"), \
             f"Expected numpy or pandas, got {sum_calls[0].top_library}"
+
+
+def test_if_without_else_file_symbols_not_local():
+    """v2: if-without-else merged symbol should not be 'local' in file symbols."""
+    import tempfile
+    code = "import requests as lib\n"
+    code += "FLAG = True\n"
+    code += "if FLAG:\n"
+    code += "    import numpy as lib\n"
+    code += "lib.get('https://example.com')\n"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        fa = result.files[0]
+        assert fa.symbols.get("lib") != "local", \
+            f"Expected non-local for lib, got {fa.symbols.get('lib')}"
+
+
+def test_try_else_symbol_provenance_not_local():
+    """try/else: value symbol provenance should not be local."""
+    import tempfile
+    code = "try:\n"
+    code += "    import numpy as lib\n"
+    code += "except Exception:\n"
+    code += "    import pandas as lib\n"
+    code += "else:\n"
+    code += "    value = lib.array([1])\n"
+    code += "value.sum()\n"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        value_provs = [p for p in result.all_symbol_provenance if p.symbol == "value"]
+        assert len(value_provs) >= 1, "Expected symbol provenance for value"
+        assert value_provs[0].top_library != "local", \
+            f"Expected non-local for value, got {value_provs[0].top_library}"
+        assert value_provs[0].top_library in ("numpy", "pandas"), \
+            f"Expected numpy or pandas, got {value_provs[0].top_library}"
