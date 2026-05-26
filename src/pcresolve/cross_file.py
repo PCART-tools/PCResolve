@@ -256,6 +256,20 @@ class ProjectAnalyzer:
             library_usage=library_usage,
         )
 
+    ## Check whether a top name is backed by any import evidence across tracers.
+    #  @param name Candidate top name.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return True if the name appears as an import origin.
+    def _is_prov_import_backed(self, name, tracers):
+        if not isinstance(name, str) or '.' in name:
+            return bool('.' in name) if isinstance(name, str) else False
+        for tr in tracers.values():
+            if _is_import_origin(tr, name):
+                return True
+            if name in getattr(tr, 'import_aliases', set()):
+                return True
+        return False
+
     ## Build SymbolProvenance records from each tracer's symbol_refs.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return List of SymbolProvenance records.
@@ -271,6 +285,9 @@ class ProjectAnalyzer:
                     chain = [source_display(ref.source)]
                 chain = _dedup_consecutive(chain)
                 top = self.extract_final_source(chain) if chain else ""
+                if top and top not in ("local", "python", "unknown", ""):
+                    if '.' not in top and not self._is_prov_import_backed(top, module_tracers):
+                        top = "local"
                 tops = [top] if top else []
                 reason, confidence, alts = self._classify_symbol_reason(
                     ref, top, tracer, module, module_tracers)

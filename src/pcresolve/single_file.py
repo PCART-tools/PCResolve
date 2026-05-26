@@ -650,7 +650,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 name = '.'.join(chain)
                 if name in self.symbols.direct:
                     return name
-                return chain[0]
+                root = chain[0]
+                if self.scope_model == "v2":
+                    return self._lookup_name_source(root)
+                return root
             return self.get_base(node.value, call_lookup=call_lookup)
         elif isinstance(node, ast.Call):
             if self._is_partial_call(node) and node.args:
