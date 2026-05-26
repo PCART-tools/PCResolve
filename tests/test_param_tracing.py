@@ -82,3 +82,32 @@ def test_return_parameter_uses_matching_callsite_arg():
             if "reshape" in c.expression:
                 assert c.top_library == "numpy", \
                     f"b.reshape() should be numpy, got {c.top_library}"
+
+
+def test_return_parameter_callsite_at_col_zero_is_matched():
+    """col_offset 0 must not be treated as unknown; call-site at column
+    zero must still be matched by position (line continuation)."""
+    import tempfile, os
+    # Line continuation puts identity(pd_df) at col 0 of the continued line
+    code = ("import pandas as pd\n"
+            "import numpy as np\n"
+            "def identity(x):\n"
+            "    return x\n"
+            "pd_df = pd.read_csv('x')\n"
+            "np_arr = np.array([1])\n"
+            "a = \\\n"
+            "identity(pd_df)\n"
+            "b = identity(np_arr)\n"
+            "a.head()\n"
+            "b.reshape(1, 1)\n")
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        r = analyze_project(td, scope_model="v2")
+        for c in r.all_api_calls:
+            if "head" in c.expression:
+                assert c.top_library == "pandas", \
+                    f"a.head() should be pandas, got {c.top_library}"
+            if "reshape" in c.expression:
+                assert c.top_library == "numpy", \
+                    f"b.reshape() should be numpy, got {c.top_library}"

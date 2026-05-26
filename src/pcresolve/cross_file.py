@@ -1206,7 +1206,7 @@ class ProjectAnalyzer:
             if param_idx >= len(call_site["args"]):
                 continue
             best = call_site["args"][param_idx]
-            if call_lineno and call_col_offset:
+            if call_lineno:
                 cs_lineno = call_site.get("lineno", 0)
                 cs_col = call_site.get("col_offset", 0)
                 if cs_lineno == call_lineno and cs_col == call_col_offset:
