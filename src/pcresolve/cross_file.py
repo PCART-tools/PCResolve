@@ -560,8 +560,39 @@ class ProjectAnalyzer:
             tracer = tracers.get(module)
             rs = tracer.return_sources.get(callee) if tracer else None
             if rs is not None:
-                return self._origin_candidates(
+                candidates = self._origin_candidates(
                     module, rs, tracers, include_local)
+                clean = [c for c in candidates
+                         if c not in ("", None, "unknown")]
+                if clean:
+                    return clean
+                cr_lineno = getattr(source, 'call_lineno', 0) or 0
+                cr_col = getattr(source, 'call_col_offset', 0) or 0
+                if cr_lineno:
+                    rs_norm = normalize_source(rs)
+                    if isinstance(rs_norm, SourceSet):
+                        for s in rs_norm.sources:
+                            if isinstance(s, str):
+                                arg = self._resolve_param_to_arg(
+                                    module, callee, s, tracers,
+                                    call_lineno=cr_lineno, call_col_offset=cr_col)
+                                if arg is not None:
+                                    more = self._origin_candidates(
+                                        module, arg, tracers, include_local)
+                                    for m in more:
+                                        if m not in candidates:
+                                            candidates.append(m)
+                    else:
+                        arg = self._resolve_param_to_arg(
+                            module, callee, rs, tracers,
+                            call_lineno=cr_lineno, call_col_offset=cr_col)
+                        if arg is not None:
+                            more = self._origin_candidates(
+                                module, arg, tracers, include_local)
+                            for m in more:
+                                if m not in candidates:
+                                    candidates.append(m)
+                return candidates
             top = self._top_source(module, callee, tracers)
             return [top] if top else []
         if is_structured_source(source):

@@ -122,7 +122,12 @@ def merge_snapshots(base, left, right):
 
 def _merge_two(left_binding, right_binding):
     """Create a merged binding from two different branch bindings."""
-    from .sources import source_display, SourceSet as SS
+    from .sources import source_display, CallResult, SourceSet as SS
+    def _merge_key(src):
+        key = source_display(src)
+        if isinstance(src, CallResult) and src.call_lineno:
+            key = "%s@L%dC%d" % (key, src.call_lineno, src.call_col_offset)
+        return key
     left_src = left_binding.source if isinstance(left_binding, Binding) else left_binding
     right_src = right_binding.source if isinstance(right_binding, Binding) else right_binding
     items = []
@@ -130,12 +135,12 @@ def _merge_two(left_binding, right_binding):
     for src in (left_src, right_src):
         if isinstance(src, SS):
             for s in src.sources:
-                key = source_display(s)
+                key = _merge_key(s)
                 if key not in seen:
                     seen.add(key)
                     items.append(s)
         elif src is not None:
-            key = source_display(src)
+            key = _merge_key(src)
             if key not in seen:
                 seen.add(key)
                 items.append(src)
