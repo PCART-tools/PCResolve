@@ -297,7 +297,7 @@ class ProjectAnalyzer:
                 tops = [top] if top else []
                 cr = self.classify_source(
                     ref.source, top, module, tracer, module_tracers,
-                    expand_origins=False)
+                    expand_origins=False, symbol=ref.symbol, kind=ref.kind)
                 prov = SymbolProvenance(
                     symbol=ref.symbol,
                     kind=ref.kind,
@@ -518,6 +518,25 @@ class ProjectAnalyzer:
             return True
         return False
 
+    ## Check whether a SymbolProvenance import is a direct external import.
+    #
+    #  True when the import source is a non-local module and the resolved
+    #  top matches the source's top-level name.  Local re-exports
+    #  (local_lib -> requests) are not direct external imports.
+    #  @param base The import source value (e.g. "functools").
+    #  @param top The resolved top library.
+    #  @param module The module where the import occurs.
+    #  @return True if this is a direct external import.
+    def _is_direct_external_import(self, base, top, module):
+        if not isinstance(base, str) or not top:
+            return False
+        first = base.split(".")[0]
+        if self.is_local(first):
+            return False
+        if top == first:
+            return True
+        return False
+
     ## Collect all origin candidates from a source value.
     #  @param module Current module name.
     #  @param source Source value to expand.
@@ -639,7 +658,7 @@ class ProjectAnalyzer:
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return ClassificationResult with library/reason/confidence/alternatives.
     def classify_source(self, base, top, module, tracer, module_tracers,
-                        expand_origins=True):
+                        expand_origins=True, symbol=None, kind=""):
         if top == "local":
             return ClassificationResult(
                 library="local", reason=REASON_LOCAL_DEFINITION,
@@ -653,8 +672,12 @@ class ProjectAnalyzer:
                 library="unknown", reason=REASON_UNRESOLVED,
                 confidence=0.0, alternatives=[], is_usage_library=False)
 
-        reason = self._classify_reason(base, top, tracer, module, module_tracers,
-                                       expand_origins=expand_origins)
+        if kind == "import" and self._is_direct_external_import(base, top, module):
+            reason = REASON_DIRECT_IMPORT
+        else:
+            reason = self._classify_reason(
+                base, top, tracer, module, module_tracers,
+                expand_origins=expand_origins)
         if expand_origins:
             alternatives = self._extract_alternatives(base, module, module_tracers)
         else:

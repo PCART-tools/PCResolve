@@ -159,8 +159,8 @@
           "file_path": "b.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "TRANSITIVE_IMPORT",
-          "confidence": 0.9,
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
           "alternatives": []
         },
         {
@@ -876,8 +876,8 @@
           "file_path": "c/e/f.py",
           "lineno": 2,
           "col_offset": 0,
-          "reason": "TRANSITIVE_IMPORT",
-          "confidence": 0.9,
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
           "alternatives": []
         },
         {
@@ -1072,8 +1072,8 @@
       "file_path": "b.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "TRANSITIVE_IMPORT",
-      "confidence": 0.9,
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
       "alternatives": []
     },
     {
@@ -1563,8 +1563,8 @@
       "file_path": "c/e/f.py",
       "lineno": 2,
       "col_offset": 0,
-      "reason": "TRANSITIVE_IMPORT",
-      "confidence": 0.9,
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
       "alternatives": []
     },
     {
