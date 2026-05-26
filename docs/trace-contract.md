@@ -65,9 +65,10 @@ Rule priority order:
 9. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
 
 Compatibility note: in the current pre-8B implementation, unresolved non-builtin
-symbols may retain their raw symbol name as the `top_library` (e.g. a local
-variable whose chain resolution falls through). Phase 8B should normalise all
-unresolved cases to `"unknown"` with `REASON_UNRESOLVED`.
+symbols may retain their raw symbol name as the `top_library` (e.g. an
+undefined/global/dynamic symbol whose chain resolution falls through).
+Phase 8B should normalise all unresolved cases to `"unknown"` with
+`REASON_UNRESOLVED`.
 
 ## Reason Constants (Phase 8A)
 
