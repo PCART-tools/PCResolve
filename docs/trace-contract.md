@@ -99,7 +99,7 @@ Phase 8B should normalise all unresolved cases to `"unknown"` with
 ## Known Limitations
 
 - Trace does not distinguish "parameter from call site A" vs "parameter from call site B" when a function is called from multiple locations. Resolution picks the first matching call site.
-- `return_sources` is single-valued; multiple return paths are lost.
+- `return_sources` is SourceSet since Phase 5; multiple return paths are collected but alternatives classification is not yet complete.
 - Constructor argument to `self.attr` propagation is ad-hoc (via `instance_attrs`), not integrated with call graph.
 - `nonlocal` is first-edition no-crash only.
 

@@ -37,7 +37,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `api_calls` | `list[dict]` | Legacy call records (keyed by `api`, `top`, `base`, `chain`, ...) |
 | `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
 | `symbol_refs` | `list[SymbolRef]` | Symbol references for provenance |
-| `return_sources` | `dict[str, object]` | Function name → return expression source (single value) |
+| `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet since Phase 5) |
 | `call_sites` | `dict[str, list[dict]]` | Function name → call-site parameter sources (for ad-hoc param tracing) |
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |

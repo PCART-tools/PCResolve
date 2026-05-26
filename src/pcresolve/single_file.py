@@ -237,7 +237,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if isinstance(inner_source, str):
                     rs = self.return_sources.get(inner_source)
                     if rs is not None:
-                        return rs
+                        rs = normalize_source(rs)
+                        if isinstance(rs, SourceSet):
+                            inner_source = rs
+                        else:
+                            return rs
+                if isinstance(inner_source, CallResult):
+                    rs = self.return_sources.get(inner_source.callee)
+                    if rs is not None:
+                        rs = normalize_source(rs)
+                        if isinstance(rs, SourceSet):
+                            inner_source = rs
+                        else:
+                            return rs
+                if isinstance(inner_source, SourceSet):
+                    return inner_source
                 if inner_source:
                     return inner_source
             if isinstance(node.func, ast.Name) and (
@@ -778,6 +792,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 rs = self.return_sources.get(inner_source)
                 if rs is not None:
                     return rs
+            if isinstance(inner_source, CallResult):
+                rs = self.return_sources.get(inner_source.callee)
+                if rs is not None:
+                    return rs
+            if isinstance(inner_source, SourceSet):
+                return inner_source
         call_lookup_base = self.get_base(node, call_lookup=True)
         if call_lookup_base is not None:
             return call_lookup_base
@@ -858,7 +878,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     base, loc)
             return
 
-        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod)):
+        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, SourceSet)):
             display = source_display(base)
             chain = [display] if (self.scope_model == "v2" and display) else []
             record = {

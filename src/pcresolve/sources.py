@@ -56,10 +56,6 @@ class UnknownSource:
     display: str = ""
 
 
-## Union of all Source IR types and plain strings.
-SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod, CallResult, UnknownSource]
-
-
 ## Ordered set of possible sources (for multi-value bindings).
 @dataclass(frozen=True)
 class SourceSet:
@@ -67,7 +63,8 @@ class SourceSet:
     sources: tuple
 
 
-## Build a SourceSet from a sequence of source values, deduplicating by display.
+## Union of all Source IR types and plain strings.
+SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod, CallResult, SourceSet, UnknownSource]
 #
 #  @param values Iterable of source values.
 #  @return SourceSet with deduplicated, stable-ordered sources.
@@ -96,7 +93,8 @@ def make_source_set(values):
 def is_structured_source(value):
     if isinstance(value, tuple) and len(value) == 3 and isinstance(value[0], str):
         return True
-    if isinstance(value, (ContainerItem, ContainerIter, InstanceMethod, CallResult, UnknownSource, NameSource)):
+    if isinstance(value, (ContainerItem, ContainerIter, InstanceMethod, CallResult,
+                          SourceSet, UnknownSource, NameSource)):
         return True
     return False
 
@@ -152,6 +150,8 @@ def source_display(value):
         if value.display_name:
             return "%s()" % value.display_name
         return "%s()" % source_display(value.callee)
+    if isinstance(value, SourceSet):
+        return "[" + ", ".join(source_display(s) for s in value.sources) + "]"
     if isinstance(value, NameSource):
         return value.name
     if isinstance(value, UnknownSource):
