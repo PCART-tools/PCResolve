@@ -121,3 +121,29 @@ def test_make_chained_call_project_level():
             assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
             assert get_calls[0].top_library in ("requests", "numpy"), \
                 f"[{scope_model}] Expected requests or numpy, got {get_calls[0].top_library}"
+
+
+def test_mixed_local_and_third_party_return():
+    """SourceSet with local class + third-party must prefer the third-party top."""
+    code = "import requests\n"
+    code += "class Local:\n    pass\n"
+    code += "def make(flag):\n"
+    code += "    if flag:\n        return Local()\n"
+    code += "    return requests.Session()\n"
+    code += "make(False).get('https://example.com')\n"
+
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        for scope_model in ("v1", "v2"):
+            result = analyze_project(tmpdir, scope_model=scope_model)
+            get_calls = [c for c in result.all_api_calls if "get" in c.expression]
+            assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
+            assert get_calls[0].top_library == "requests", \
+                f"[{scope_model}] Expected requests, got {get_calls[0].top_library}"
+            assert "SourceSet(" not in str(get_calls[0].top_library), \
+                f"[{scope_model}] Leaked SourceSet in top_library"
+            assert "requests" in result.library_usage, \
+                f"[{scope_model}] requests missing from library_usage"

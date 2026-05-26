@@ -689,7 +689,8 @@ class ProjectAnalyzer:
                 resolved = self._resolve_structured_source(module, src, tracers)
                 if resolved is not None:
                     _, src_module, src_symbol = resolved
-                    if src_symbol and not self.is_local(src_symbol) and src_symbol != "python":
+                    top = self._top_source(src_module, src_symbol, tracers)
+                    if top and top not in ("local", "python", "unknown", ""):
                         return resolved
             for src in direct_source.sources:
                 resolved = self._resolve_structured_source(module, src, tracers)
