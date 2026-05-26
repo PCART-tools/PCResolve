@@ -295,8 +295,9 @@ class ProjectAnalyzer:
                     if '.' not in top and not self._is_prov_import_backed(top, module_tracers):
                         top = "local"
                 tops = [top] if top else []
-                reason, confidence, alts = self._classify_symbol_reason(
-                    ref, top, tracer, module, module_tracers)
+                cr = self.classify_source(
+                    ref.source, top, module, tracer, module_tracers,
+                    expand_origins=False)
                 prov = SymbolProvenance(
                     symbol=ref.symbol,
                     kind=ref.kind,
@@ -307,9 +308,9 @@ class ProjectAnalyzer:
                     file_path=file_path or "",
                     lineno=ref.lineno,
                     col_offset=ref.col_offset,
-                    reason=reason,
-                    confidence=confidence,
-                    alternatives=alts,
+                    reason=cr.reason,
+                    confidence=cr.confidence,
+                    alternatives=cr.alternatives,
                 )
                 result.append(prov)
         return result
@@ -570,7 +571,8 @@ class ProjectAnalyzer:
     #  @param top The resolved top-level library.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @return Reason constant string.
-    def _classify_reason(self, base, top, tracer, module, module_tracers):
+    def _classify_reason(self, base, top, tracer, module, module_tracers,
+                         expand_origins=True):
         if top == "local":
             return REASON_LOCAL_DEFINITION
         if top == "python":
@@ -581,12 +583,13 @@ class ProjectAnalyzer:
         if isinstance(base_norm, SourceSet):
             return REASON_FLOW_MERGE
         if isinstance(base_norm, CallResult):
-            origins = self._origin_candidates(
-                module, base_norm, module_tracers, include_local=False)
-            unique = [o for o in self._dedupe_list(origins)
-                      if o not in ("", None, "unknown")]
-            if len(unique) > 1:
-                return REASON_FLOW_MERGE
+            if expand_origins:
+                origins = self._origin_candidates(
+                    module, base_norm, module_tracers, include_local=False)
+                unique = [o for o in self._dedupe_list(origins)
+                          if o not in ("", None, "unknown")]
+                if len(unique) > 1:
+                    return REASON_FLOW_MERGE
             return REASON_RETURN_PROPAGATION
         if isinstance(base, str):
             if self._is_direct_import_base(tracer, base):
@@ -623,33 +626,6 @@ class ProjectAnalyzer:
         return [x for x in self._dedupe_list(origins)
                 if x not in ("", None, "unknown")]
 
-    ## Determine reason/confidence/alternatives for a symbol provenance record.
-    #  @param ref The SymbolRef being traced.
-    #  @param top The resolved top library.
-    #  @param tracer The SingleFileAnalyzer for the module.
-    #  @param module The module name.
-    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
-    #  @return Tuple of (reason, confidence, alternatives).
-    def _classify_symbol_reason(self, ref, top, tracer, module, tracers):
-        if top == "local":
-            return (REASON_LOCAL_DEFINITION, 1.0, [])
-        if top == "python":
-            return (REASON_BUILTIN, 1.0, [])
-        if top == "unknown" or not top:
-            return (REASON_UNRESOLVED, 0.0, [])
-        if ref.kind == "import":
-            return (REASON_DIRECT_IMPORT, 1.0, [])
-        if ref.kind == "parameter":
-            return (REASON_PARAMETER_PROPAGATION, 0.9, [])
-        source_norm = normalize_source(ref.source)
-        if isinstance(source_norm, SourceSet):
-            alts = self._extract_alternatives(ref.source, module, tracers)
-            conf = self._classify_confidence(REASON_FLOW_MERGE, alts)
-            return (REASON_FLOW_MERGE, conf, alts)
-        if isinstance(source_norm, CallResult):
-            return (REASON_RETURN_PROPAGATION, 0.9, [])
-        return (REASON_TRANSITIVE_IMPORT, 0.9, [])
-
     ## Unified classification entry point for a resolved top library.
     #
     #  Wraps reason/confidence/alternatives/is_usage_library computation
@@ -662,7 +638,8 @@ class ProjectAnalyzer:
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return ClassificationResult with library/reason/confidence/alternatives.
-    def classify_source(self, base, top, module, tracer, module_tracers):
+    def classify_source(self, base, top, module, tracer, module_tracers,
+                        expand_origins=True):
         if top == "local":
             return ClassificationResult(
                 library="local", reason=REASON_LOCAL_DEFINITION,
@@ -676,8 +653,12 @@ class ProjectAnalyzer:
                 library="unknown", reason=REASON_UNRESOLVED,
                 confidence=0.0, alternatives=[], is_usage_library=False)
 
-        reason = self._classify_reason(base, top, tracer, module, module_tracers)
-        alternatives = self._extract_alternatives(base, module, module_tracers)
+        reason = self._classify_reason(base, top, tracer, module, module_tracers,
+                                       expand_origins=expand_origins)
+        if expand_origins:
+            alternatives = self._extract_alternatives(base, module, module_tracers)
+        else:
+            alternatives = []
         confidence = self._classify_confidence(reason, alternatives)
         is_lib = self._is_usage_library(top)
 

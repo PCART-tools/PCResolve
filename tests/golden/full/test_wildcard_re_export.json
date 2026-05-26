@@ -121,8 +121,8 @@
           "file_path": "pkg/helper.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
-          "confidence": 1.0,
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
           "alternatives": []
         }
       ]
@@ -217,8 +217,8 @@
       "file_path": "pkg/helper.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
-      "confidence": 1.0,
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
       "alternatives": []
     }
   ],
@@ -240,7 +240,7 @@
       },
       "has_evidence": true,
       "min_confidence": 0.9,
-      "max_confidence": 1.0
+      "max_confidence": 0.9
     }
   },
   "stats": {
