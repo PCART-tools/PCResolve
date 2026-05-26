@@ -315,10 +315,8 @@ class ProjectAnalyzer:
                 result.append(prov)
         return result
 
-    ## Build a library usage index from calls and provenance.
-    #  @param all_api_calls List of ApiCall records.
-    #  @param all_provenance List of SymbolProvenance records.
-    #  @return Dict of library_name -> LibraryUsage.
+    # ── LibraryUsage evidence ────────────────────────────────────────────
+
     def _is_usage_library(self, name):
         if name in ("", None, "local", "python", "unknown"):
             return False
@@ -326,65 +324,65 @@ class ProjectAnalyzer:
             return False
         return True
 
+    ## Collect a library name and its alternatives for usage aggregation.
+    #  @param primary Primary top library from evidence.
+    #  @param alternatives List of alternative top libraries.
+    #  @param top_libraries Optional list of top_libraries (provenance).
+    #  @return Deduplicated list of library names passing _is_usage_library.
+    def _collect_usage_libs(self, primary, alternatives=None, top_libraries=None):
+        libs = []
+        for lib in (top_libraries or []):
+            if self._is_usage_library(lib) and lib not in libs:
+                libs.append(lib)
+        if self._is_usage_library(primary) and primary not in libs:
+            libs.append(primary)
+        for alt in (alternatives or []):
+            if self._is_usage_library(alt) and alt not in libs:
+                libs.append(alt)
+        return libs
+
+    ## Build a library usage index from calls and provenance.
+    #  @param all_api_calls List of ApiCall records.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @return Dict of library_name -> LibraryUsage.
     def _build_library_usage(self, all_api_calls, all_provenance):
         usage = {}
         root = self.project_root
 
-        def _add_call_evidence(lib, call):
-            if not self._is_usage_library(lib):
-                return
+        def _ensure_usage(lib, confidence, file_path):
             if lib not in usage:
                 usage[lib] = LibraryUsage(library=lib)
             u = usage[lib]
-            u.api_call_count += 1
             u.has_evidence = True
-            conf = getattr(call, 'confidence', 1.0) or 1.0
-            u.min_confidence = min(u.min_confidence or 1.0, conf)
-            u.max_confidence = max(u.max_confidence, conf)
-            fp = _normalize_path_for_usage(call.file_path, root)
+            u.min_confidence = min(u.min_confidence or 1.0, confidence or 1.0)
+            u.max_confidence = max(u.max_confidence, confidence or 1.0)
+            fp = _normalize_path_for_usage(file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)
-
-        def _add_prov_evidence(lib, prov):
-            if not self._is_usage_library(lib):
-                return
-            if lib not in usage:
-                usage[lib] = LibraryUsage(library=lib)
-            u = usage[lib]
-            u.symbol_count += 1
-            u.has_evidence = True
-            conf = getattr(prov, 'confidence', 1.0) or 1.0
-            u.min_confidence = min(u.min_confidence or 1.0, conf)
-            u.max_confidence = max(u.max_confidence, conf)
-            if prov.kind == "import":
-                if prov.symbol not in u.imports:
-                    u.imports.append(prov.symbol)
-            kind = prov.kind if prov.kind else "unknown"
-            u.kind_counts[kind] = u.kind_counts.get(kind, 0) + 1
-            fp = _normalize_path_for_usage(prov.file_path, root)
-            if fp and fp not in u.files:
-                u.files.append(fp)
+            return u
 
         for call in all_api_calls:
-            libs = []
-            if self._is_usage_library(call.top_library):
-                libs.append(call.top_library)
-            for alt in getattr(call, 'alternatives', []) or []:
-                if self._is_usage_library(alt) and alt not in libs:
-                    libs.append(alt)
+            libs = self._collect_usage_libs(
+                call.top_library, getattr(call, 'alternatives', None))
             for lib in libs:
-                _add_call_evidence(lib, call)
+                u = _ensure_usage(lib, getattr(call, 'confidence', 1.0),
+                                  call.file_path)
+                u.api_call_count += 1
 
         for prov in all_provenance:
-            libs = []
-            for lib in getattr(prov, 'top_libraries', []) or []:
-                if self._is_usage_library(lib) and lib not in libs:
-                    libs.append(lib)
-            for alt in getattr(prov, 'alternatives', []) or []:
-                if self._is_usage_library(alt) and alt not in libs:
-                    libs.append(alt)
+            libs = self._collect_usage_libs(
+                prov.top_library,
+                getattr(prov, 'alternatives', None),
+                getattr(prov, 'top_libraries', None))
             for lib in libs:
-                _add_prov_evidence(lib, prov)
+                u = _ensure_usage(lib, getattr(prov, 'confidence', 1.0),
+                                  prov.file_path)
+                u.symbol_count += 1
+                if prov.kind == "import":
+                    if prov.symbol not in u.imports:
+                        u.imports.append(prov.symbol)
+                kind = prov.kind if prov.kind else "unknown"
+                u.kind_counts[kind] = u.kind_counts.get(kind, 0) + 1
 
         for u in usage.values():
             u.files.sort()
