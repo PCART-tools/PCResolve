@@ -34,7 +34,7 @@
         "import": 4,
         "variable": 4
       },
-      "min_confidence": 1.0,
+      "min_confidence": 0.9,
       "max_confidence": 1.0
     },
     "pandas": {
@@ -52,7 +52,7 @@
         "import": 2,
         "variable": 1
       },
-      "min_confidence": 1.0,
+      "min_confidence": 0.9,
       "max_confidence": 1.0
     },
     "requests": {
@@ -77,7 +77,7 @@
         "import": 6,
         "variable": 7
       },
-      "min_confidence": 1.0,
+      "min_confidence": 0.9,
       "max_confidence": 1.0
     }
   }

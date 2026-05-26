@@ -36,6 +36,12 @@ class ApiCall:
     resolved_func: str = ""
     ## Concise 3-level resolution chain: [func_name, resolved_func, top_library].
     resolved_chain: list = field(default_factory=list)
+    ## Classification reason constant (e.g. DIRECT_IMPORT, RETURN_PROPAGATION).
+    reason: str = ""
+    ## Confidence score (0.0-1.0).
+    confidence: float = 1.0
+    ## Alternative top libraries when multiple sources exist.
+    alternatives: list = field(default_factory=list)
 
 
 ## Trace chain for a single symbol.

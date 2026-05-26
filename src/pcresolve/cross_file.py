@@ -22,7 +22,10 @@ _PY2_BUILTINS = frozenset({
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
-from .ir import SymbolProvenance
+from .ir import (SymbolProvenance, REASON_DIRECT_IMPORT, REASON_TRANSITIVE_IMPORT,
+                    REASON_LOCAL_DEFINITION, REASON_BUILTIN,
+                    REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION,
+                    REASON_FLOW_MERGE, REASON_UNRESOLVED)
 from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, is_structured_source, normalize_source,
@@ -200,6 +203,9 @@ class ProjectAnalyzer:
                         parameters=c.get('parameters', ''),
                         resolved_func=c.get('resolved_func', ''),
                         resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
+                        reason=c.get('reason', ''),
+                        confidence=c.get('confidence', 1.0),
+                        alternatives=c.get('alternatives', []),
                     )
                     for c in self.all_calls.get(module, [])
                 ],
@@ -222,6 +228,9 @@ class ProjectAnalyzer:
                     parameters=c.get('parameters', ''),
                     resolved_func=c.get('resolved_func', ''),
                     resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
+                    reason=c.get('reason', ''),
+                    confidence=c.get('confidence', 1.0),
+                    alternatives=c.get('alternatives', []),
                 ))
 
         library_usage = self._build_library_usage(all_api_calls, all_provenance)
@@ -259,6 +268,8 @@ class ProjectAnalyzer:
                 chain = _dedup_consecutive(chain)
                 top = self.extract_final_source(chain) if chain else ""
                 tops = [top] if top else []
+                reason, confidence, alts = self._classify_symbol_reason(
+                    ref, top, tracer, module, module_tracers)
                 prov = SymbolProvenance(
                     symbol=ref.symbol,
                     kind=ref.kind,
@@ -269,6 +280,9 @@ class ProjectAnalyzer:
                     file_path=file_path or "",
                     lineno=ref.lineno,
                     col_offset=ref.col_offset,
+                    reason=reason,
+                    confidence=confidence,
+                    alternatives=alts,
                 )
                 result.append(prov)
         return result
@@ -291,8 +305,9 @@ class ProjectAnalyzer:
             u = usage[top]
             u.api_call_count += 1
             u.has_evidence = True
-            u.min_confidence = min(u.min_confidence or 1.0, 1.0)
-            u.max_confidence = max(u.max_confidence, 1.0)
+            conf = getattr(call, 'confidence', 1.0) or 1.0
+            u.min_confidence = min(u.min_confidence or 1.0, conf)
+            u.max_confidence = max(u.max_confidence, conf)
             fp = _normalize_path_for_usage(call.file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)
@@ -308,8 +323,9 @@ class ProjectAnalyzer:
             u = usage[top]
             u.symbol_count += 1
             u.has_evidence = True
-            u.min_confidence = min(u.min_confidence or 1.0, 1.0)
-            u.max_confidence = max(u.max_confidence, 1.0)
+            conf = getattr(prov, 'confidence', 1.0) or 1.0
+            u.min_confidence = min(u.min_confidence or 1.0, conf)
+            u.max_confidence = max(u.max_confidence, conf)
             if prov.kind == "import":
                 if prov.symbol not in u.imports:
                     u.imports.append(prov.symbol)
@@ -341,23 +357,35 @@ class ProjectAnalyzer:
 
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
+                base = call_detail.get('base')
                 if call_detail.get('top') == 'local':
-                    base = call_detail.get('base')
                     if isinstance(base, str) or is_structured_source(base):
                         top_source = self._base_top_source(module, base, tracer, module_tracers)
                         if top_source and top_source != 'local':
                             record = dict(call_detail)
                             record['top'] = top_source
+                            record['reason'] = self._classify_reason(base, top_source, tracer)
+                            record['alternatives'] = self._extract_alternatives(
+                                base, module, module_tracers)
+                            record['confidence'] = self._classify_confidence(
+                                record['reason'], record['alternatives'])
                             self.all_calls[module].append(record)
                             continue
                     record = dict(call_detail)
                     record['top'] = 'local'
+                    record['reason'] = REASON_LOCAL_DEFINITION
+                    record['confidence'] = 1.0
+                    record['alternatives'] = []
                     self.all_calls[module].append(record)
                     continue
-                base = call_detail['base']
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
                 record = dict(call_detail)
                 record['top'] = top_source
+                record['reason'] = self._classify_reason(base, top_source, tracer)
+                record['alternatives'] = self._extract_alternatives(
+                    base, module, module_tracers)
+                record['confidence'] = self._classify_confidence(
+                    record['reason'], record['alternatives'])
                 self.all_calls[module].append(record)
 
         for module, tracer in module_tracers.items():
@@ -395,6 +423,99 @@ class ProjectAnalyzer:
         if base in self.global_symbols.get(module, {}):
             return self.global_symbols[module][base]
         return self._top_source(module, base, module_tracers)
+
+    ## Determine the classification reason for a resolved API call.
+    #  @param base The call's base symbol or source.
+    #  @param top The resolved top-level library.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @return Reason constant string.
+    def _classify_reason(self, base, top, tracer):
+        if top == "local":
+            return REASON_LOCAL_DEFINITION
+        if top == "python":
+            return REASON_BUILTIN
+        if top == "unknown" or not top:
+            return REASON_UNRESOLVED
+        base_norm = normalize_source(base)
+        if isinstance(base_norm, SourceSet):
+            return REASON_FLOW_MERGE
+        if isinstance(base_norm, CallResult):
+            return REASON_RETURN_PROPAGATION
+        if isinstance(base, str):
+            if base in getattr(tracer, 'import_from_symbols', {}):
+                return REASON_DIRECT_IMPORT
+            sd = tracer.symbols.direct.get(base)
+            if isinstance(sd, str) and sd not in ("local", "python"):
+                return REASON_DIRECT_IMPORT
+        return REASON_TRANSITIVE_IMPORT
+
+    ## Determine confidence for a classification result.
+    #  @param reason Classification reason.
+    #  @param alternatives List of alternative top libraries.
+    #  @return Confidence score (0.0-1.0).
+    def _classify_confidence(self, reason, alternatives=None):
+        if reason == REASON_UNRESOLVED:
+            return 0.0
+        if reason in (REASON_DIRECT_IMPORT, REASON_LOCAL_DEFINITION, REASON_BUILTIN):
+            return 1.0
+        if reason in (REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION):
+            return 0.9
+        if reason == REASON_FLOW_MERGE:
+            alt_count = len(alternatives) if alternatives else 0
+            if alt_count > 1:
+                return max(1.0 / alt_count, 0.2)
+            return 0.85
+        return 0.9
+
+    ## Extract alternatives from a SourceSet base.
+    #  @param base The call's base.
+    #  @param module Current module name.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return List of alternative top library strings.
+    def _extract_alternatives(self, base, module, tracers):
+        base_norm = normalize_source(base)
+        if not isinstance(base_norm, SourceSet):
+            return []
+        alts = []
+        for src in base_norm.sources:
+            if isinstance(src, str):
+                top = self._top_source(module, src, tracers)
+                if top and top not in ("local", "python", "unknown", "", None):
+                    if top not in alts:
+                        alts.append(top)
+            elif isinstance(src, CallResult):
+                top = self._top_source(module, src.callee, tracers)
+                if top and top not in ("local", "python", "unknown", "", None):
+                    if top not in alts:
+                        alts.append(top)
+        return alts
+
+    ## Determine reason/confidence/alternatives for a symbol provenance record.
+    #  @param ref The SymbolRef being traced.
+    #  @param top The resolved top library.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param module The module name.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return Tuple of (reason, confidence, alternatives).
+    def _classify_symbol_reason(self, ref, top, tracer, module, tracers):
+        if top == "local":
+            return (REASON_LOCAL_DEFINITION, 1.0, [])
+        if top == "python":
+            return (REASON_BUILTIN, 1.0, [])
+        if top == "unknown" or not top:
+            return (REASON_UNRESOLVED, 0.0, [])
+        if ref.kind == "import":
+            return (REASON_DIRECT_IMPORT, 1.0, [])
+        if ref.kind == "parameter":
+            return (REASON_PARAMETER_PROPAGATION, 0.9, [])
+        source_norm = normalize_source(ref.source)
+        if isinstance(source_norm, SourceSet):
+            alts = self._extract_alternatives(ref.source, module, tracers)
+            conf = self._classify_confidence(REASON_FLOW_MERGE, alts)
+            return (REASON_FLOW_MERGE, conf, alts)
+        if isinstance(source_norm, CallResult):
+            return (REASON_RETURN_PROPAGATION, 0.9, [])
+        return (REASON_TRANSITIVE_IMPORT, 0.9, [])
 
     ## Resolve the first segment of func_name to its fully qualified path.
     #  @param call_dict Dict with 'func_name' and other call data.

@@ -360,7 +360,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -381,7 +381,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -402,7 +402,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -423,7 +423,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -444,7 +444,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -465,7 +465,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "DIRECT_IMPORT",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -486,7 +486,7 @@
           "file_path": "main.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "DIRECT_IMPORT",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -506,8 +506,8 @@
           "file_path": "main.py",
           "lineno": 12,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -527,8 +527,8 @@
           "file_path": "main.py",
           "lineno": 15,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -548,8 +548,8 @@
           "file_path": "main.py",
           "lineno": 18,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -569,7 +569,7 @@
           "file_path": "main.py",
           "lineno": 21,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -590,7 +590,7 @@
           "file_path": "main.py",
           "lineno": 22,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -611,7 +611,7 @@
           "file_path": "main.py",
           "lineno": 25,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -632,7 +632,7 @@
           "file_path": "main.py",
           "lineno": 26,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -653,7 +653,7 @@
           "file_path": "main.py",
           "lineno": 29,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -674,8 +674,8 @@
           "file_path": "main.py",
           "lineno": 30,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -695,7 +695,7 @@
           "file_path": "main.py",
           "lineno": 33,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         }
@@ -870,7 +870,7 @@
           "file_path": "local_lib.py",
           "lineno": 1,
           "col_offset": 0,
-          "reason": "",
+          "reason": "DIRECT_IMPORT",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -889,7 +889,7 @@
           "file_path": "local_lib.py",
           "lineno": 2,
           "col_offset": 0,
-          "reason": "",
+          "reason": "DIRECT_IMPORT",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -908,7 +908,7 @@
           "file_path": "local_lib.py",
           "lineno": 5,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -927,7 +927,7 @@
           "file_path": "local_lib.py",
           "lineno": 5,
           "col_offset": 15,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -947,8 +947,8 @@
           "file_path": "local_lib.py",
           "lineno": 7,
           "col_offset": 4,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -966,7 +966,7 @@
           "file_path": "local_lib.py",
           "lineno": 10,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -985,7 +985,7 @@
           "file_path": "local_lib.py",
           "lineno": 12,
           "col_offset": 4,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1004,7 +1004,7 @@
           "file_path": "local_lib.py",
           "lineno": 12,
           "col_offset": 18,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1024,8 +1024,8 @@
           "file_path": "local_lib.py",
           "lineno": 13,
           "col_offset": 8,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -1043,7 +1043,7 @@
           "file_path": "local_lib.py",
           "lineno": 16,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1062,7 +1062,7 @@
           "file_path": "local_lib.py",
           "lineno": 21,
           "col_offset": 0,
-          "reason": "",
+          "reason": "DIRECT_IMPORT",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1081,7 +1081,7 @@
           "file_path": "local_lib.py",
           "lineno": 24,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1100,7 +1100,7 @@
           "file_path": "local_lib.py",
           "lineno": 29,
           "col_offset": 0,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1119,7 +1119,7 @@
           "file_path": "local_lib.py",
           "lineno": 29,
           "col_offset": 12,
-          "reason": "",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1139,8 +1139,8 @@
           "file_path": "local_lib.py",
           "lineno": 31,
           "col_offset": 4,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -1158,8 +1158,8 @@
           "file_path": "local_lib.py",
           "lineno": 34,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
           "alternatives": []
         },
         {
@@ -1177,8 +1177,8 @@
           "file_path": "local_lib.py",
           "lineno": 36,
           "col_offset": 0,
-          "reason": "",
-          "confidence": 1.0,
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
           "alternatives": []
         }
       ]
@@ -1501,7 +1501,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1522,7 +1522,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1543,7 +1543,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1564,7 +1564,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1585,7 +1585,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1606,7 +1606,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "DIRECT_IMPORT",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1627,7 +1627,7 @@
       "file_path": "main.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "DIRECT_IMPORT",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1647,8 +1647,8 @@
       "file_path": "main.py",
       "lineno": 12,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -1668,8 +1668,8 @@
       "file_path": "main.py",
       "lineno": 15,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -1689,8 +1689,8 @@
       "file_path": "main.py",
       "lineno": 18,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -1710,7 +1710,7 @@
       "file_path": "main.py",
       "lineno": 21,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1731,7 +1731,7 @@
       "file_path": "main.py",
       "lineno": 22,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1752,7 +1752,7 @@
       "file_path": "main.py",
       "lineno": 25,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1773,7 +1773,7 @@
       "file_path": "main.py",
       "lineno": 26,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1794,7 +1794,7 @@
       "file_path": "main.py",
       "lineno": 29,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1815,8 +1815,8 @@
       "file_path": "main.py",
       "lineno": 30,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -1836,7 +1836,7 @@
       "file_path": "main.py",
       "lineno": 33,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1854,7 +1854,7 @@
       "file_path": "local_lib.py",
       "lineno": 1,
       "col_offset": 0,
-      "reason": "",
+      "reason": "DIRECT_IMPORT",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1873,7 +1873,7 @@
       "file_path": "local_lib.py",
       "lineno": 2,
       "col_offset": 0,
-      "reason": "",
+      "reason": "DIRECT_IMPORT",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1892,7 +1892,7 @@
       "file_path": "local_lib.py",
       "lineno": 5,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1911,7 +1911,7 @@
       "file_path": "local_lib.py",
       "lineno": 5,
       "col_offset": 15,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1931,8 +1931,8 @@
       "file_path": "local_lib.py",
       "lineno": 7,
       "col_offset": 4,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -1950,7 +1950,7 @@
       "file_path": "local_lib.py",
       "lineno": 10,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1969,7 +1969,7 @@
       "file_path": "local_lib.py",
       "lineno": 12,
       "col_offset": 4,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1988,7 +1988,7 @@
       "file_path": "local_lib.py",
       "lineno": 12,
       "col_offset": 18,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2008,8 +2008,8 @@
       "file_path": "local_lib.py",
       "lineno": 13,
       "col_offset": 8,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -2027,7 +2027,7 @@
       "file_path": "local_lib.py",
       "lineno": 16,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2046,7 +2046,7 @@
       "file_path": "local_lib.py",
       "lineno": 21,
       "col_offset": 0,
-      "reason": "",
+      "reason": "DIRECT_IMPORT",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2065,7 +2065,7 @@
       "file_path": "local_lib.py",
       "lineno": 24,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2084,7 +2084,7 @@
       "file_path": "local_lib.py",
       "lineno": 29,
       "col_offset": 0,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2103,7 +2103,7 @@
       "file_path": "local_lib.py",
       "lineno": 29,
       "col_offset": 12,
-      "reason": "",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2123,8 +2123,8 @@
       "file_path": "local_lib.py",
       "lineno": 31,
       "col_offset": 4,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -2142,8 +2142,8 @@
       "file_path": "local_lib.py",
       "lineno": 34,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -2161,8 +2161,8 @@
       "file_path": "local_lib.py",
       "lineno": 36,
       "col_offset": 0,
-      "reason": "",
-      "confidence": 1.0,
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
       "alternatives": []
     }
   ],
@@ -2204,7 +2204,7 @@
         "return": 3
       },
       "has_evidence": true,
-      "min_confidence": 1.0,
+      "min_confidence": 0.9,
       "max_confidence": 1.0
     }
   },

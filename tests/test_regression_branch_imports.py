@@ -134,3 +134,46 @@ def test_try_else_symbol_provenance_not_local():
             f"Expected non-local for value, got {value_provs[0].top_library}"
         assert value_provs[0].top_library in ("numpy", "pandas"), \
             f"Expected numpy or pandas, got {value_provs[0].top_library}"
+
+
+def test_classification_reason_on_direct_import():
+    """Direct import calls should get DIRECT_IMPORT reason with 1.0 confidence."""
+    code = "import requests\nrequests.get('https://example.com')\n"
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        get_calls = [c for c in result.all_api_calls if "get" in c.expression]
+        assert len(get_calls) == 1
+        assert get_calls[0].reason == "DIRECT_IMPORT", \
+            f"Expected DIRECT_IMPORT, got {get_calls[0].reason}"
+        assert get_calls[0].confidence == 1.0
+
+
+def test_classification_reason_on_branch_merge():
+    """Branch-merged calls should get FLOW_MERGE reason with alternatives."""
+    result = analyze_project(FIXTURE, scope_model="v2")
+    lib_calls = [c for c in result.all_api_calls if "lib" in c.expression]
+    assert len(lib_calls) == 1
+    assert lib_calls[0].reason == "FLOW_MERGE", \
+        f"Expected FLOW_MERGE, got {lib_calls[0].reason}"
+    assert len(lib_calls[0].alternatives) == 2, \
+        f"Expected 2 alternatives, got {lib_calls[0].alternatives}"
+    assert set(lib_calls[0].alternatives) == {"numpy", "pandas"}
+    assert lib_calls[0].confidence == 0.5, \
+        f"Expected 0.5 for 2 alternatives, got {lib_calls[0].confidence}"
+
+
+def test_classification_metadata_on_symbol_provenance():
+    """Symbol provenance records should carry reason and confidence."""
+    code = "import requests\nsession = requests.Session()\n"
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, "main.py"), "w") as f:
+            f.write(code)
+        result = analyze_project(tmpdir, scope_model="v2")
+        session_provs = [p for p in result.all_symbol_provenance if p.symbol == "session"]
+        assert len(session_provs) >= 1
+        assert session_provs[0].reason, "Expected non-empty reason"
+        assert session_provs[0].confidence > 0, "Expected positive confidence"

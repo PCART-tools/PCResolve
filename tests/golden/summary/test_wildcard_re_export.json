@@ -29,7 +29,7 @@
         "variable": 2,
         "import": 1
       },
-      "min_confidence": 1.0,
+      "min_confidence": 0.9,
       "max_confidence": 1.0
     }
   }
