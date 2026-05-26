@@ -76,7 +76,7 @@ Output: `ProjectAnalysis`
 | `get_base` (non-call-lookup) | Returns name | Returns scope binding source |
 | `get_base` (call_lookup=True) | Returns name | Returns name (kept raw for CallResult) |
 
-v1 is the default. v2 fixes scope pollution but has more library_usage noise from CallResult display artifacts. The plan is to switch default to v2 after Phase 5 (multi-value binding) and Phase 8A (classification metadata) clean up the remaining noise.
+v1 is the default. v2 fixes scope pollution and, as of Phase 4E, no longer produces dataclass repr or structured source display strings as library keys. v2 may still show finer-grained symbol provenance differences compared to v1. The plan is to switch default to v2 after Phase 5 (multi-value binding) and Phase 8A (classification metadata) clean up the remaining noise.
 
 ## Legacy Compatibility Paths
 
@@ -84,12 +84,13 @@ The following paths exist for backward compatibility and will be replaced:
 
 | Current | Replaced By | Phase |
 |---------|-------------|-------|
-| `SymbolTable.direct` (single-slot) | `Scope.bindings` (multi-version, per-scope) | 3 (partial), 5 (SourceSet) |
+| `SymbolTable.direct` (single-slot) | `Scope.bindings` (per-scope binding; SourceSet in Phase 5) | 3 (partial), 5 (SourceSet) |
 | `api_calls` (dict list) | `call_site_objects` (typed `CallSite`) | 4A (parallel), 9 (full migration) |
 | `return_sources` (single value) | `SourceSet` + CallGraph | 5, 7A |
 | `call_sites`/`function_params` (ad-hoc param tracing) | CallGraph propagation | 7A |
 | `_base_top_source()` classification | `ClassificationPipeline` | 8B |
 | Instance attr propagation (`instance_attrs`) | 7B class/instance method resolution | 7B |
+| Legacy `--json` output | `--json-summary` / `--json-full` profiles | 4D (see output-contract.md) |
 
 ## Known Patch Zones
 
