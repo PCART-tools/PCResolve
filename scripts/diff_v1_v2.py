@@ -91,12 +91,22 @@ def compare(path):
     v2_sym_count = len(v2_syms)
     print("\nSymbol Provenance: v1=%d v2=%d" % (v1_sym_count, v2_sym_count))
 
-    # Check for illegal library keys in v2
-    illegal = [lib for lib in v2.library_usage if _is_illegal_key(lib)]
+    # Check for illegal library keys in v2 library_usage
+    illegal_libs = [lib for lib in v2.library_usage if _is_illegal_key(lib)]
+    # Check full facts for internal IR leaks
+    illegal_calls = [c for c in v2.all_api_calls if _is_illegal_key(c.top_library)]
+    illegal_provs = [p for p in v2.all_symbol_provenance
+                     if _is_illegal_key(p.top_library)]
+    illegal = len(illegal_libs) + len(illegal_calls) + len(illegal_provs)
     if illegal:
-        print("  Illegal library keys: %s" % sorted(illegal))
+        if illegal_libs:
+            print("  Illegal library_usage keys: %s" % sorted(illegal_libs))
+        if illegal_calls:
+            print("  Illegal ApiCall.top_library: %d entries" % len(illegal_calls))
+        if illegal_provs:
+            print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
 
-    return len(call_regressions), len(illegal), len(v2_only_libs)
+    return len(call_regressions), illegal, len(v2_only_libs)
 
 
 def _is_illegal_key(name):
@@ -150,7 +160,7 @@ def main():
     print("  TOTAL regressions: %d" % total_regressions)
     print("  TOTAL illegal keys: %d" % total_illegal)
 
-    if total_regressions:
+    if total_regressions or total_illegal:
         sys.exit(1)
 
 

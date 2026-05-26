@@ -1027,8 +1027,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if self._class_stack:
             self.function_params[self._class_stack[-1] + "." + node.name] = params
         self._func_stack.append(node.name)
+        # Save and clear _global_names so each function independently
+        # scopes global declarations.
+        saved_globals = self._global_names
+        self._global_names = set()
         self.generic_visit(node)
         self._func_stack.pop()
+        self._global_names = saved_globals
         self.pop_scope()
         self._bind_decorated_target(node.name, node.decorator_list)
 
