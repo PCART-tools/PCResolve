@@ -60,6 +60,10 @@ def _is_legal_library_name(name):
         return False
     if name.startswith("UnknownSource("):
         return False
+    if name.startswith("SourceSet("):
+        return False
+    if name.startswith("[") and name.endswith("]"):
+        return False
     return True
 
 
@@ -291,18 +295,23 @@ class ProjectAnalyzer:
     #  @param all_api_calls List of ApiCall records.
     #  @param all_provenance List of SymbolProvenance records.
     #  @return Dict of library_name -> LibraryUsage.
+    def _is_usage_library(self, name):
+        if name in ("", None, "local", "python", "unknown"):
+            return False
+        if not _is_legal_library_name(name):
+            return False
+        return True
+
     def _build_library_usage(self, all_api_calls, all_provenance):
         usage = {}
         root = self.project_root
-        for call in all_api_calls:
-            top = call.top_library
-            if top in ("local", "python", "unknown", ""):
-                continue
-            if not _is_legal_library_name(top):
-                continue
-            if top not in usage:
-                usage[top] = LibraryUsage(library=top)
-            u = usage[top]
+
+        def _add_call_evidence(lib, call):
+            if not self._is_usage_library(lib):
+                return
+            if lib not in usage:
+                usage[lib] = LibraryUsage(library=lib)
+            u = usage[lib]
             u.api_call_count += 1
             u.has_evidence = True
             conf = getattr(call, 'confidence', 1.0) or 1.0
@@ -312,15 +321,12 @@ class ProjectAnalyzer:
             if fp and fp not in u.files:
                 u.files.append(fp)
 
-        for prov in all_provenance:
-            top = prov.top_library
-            if top in ("local", "python", "unknown", ""):
-                continue
-            if not _is_legal_library_name(top):
-                continue
-            if top not in usage:
-                usage[top] = LibraryUsage(library=top)
-            u = usage[top]
+        def _add_prov_evidence(lib, prov):
+            if not self._is_usage_library(lib):
+                return
+            if lib not in usage:
+                usage[lib] = LibraryUsage(library=lib)
+            u = usage[lib]
             u.symbol_count += 1
             u.has_evidence = True
             conf = getattr(prov, 'confidence', 1.0) or 1.0
@@ -334,6 +340,27 @@ class ProjectAnalyzer:
             fp = _normalize_path_for_usage(prov.file_path, root)
             if fp and fp not in u.files:
                 u.files.append(fp)
+
+        for call in all_api_calls:
+            libs = []
+            if self._is_usage_library(call.top_library):
+                libs.append(call.top_library)
+            for alt in getattr(call, 'alternatives', []) or []:
+                if self._is_usage_library(alt) and alt not in libs:
+                    libs.append(alt)
+            for lib in libs:
+                _add_call_evidence(lib, call)
+
+        for prov in all_provenance:
+            libs = []
+            for lib in getattr(prov, 'top_libraries', []) or []:
+                if self._is_usage_library(lib) and lib not in libs:
+                    libs.append(lib)
+            for alt in getattr(prov, 'alternatives', []) or []:
+                if self._is_usage_library(alt) and alt not in libs:
+                    libs.append(alt)
+            for lib in libs:
+                _add_prov_evidence(lib, prov)
 
         for u in usage.values():
             u.files.sort()
@@ -364,7 +391,8 @@ class ProjectAnalyzer:
                         if top_source and top_source != 'local':
                             record = dict(call_detail)
                             record['top'] = top_source
-                            record['reason'] = self._classify_reason(base, top_source, tracer)
+                            record['reason'] = self._classify_reason(
+                                base, top_source, tracer, module, module_tracers)
                             record['alternatives'] = self._extract_alternatives(
                                 base, module, module_tracers)
                             record['confidence'] = self._classify_confidence(
@@ -381,7 +409,8 @@ class ProjectAnalyzer:
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
                 record = dict(call_detail)
                 record['top'] = top_source
-                record['reason'] = self._classify_reason(base, top_source, tracer)
+                record['reason'] = self._classify_reason(
+                    base, top_source, tracer, module, module_tracers)
                 record['alternatives'] = self._extract_alternatives(
                     base, module, module_tracers)
                 record['confidence'] = self._classify_confidence(
@@ -424,12 +453,101 @@ class ProjectAnalyzer:
             return self.global_symbols[module][base]
         return self._top_source(module, base, module_tracers)
 
+    ## Check whether a symbol is a known local definition in this tracer.
+    #  @param tracer Single-file analyzer.
+    #  @param symbol Candidate symbol name.
+    #  @return True if the symbol is a local function/method/class/param.
+    def _is_known_local_symbol(self, tracer, symbol):
+        if not isinstance(symbol, str):
+            return False
+        first = symbol.split(".")[0]
+        if first in ("self", "cls"):
+            return True
+        if first in getattr(tracer, "local", set()):
+            return True
+        if first in getattr(tracer, "defined_functions", set()):
+            return True
+        if first in getattr(tracer, "class_methods", {}):
+            return True
+        for methods in getattr(tracer, "class_methods", {}).values():
+            if first in methods:
+                return True
+        direct = normalize_source(tracer.symbols.direct.get(first))
+        if direct == "local":
+            return True
+        return False
+
+    ## Check whether a string base represents a direct import.
+    #  @param tracer Single-file analyzer.
+    #  @param base Candidate base name.
+    #  @return True if base is an import alias or from-import symbol.
+    def _is_direct_import_base(self, tracer, base):
+        if not isinstance(base, str):
+            return False
+        first = base.split(".")[0]
+        if first in getattr(tracer, "import_aliases", set()):
+            return True
+        if first in getattr(tracer, "import_from_symbols", {}):
+            return True
+        direct = normalize_source(tracer.symbols.direct.get(first))
+        if isinstance(direct, str) and direct not in ("local", "python", "unknown"):
+            return True
+        return False
+
+    ## Collect all origin candidates from a source value.
+    #  @param module Current module name.
+    #  @param source Source value to expand.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param include_local Whether to include "local" in results.
+    #  @return List of candidate top strings.
+    def _origin_candidates(self, module, source, tracers, include_local=True):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            out = []
+            for item in source.sources:
+                out.extend(self._origin_candidates(
+                    module, item, tracers, include_local))
+            return self._dedupe_list(out)
+        if isinstance(source, CallResult):
+            callee = source.callee
+            tracer = tracers.get(module)
+            rs = tracer.return_sources.get(callee) if tracer else None
+            if rs is not None:
+                return self._origin_candidates(
+                    module, rs, tracers, include_local)
+            top = self._top_source(module, callee, tracers)
+            return [top] if top else []
+        if is_structured_source(source):
+            resolved = self._resolve_structured_source(module, source, tracers)
+            if resolved is not None:
+                _, src_module, src_symbol = resolved
+                return self._origin_candidates(
+                    src_module, src_symbol, tracers, include_local)
+            return ["unknown"]
+        if isinstance(source, str):
+            top = self._top_source(module, source, tracers)
+            return [top] if top else []
+        return ["unknown"]
+
+    ## Deduplicate a list preserving order.
+    #  @param items List of strings.
+    #  @return Deduplicated list.
+    @staticmethod
+    def _dedupe_list(items):
+        seen = set()
+        out = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                out.append(item)
+        return out
+
     ## Determine the classification reason for a resolved API call.
     #  @param base The call's base symbol or source.
     #  @param top The resolved top-level library.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @return Reason constant string.
-    def _classify_reason(self, base, top, tracer):
+    def _classify_reason(self, base, top, tracer, module, module_tracers):
         if top == "local":
             return REASON_LOCAL_DEFINITION
         if top == "python":
@@ -440,12 +558,15 @@ class ProjectAnalyzer:
         if isinstance(base_norm, SourceSet):
             return REASON_FLOW_MERGE
         if isinstance(base_norm, CallResult):
+            origins = self._origin_candidates(
+                module, base_norm, module_tracers, include_local=False)
+            unique = [o for o in self._dedupe_list(origins)
+                      if o not in ("", None, "unknown")]
+            if len(unique) > 1:
+                return REASON_FLOW_MERGE
             return REASON_RETURN_PROPAGATION
         if isinstance(base, str):
-            if base in getattr(tracer, 'import_from_symbols', {}):
-                return REASON_DIRECT_IMPORT
-            sd = tracer.symbols.direct.get(base)
-            if isinstance(sd, str) and sd not in ("local", "python"):
+            if self._is_direct_import_base(tracer, base):
                 return REASON_DIRECT_IMPORT
         return REASON_TRANSITIVE_IMPORT
 
@@ -461,7 +582,9 @@ class ProjectAnalyzer:
         if reason in (REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION):
             return 0.9
         if reason == REASON_FLOW_MERGE:
-            alt_count = len(alternatives) if alternatives else 0
+            clean = [a for a in (alternatives or [])
+                     if a not in ("", None, "unknown")]
+            alt_count = len(clean)
             if alt_count > 1:
                 return max(1.0 / alt_count, 0.2)
             return 0.85
@@ -473,22 +596,9 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return List of alternative top library strings.
     def _extract_alternatives(self, base, module, tracers):
-        base_norm = normalize_source(base)
-        if not isinstance(base_norm, SourceSet):
-            return []
-        alts = []
-        for src in base_norm.sources:
-            if isinstance(src, str):
-                top = self._top_source(module, src, tracers)
-                if top and top not in ("local", "python", "unknown", "", None):
-                    if top not in alts:
-                        alts.append(top)
-            elif isinstance(src, CallResult):
-                top = self._top_source(module, src.callee, tracers)
-                if top and top not in ("local", "python", "unknown", "", None):
-                    if top not in alts:
-                        alts.append(top)
-        return alts
+        origins = self._origin_candidates(module, base, tracers, include_local=True)
+        return [x for x in self._dedupe_list(origins)
+                if x not in ("", None, "unknown")]
 
     ## Determine reason/confidence/alternatives for a symbol provenance record.
     #  @param ref The SymbolRef being traced.
@@ -1094,15 +1204,19 @@ class ProjectAnalyzer:
             return None
         if isinstance(symbol, str) and _is_builtin(symbol):
             return "python"
+        src_tracer = tracers.get(src_module)
+        if src_tracer and self._is_known_local_symbol(src_tracer, symbol):
+            return "local"
         chain = self.trace_symbol(src_module, symbol, tracers, set())
         if chain:
             return self.extract_final_source(chain)
-        src_tracer = tracers.get(src_module)
         if src_tracer:
             top = src_tracer.symbols.get_top(symbol)
             if top:
                 return self._top_name(top)
-        return self._top_name(symbol)
+            if isinstance(symbol, str) and _is_import_origin(src_tracer, symbol):
+                return self._top_name(symbol)
+        return "unknown"
 
     ## Extract the ultimate source from a resolution chain.
     #

@@ -1,0 +1,157 @@
+## @package tests.test_classification_boundary
+#  Phase 8A boundary tests: local symbols must not leak into library_usage,
+#  import aliases must keep DIRECT_IMPORT classification.
+
+import sys
+import os
+import tempfile
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+import pytest
+from pcresolve import analyze_project
+
+
+def _run_code(code, scope_model="v2"):
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        return analyze_project(td, scope_model=scope_model)
+
+
+# ── Test 1: self.method() must not enter library_usage ──────────────────
+
+def test_self_method_not_in_library():
+    code = ("class A:\n"
+            "    def helper(self):\n"
+            "        pass\n"
+            "    def run(self):\n"
+            "        self.helper()\n"
+            "A().run()\n")
+    r = _run_code(code)
+    for call in r.all_api_calls:
+        assert "helper" not in str(call.top_library) or call.top_library == "local", \
+            f"self.helper() leaked as library: {call.top_library}"
+    assert "helper" not in r.library_usage
+
+
+# ── Test 2: private method must not enter library_usage ────────────────
+
+def test_private_method_not_in_library():
+    code = ("class A:\n"
+            "    def _add_symbol_ref(self):\n"
+            "        pass\n"
+            "    def run(self):\n"
+            "        self._add_symbol_ref()\n"
+            "A().run()\n")
+    r = _run_code(code)
+    assert "_add_symbol_ref" not in r.library_usage
+
+
+# ── Test 3: plain local function call must be local ────────────────────
+
+def test_local_function_is_local():
+    code = ("def helper():\n"
+            "    pass\n"
+            "helper()\n")
+    r = _run_code(code)
+    helper_calls = [c for c in r.all_api_calls if "helper" in c.expression]
+    assert len(helper_calls) >= 1
+    for c in helper_calls:
+        assert c.top_library == "local", f"helper() not local: {c.top_library}"
+    assert "helper" not in r.library_usage
+
+
+# ── Test 4: parameter receiver must not enter library_usage ────────────
+
+def test_parameter_receiver_not_library():
+    code = ("def f(node):\n"
+            "    node.visit()\n")
+    r = _run_code(code)
+    for call in r.all_api_calls:
+        assert call.top_library != "node", \
+            f"node.visit() leaked parameter name as library"
+    assert "node" not in r.library_usage
+
+
+# ── Test 5: import alias must keep DIRECT_IMPORT ───────────────────────
+
+def test_import_alias_direct_import():
+    code = ("import numpy as np\n"
+            "np.array([1])\n")
+    r = _run_code(code)
+    arr_calls = [c for c in r.all_api_calls if "array" in c.expression]
+    assert len(arr_calls) >= 1
+    assert arr_calls[0].top_library == "numpy"
+    assert arr_calls[0].reason == "DIRECT_IMPORT", \
+        f"Expected DIRECT_IMPORT, got {arr_calls[0].reason}"
+    assert arr_calls[0].confidence == 1.0
+
+
+# ── Test 6: from-import must keep DIRECT_IMPORT ────────────────────────
+
+def test_from_import_direct_import():
+    code = ("from numpy import array\n"
+            "array([1])\n")
+    r = _run_code(code)
+    arr_calls = [c for c in r.all_api_calls if "array" in c.expression]
+    assert len(arr_calls) >= 1
+    assert arr_calls[0].top_library == "numpy"
+    assert arr_calls[0].reason == "DIRECT_IMPORT", \
+        f"Expected DIRECT_IMPORT, got {arr_calls[0].reason}"
+    assert arr_calls[0].confidence == 1.0
+
+
+# ── Test 7: self.method chain trace to external must keep provenance ───
+
+def test_self_method_chain_to_external():
+    code = ("from ext.api import Client\n"
+            "class Wrapper:\n"
+            "    def __init__(self, client):\n"
+            "        client.open()\n"
+            "        self.client = client\n"
+            "    def run(self):\n"
+            "        return self.client.close()\n"
+            "def build():\n"
+            "    c = Client()\n"
+            "    w = Wrapper(c)\n"
+            "    return w.run()\n")
+    r = _run_code(code)
+    # self.client.close() should trace to ext through constructor arg
+    close_calls = [c for c in r.all_api_calls if "close" in c.expression]
+    assert len(close_calls) >= 1
+    assert close_calls[0].top_library == "ext", \
+        f"self.client.close() should trace to ext, got {close_calls[0].top_library}"
+
+
+# ── Test 8: mixed local + third-party alternatives ─────────────────────
+
+def test_mixed_local_third_party_alternatives():
+    code = ("import requests\n"
+            "class Local:\n"
+            "    pass\n"
+            "def make(flag):\n"
+            "    if flag:\n"
+            "        return Local()\n"
+            "    return requests.Session()\n"
+            "make(False).get('x')\n")
+    r = _run_code(code)
+    get_calls = [c for c in r.all_api_calls if "get" in c.expression]
+    assert len(get_calls) == 1
+    assert get_calls[0].top_library == "requests"
+    assert "requests" in r.library_usage
+    assert "local" not in [k for k in r.library_usage.keys()]
+    assert get_calls[0].confidence < 1.0, \
+        f"Mixed alternatives should have confidence < 1.0, got {get_calls[0].confidence}"
+
+
+# ── Test 9: v1 mode should still pass all existing tests ───────────────
+
+def test_v1_still_works_for_local_functions():
+    code = ("def helper():\n"
+            "    pass\n"
+            "helper()\n")
+    r = _run_code(code, scope_model="v1")
+    helper_calls = [c for c in r.all_api_calls if "helper" in c.expression]
+    assert len(helper_calls) >= 1
+    for c in helper_calls:
+        assert c.top_library == "local", f"v1 helper() not local: {c.top_library}"

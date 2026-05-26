@@ -65,6 +65,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.instance_attrs = {}
         self.import_from_symbols = {}
         self.wildcard_modules = []
+        self.import_aliases = set()
         self.call_sites = {}
         self.call_assign_funcs = {}
         self._assignment_counter = 0
@@ -123,6 +124,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if self.scope_model == "v2":
             binding = self.current_scope().lookup(name)
             if binding is not None:
+                if binding.source == "local":
+                    return binding.source
+                if name in self.import_aliases and isinstance(binding.source, str) and '.' not in binding.source:
+                    return name
                 return binding.source
         return name
 
@@ -155,6 +160,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Import(self, node):
         for alias in node.names:
             symbol = alias.asname if alias.asname else alias.name
+            self.import_aliases.add(symbol)
             self._bind_target_name(symbol, alias.name, node, "import")
         self.generic_visit(node)
 
@@ -173,9 +179,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 continue
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
+                self.import_aliases.add(symbol)
                 self._bind_target_name(symbol, resolved, node, "import")
                 self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
             else:
+                self.import_aliases.add(symbol)
                 self._bind_target_name(symbol, node.module, node, "import")
                 self.import_from_symbols[symbol] = (node.module + '.' + alias.name) if node.module else alias.name
         self.generic_visit(node)
@@ -456,7 +464,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return None
             methods = self.class_methods.get(class_name, [])
             if methods and method_name in methods:
-                return method_name
+                return InstanceMethod(receiver_key, method_name)
             if class_name in self.class_methods or class_name in self.import_from_symbols:
                 return InstanceMethod(receiver_key, method_name)
             return None
