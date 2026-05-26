@@ -14,6 +14,25 @@ REASON_FLOW_MERGE = "FLOW_MERGE"
 REASON_UNRESOLVED = "UNRESOLVED"
 
 
+## Unified classification result for a call or symbol.
+#
+#  Bundles the library, reason, confidence, and alternatives into a single
+#  result so that callers do not recompute top/alternatives/confidence
+#  independently.  Phase 8B-0: extracted without changing behaviour.
+@dataclass
+class ClassificationResult:
+    ## Top-level library name, e.g. "requests", "local", "python", "unknown".
+    library: str = ""
+    ## Classification reason constant.
+    reason: str = ""
+    ## Confidence score (0.0-1.0).
+    confidence: float = 1.0
+    ## Alternative top libraries when multiple sources exist.
+    alternatives: list = field(default_factory=list)
+    ## Whether this result should appear in library_usage.
+    is_usage_library: bool = False
+
+
 ## Raw facts about a call expression collected from AST.
 @dataclass
 class CallSite:

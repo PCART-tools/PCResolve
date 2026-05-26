@@ -22,7 +22,8 @@ _PY2_BUILTINS = frozenset({
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
-from .ir import (SymbolProvenance, REASON_DIRECT_IMPORT, REASON_TRANSITIVE_IMPORT,
+from .ir import (SymbolProvenance, ClassificationResult,
+                    REASON_DIRECT_IMPORT, REASON_TRANSITIVE_IMPORT,
                     REASON_LOCAL_DEFINITION, REASON_BUILTIN,
                     REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION,
                     REASON_FLOW_MERGE, REASON_UNRESOLVED)
@@ -413,30 +414,30 @@ class ProjectAnalyzer:
                         if top_source and top_source != 'local':
                             record = dict(call_detail)
                             record['top'] = top_source
-                            record['reason'] = self._classify_reason(
-                                base, top_source, tracer, module, module_tracers)
-                            record['alternatives'] = self._extract_alternatives(
-                                base, module, module_tracers)
-                            record['confidence'] = self._classify_confidence(
-                                record['reason'], record['alternatives'])
+                            cr = self.classify_source(
+                                base, top_source, module, tracer, module_tracers)
+                            record['reason'] = cr.reason
+                            record['alternatives'] = cr.alternatives
+                            record['confidence'] = cr.confidence
                             self.all_calls[module].append(record)
                             continue
                     record = dict(call_detail)
                     record['top'] = 'local'
-                    record['reason'] = REASON_LOCAL_DEFINITION
-                    record['confidence'] = 1.0
-                    record['alternatives'] = []
+                    cr = self.classify_source(
+                        base, 'local', module, tracer, module_tracers)
+                    record['reason'] = cr.reason
+                    record['confidence'] = cr.confidence
+                    record['alternatives'] = cr.alternatives
                     self.all_calls[module].append(record)
                     continue
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
                 record = dict(call_detail)
                 record['top'] = top_source
-                record['reason'] = self._classify_reason(
-                    base, top_source, tracer, module, module_tracers)
-                record['alternatives'] = self._extract_alternatives(
-                    base, module, module_tracers)
-                record['confidence'] = self._classify_confidence(
-                    record['reason'], record['alternatives'])
+                cr = self.classify_source(
+                    base, top_source, module, tracer, module_tracers)
+                record['reason'] = cr.reason
+                record['alternatives'] = cr.alternatives
+                record['confidence'] = cr.confidence
                 self.all_calls[module].append(record)
 
         for module, tracer in module_tracers.items():
@@ -648,6 +649,41 @@ class ProjectAnalyzer:
         if isinstance(source_norm, CallResult):
             return (REASON_RETURN_PROPAGATION, 0.9, [])
         return (REASON_TRANSITIVE_IMPORT, 0.9, [])
+
+    ## Unified classification entry point for a resolved top library.
+    #
+    #  Wraps reason/confidence/alternatives/is_usage_library computation
+    #  so that ApiCall and SymbolProvenance classification logic is in
+    #  one place.  Phase 8B-0: extracted from existing helpers without
+    #  changing behaviour.
+    #  @param base The call's base symbol or source.
+    #  @param top The resolved top-level library.
+    #  @param module Current module name.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return ClassificationResult with library/reason/confidence/alternatives.
+    def classify_source(self, base, top, module, tracer, module_tracers):
+        if top == "local":
+            return ClassificationResult(
+                library="local", reason=REASON_LOCAL_DEFINITION,
+                confidence=1.0, alternatives=[], is_usage_library=False)
+        if top == "python":
+            return ClassificationResult(
+                library="python", reason=REASON_BUILTIN,
+                confidence=1.0, alternatives=[], is_usage_library=False)
+        if top == "unknown" or not top:
+            return ClassificationResult(
+                library="unknown", reason=REASON_UNRESOLVED,
+                confidence=0.0, alternatives=[], is_usage_library=False)
+
+        reason = self._classify_reason(base, top, tracer, module, module_tracers)
+        alternatives = self._extract_alternatives(base, module, module_tracers)
+        confidence = self._classify_confidence(reason, alternatives)
+        is_lib = self._is_usage_library(top)
+
+        return ClassificationResult(
+            library=top, reason=reason, confidence=confidence,
+            alternatives=alternatives, is_usage_library=is_lib)
 
     ## Resolve the first segment of func_name to its fully qualified path.
     #  @param call_dict Dict with 'func_name' and other call data.
