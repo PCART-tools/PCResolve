@@ -91,6 +91,8 @@ class LibraryUsage:
     files: list = field(default_factory=list)
     ## Kind counts from provenance records (import, variable, parameter, etc).
     kind_counts: dict = field(default_factory=dict)
+    ## Reason counts from classification (DIRECT_IMPORT, RETURN_PROPAGATION, etc).
+    reason_counts: dict = field(default_factory=dict)
     ## Whether any evidence was found.
     has_evidence: bool = False
     ## Minimum confidence among related evidence.

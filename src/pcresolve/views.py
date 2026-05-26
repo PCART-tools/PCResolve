@@ -31,6 +31,7 @@ def build_summary_view(result, top=20):
             "files": u.files[:top] if top > 0 else u.files,
             "imports": u.imports,
             "kind_counts": u.kind_counts,
+            "reason_counts": u.reason_counts,
             "min_confidence": u.min_confidence,
             "max_confidence": u.max_confidence,
         }
@@ -261,6 +262,7 @@ def _full_library_usage(u):
         "files": u.files,
         "imports": u.imports,
         "kind_counts": u.kind_counts,
+        "reason_counts": u.reason_counts,
         "has_evidence": u.has_evidence,
         "min_confidence": u.min_confidence,
         "max_confidence": u.max_confidence,

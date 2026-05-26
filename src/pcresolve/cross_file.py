@@ -368,6 +368,9 @@ class ProjectAnalyzer:
                 u = _ensure_usage(lib, getattr(call, 'confidence', 1.0),
                                   call.file_path)
                 u.api_call_count += 1
+                reason = getattr(call, 'reason', '') or ''
+                if reason:
+                    u.reason_counts[reason] = u.reason_counts.get(reason, 0) + 1
 
         for prov in all_provenance:
             libs = self._collect_usage_libs(
@@ -383,6 +386,9 @@ class ProjectAnalyzer:
                         u.imports.append(prov.symbol)
                 kind = prov.kind if prov.kind else "unknown"
                 u.kind_counts[kind] = u.kind_counts.get(kind, 0) + 1
+                reason = getattr(prov, 'reason', '') or ''
+                if reason:
+                    u.reason_counts[reason] = u.reason_counts.get(reason, 0) + 1
 
         for u in usage.values():
             u.files.sort()

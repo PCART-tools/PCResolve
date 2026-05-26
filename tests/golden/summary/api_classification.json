@@ -27,6 +27,9 @@
       "kind_counts": {
         "import": 1
       },
+      "reason_counts": {
+        "DIRECT_IMPORT": 1
+      },
       "min_confidence": 1.0,
       "max_confidence": 1.0
     },
@@ -48,6 +51,11 @@
         "import": 4,
         "variable": 6,
         "return": 3
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 9,
+        "TRANSITIVE_IMPORT": 4,
+        "RETURN_PROPAGATION": 6
       },
       "min_confidence": 0.9,
       "max_confidence": 1.0

@@ -1630,6 +1630,11 @@
         "import": 4,
         "variable": 4
       },
+      "reason_counts": {
+        "DIRECT_IMPORT": 6,
+        "RETURN_PROPAGATION": 2,
+        "TRANSITIVE_IMPORT": 2
+      },
       "has_evidence": true,
       "min_confidence": 0.9,
       "max_confidence": 1.0
@@ -1648,6 +1653,10 @@
       "kind_counts": {
         "import": 2,
         "variable": 1
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 3,
+        "RETURN_PROPAGATION": 1
       },
       "has_evidence": true,
       "min_confidence": 0.9,
@@ -1674,6 +1683,11 @@
       "kind_counts": {
         "import": 6,
         "variable": 7
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 10,
+        "TRANSITIVE_IMPORT": 4,
+        "RETURN_PROPAGATION": 2
       },
       "has_evidence": true,
       "min_confidence": 0.9,

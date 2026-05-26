@@ -238,6 +238,11 @@
         "variable": 2,
         "import": 1
       },
+      "reason_counts": {
+        "TRANSITIVE_IMPORT": 1,
+        "RETURN_PROPAGATION": 2,
+        "DIRECT_IMPORT": 1
+      },
       "has_evidence": true,
       "min_confidence": 0.9,
       "max_confidence": 1.0
