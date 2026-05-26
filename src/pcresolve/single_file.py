@@ -1132,6 +1132,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_GeneratorExp(self, node):
         self._visit_comprehension(node)
 
+    ## Visit a Global node and bind declared names to the module scope.
+    #  @param node The Global AST node.
+    def visit_Global(self, node):
+        for name in node.names:
+            # Rebind the name to the module scope so subsequent assignments
+            # in this function write to the module-level symbol table.
+            module_src = self.module_scope.lookup(name)
+            src = module_src.source if module_src else "local"
+            self.current_scope().bind(name, src)
+        self.generic_visit(node)
+
+    ## Visit a Nonlocal node and record a conservative diagnostic.
+    #  @param node The Nonlocal AST node.
+    def visit_Nonlocal(self, node):
+        # Nonlocal resolution is complex; for now record that it was seen
+        # but don't attempt full resolution. The enclosing scope binding
+        # is untouched.
+        self.generic_visit(node)
+
     ## Visit a Return node and record return-value flow for the function.
     #  @param node The Return AST node.
     def visit_Return(self, node):

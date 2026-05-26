@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+## @package scripts.diff_v1_v2
+#  Compare v1 vs v2 analysis results on a project.
+#
+#  Usage:
+#    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/Deep-Graph-Kernels
+#    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
+
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from pcresolve.cross_file import analyze_project
+
+
+def run(model, path):
+    t0 = time.perf_counter()
+    result = analyze_project(path, scope_model=model)
+    elapsed = time.perf_counter() - t0
+    return result, elapsed
+
+
+def compare(path):
+    v1, t1 = run("v1", path)
+    v2, t2 = run("v2", path)
+
+    v1_calls = {(c.file_path, c.lineno, c.col_offset, c.expression): c.top_library
+                for c in v1.all_api_calls}
+    v2_calls = {(c.file_path, c.lineno, c.col_offset, c.expression): c.top_library
+                for c in v2.all_api_calls}
+
+    v1_syms = {(p.file_path, p.lineno, p.col_offset, p.symbol, p.kind): p.top_library
+               for p in v1.all_symbol_provenance}
+    v2_syms = {(p.file_path, p.lineno, p.col_offset, p.symbol, p.kind): p.top_library
+               for p in v2.all_symbol_provenance}
+
+    # Classify API call differences
+    call_regressions = []
+    call_improvements = []
+    call_same = 0
+    for key in v1_calls:
+        v1_top = v1_calls[key]
+        v2_top = v2_calls.get(key)
+        if v2_top is None:
+            continue
+        if v2_top == v1_top:
+            call_same += 1
+        elif v2_top in ("local", "unknown", "") and v1_top not in ("local", "unknown", ""):
+            call_regressions.append((key, v1_top, v2_top))
+        elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
+            call_improvements.append((key, v1_top, v2_top))
+        else:
+            call_regressions.append((key, v1_top, v2_top))
+
+    only_v2_calls = set(v2_calls.keys()) - set(v1_calls.keys())
+
+    # Compare library usage
+    v1_libs = set(v1.library_usage.keys())
+    v2_libs = set(v2.library_usage.keys())
+    v2_only_libs = v2_libs - v1_libs
+
+    print("Project: %s" % os.path.abspath(path))
+    print("v1 time: %.3fs, v2 time: %.3fs" % (t1, t2))
+    print()
+
+    print("API Calls: v1=%d v2=%d same=%d regressions=%d improvements=%d only_v2=%d" % (
+        len(v1_calls), len(v2_calls), call_same, len(call_regressions),
+        len(call_improvements), len(only_v2_calls)))
+
+    if call_regressions:
+        print("\nRegressions (v1 third-party -> v2 local/unknown):")
+        for key, v1t, v2t in call_regressions[:20]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    if call_improvements:
+        print("\nImprovements (v1 local -> v2 third-party):")
+        for key, v1t, v2t in call_improvements[:10]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    print("\nLibraries: v1=%d v2=%d v2_only=%d" % (
+        len(v1_libs), len(v2_libs), len(v2_only_libs)))
+    if v2_only_libs:
+        illegal = {l for l in v2_only_libs if "(" in l or "[" in l}
+        if illegal:
+            print("  Illegal library keys: %s" % sorted(illegal))
+
+    # Symbol provenance comparison
+    v1_sym_count = len(v1_syms)
+    v2_sym_count = len(v2_syms)
+    print("\nSymbol Provenance: v1=%d v2=%d" % (v1_sym_count, v2_sym_count))
+
+    return len(call_regressions)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/diff_v1_v2.py <project_dir> [...]",
+              file=sys.stderr)
+        sys.exit(1)
+
+    total_regressions = 0
+    for path in sys.argv[1:]:
+        if not os.path.exists(path):
+            print("Not found: %s" % path, file=sys.stderr)
+            continue
+        regs = compare(path)
+        total_regressions += regs
+        print()
+
+    if total_regressions:
+        print("TOTAL regressions: %d" % total_regressions)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

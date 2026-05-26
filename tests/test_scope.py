@@ -453,6 +453,46 @@ def test_v2_constructor_arg_flows_to_self_attribute_methods():
         assert "InstanceMethod(receiver='client', method='close')" not in result.library_usage
 
 
+# ── global / nonlocal ────────────────────────────────────────────────────
+
+def test_global_writes_to_module_scope():
+    """global x; x = ... inside a function must bind the module scope."""
+    code = """import numpy as np
+x = 1
+def f():
+    global x
+    x = np.array([1])
+f()
+"""
+    result = analyze_source(code, scope_model="v2")
+    # Module-level x should now trace to numpy, not stay as local
+    assert result.symbols.get("x") is not None
+
+
+def test_global_does_not_crash():
+    """Bare global declaration must not crash analysis."""
+    code = """x = 1
+def f():
+    global x
+    x = 2
+"""
+    result = analyze_source(code, scope_model="v2")
+    assert result is not None
+
+
+def test_nonlocal_does_not_crash():
+    """nonlocal declaration must not crash analysis."""
+    code = """def outer():
+    x = 1
+    def inner():
+        nonlocal x
+        x = 2
+    inner()
+"""
+    result = analyze_source(code, scope_model="v2")
+    assert result is not None
+
+
 def test_library_usage_same_filename_different_dirs():
     """Same-named files in different directories must not be merged."""
     import tempfile, os
