@@ -1230,7 +1230,7 @@ class ProjectAnalyzer:
                             return (f"{callee_display or callee}()", cur_module, src.callee)
                 if rs is None:
                     ## 7B-full PR2: try call-graph return source before giving up.
-                    cg_ret = self._lookup_cg_return_source(cur_symbol)
+                    cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
                     if cg_ret is not None:
                         return (f"{callee_display or callee}()", cur_module, cg_ret)
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
@@ -1343,36 +1343,57 @@ class ProjectAnalyzer:
     #  other functions.
     ## Look up the return source of a local function via call-graph facts.
     #
-    #  Searches ProjectCallGraph for a FunctionSummary whose returns field
-    #  carries import-backed provenance.  Used by the call_result handler
-    #  when return_sources lookup yields None (7B-full PR2).
+    #  Searches the current module's ModuleCallGraph first, then falls back
+    #  to all modules (for cross-file imported local functions).  Returns a
+    #  single source only when unambiguous; SourceSet with multiple
+    #  import-backed sources is left for the classifier (7B-full PR2).
+    #  @param cur_module The module where the call occurs.
     #  @param callee Bare function name or qualname (e.g. "make_array").
     #  @return A non-local source string, or None.
-    def _lookup_cg_return_source(self, callee):
+    def _lookup_cg_return_source(self, cur_module, callee):
         if not isinstance(callee, str):
             return None
         cg = getattr(self, 'project_cg', None)
         if cg is None:
             return None
-        for module, mcg in cg.modules.items():
+        # Search current module first.  Only fall back to other modules
+        # when the function is NOT found locally (cross-file import case).
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for module in search_modules:
+            mcg = cg.modules.get(module)
+            if mcg is None:
+                continue
             fs = mcg.functions.get(callee)
-            if fs is not None and fs.returns is not None:
-                returns_norm = normalize_source(fs.returns)
-                if isinstance(returns_norm, SourceSet):
-                    for src in returns_norm.sources:
-                        if isinstance(src, str) and not self.is_local(src):
-                            top = self._top_name(src)
-                            if top and top not in ("local", "unknown", ""):
-                                return top
-                elif isinstance(returns_norm, str) and not self.is_local(returns_norm):
-                    top = self._top_name(returns_norm)
+            if fs is None:
+                continue
+            # Found in this module — if no returns, don't fall back to others.
+            if fs.returns is None:
+                return None
+            returns_norm = normalize_source(fs.returns)
+            if isinstance(returns_norm, SourceSet):
+                # Collect import-backed tops; return single if unambiguous.
+                tops = []
+                for src in returns_norm.sources:
+                    if isinstance(src, str) and not self.is_local(src):
+                        top = self._top_name(src)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                if len(tops) == 1:
+                    return tops[0]
+                # Multiple or zero import-backed sources — let classifier handle.
+                continue
+            if isinstance(returns_norm, str) and not self.is_local(returns_norm):
+                top = self._top_name(returns_norm)
+                if top and top not in ("local", "unknown", ""):
+                    return top
+            elif isinstance(returns_norm, CallResult):
+                if isinstance(returns_norm.callee, str):
+                    top = self._top_name(returns_norm.callee)
                     if top and top not in ("local", "unknown", ""):
                         return top
-                elif isinstance(returns_norm, CallResult):
-                    if isinstance(returns_norm.callee, str):
-                        top = self._top_name(returns_norm.callee)
-                        if top and top not in ("local", "unknown", ""):
-                            return top
         return None
 
     #  @param module The module where the call occurs.

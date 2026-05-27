@@ -918,3 +918,31 @@ def test_local_function_return_propagates_library_to_caller():
     for c in calls:
         assert c.top_library == "numpy", \
             f"x.sum() should be numpy, got {c.top_library}"
+
+
+def test_same_name_function_across_modules_not_polluted():
+    """a.py: make_arr -> numpy; b.py: make_arr -> local; b calls own, stays local."""
+    from pcresolve.cross_file import ProjectAnalyzer
+    with tempfile.TemporaryDirectory() as td:
+        # Module a: make_arr returns numpy array
+        with open(os.path.join(td, "a.py"), "w") as f:
+            f.write(
+                "import numpy as np\n"
+                "def make_arr():\n"
+                "    return np.array([1, 2, 3])\n"
+            )
+        # Module b: make_arr returns local list; calls own make_arr
+        with open(os.path.join(td, "b.py"), "w") as f:
+            f.write(
+                "def make_arr():\n"
+                "    return [1, 2, 3]\n"
+                "x = make_arr()\n"
+                "x.count(1)\n"
+            )
+        pa = ProjectAnalyzer(td, scope_model="v2")
+        result = pa.analyze()
+        count_calls = [c for c in result.all_api_calls if "count" in c.expression]
+        assert count_calls, "x.count() not collected in b.py"
+        for c in count_calls:
+            assert c.top_library == "local", \
+                f"b.py x.count() should stay local, got {c.top_library} ({c.file_path})"
