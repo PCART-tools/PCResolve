@@ -162,9 +162,11 @@ def main():
         sys.exit(1)
 
     paths = []
+    missing = []
     for arg in sys.argv[1:]:
         if not os.path.exists(arg):
             print("Not found: %s" % arg, file=sys.stderr)
+            missing.append(arg)
             continue
         # If a directory contains subdirectories each with .py files,
         # treat them as individual projects.
@@ -180,8 +182,17 @@ def main():
         else:
             paths.append(arg)
 
+    if missing:
+        print("ERROR: %d path(s) not found — aborting." % len(missing),
+              file=sys.stderr)
+        sys.exit(1)
+    if not paths:
+        print("ERROR: no valid project paths.", file=sys.stderr)
+        sys.exit(1)
+
     total_regressions = 0
     total_improvements = 0
+    total_precision = 0
     total_illegal = 0
     over_baseline = 0
     has_baseline = False
@@ -191,6 +202,7 @@ def main():
         regs, imps, prec, illegal_count, _ = compare(path)
         total_regressions += regs
         total_improvements += imps
+        total_precision += prec
         total_illegal += illegal_count
 
         baseline = load_baseline(name)
@@ -219,6 +231,7 @@ def main():
         print("  %s" % line)
     print("  TOTAL regressions: %d" % total_regressions)
     print("  TOTAL improvements: %d" % total_improvements)
+    print("  TOTAL precision changes: %d" % total_precision)
     print("  TOTAL illegal keys: %d" % total_illegal)
 
     if save_baselines:
