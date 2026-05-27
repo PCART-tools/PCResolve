@@ -189,6 +189,12 @@ class ProjectAnalyzer:
 
         all_provenance = self._build_symbol_provenance(module_tracers)
 
+        deco_by = {}
+        for prov in all_provenance:
+            if prov.kind == "decorated_by":
+                key = (prov.file_path, prov.symbol)
+                deco_by.setdefault(key, []).append(prov.top_library)
+
         files = []
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
@@ -216,6 +222,8 @@ class ProjectAnalyzer:
                         reason=c.get('reason', ''),
                         confidence=c.get('confidence', 1.0),
                         alternatives=c.get('alternatives', []),
+                        decorated_by=deco_by.get(
+                            (c.get('file_path', ''), c.get('func_name', '')), []),
                     )
                     for c in self.all_calls.get(module, [])
                 ],
@@ -241,6 +249,9 @@ class ProjectAnalyzer:
                     reason=c.get('reason', ''),
                     confidence=c.get('confidence', 1.0),
                     alternatives=c.get('alternatives', []),
+                    decorated_by=deco_by.get(
+                        (c.get('file_path', ''),
+                         c.get('func_name', '').split('.')[0]), []),
                 ))
 
         library_usage = self._build_library_usage(all_api_calls, all_provenance)

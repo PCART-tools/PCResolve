@@ -587,9 +587,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
         for deco in reversed(decorator_nodes):
             deco_source = self.trace_source(deco)
-            if deco_source and not (isinstance(deco_source, str) and _is_builtin(deco_source)):
-                self._add_symbol_ref(
-                    target_name, deco_source, "decorated_by", deco)
+            if not deco_source or (isinstance(deco_source, str) and _is_builtin(deco_source)):
+                continue
+            if deco_source == "local" and isinstance(deco, ast.Name):
+                fn = deco.id
+                rs = self.return_sources.get(fn)
+                if rs is not None and not (isinstance(rs, str) and rs == "local"):
+                    deco_source = rs
+                else:
+                    deco_source = fn
+            self._add_symbol_ref(
+                target_name, deco_source, "decorated_by", deco)
 
     ## --- Assignment helpers ---
 

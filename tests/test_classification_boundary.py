@@ -240,6 +240,67 @@ def test_stacked_decorators_all_preserved():
         f"Decorated f() should be local, got {f_calls[0].top_library}"
 
 
+# ── Phase 8C+: decorator identity and chaining ───────────────────────
+
+def test_local_decorator_returns_thirdparty_decorator():
+    """Local decorator that returns a third-party decorator must chain
+    the decorated_by evidence to the third-party library."""
+    code = ("import click\n"
+            "def command(f):\n"
+            "    return click.command()(f)\n"
+            "@command\n"
+            "def hello():\n"
+            "    pass\n"
+            "hello()\n")
+    r = _run_code(code)
+    hello_calls = [c for c in r.all_api_calls
+                   if c.expression == "hello()"]
+    assert len(hello_calls) == 1
+    assert hello_calls[0].top_library == "local", \
+        f"hello() should be local, got {hello_calls[0].top_library}"
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by" and p.symbol == "hello"]
+    assert len(deco_provs) >= 1
+    tops = {p.top_library for p in deco_provs}
+    assert "click" in tops, f"Expected click in decorated_by, got {tops}"
+
+
+def test_local_passthrough_decorator_is_local():
+    """A passthrough decorator that returns f unchanged must not
+    produce third-party decorated_by evidence."""
+    code = ("def passthrough(f):\n"
+            "    return f\n"
+            "@passthrough\n"
+            "def g():\n"
+            "    pass\n"
+            "g()\n")
+    r = _run_code(code)
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by" and p.symbol == "g"]
+    assert len(deco_provs) >= 1
+    tops = {p.top_library for p in deco_provs}
+    assert "click" not in tops
+    assert "flask" not in tops
+
+
+def test_apicall_decorated_by_field():
+    """ApiCall.decorated_by must list decorator libraries for decorated
+    local calls, matching by symbol name and file path."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "@app.route('/')\n"
+            "def index():\n"
+            "    return 'hello'\n"
+            "index()\n")
+    r = _run_code(code)
+    index_calls = [c for c in r.all_api_calls
+                   if c.expression == "index()"]
+    assert len(index_calls) == 1
+    assert index_calls[0].top_library == "local"
+    assert "flask" in index_calls[0].decorated_by, \
+        f"decorated_by should contain flask, got {index_calls[0].decorated_by}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"

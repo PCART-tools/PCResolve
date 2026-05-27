@@ -42,6 +42,8 @@ class ApiCall:
     confidence: float = 1.0
     ## Alternative top libraries when multiple sources exist.
     alternatives: list = field(default_factory=list)
+    ## Decorator provenance evidence (library names from decorators).
+    decorated_by: list = field(default_factory=list)
 
 
 ## Trace chain for a single symbol.
