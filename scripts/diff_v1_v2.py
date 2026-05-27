@@ -6,6 +6,7 @@
 #    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/Deep-Graph-Kernels
 #    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
 
+import ast
 import json
 import os
 import sys
@@ -259,30 +260,59 @@ def main():
     if show_taxonomy and all_regression_details:
         print()
         print("REGRESSION TAXONOMY")
-        taxonomy = {}
+
+        def _classify_expr(expr):
+            try:
+                tree = ast.parse(expr.strip(), mode="eval")
+            except SyntaxError:
+                return "parse_error"
+            node = tree.body
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name):
+                    return "bare_call"
+                if isinstance(func, ast.Attribute):
+                    receiver = func.value
+                    if _has_subscript(receiver):
+                        return "container/subscript"
+                    return "attribute_method"
+            return "other"
+
+        def _has_subscript(node):
+            if isinstance(node, ast.Subscript):
+                return True
+            if isinstance(node, ast.Attribute):
+                return _has_subscript(node.value)
+            if isinstance(node, ast.Call):
+                return _has_subscript(node.func)
+            return False
+
+        # Separate by loss type
+        tp_loss = {}   # third-party -> local/unknown
+        lu_loss = {}   # local -> unknown
         for key, v1t, v2t in all_regression_details:
-            expr = key[3]  # expression
-            cat = "other"
-            if "[" in expr and "." in expr and expr.index("[") < expr.index("."):
-                cat = "container/subscript"
-            elif "(" in expr and "." not in expr.split("(")[0]:
-                cat = "bare_call"
-            elif "." in expr and "(" in expr:
-                cat = "attribute_method"
-            elif "." in expr:
-                cat = "attribute"
+            expr = key[3]
+            cat = _classify_expr(expr)
+            if v1t in ("local", ""):
+                lu_loss.setdefault(cat, []).append(expr)
             else:
-                cat = "other"
-            if v2t == "unknown":
-                cat = cat + " (->unknown)"
-            taxonomy.setdefault(cat, []).append(expr)
-        for cat in sorted(taxonomy, key=lambda c: -len(taxonomy[c])):
-            exprs = taxonomy[cat]
-            print("  %s: %d" % (cat, len(exprs)))
-            for e in sorted(set(exprs))[:5]:
-                print("    %s" % e)
-            if len(set(exprs)) > 5:
-                print("    ... and %d more unique" % (len(set(exprs)) - 5))
+                tp_loss.setdefault(cat, []).append(expr)
+
+        def _print_section(title, data):
+            if not data:
+                return
+            total = sum(len(v) for v in data.values())
+            print("  %s (%d total)" % (title, total))
+            for cat in sorted(data, key=lambda c: -len(data[c])):
+                exprs = data[cat]
+                print("    %s: %d" % (cat, len(exprs)))
+                for e in sorted(set(exprs))[:3]:
+                    print("      %s" % e)
+                if len(set(exprs)) > 3:
+                    print("      ... +%d more" % (len(set(exprs)) - 3))
+
+        _print_section("third-party API loss (v1 had library, v2 lost it)", tp_loss)
+        _print_section("local-to-unknown (v1 had local, v2 unknown)", lu_loss)
 
     if not has_baseline:
         print()
