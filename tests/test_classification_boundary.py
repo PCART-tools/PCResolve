@@ -898,3 +898,23 @@ def test_import_backed_self_attr_in_class_attrs():
     assert model_cs is not None, f"Model not in classes; keys={list(cs.classes.keys())}"
     assert "self.gp" in model_cs.attrs, \
         f"self.gp should be in Model.attrs, got {list(model_cs.attrs.keys())}"
+
+
+# ── Phase 7B-full PR2: function return-object tracking ──────────────────
+
+
+def test_local_function_return_propagates_library_to_caller():
+    """x = make_array(); x.sum() where make_array returns np.array -> numpy."""
+    code = (
+        "import numpy as np\n"
+        "def make_array():\n"
+        "    return np.array([1, 2, 3])\n"
+        "x = make_array()\n"
+        "x.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "x.sum() not collected"
+    for c in calls:
+        assert c.top_library == "numpy", \
+            f"x.sum() should be numpy, got {c.top_library}"

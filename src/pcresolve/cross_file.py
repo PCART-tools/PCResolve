@@ -1229,6 +1229,10 @@ class ProjectAnalyzer:
                         if isinstance(src, CallResult):
                             return (f"{callee_display or callee}()", cur_module, src.callee)
                 if rs is None:
+                    ## 7B-full PR2: try call-graph return source before giving up.
+                    cg_ret = self._lookup_cg_return_source(cur_symbol)
+                    if cg_ret is not None:
+                        return (f"{callee_display or callee}()", cur_module, cg_ret)
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     arg_src = self._resolve_param_to_arg(
@@ -1337,6 +1341,40 @@ class ProjectAnalyzer:
     #  Unlike _trace_parameter_source, this only searches the given callee's
     #  call-sites, preventing false positives from same-named parameters in
     #  other functions.
+    ## Look up the return source of a local function via call-graph facts.
+    #
+    #  Searches ProjectCallGraph for a FunctionSummary whose returns field
+    #  carries import-backed provenance.  Used by the call_result handler
+    #  when return_sources lookup yields None (7B-full PR2).
+    #  @param callee Bare function name or qualname (e.g. "make_array").
+    #  @return A non-local source string, or None.
+    def _lookup_cg_return_source(self, callee):
+        if not isinstance(callee, str):
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        for module, mcg in cg.modules.items():
+            fs = mcg.functions.get(callee)
+            if fs is not None and fs.returns is not None:
+                returns_norm = normalize_source(fs.returns)
+                if isinstance(returns_norm, SourceSet):
+                    for src in returns_norm.sources:
+                        if isinstance(src, str) and not self.is_local(src):
+                            top = self._top_name(src)
+                            if top and top not in ("local", "unknown", ""):
+                                return top
+                elif isinstance(returns_norm, str) and not self.is_local(returns_norm):
+                    top = self._top_name(returns_norm)
+                    if top and top not in ("local", "unknown", ""):
+                        return top
+                elif isinstance(returns_norm, CallResult):
+                    if isinstance(returns_norm.callee, str):
+                        top = self._top_name(returns_norm.callee)
+                        if top and top not in ("local", "unknown", ""):
+                            return top
+        return None
+
     #  @param module The module where the call occurs.
     #  @param callee The function name whose parameter is being resolved.
     #  @param param_name The parameter name to resolve.
