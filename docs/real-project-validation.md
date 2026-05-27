@@ -22,7 +22,7 @@ recorded limits, zero illegal keys).
 | greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 0 | 7B-lite PR 1 reduced from 157 |
 | polire | scientific | 35 | 421 | 6 | 15 | 0 | method-sensitive CG attr lookup (7B-full PR3) |
 
-**Totals**: 191 regressions, 43 improvements, 11 precision changes, 0 illegal keys.
+**Totals**: 191 regressions, 47 improvements, 11 precision changes, 0 illegal keys.
 **Legend**: R=regressions, I=improvements, P=precision changes
 
 ## Current Taxonomy (--taxonomy)

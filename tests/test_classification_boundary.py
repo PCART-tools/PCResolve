@@ -965,10 +965,11 @@ def test_unrelated_import_attr_not_leaked_to_method():
         "c.helper()\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "helper" in c.expression:
-            assert c.top_library == "local", \
-                f"c.helper() should stay local, got {c.top_library} ({c.chain})"
+    helper_calls = [c for c in r.all_api_calls if "helper" in c.expression]
+    assert helper_calls, "c.helper() not collected"
+    for c in helper_calls:
+        assert c.top_library == "local", \
+            f"c.helper() should stay local, got {c.top_library} ({c.chain})"
 
 
 def test_method_gets_right_attr_not_wrong_one():
@@ -986,10 +987,9 @@ def test_method_gets_right_attr_not_wrong_one():
         "c.shape()\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "reshape" in c.expression:
-            assert c.top_library == "numpy", \
-                f"self.arr.reshape() should be numpy, got {c.top_library} ({c.chain})"
-        if "shape" in c.expression and "reshape" not in c.expression:
-            assert c.top_library != "requests", \
-                f"c.shape() must not be requests, got {c.top_library} ({c.chain})"
+    shape_calls = [c for c in r.all_api_calls
+                   if "shape" in c.expression and "reshape" not in c.expression]
+    assert shape_calls, "c.shape() not collected"
+    for c in shape_calls:
+        assert c.top_library == "numpy", \
+            f"c.shape() should be numpy, got {c.top_library} ({c.chain})"
