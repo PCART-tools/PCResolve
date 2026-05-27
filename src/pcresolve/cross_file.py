@@ -1099,6 +1099,13 @@ class ProjectAnalyzer:
             if resolved:
                 src_module, src_symbol = resolved
                 return (f"{a}[{b}]", src_module, src_symbol)
+            if is_structured_source(a):
+                structured = self._resolve_structured_source(module, a, tracers)
+                if structured is not None:
+                    _, src_module, src_symbol = structured
+                    top = self._top_source(src_module, src_symbol, tracers)
+                    if top and top not in ("local", "unknown", ""):
+                        return (f"{a}[{b}]", src_module, top)
             return (f"{a}[{b}]", module, a)
 
         if kind == "instance_method":
