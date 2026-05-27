@@ -732,9 +732,8 @@ def test_class_instance_method_not_confused_with_container():
             f"b.add() should stay local, got {c.top_library} ({c.chain})"
 
 
-@pytest.mark.xfail(reason="7B-full: factory-returned instance from dict lookup loses provenance", strict=True)
 def test_factory_returned_instance_method_traces_to_library():
-    """kernel = kernels[dynamic_key]; kernel.K(X) should trace to GPy."""
+    """kernel = kernels[dynamic_key]; kernel.K(X) traces to GPy (7B-full PR6)."""
     code = (
         "import GPy\n"
         "import numpy as np\n"

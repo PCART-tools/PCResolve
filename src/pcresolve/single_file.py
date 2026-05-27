@@ -367,6 +367,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
                 return ContainerItem(container_name, key_idx)
+            ## 7B-full PR6: dynamic key — collect import-backed item sources.
+            if container_name is not None and isinstance(node.value, ast.Name):
+                var_name = node.value.id
+                item_sources = []
+                for (cn, _), src in self.container_items.items():
+                    if cn == var_name:
+                        item_sources.append(src)
+                if item_sources:
+                    return make_source_set(item_sources)
             return container_name
         elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
             if isinstance(node, ast.Dict):
@@ -810,7 +819,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     for key_node, value_node in zip(node.value.keys, node.value.values):
                         if isinstance(key_node, ast.Constant):
                             key_value = key_node.value
-                            value_source = self.get_base(value_node)
+                            value_source = self.trace_source(value_node) or self.get_base(value_node)
                             if value_source:
                                 self.container_items[(container_name, key_value)] = value_source
 

@@ -1266,6 +1266,12 @@ class ProjectAnalyzer:
                         top = self._top_source(module, src, tracers)
                         if top and top not in ("local", "python", "unknown", ""):
                             return (f"{callee_display or callee}()", module, src)
+                ## 7B-full PR6: resolve CallResult sources via CG return lookup.
+                for src in callee.sources:
+                    if isinstance(src, CallResult) and isinstance(src.callee, str):
+                        cg_ret = self._lookup_cg_return_source(module, src.callee)
+                        if cg_ret is not None:
+                            return (f"{callee_display or callee}()", module, cg_ret)
                 for src in callee.sources:
                     if isinstance(src, str):
                         return (f"{callee_display or callee}()", module, src)
@@ -1311,7 +1317,7 @@ class ProjectAnalyzer:
                     ## 7B-full PR2: try call-graph return source before giving up.
                     cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
                     if cg_ret is not None:
-                        return (f"{callee_display or callee}()", cur_module, cg_ret)
+                        return (f"{callee_display or callee}()", module, cg_ret)
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     arg_src = self._resolve_param_to_arg(
@@ -1460,8 +1466,17 @@ class ProjectAnalyzer:
                 # Collect import-backed tops; return single if unambiguous.
                 tops = []
                 for src in returns_norm.sources:
-                    if isinstance(src, str) and not self.is_local(src):
-                        top = self._top_name(src)
+                    src_norm = normalize_source(src)
+                    if isinstance(src_norm, str) and not self.is_local(src_norm):
+                        top = self._top_name(src_norm)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                    elif isinstance(src_norm, InstanceMethod) and isinstance(src_norm.receiver, str):
+                        top = self._top_name(src_norm.receiver)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                    elif isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                        top = self._top_name(src_norm.callee)
                         if top and top not in ("local", "unknown", ""):
                             tops.append(top)
                 if len(tops) == 1:
