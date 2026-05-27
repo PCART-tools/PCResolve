@@ -100,8 +100,68 @@ Phase 8B should normalise all unresolved cases to `"unknown"` with
 
 - Trace does not distinguish "parameter from call site A" vs "parameter from call site B" when a function is called from multiple locations. Resolution picks the first matching call site.
 - `return_sources` is SourceSet since Phase 5; multiple return paths are collected but alternatives classification is not yet complete.
-- Constructor argument to `self.attr` propagation is ad-hoc (via `instance_attrs`), not integrated with call graph.
+- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution is handled by 7B-lite via `instance_attrs`, `CallResult.call_lineno`, and constructor call-site matching. Full CallGraph / return-object tracking for factory-returned instances is deferred to complete 7B.
 - `nonlocal` is first-edition no-crash only.
+
+## Phase 7B-lite: Class / Instance Method Resolution
+
+7B-lite is the engineering transition layer before full 7B / CallGraph.  It
+extends existing `InstanceMethod`, `CallResult.call_lineno/call_col_offset`,
+`return_sources`, and constructor call-site facts to handle the most common
+wrapper-class patterns without introducing a full class hierarchy graph.
+
+### Supported
+
+| Pattern | Example | Resolution |
+|---------|---------|------------|
+| Instance method on locally-constructed object | `x = ClassName(...); x.method(...)` | `InstanceMethod(receiver=x, method=method)` |
+| Wrapper method return-source through constructor arg | `api = Api(requests.Session()); api.get(...)` | `requests` |
+| Multi-instance receiver-specific constructor matching | `a = Api(requests.Session()); b = Api(httpx.Client())` | `a.get()` → `requests`, `b.get()` → `httpx` |
+| Simple alias following | `c = b; c.get(...)` | follows to same constructor call-site |
+| `self.attr.method()` in method body | `self.session = param; ... return self.session.get(...)` | participates in return-source propagation |
+| Pure-local method | no constructor-arg dependency | `"local"` |
+
+### Conservative Boundaries
+
+- **Factory-returned instances**: `c = make(httpx.Client()); c.get(...)` →
+  `"local"`.  Requires full CallGraph / return-object tracking.
+- **Method name collision / override**: `return_sources` is keyed by bare
+  method name (e.g. `"get"`).  Complex same-name methods, inheritance,
+  and overrides need `Class.method` / `FunctionId(module, qualname)` in
+  full 7B.
+- **Third-party base-class methods, `@classmethod`, `@staticmethod`,
+  descriptors / properties**: not in lite scope.
+
+### Minimal Examples
+
+```python
+import requests, httpx
+
+class Api:
+    def __init__(self, session):
+        self.session = session
+    def get(self, url):
+        return self.session.get(url)
+
+a = Api(requests.Session())
+b = Api(httpx.Client())
+c = make(httpx.Client())          # factory — not supported in lite
+
+a.get("x")   # → requests
+b.get("y")   # → httpx
+c.get("z")   # → local  (known limitation)
+```
+
+### Relationship to Phase 8C Decorator Semantics
+
+7B-lite does **not** alter the decorator provenance contract established by
+8C / 8C+:
+
+- Decorator evidence continues to be exposed via `decorated_by`.
+- A decorator never changes the primary identity of the decorated target.
+- `ApiCall.decorated_by` exact-match (file_path, scope, func_name) is
+  unchanged; method-call `decorated_by` remains deferred to full 7B
+  class-aware resolution.
 
 ## Phase 8C: Decorator Provenance Semantics
 
