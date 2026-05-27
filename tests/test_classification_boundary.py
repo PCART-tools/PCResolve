@@ -616,3 +616,75 @@ def test_deep_dotted_import_descendant_is_library():
     assert len(calls) >= 1
     assert calls[0].top_library == "tornado", \
         f"Expected tornado, got {calls[0].top_library}"
+
+
+# ── Assigned-result receiver provenance (7B-lite) ─────────────────────
+
+
+def test_assigned_chained_call_result_inherits_library():
+    """predictions = self.model.predict(X)[0].reshape(...); predictions.ravel() -> GPy."""
+    code = (
+        "import GPy\n"
+        "class Wrapper:\n"
+        "    def __init__(self, X, y):\n"
+        "        self.model = GPy.models.GPRegression(X, y)\n"
+        "    def run(self, X):\n"
+        "        predictions = self.model.predict(X)[0].reshape(10, 10)\n"
+        "        return predictions.ravel()\n"
+        "Wrapper([[1]], [[2]]).run([[3]])\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "ravel" in c.expression:
+            assert c.top_library == "GPy", \
+                f"predictions.ravel() should be GPy, got {c.top_library} ({c.chain})"
+
+
+def test_tuple_unpack_assigned_result_inherits_library():
+    """a, b = self.model.predict(X); a.ravel() -> GPy."""
+    code = (
+        "import GPy\n"
+        "class Wrapper:\n"
+        "    def __init__(self, X, y):\n"
+        "        self.model = GPy.models.GPRegression(X, y)\n"
+        "    def run(self, X):\n"
+        "        a, b = self.model.predict(X)\n"
+        "        return a.ravel()\n"
+        "Wrapper([[1]], [[2]]).run([[3]])\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "ravel" in c.expression:
+            assert c.top_library == "GPy", \
+                f"a.ravel() should be GPy, got {c.top_library} ({c.chain})"
+
+
+def test_local_self_attr_not_polluted_to_library():
+    """self.y = y (local param); (self.y * mask).sum() stays local."""
+    code = (
+        "def compute(self, mask):\n"
+        "    return (self.y * mask).sum()\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "sum" in c.expression:
+            assert c.top_library == "local", \
+                f"local self.y method should stay local, got {c.top_library}"
+
+
+def test_non_import_backed_receiver_stays_local():
+    """Local variable assigned from non-import source stays local."""
+    code = (
+        "class A:\n"
+        "    def __init__(self):\n"
+        "        self.data = [1, 2, 3]\n"
+        "    def run(self):\n"
+        "        x = self.data\n"
+        "        return x.count(1)\n"
+        "A().run()\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "count" in c.expression:
+            assert c.top_library == "local", \
+                f"local x.count() should stay local, got {c.top_library}"
