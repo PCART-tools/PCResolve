@@ -96,19 +96,13 @@ def _is_import_origin(tracer, symbol):
 #  @param project_root Root directory to make relative.
 #  @return Relative POSIX path, or empty string.
 def _lookup_decorated_by(file_path, func_name, deco_by):
-    """Look up decorator evidence for an ApiCall by func_name.
-    Tries exact match first, then falls back to the last dot-separated
-    segment for method calls (e.g. c.method -> method)."""
+    """Look up decorator evidence for an ApiCall by exact func_name match.
+    Method calls (c.method) require class resolution (7B) to match
+    reliably; SymbolProvenance retains the full decorated_by evidence."""
     fn = func_name or ""
-    # exact match
     key = (file_path, fn)
     if key in deco_by:
         return list(deco_by[key])
-    # method call fallback: c.method -> method
-    if "." in fn:
-        key2 = (file_path, fn.split(".")[-1])
-        if key2 in deco_by:
-            return list(deco_by[key2])
     return []
 
 

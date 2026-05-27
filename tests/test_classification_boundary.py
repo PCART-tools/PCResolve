@@ -301,9 +301,10 @@ def test_apicall_decorated_by_field():
         f"decorated_by should contain flask, got {index_calls[0].decorated_by}"
 
 
-def test_decorated_method_call_has_decorated_by():
-    """A decorated method like c.method() must have decorated_by
-    set via fallback matching on the last func_name segment."""
+def test_decorated_method_call_decorated_by_known_limitation():
+    """Decorated method calls like c.method() do not yet get
+    decorated_by on ApiCall — class resolution needed (Phase 7B).
+    SymbolProvenance retains the full evidence."""
     code = ("import flask\n"
             "app = flask.Flask(__name__)\n"
             "class C:\n"
@@ -313,13 +314,47 @@ def test_decorated_method_call_has_decorated_by():
             "c = C()\n"
             "c.method()\n")
     r = _run_code(code)
+    # SymbolProvenance has the evidence
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by" and p.symbol == "method"]
+    assert len(deco_provs) >= 1
+    assert deco_provs[0].top_library == "flask"
+    # Call is local (correct, not misclassified as flask)
     method_calls = [c for c in r.all_api_calls
                     if "method" in c.expression and c.expression != "app.route('/m')"]
     assert len(method_calls) >= 1
-    assert "flask" in method_calls[0].decorated_by, \
-        f"c.method() decorated_by should contain flask, got {method_calls[0].decorated_by}"
-    assert method_calls[0].top_library == "local", \
-        f"c.method() should be local, got {method_calls[0].top_library}"
+    assert method_calls[0].top_library == "local"
+
+
+def test_decorated_by_method_fallback_not_leak_to_undecorated():
+    """With exact-match-only lookup, method calls (A().method())
+    have empty decorated_by — a known limitation until 7B class
+    resolution.  SymbolProvenance retains evidence.  Neither
+    A().method() nor B().method() gets decorated_by from the other."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "class A:\n"
+            "    @app.route('/m')\n"
+            "    def method(self):\n"
+            "        pass\n"
+            "class B:\n"
+            "    def method(self):\n"
+            "        pass\n"
+            "A().method()\n"
+            "B().method()\n")
+    r = _run_code(code)
+    # SymbolProvenance has the evidence scoped correctly
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by" and p.symbol == "method"]
+    assert len(deco_provs) == 1  # Only A.method is decorated
+    assert deco_provs[0].scope_name == "A"
+    assert deco_provs[0].top_library == "flask"
+    # Neither call gets decorated_by (known limitation, exact match only)
+    for c in r.all_api_calls:
+        if "method" in c.expression and c.expression != "app.route('/m')":
+            assert c.top_library == "local"
+            assert c.decorated_by == [], \
+                f"Method call decorated_by must be empty (known limitation)"
 
 
 def test_v1_still_works_for_local_functions():
