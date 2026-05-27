@@ -860,6 +860,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         else:
             direct_name = None
 
+        scope_name = ""
+        if self.scope_model == "v2":
+            cs = self.current_scope()
+            if cs.kind != SCOPE_MODULE:
+                scope_name = cs.name
         loc = {
             'func_name': func_name,
             'parameters': parameters,
@@ -867,6 +872,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             'col_offset': node.col_offset,
             'end_lineno': getattr(node, 'end_lineno', 0) or 0,
             'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
+            'scope_name': scope_name,
         }
 
         if isinstance(base, CallResult):

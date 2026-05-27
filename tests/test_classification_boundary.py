@@ -357,6 +357,25 @@ def test_decorated_by_method_fallback_not_leak_to_undecorated():
                 f"Method call decorated_by must be empty (known limitation)"
 
 
+def test_decorated_by_scope_isolation():
+    """Nested decorated handler must NOT pollute same-named module-level call."""
+    code = ("import click\n"
+            "def outer():\n"
+            "    @click.command()\n"
+            "    def handler():\n"
+            "        pass\n"
+            "def handler():\n"
+            "    pass\n"
+            "handler()\n")
+    r = _run_code(code)
+    handler_calls = [c for c in r.all_api_calls
+                     if c.expression == "handler()"]
+    assert len(handler_calls) >= 1
+    assert handler_calls[0].top_library == "local"
+    assert handler_calls[0].decorated_by == [], \
+        f"module-level handler() must NOT have decorated_by, got {handler_calls[0].decorated_by}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"

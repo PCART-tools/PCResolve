@@ -108,18 +108,18 @@ All fields are present in the `full` profile.  Summary profile includes only
 ### `ApiCall.decorated_by` Field Contract
 
 - **Type**: `list[str]`, default `[]`
-- **Stability**: additive-only within a schema version.  New decorator evidence
-  may appear; existing library entries are never removed without a version bump.
+- **Stability**: field presence and `list[str]` type are stable.  Analysis
+  precision improvements may add, remove, or correct evidence entries.
+  Summary/profile schema breaking changes require a version bump.
 - **Null/empty**: `[]` means "no decorator evidence found on this call".
   May be a false negative for method calls (`obj.method()`) until Phase 7B.
 - **Values**: only import-backed library names.
   `"local"`, `"python"`, `"unknown"` are excluded.
-- **Matching**: exact match on `(file_path, func_name)` where `func_name`
-  is the API call's bare function name (e.g. `"index"` for `index()`).
-  Method calls (`c.method()`) currently return `[]` — class resolution
-  needed for reliable scope-aware matching (Phase 7B).
-- **Existing values are not removed** when a schema version bumps;
-  they may be augmented with new library names as analysis improves.
+- **Matching**: exact match on `(file_path, scope_name, func_name)` where
+  `func_name` is the API call's bare function name (e.g. `"index"` for
+  `index()`) and `scope_name` disambiguates nested functions from
+  module-level calls.  Method calls (`c.method()`) currently return `[]`
+  — class resolution needed (Phase 7B).
 
 ### SymbolProvenance `kind="decorated_by"`
 

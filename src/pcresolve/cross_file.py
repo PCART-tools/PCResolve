@@ -95,14 +95,20 @@ def _is_import_origin(tracer, symbol):
 #  @param file_path Absolute file path.
 #  @param project_root Root directory to make relative.
 #  @return Relative POSIX path, or empty string.
-def _lookup_decorated_by(file_path, func_name, deco_by):
-    """Look up decorator evidence for an ApiCall by exact func_name match.
-    Method calls (c.method) require class resolution (7B) to match
-    reliably; SymbolProvenance retains the full decorated_by evidence."""
+def _lookup_decorated_by(file_path, func_name, scope_name, deco_by):
+    """Look up decorator evidence for an ApiCall by (file_path, scope, func_name).
+    Scope-aware matching prevents nested decorated functions from
+    polluting same-named module-level calls."""
     fn = func_name or ""
-    key = (file_path, fn)
+    sc = scope_name or ""
+    key = (file_path, sc, fn)
     if key in deco_by:
         return list(deco_by[key])
+    # scope-less fallback for module-level
+    if sc:
+        key2 = (file_path, "", fn)
+        if key2 in deco_by:
+            return list(deco_by[key2])
     return []
 
 
@@ -205,7 +211,7 @@ class ProjectAnalyzer:
             if prov.kind == "decorated_by":
                 if prov.top_library in ("", "local", "python", "unknown"):
                     continue
-                key = (prov.file_path, prov.symbol)
+                key = (prov.file_path, prov.scope_name or "", prov.symbol)
                 if prov.top_library not in deco_by.setdefault(key, []):
                     deco_by[key].append(prov.top_library)
 
@@ -238,7 +244,8 @@ class ProjectAnalyzer:
                         alternatives=c.get('alternatives', []),
                         decorated_by=_lookup_decorated_by(
                             c.get('file_path', ''),
-                            c.get('func_name', ''), deco_by),
+                            c.get('func_name', ''),
+                            c.get('scope_name', ''), deco_by),
                     )
                     for c in self.all_calls.get(module, [])
                 ],
@@ -266,7 +273,8 @@ class ProjectAnalyzer:
                     alternatives=c.get('alternatives', []),
                     decorated_by=_lookup_decorated_by(
                         c.get('file_path', ''),
-                        c.get('func_name', ''), deco_by),
+                        c.get('func_name', ''),
+                        c.get('scope_name', ''), deco_by),
                 ))
 
         library_usage = self._build_library_usage(all_api_calls, all_provenance)
