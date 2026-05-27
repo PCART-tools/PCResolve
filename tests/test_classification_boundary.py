@@ -376,6 +376,25 @@ def test_decorated_by_scope_isolation():
         f"module-level handler() must NOT have decorated_by, got {handler_calls[0].decorated_by}"
 
 
+def test_module_level_decorator_not_leak_into_nested_scope():
+    """Module-level @click.command handler must NOT decorate_by
+    a same-named function defined inside a nested scope."""
+    code = ("import click\n"
+            "@click.command()\n"
+            "def handler():\n"
+            "    pass\n"
+            "def outer():\n"
+            "    def handler():\n"
+            "        pass\n"
+            "    handler()\n")
+    r = _run_code(code)
+    # Find the handler() call inside outer()
+    for c in r.all_api_calls:
+        if c.expression == "handler()" and c.top_library == "local":
+            assert c.decorated_by == [], \
+                f"nested handler() must NOT have decorated_by, got {c.decorated_by}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"

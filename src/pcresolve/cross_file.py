@@ -97,19 +97,11 @@ def _is_import_origin(tracer, symbol):
 #  @return Relative POSIX path, or empty string.
 def _lookup_decorated_by(file_path, func_name, scope_name, deco_by):
     """Look up decorator evidence for an ApiCall by (file_path, scope, func_name).
-    Scope-aware matching prevents nested decorated functions from
-    polluting same-named module-level calls."""
-    fn = func_name or ""
-    sc = scope_name or ""
-    key = (file_path, sc, fn)
-    if key in deco_by:
-        return list(deco_by[key])
-    # scope-less fallback for module-level
-    if sc:
-        key2 = (file_path, "", fn)
-        if key2 in deco_by:
-            return list(deco_by[key2])
-    return []
+    Scope-aware matching prevents cross-scope pollution in both directions:
+    nested decorated calls don't leak to module-level, and module-level
+    decorated calls don't leak into nested scopes."""
+    key = (file_path, scope_name or "", func_name or "")
+    return list(deco_by.get(key, []))
 
 
 def _normalize_path_for_usage(file_path, project_root):
