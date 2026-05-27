@@ -197,6 +197,49 @@ def test_decorator_expression_is_api_call():
         f"app.route() should be flask, got {route_calls[0].top_library}"
 
 
+def test_click_decorator_target_is_local():
+    """click.command()/option() decorators must not make the command local."""
+    code = ("import click\n"
+            "@click.command()\n"
+            "@click.option('--name')\n"
+            "def hello(name):\n"
+            "    click.echo(f'Hello {name}')\n"
+            "hello()\n")
+    r = _run_code(code)
+    hello_calls = [c for c in r.all_api_calls
+                   if c.expression == "hello()"]
+    assert len(hello_calls) == 1
+    assert hello_calls[0].top_library == "local", \
+        f"hello() should be local, got {hello_calls[0].top_library}"
+    echo_calls = [c for c in r.all_api_calls
+                  if "echo" in c.expression]
+    assert len(echo_calls) >= 1
+    assert echo_calls[0].top_library == "click", \
+        f"click.echo() should be click, got {echo_calls[0].top_library}"
+
+
+def test_stacked_decorators_all_preserved():
+    """Stacked decorators must all appear as decorated_by evidence."""
+    code = ("def deco_a(f):\n"
+            "    return f\n"
+            "def deco_b(f):\n"
+            "    return f\n"
+            "@deco_a\n"
+            "@deco_b\n"
+            "def f():\n"
+            "    pass\n"
+            "f()\n")
+    r = _run_code(code)
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by" and p.symbol == "f"]
+    assert len(deco_provs) == 2, f"Expected 2 decorated_by, got {len(deco_provs)}"
+    f_calls = [c for c in r.all_api_calls
+               if c.expression == "f()"]
+    assert len(f_calls) == 1
+    assert f_calls[0].top_library == "local", \
+        f"Decorated f() should be local, got {f_calls[0].top_library}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"
