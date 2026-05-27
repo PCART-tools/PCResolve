@@ -493,6 +493,23 @@ def test_7b_alias_receiver_follows_to_external():
                 f"c.get() via alias should be httpx, got {c.top_library}"
 
 
+def test_self_attr_dotted_callee_traces_to_library():
+    """self.model.predict(X) where self.model = GPy.models.GPRegression(...)
+    must trace the method call to GPy via instance_attrs."""
+    code = ("import GPy\n"
+            "class Model:\n"
+            "    def __init__(self, X, y):\n"
+            "        self.model = GPy.models.GPRegression(X, y)\n"
+            "    def predict(self, X):\n"
+            "        return self.model.predict(X)[0]\n"
+            "m = Model([[1]], [[2]])\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "self.model.predict" in c.expression:
+            assert c.top_library == "GPy", \
+                f"self.model.predict should be GPy, got {c.top_library}"
+
+
 def test_7b_factory_returned_instance_stays_local():
     """Factory-returned class instances (c = make(httpx.Client()))
     must stay local — no constructor call-site match available."""

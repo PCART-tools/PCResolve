@@ -515,6 +515,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             callee = attr_source.callee
                             if '.' not in callee and callee in self.symbols.direct:
                                 return InstanceMethod(callee, method_name)
+                            if '.' in callee:
+                                prefix = callee.split('.')[0]
+                                if prefix in self.import_from_symbols:
+                                    return InstanceMethod(prefix, method_name)
+                                if prefix in self.symbols.direct:
+                                    return InstanceMethod(prefix, method_name)
+                                return InstanceMethod(callee, method_name)
                         if isinstance(attr_source, str) and '.' not in attr_source and attr_source in self.symbols.direct:
                             return InstanceMethod(attr_source, method_name)
                         if isinstance(attr_source, str) and attr_source != "local":
