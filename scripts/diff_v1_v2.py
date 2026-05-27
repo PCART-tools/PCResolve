@@ -14,6 +14,26 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from pcresolve.cross_file import analyze_project
 
+BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
+                            "tests", "fixtures", "diff_baselines")
+
+
+def load_baseline(name):
+    path = os.path.join(BASELINE_DIR, name + ".json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
+def save_baseline(name, regressions, illegal_keys):
+    os.makedirs(BASELINE_DIR, exist_ok=True)
+    path = os.path.join(BASELINE_DIR, name + ".json")
+    with open(path, "w") as f:
+        json.dump({"regressions": regressions,
+                   "illegal_keys": illegal_keys}, f, indent=2)
+    return path
+
 
 def run(model, path):
     t0 = time.perf_counter()
@@ -153,15 +173,40 @@ def main():
         else:
             paths.append(arg)
 
+    save_baselines = "--save-baseline" in sys.argv
+    if save_baselines:
+        sys.argv.remove("--save-baseline")
+
     total_regressions = 0
     total_illegal = 0
+    over_baseline = 0
+    has_baseline = False
     summary_lines = []
     for path in paths:
+        name = os.path.basename(path)
         regs, illegal_count, _ = compare(path)
         total_regressions += regs
         total_illegal += illegal_count
-        summary_lines.append("%s: regressions=%d" % (
-            os.path.basename(path), regs))
+
+        baseline = load_baseline(name)
+        if baseline:
+            has_baseline = True
+            ok = regs <= baseline.get("regressions", 0)
+            if not ok:
+                over_baseline += 1
+            status = "OK" if ok else "EXCEEDED"
+            summary_lines.append(
+                "%s: regressions=%d (baseline=%d, illegal=%d) [%s]" % (
+                    name, regs, baseline.get("regressions", 0),
+                    illegal_count, status))
+        else:
+            summary_lines.append(
+                "%s: regressions=%d (no baseline, illegal=%d) [PENDING]" % (
+                    name, regs, illegal_count))
+
+        if save_baselines:
+            bp = save_baseline(name, regs, illegal_count)
+            print("  Baseline saved: %s" % bp)
         print()
 
     print("SUMMARY")
@@ -170,8 +215,28 @@ def main():
     print("  TOTAL regressions: %d" % total_regressions)
     print("  TOTAL illegal keys: %d" % total_illegal)
 
-    if total_regressions or total_illegal:
+    if save_baselines:
+        print()
+        print("Baselines saved.  Rerun without --save-baseline to gate.")
+        return 0
+
+    if over_baseline:
+        print()
+        print("%d project(s) exceed baseline." % over_baseline)
         sys.exit(1)
+
+    if total_illegal:
+        print()
+        print("Illegal keys detected (always fails).")
+        sys.exit(1)
+
+    if not has_baseline:
+        print()
+        print("No baselines found.  Run with --save-baseline to create.")
+        print("  python %s --save-baseline %s" % (
+            __file__, " ".join(paths)))
+
+    return 0
 
 
 if __name__ == "__main__":

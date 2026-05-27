@@ -419,11 +419,15 @@ def test_local_class_multi_instance_different_libraries():
                 f"b.get() should be httpx, got {c.top_library}"
 
 
-# ── Phase 7B hardening ──────────────────────────────────────────────────
+# ── Phase 7B hardening (4 categories) ────────────────────────────────────
+#  (1) multi-instance: test_local_class_multi_instance_different_libraries
+#  (2) alias receiver:  test_7b_alias_receiver_follows_to_external
+#  (3) factory local:   test_7b_factory_returned_instance_stays_local
+#  (4) pure-local:      test_7b_pure_local_method_stays_local
 
 def test_7b_alias_receiver_follows_to_external():
-    """c = b; c.get(...) where b = Api(httpx.Client()) must still trace
-    to httpx through the alias."""
+    """(2) alias receiver — c = b; c.get(...) where b = Api(httpx.Client())
+    must still trace to httpx through the alias."""
     code = ("import requests\n"
             "import httpx\n"
             "class Api:\n"
