@@ -575,22 +575,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
     ## --- Decorator binding ---
 
-    ## Bind a decorated target to its decorator's source.
+    ## Record decorator evidence without overwriting the target's primary binding.
     #
-    #  Applies decorators from innermost to outermost, so the target resolves
-    #  to whatever the outermost decorator returns.
+    #  Each decorator expression is traced and recorded as a separate
+    #  provenance record (kind="decorated_by"), while the decorated
+    #  function/class keeps its "local" primary identity.
     #  @param target_name Name of the decorated function/class.
     #  @param decorator_nodes List of decorator AST nodes.
     def _bind_decorated_target(self, target_name, decorator_nodes):
         if not decorator_nodes:
             return
-        current_source = target_name
         for deco in reversed(decorator_nodes):
             deco_source = self.trace_source(deco)
             if deco_source and not (isinstance(deco_source, str) and _is_builtin(deco_source)):
-                current_source = deco_source
-        if current_source and current_source != target_name:
-            self._bind_target_name(target_name, current_source)
+                self._add_symbol_ref(
+                    target_name, deco_source, "decorated_by", deco)
 
     ## --- Assignment helpers ---
 

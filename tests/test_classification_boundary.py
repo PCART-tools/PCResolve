@@ -146,6 +146,57 @@ def test_mixed_local_third_party_alternatives():
 
 # ── Test 9: v1 mode should still pass all existing tests ───────────────
 
+# ── Phase 8C: decorator provenance ────────────────────────────────────
+
+def test_decorated_function_call_is_local():
+    """Decorated function call must be local, not the decorator's library."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "@app.route('/')\n"
+            "def index():\n"
+            "    return 'hello'\n"
+            "index()\n")
+    r = _run_code(code)
+    index_calls = [c for c in r.all_api_calls
+                   if c.expression == "index()"]
+    assert len(index_calls) == 1
+    assert index_calls[0].top_library == "local", \
+        f"index() should be local, got {index_calls[0].top_library}"
+
+
+def test_decorator_evidence_in_provenance():
+    """Decorator source must appear as kind='decorated_by' in provenance."""
+    code = ("from dataclasses import dataclass\n"
+            "@dataclass\n"
+            "class User:\n"
+            "    name: str\n"
+            "User('Alice', 30)\n")
+    r = _run_code(code)
+    deco_provs = [p for p in r.all_symbol_provenance
+                  if p.kind == "decorated_by"]
+    assert len(deco_provs) >= 1, "Expected decorated_by provenance"
+    assert deco_provs[0].top_library == "dataclasses", \
+        f"Expected dataclasses, got {deco_provs[0].top_library}"
+    # User() should still be local
+    user_calls = [c for c in r.all_api_calls if "User" in c.expression]
+    assert len(user_calls) >= 1
+    assert user_calls[0].top_library == "local"
+
+
+def test_decorator_expression_is_api_call():
+    """Decorator expression itself must be an API call to the library."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "@app.route('/')\n"
+            "def index():\n"
+            "    pass\n")
+    r = _run_code(code)
+    route_calls = [c for c in r.all_api_calls if "route" in c.expression]
+    assert len(route_calls) >= 1
+    assert route_calls[0].top_library == "flask", \
+        f"app.route() should be flask, got {route_calls[0].top_library}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"
