@@ -947,3 +947,49 @@ def test_same_name_function_across_modules_not_polluted():
                 f"b.py x.count() must not be polluted to numpy, got {c.top_library} ({c.file_path})"
             assert c.top_library in ("local", "python", "unknown"), \
                 f"b.py x.count() expected local/python/unknown, got {c.top_library}"
+
+
+# ── Phase 7B-full PR3-fix: method-sensitive attr lookup ─────────────────
+
+
+def test_unrelated_import_attr_not_leaked_to_method():
+    """c.helper() stays local even if class has self.session = requests.Session()."""
+    code = (
+        "import requests\n"
+        "class Client:\n"
+        "    def __init__(self):\n"
+        "        self.session = requests.Session()\n"
+        "    def helper(self):\n"
+        "        return 1\n"
+        "c = Client()\n"
+        "c.helper()\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "helper" in c.expression:
+            assert c.top_library == "local", \
+                f"c.helper() should stay local, got {c.top_library} ({c.chain})"
+
+
+def test_method_gets_right_attr_not_wrong_one():
+    """c.shape() gets numpy from self.arr, not requests from self.session."""
+    code = (
+        "import requests\n"
+        "import numpy as np\n"
+        "class C:\n"
+        "    def __init__(self):\n"
+        "        self.session = requests.Session()\n"
+        "        self.arr = np.array([1])\n"
+        "    def shape(self):\n"
+        "        return self.arr.reshape(1, 1)\n"
+        "c = C()\n"
+        "c.shape()\n"
+    )
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "reshape" in c.expression:
+            assert c.top_library == "numpy", \
+                f"self.arr.reshape() should be numpy, got {c.top_library} ({c.chain})"
+        if "shape" in c.expression and "reshape" not in c.expression:
+            assert c.top_library != "requests", \
+                f"c.shape() must not be requests, got {c.top_library} ({c.chain})"

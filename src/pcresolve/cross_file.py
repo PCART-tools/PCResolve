@@ -1151,7 +1151,7 @@ class ProjectAnalyzer:
                 if not resolved:
                     class_direct = tracer.symbols.direct.get(class_symbol)
                     if isinstance(class_direct, str) and self.is_local(class_direct):
-                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol)
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol, b)
                         if cg_attr is not None:
                             cg_mod, cg_top = cg_attr
                             return (f"{a}.{b}", cg_mod, cg_top)
@@ -1161,7 +1161,7 @@ class ProjectAnalyzer:
                             module, a, b, a, tracer, tracers)
                         if ext:
                             return (f"{a}.{b}", module, ext)
-                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol)
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol, b)
                         if cg_attr is not None:
                             cg_mod, cg_top = cg_attr
                             return (f"{a}.{b}", cg_mod, cg_top)
@@ -1176,7 +1176,7 @@ class ProjectAnalyzer:
             top = self._top_source(src_module, src_symbol, tracers)
             if top in ("local", "unknown", ""):
                 cg_attr = self._lookup_cg_class_attr_source(
-                    module, class_symbol)
+                    module, class_symbol, b)
                 if cg_attr is not None:
                     cg_mod, cg_top = cg_attr
                     return (f"{a}.{b}", cg_mod, cg_top)
@@ -1412,17 +1412,18 @@ class ProjectAnalyzer:
                         return top
         return None
 
-    ## Look up import-backed constructor attr from ClassSummary (7B-full PR3).
+    ## Look up import-backed constructor attr used by a specific method (7B-full PR3).
     #
-    #  Searches ProjectCallGraph for a class's attrs; returns the first
-    #  import-backed source found as (src_module, top).  Used when a local
-    #  class method call cannot be resolved by return_sources or parameter
-    #  tracing.
+    #  Searches ProjectCallGraph for edges where the method (identified by
+    #  class_name + method_name) calls through a self.attr whose constructor
+    #  source is import-backed.  Only attrs actually used by the method are
+    #  considered — a class's unrelated import-backed attrs do not leak.
     #  @param cur_module The module where the class is defined.
     #  @param class_name The local class name.
+    #  @param method_name The method being called (e.g. "fit").
     #  @return Tuple of (src_module, top_library) or None.
-    def _lookup_cg_class_attr_source(self, cur_module, class_name):
-        if not isinstance(class_name, str):
+    def _lookup_cg_class_attr_source(self, cur_module, class_name, method_name):
+        if not isinstance(class_name, str) or not isinstance(method_name, str):
             return None
         cg = getattr(self, 'project_cg', None)
         if cg is None:
@@ -1439,34 +1440,68 @@ class ProjectAnalyzer:
             cs = mcg.classes.get(class_name)
             if cs is None:
                 continue
+            # Collect import-backed attrs with their library provenance.
+            import_attrs = {}  # attr_name -> (src_module, top)
             for attr_name, src in cs.attrs.items():
                 src_norm = normalize_source(src)
                 if isinstance(src_norm, CallResult):
                     if isinstance(src_norm.callee, str):
                         callee = src_norm.callee
-                        # Skip builtins and local names; keep dotted or non-local.
                         if _is_builtin(callee) or self.is_local(callee):
                             continue
                         top = self._top_name(callee)
                         if top and top not in ("local", "unknown", ""):
-                            return (module, top)
+                            import_attrs[attr_name] = (module, top)
                 elif isinstance(src_norm, str):
                     if (self.is_local(src_norm) or src_norm in ("local", "unknown", "")
                             or _is_builtin(src_norm)):
                         continue
-                    # Skip bare parameter names (self.x = x, with possible renames).
                     bare = attr_name[5:] if attr_name.startswith("self.") else attr_name
                     if src_norm == bare or src_norm.startswith(bare):
                         continue
-                    # Require dotted source (external/import-backed).
                     if '.' not in src_norm:
                         continue
                     top = self._top_name(src_norm)
                     if top and top not in ("local", "unknown", ""):
-                        return (module, top)
-            # Found class but no import-backed attrs — stop searching.
+                        import_attrs[attr_name] = (module, top)
+            if not import_attrs:
+                return None
+            # Only return an attr if the method actually uses it.
+            # Check edges where caller is this method.
+            method_qualname = class_name + "." + method_name
+            method_tops = {}  # top -> (src_module, top)
+            for edge in mcg.edges:
+                if edge.caller.qualname != method_qualname:
+                    continue
+                rcvr = edge.receiver_source
+                if rcvr is None:
+                    continue
+                rcvr_norm = normalize_source(rcvr)
+                # Match receiver against import-backed attrs.
+                for attr_name, (attr_mod, attr_top) in import_attrs.items():
+                    if self._edge_receiver_matches_attr(rcvr_norm, cs, attr_name):
+                        method_tops[attr_top] = (attr_mod, attr_top)
+            if len(method_tops) == 1:
+                return list(method_tops.values())[0]
+            # Multiple candidates — return None, let classifier handle alternatives.
             return None
         return None
+
+    ## Check whether a CallEdge receiver matches a ClassSummary attr source.
+    #  @param rcvr_norm Normalized receiver source from the edge.
+    #  @param cs The ClassSummary.
+    #  @param attr_name The attr name to check (e.g. "self.gp").
+    #  @return True if the receiver matches the attr's source.
+    def _edge_receiver_matches_attr(self, rcvr_norm, cs, attr_name):
+        attr_src = cs.attrs.get(attr_name)
+        if attr_src is None:
+            return False
+        attr_norm = normalize_source(attr_src)
+        if isinstance(rcvr_norm, CallResult) and isinstance(attr_norm, CallResult):
+            return rcvr_norm.callee == attr_norm.callee
+        if isinstance(rcvr_norm, str) and isinstance(attr_norm, str):
+            return rcvr_norm == attr_norm
+        return rcvr_norm == attr_norm
 
     #  @param module The module where the call occurs.
     #  @param callee The function name whose parameter is being resolved.

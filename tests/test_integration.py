@@ -153,7 +153,7 @@ def test_tests9_container_subscript_cross_file():
 
 def test_tests10_class_method_and_return():
     """Class methods on local classes, return-flow, and chained calls."""
-    result = analyze_project(os.path.join(FIXTURES, "tests10"))
+    result = analyze_project(os.path.join(FIXTURES, "tests10"), scope_model="v2")
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     # local class instantiation
     assert tops_by_expr.get("UserClient('https://api.example.com')") == "local"

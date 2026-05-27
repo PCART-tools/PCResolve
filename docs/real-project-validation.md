@@ -10,7 +10,7 @@ recorded limits, zero illegal keys).
 |---------|-----------|-------|-------|---|---|---|-------|
 | click1 | web/CLI | 1 | 5 | 0 | 0 | 0 | Clean |
 | flask1 | web | 2 | 7 | 0 | 0 | 0 | Clean |
-| django | web/async | 1 | 43 | 0 | 0 | 0 | Fully resolved (7B-lite PR 1) |
+| django | web/async | 1 | 43 | 0 | 4 | 0 | method-sensitive CG attr lookup (7B-full PR3) |
 | tensorflow1 | ML | 1 | 15 | 0 | 0 | 0 | Clean |
 | Deep-Graph-Kernels | ML/scientific | 7 | 79 | 0 | 0 | 0 | Clean |
 | qho | scientific | 2 | 71 | 0 | 0 | 0 | Clean |
@@ -20,9 +20,9 @@ recorded limits, zero illegal keys).
 | hfhd | scientific | 6 | 444 | 4 | 20 | 1 | 7B-lite PR 1 reduced from 8 |
 | MAHE_OD_DATASET | ML/vision | 13 | 480 | 16 | 3 | 10 | 7B-lite PR 1 reduced from 17 |
 | greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 0 | 7B-lite PR 1 reduced from 157 |
-| polire | scientific | 35 | 421 | 6 | 5 | 0 | assigned-result receiver tracking, -3 predictions.ravel |
+| polire | scientific | 35 | 421 | 6 | 15 | 0 | method-sensitive CG attr lookup (7B-full PR3) |
 
-**Totals**: 191 regressions, 33 improvements, 11 precision changes, 0 illegal keys.
+**Totals**: 191 regressions, 43 improvements, 11 precision changes, 0 illegal keys.
 **Legend**: R=regressions, I=improvements, P=precision changes
 
 ## Current Taxonomy (--taxonomy)
