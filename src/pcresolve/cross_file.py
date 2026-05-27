@@ -1356,7 +1356,11 @@ class ProjectAnalyzer:
     def _resolve_local_method_to_external(self, module, class_name,
                                            method_name, receiver,
                                            tracer, tracers):
-        rs = tracer.return_sources.get(method_name)
+        ## Check qualname first so class methods don't share bare keys.
+        qkey = class_name + "." + method_name
+        rs = tracer.return_sources.get(qkey)
+        if not rs:
+            rs = tracer.return_sources.get(method_name)
         if not rs:
             return None
         rs = normalize_source(rs)

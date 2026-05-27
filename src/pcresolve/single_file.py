@@ -1267,7 +1267,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._func_stack.pop()
         self.pop_scope()
         ## Collect FunctionSummary for Phase 7B-full facts.
-        func_returns = self.return_sources.get(node.name)
+        ## Use qualname so class methods don't share bare-name keys.
+        func_returns = self.return_sources.get(qualname)
+        if func_returns is None and not self._class_stack:
+            func_returns = self.return_sources.get(node.name)
         local_assignments = {}
         fs = FunctionSummary(
             id=fid,
@@ -1558,16 +1561,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if (source == "local" and isinstance(node.value, ast.Name)
                             and node.value.id in self.function_params.get(func_name, [])):
                         new_src = node.value.id
-                    old = self.return_sources.get(func_name)
-                    merged = make_source_set([old, new_src] if old else [new_src])
-                    self.return_sources[func_name] = merged
-                    ## Also write qualified key so methods on different
-                    ## classes don't share return_sources via bare names.
+                    ## Write qualified key for class methods; bare key only
+                    ## for non-class functions to prevent cross-class pollution.
                     if self._class_stack:
                         qkey = self._class_stack[-1] + "." + func_name
                         old_q = self.return_sources.get(qkey)
                         self.return_sources[qkey] = make_source_set(
                             [old_q, new_src] if old_q else [new_src])
+                    else:
+                        old = self.return_sources.get(func_name)
+                        self.return_sources[func_name] = make_source_set(
+                            [old, new_src] if old else [new_src])
                     self._add_symbol_ref(
                         func_name + ".return", source, "return", node)
         self.generic_visit(node)

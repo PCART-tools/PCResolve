@@ -1093,3 +1093,25 @@ def test_multi_return_source_set_not_pick_first():
     for c in calls:
         assert c.top_library != "numpy", \
             f"y.sum() should not assume numpy from multi-return, got {c.top_library}"
+
+
+def test_cg_class_summary_method_returns_not_cross_class_polluted():
+    """B.get returns must not inherit A.get's numpy return source."""
+    code = (
+        "import numpy as np\n"
+        "class A:\n"
+        "    def get(self):\n"
+        "        return np.array([1])\n"
+        "class B:\n"
+        "    def get(self):\n"
+        "        return 1\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    b_methods = cg.modules["main"].classes["B"].methods
+    assert "get" in b_methods, f"B.get not in methods: {list(b_methods.keys())}"
+    returns = b_methods["get"].returns
+    if returns is not None:
+        # Must not contain numpy from A.get's return
+        returns_str = str(returns)
+        assert "np" not in returns_str and "numpy" not in returns_str, \
+            f"B.get returns must not leak A.get's numpy, got {returns!r}"
