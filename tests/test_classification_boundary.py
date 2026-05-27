@@ -419,6 +419,53 @@ def test_local_class_multi_instance_different_libraries():
                 f"b.get() should be httpx, got {c.top_library}"
 
 
+# ── Phase 7B-lite PR 1: receiver provenance regression tests ────────────
+
+def test_comprehension_iteration_receiver_traces_to_library():
+    """v.mean() inside a comprehension over a locally-assigned DataFrame
+    list must trace to pandas via the root scope binding."""
+    code = ("import pandas as pd\n"
+            "groups = [pd.DataFrame()]\n"
+            "result = [v.mean() for v in groups]\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "mean" in c.expression:
+            assert c.top_library == "pandas", \
+                f"comprehension receiver should be pandas, got {c.top_library}"
+
+
+def test_attribute_chain_receiver_uses_root_binding():
+    """x.child.method() must trace root x through scope binding."""
+    code = ("import ext\n"
+            "class Wrapper:\n"
+            "    def __init__(self, client):\n"
+            "        self.c = client\n"
+            "    def run(self):\n"
+            "        return self.c.connect()\n"
+            "def build():\n"
+            "    w = Wrapper(ext.Client())\n"
+            "    return w.run()\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "connect" in c.expression:
+            assert c.top_library == "ext", \
+                f"attribute-chain receiver should trace to ext, got {c.top_library}"
+
+
+def test_local_object_attribute_chain_not_misattributed():
+    """Local object attribute must not be misattributed to a third-party."""
+    code = ("class Local:\n"
+            "    def method(self): pass\n"
+            "def f(x):\n"
+            "    x.child.method()\n"
+            "f(Local())\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "method" in c.expression:
+            assert c.top_library == "local", \
+                f"local object method must be local, got {c.top_library}"
+
+
 # ── Phase 7B hardening (4 categories) ────────────────────────────────────
 #  (1) multi-instance: test_local_class_multi_instance_different_libraries
 #  (2) alias receiver:  test_7b_alias_receiver_follows_to_external

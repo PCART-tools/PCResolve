@@ -559,20 +559,32 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  Unwinds chained calls and attributes to find the base object.
     #  @param receiver_node The receiver AST node.
     #  @return Base symbol name, or None.
+    ## Resolve an Attribute receiver through scope binding.
+    #
+    #  When the root of the attribute chain (e.g. "v" in "v.armW.mean")
+    #  has a scope binding with a library source, propagate it instead
+    #  of returning the raw dotted name.
+    #  @param receiver_node The Attribute AST node.
+    #  @param receiver_name The full dotted name (e.g. "v.armW").
+    #  @return Resolved source or the original receiver_name.
+    def _resolve_attribute_receiver_chain(self, receiver_node, receiver_name):
+        if receiver_name in self.symbols.direct:
+            return receiver_name
+        chain = self._attribute_chain_list(receiver_node)
+        if chain and self.scope_model == "v2":
+            root_src = self._lookup_name_source(chain[0])
+            if root_src and root_src != chain[0]:
+                return root_src
+        return receiver_name
+
     def _resolve_call_receiver(self, receiver_node):
         if isinstance(receiver_node, ast.Name):
             return self._lookup_name_source(receiver_node.id)
         if isinstance(receiver_node, ast.Attribute):
             receiver_name = self._attribute_name(receiver_node)
             if receiver_name is not None:
-                if receiver_name in self.symbols.direct:
-                    return receiver_name
-                chain = self._attribute_chain_list(receiver_node)
-                if chain and self.scope_model == "v2":
-                    root_src = self._lookup_name_source(chain[0])
-                    if root_src and root_src != chain[0]:
-                        return root_src
-                return receiver_name
+                return self._resolve_attribute_receiver_chain(
+                    receiver_node, receiver_name)
             return self._resolve_call_receiver(receiver_node.value)
         if isinstance(receiver_node, ast.Call):
             inner_receiver = self.get_base(receiver_node, call_lookup=True)

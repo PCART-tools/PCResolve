@@ -75,13 +75,17 @@ dynamic dispatch are inherently unresolvable by static analysis alone.
 | Top-level flow-sensitive reassignment | 6 CFG (optional) |
 | Runtime attribute / `getattr` calls | not in scope |
 
+## Taxonomy Semantics
+
+The `--taxonomy` flag separates regressions into two tiers:
+
+| Tier | Meaning | Priority |
+|------|---------|----------|
+| `third-party API loss` | v1 attributed a call to a library, v2 lost it (`library → local/unknown`) | High — these are real provenance gaps |
+| `local-to-unknown` | v1 attributed to local, v2 changed to unknown (`local → unknown`) | Low — scope precision changes, not library loss |
+
+The `regressions` gate number includes **both** tiers.  Reduction sprints
+should target `third-party API loss / attribute_method` specifically, not
+the raw gate total.
+
 ## Baseline Gate Usage
-
-```bash
-# Create baseline (one-time)
-python scripts/diff_v1_v2.py --save-baseline tests/fixtures/tested_projects/<project>
-
-# Gate (CI-ready)
-python scripts/diff_v1_v2.py tests/fixtures/tested_projects/<project>
-# exit 0 if regressions <= baseline AND illegal_keys == 0
-```
