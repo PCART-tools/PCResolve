@@ -26,11 +26,13 @@ def load_baseline(name):
     return None
 
 
-def save_baseline(name, regressions, illegal_keys):
+def save_baseline(name, regressions, improvements, precision, illegal_keys):
     os.makedirs(BASELINE_DIR, exist_ok=True)
     path = os.path.join(BASELINE_DIR, name + ".json")
     with open(path, "w") as f:
         json.dump({"regressions": regressions,
+                   "improvements": improvements,
+                   "precision": precision,
                    "illegal_keys": illegal_keys}, f, indent=2)
     return path
 
@@ -134,7 +136,8 @@ def compare(path):
         if illegal_provs:
             print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
 
-    return len(call_regressions), illegal, len(v2_only_libs)
+    return (len(call_regressions), len(call_improvements),
+            len(call_precision), illegal, len(v2_only_libs))
 
 
 def _is_illegal_key(name):
@@ -178,14 +181,16 @@ def main():
             paths.append(arg)
 
     total_regressions = 0
+    total_improvements = 0
     total_illegal = 0
     over_baseline = 0
     has_baseline = False
     summary_lines = []
     for path in paths:
         name = os.path.basename(path)
-        regs, illegal_count, _ = compare(path)
+        regs, imps, prec, illegal_count, _ = compare(path)
         total_regressions += regs
+        total_improvements += imps
         total_illegal += illegal_count
 
         baseline = load_baseline(name)
@@ -196,16 +201,16 @@ def main():
                 over_baseline += 1
             status = "OK" if ok else "EXCEEDED"
             summary_lines.append(
-                "%s: regressions=%d (baseline=%d, illegal=%d) [%s]" % (
+                "%s: R=%d/%d I=%d P=%d illegal=%d [%s]" % (
                     name, regs, baseline.get("regressions", 0),
-                    illegal_count, status))
+                    imps, prec, illegal_count, status))
         else:
             summary_lines.append(
-                "%s: regressions=%d (no baseline, illegal=%d) [PENDING]" % (
-                    name, regs, illegal_count))
+                "%s: R=%d I=%d P=%d illegal=%d [PENDING]" % (
+                    name, regs, imps, prec, illegal_count))
 
         if save_baselines:
-            bp = save_baseline(name, regs, illegal_count)
+            bp = save_baseline(name, regs, imps, prec, illegal_count)
             print("  Baseline saved: %s" % bp)
         print()
 
@@ -213,6 +218,7 @@ def main():
     for line in summary_lines:
         print("  %s" % line)
     print("  TOTAL regressions: %d" % total_regressions)
+    print("  TOTAL improvements: %d" % total_improvements)
     print("  TOTAL illegal keys: %d" % total_illegal)
 
     if save_baselines:
