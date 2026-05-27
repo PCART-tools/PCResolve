@@ -137,7 +137,8 @@ def compare(path):
             print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
 
     return (len(call_regressions), len(call_improvements),
-            len(call_precision), illegal, len(v2_only_libs))
+            len(call_precision), illegal, len(v2_only_libs),
+            call_regressions)
 
 
 def _is_illegal_key(name):
@@ -155,6 +156,10 @@ def main():
     save_baselines = "--save-baseline" in sys.argv
     if save_baselines:
         sys.argv.remove("--save-baseline")
+
+    show_taxonomy = "--taxonomy" in sys.argv
+    if show_taxonomy:
+        sys.argv.remove("--taxonomy")
 
     if len(sys.argv) < 2:
         print("Usage: python scripts/diff_v1_v2.py <project_dir> [...]",
@@ -197,9 +202,11 @@ def main():
     over_baseline = 0
     has_baseline = False
     summary_lines = []
+    all_regression_details = []
     for path in paths:
         name = os.path.basename(path)
-        regs, imps, prec, illegal_count, _ = compare(path)
+        regs, imps, prec, illegal_count, _, details = compare(path)
+        all_regression_details.extend(details)
         total_regressions += regs
         total_improvements += imps
         total_precision += prec
@@ -248,6 +255,34 @@ def main():
         print()
         print("Illegal keys detected (always fails).")
         sys.exit(1)
+
+    if show_taxonomy and all_regression_details:
+        print()
+        print("REGRESSION TAXONOMY")
+        taxonomy = {}
+        for key, v1t, v2t in all_regression_details:
+            expr = key[3]  # expression
+            cat = "other"
+            if "[" in expr and "." in expr and expr.index("[") < expr.index("."):
+                cat = "container/subscript"
+            elif "(" in expr and "." not in expr.split("(")[0]:
+                cat = "bare_call"
+            elif "." in expr and "(" in expr:
+                cat = "attribute_method"
+            elif "." in expr:
+                cat = "attribute"
+            else:
+                cat = "other"
+            if v2t == "unknown":
+                cat = cat + " (->unknown)"
+            taxonomy.setdefault(cat, []).append(expr)
+        for cat in sorted(taxonomy, key=lambda c: -len(taxonomy[c])):
+            exprs = taxonomy[cat]
+            print("  %s: %d" % (cat, len(exprs)))
+            for e in sorted(set(exprs))[:5]:
+                print("    %s" % e)
+            if len(set(exprs)) > 5:
+                print("    ... and %d more unique" % (len(set(exprs)) - 5))
 
     if not has_baseline:
         print()
