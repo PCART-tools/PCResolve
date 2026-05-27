@@ -776,9 +776,8 @@ def test_local_model_factory_method_call_traces_to_constructor_library():
             f"model.fit() should be sklearn, got {c.top_library}"
 
 
-@pytest.mark.xfail(reason="7B-full: local class method result should inherit constructor library", strict=True)
 def test_method_result_object_keeps_library_for_followup_call():
-    """y_new = model.predict(X); y_new.sum() where model is local class instance."""
+    """y_new = model.predict(X); y_new.sum() traces to numpy via method return (7B-full PR5)."""
     code = (
         "import numpy as np\n"
         "class LocalModel:\n"

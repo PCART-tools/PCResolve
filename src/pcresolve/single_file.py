@@ -246,6 +246,47 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return self.get_base(node.args[0])
             me = self._resolve_methods(node)
             if me:
+                ## 7B-full PR5: if a local class method has an import-backed
+                ## return source, propagate it so assigned variables carry
+                ## library provenance.
+                if (isinstance(me, InstanceMethod) and isinstance(me.method, str)
+                        and isinstance(me.receiver, str)):
+                    # Check whether the receiver is a local class instance.
+                    local_class = me.receiver in self.class_methods
+                    if not local_class and self.scope_model == "v2":
+                        binding = self.current_scope().lookup(me.receiver)
+                        if binding is not None:
+                            src = normalize_source(binding.source)
+                            if isinstance(src, CallResult) and isinstance(src.callee, str):
+                                local_class = src.callee in self.class_methods
+                    if local_class:
+                        # Determine the qualname for return_sources lookup.
+                        class_name = me.receiver
+                        if not (me.receiver in self.class_methods):
+                            binding = self.current_scope().lookup(me.receiver)
+                            if binding is not None:
+                                src = normalize_source(binding.source)
+                                if isinstance(src, CallResult) and isinstance(src.callee, str):
+                                    class_name = src.callee
+                        method_key = class_name + "." + me.method
+                        rs = self.return_sources.get(method_key)
+                        if rs is None:
+                            rs = self.return_sources.get(me.method)
+                        if rs is not None:
+                            rs = normalize_source(rs)
+                            # Unwrap SourceSet: find the first import-backed source.
+                            sources = rs.sources if isinstance(rs, SourceSet) else [rs]
+                            for src in sources:
+                                src = normalize_source(src)
+                                if isinstance(src, CallResult) and isinstance(src.callee, str):
+                                    if src.callee != "local":
+                                        return src
+                                if isinstance(src, InstanceMethod) and isinstance(src.receiver, str):
+                                    top = self.symbols.get_top(src.receiver)
+                                    if top and top not in ("local", "unknown", ""):
+                                        return CallResult(src.receiver)
+                                if isinstance(src, str) and src != "local":
+                                    return src
                 return me
             ## For chained calls (A().B()), resolve via the inner call's
             ## return source so the outer call traces to the correct library.
