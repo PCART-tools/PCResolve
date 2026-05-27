@@ -697,7 +697,7 @@ def test_non_import_backed_receiver_stays_local():
 # ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
 
 
-@pytest.mark.xfail(reason="7B-full: container item source not propagated through list append")
+@pytest.mark.xfail(reason="7B-full: container item source not propagated through list append", strict=True)
 def test_container_item_append_preserves_numpy_source():
     """new.append(new_vertices[i]) with numpy-sourced item should trace to numpy."""
     code = (
@@ -714,28 +714,27 @@ def test_container_item_append_preserves_numpy_source():
             f"append with numpy item should be numpy, got {c.top_library}"
 
 
-@pytest.mark.xfail(reason="7B-full: dict with mixed-source values and dynamic key loses provenance")
+@pytest.mark.xfail(reason="7B-full: factory-returned instance from dict lookup loses provenance", strict=True)
 def test_factory_returned_instance_method_traces_to_library():
-    """kernel = kern_dict[dynamic_key]; kernel.method() where dict has mixed sources."""
+    """kernel = kernels[dynamic_key]; kernel.K(X) should trace to GPy."""
     code = (
+        "import GPy\n"
         "import numpy as np\n"
-        "import pandas as pd\n"
+        "def make_kernel():\n"
+        "    return GPy.kern.RBF(1)\n"
         "class Wrapper:\n"
-        "    def run(self, key):\n"
-        "        kern_dict = {\n"
-        "            'a': np.array([1, 2]),\n"
-        "            'b': pd.DataFrame(),\n"
-        "        }\n"
-        "        result = kern_dict[key]\n"
-        "        return result.shape\n"
-        "Wrapper().run('a')\n"
+        "    def run(self, X, key):\n"
+        "        kernels = {'a': make_kernel()}\n"
+        "        kernel = kernels[key]\n"
+        "        return kernel.K(X)\n"
+        "Wrapper().run(np.array([[1]]), 'a')\n"
     )
     r = _run_code(code)
-    calls = [c for c in r.all_api_calls if "shape" in c.expression]
-    assert calls, "result.shape not collected"
-    libs = {c.top_library for c in calls}
-    assert not (libs <= {"local", "unknown"}), \
-        f"result.shape should not all be local/unknown, got {libs}"
+    calls = [c for c in r.all_api_calls if "K" in c.expression]
+    assert calls, "kernel.K() not collected"
+    for c in calls:
+        assert c.top_library == "GPy", \
+            f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
     r = _run_code(code)
     calls = [c for c in r.all_api_calls if "K" in c.expression]
     assert calls, "kernel.K() not collected"
@@ -744,7 +743,7 @@ def test_factory_returned_instance_method_traces_to_library():
             f"kernel.K() should be GPy, got {c.top_library}"
 
 
-@pytest.mark.xfail(reason="7B-full: local constructor method not traced to library return source")
+@pytest.mark.xfail(reason="7B-full: local constructor method not traced to library return source", strict=True)
 def test_local_model_factory_method_call_traces_to_constructor_library():
     """model = NSGP(); model.fit(X, y) should trace to NSGP constructor libs."""
     code = (
@@ -766,7 +765,7 @@ def test_local_model_factory_method_call_traces_to_constructor_library():
             f"model.fit() should have library provenance, got {c.top_library}"
 
 
-@pytest.mark.xfail(reason="7B-full: local class method result should inherit constructor library")
+@pytest.mark.xfail(reason="7B-full: local class method result should inherit constructor library", strict=True)
 def test_method_result_object_keeps_library_for_followup_call():
     """y_new = model.predict(X); y_new.sum() where model is local class instance."""
     code = (
