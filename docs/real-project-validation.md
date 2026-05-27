@@ -20,9 +20,9 @@ recorded limits, zero illegal keys).
 | hfhd | scientific | 6 | 444 | 4 | 20 | 1 | 7B-lite PR 1 reduced from 8 |
 | MAHE_OD_DATASET | ML/vision | 13 | 480 | 16 | 3 | 10 | 7B-lite PR 1 reduced from 17 |
 | greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 0 | 7B-lite PR 1 reduced from 157 |
-| polire | scientific | 35 | 421 | 12 | 5 | 0 | 7B-lite PR 3 +5 improvements (self.attr alias, subscript) |
+| polire | scientific | 35 | 421 | 9 | 5 | 0 | 7B-lite PR 3 +5 improvements |
 
-**Totals**: 197 regressions, 33 improvements, 11 precision changes, 0 illegal keys.
+**Totals**: 194 regressions, 33 improvements, 11 precision changes, 0 illegal keys.
 **Legend**: R=regressions, I=improvements, P=precision changes
 
 ## Current Taxonomy (--taxonomy)
@@ -32,7 +32,7 @@ third-party API loss: 182
   attribute_method: 167
   container/subscript: 9
   bare_call: 6
-local-to-unknown: 15
+local-to-unknown: 12
 ```
 
 ## Regression Categories

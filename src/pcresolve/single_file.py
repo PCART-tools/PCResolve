@@ -701,7 +701,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     cn = self._class_stack[-1]
                     attr_source = self.instance_attrs.get((cn, name))
                     if attr_source is not None:
-                        return attr_source
+                        if isinstance(attr_source, str):
+                            if attr_source in self.symbols.direct or '.' in attr_source:
+                                return attr_source
+                        else:
+                            return attr_source
                 root = chain[0]
                 if self.scope_model == "v2":
                     return self._lookup_name_source(root)
