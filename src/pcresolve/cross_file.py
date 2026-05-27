@@ -95,6 +95,32 @@ def _is_import_origin(tracer, symbol):
 #  @param file_path Absolute file path.
 #  @param project_root Root directory to make relative.
 #  @return Relative POSIX path, or empty string.
+def _make_api_call(c, deco_by):
+    """Build an ApiCall from a get_calls() record dict."""
+    return ApiCall(
+        expression=c['api'],
+        top_library=c['top'],
+        base_symbol=source_display(c.get('base', '')),
+        chain=c.get('chain', []),
+        file_path=c.get('file_path', ''),
+        lineno=c.get('lineno', 0),
+        col_offset=c.get('col_offset', 0),
+        end_lineno=c.get('end_lineno', 0),
+        end_col_offset=c.get('end_col_offset', 0),
+        func_name=c.get('func_name', ''),
+        parameters=c.get('parameters', ''),
+        resolved_func=c.get('resolved_func', ''),
+        resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
+        reason=c.get('reason', ''),
+        confidence=c.get('confidence', 1.0),
+        alternatives=c.get('alternatives', []),
+        decorated_by=_lookup_decorated_by(
+            c.get('file_path', ''),
+            c.get('func_name', ''),
+            c.get('scope_name', ''), deco_by),
+    )
+
+
 def _lookup_decorated_by(file_path, func_name, scope_name, deco_by):
     """Look up decorator evidence for an ApiCall by (file_path, scope, func_name).
     Scope-aware matching prevents cross-scope pollution in both directions:
@@ -216,58 +242,13 @@ class ProjectAnalyzer:
                 symbols=self.global_symbols.get(module, {}),
                 chains=self.symbol_chains.get(module, {}),
                 symbol_provenance=[p for p in all_provenance if p.file_path == file_path],
-                api_calls=[
-                    ApiCall(
-                        expression=c['api'],
-                        top_library=c['top'],
-                        base_symbol=source_display(c.get('base', '')),
-                        chain=c.get('chain', []),
-                        file_path=c.get('file_path', ''),
-                        lineno=c.get('lineno', 0),
-                        col_offset=c.get('col_offset', 0),
-                        end_lineno=c.get('end_lineno', 0),
-                        end_col_offset=c.get('end_col_offset', 0),
-                        func_name=c.get('func_name', ''),
-                        parameters=c.get('parameters', ''),
-                        resolved_func=c.get('resolved_func', ''),
-                        resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
-                        reason=c.get('reason', ''),
-                        confidence=c.get('confidence', 1.0),
-                        alternatives=c.get('alternatives', []),
-                        decorated_by=_lookup_decorated_by(
-                            c.get('file_path', ''),
-                            c.get('func_name', ''),
-                            c.get('scope_name', ''), deco_by),
-                    )
-                    for c in self.all_calls.get(module, [])
-                ],
+                api_calls=[_make_api_call(c, deco_by)
+                           for c in self.all_calls.get(module, [])],
             ))
 
-        all_api_calls = []
-        for module, calls in self.all_calls.items():
-            for c in calls:
-                all_api_calls.append(ApiCall(
-                    expression=c['api'],
-                    top_library=c['top'],
-                    base_symbol=source_display(c.get('base', '')),
-                    chain=c.get('chain', []),
-                    file_path=c.get('file_path', ''),
-                    lineno=c.get('lineno', 0),
-                    col_offset=c.get('col_offset', 0),
-                    end_lineno=c.get('end_lineno', 0),
-                    end_col_offset=c.get('end_col_offset', 0),
-                    func_name=c.get('func_name', ''),
-                    parameters=c.get('parameters', ''),
-                    resolved_func=c.get('resolved_func', ''),
-                    resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
-                    reason=c.get('reason', ''),
-                    confidence=c.get('confidence', 1.0),
-                    alternatives=c.get('alternatives', []),
-                    decorated_by=_lookup_decorated_by(
-                        c.get('file_path', ''),
-                        c.get('func_name', ''),
-                        c.get('scope_name', ''), deco_by),
-                ))
+        all_api_calls = [_make_api_call(c, deco_by)
+                         for module, calls in self.all_calls.items()
+                         for c in calls]
 
         library_usage = self._build_library_usage(all_api_calls, all_provenance)
 
