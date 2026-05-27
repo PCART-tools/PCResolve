@@ -735,12 +735,6 @@ def test_factory_returned_instance_method_traces_to_library():
     for c in calls:
         assert c.top_library == "GPy", \
             f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
-    r = _run_code(code)
-    calls = [c for c in r.all_api_calls if "K" in c.expression]
-    assert calls, "kernel.K() not collected"
-    for c in calls:
-        assert c.top_library == "GPy", \
-            f"kernel.K() should be GPy, got {c.top_library}"
 
 
 @pytest.mark.xfail(reason="7B-full: local constructor method not traced to library return source", strict=True)
