@@ -1117,6 +1117,8 @@ class ProjectAnalyzer:
                 if a in tracer.class_methods and class_symbol == "local":
                     class_symbol = a
             if not class_symbol:
+                if isinstance(a, str) and _is_import_origin(tracer, a):
+                    return (f"{a}.{b}", module, a)
                 receiver_chain = self.trace_symbol(
                     module, a, tracers, set(), _direct_source="local")
                 receiver_top = self.extract_final_source(receiver_chain)
@@ -1142,6 +1144,10 @@ class ProjectAnalyzer:
                         if ext:
                             return (f"{a}.{b}", module, ext)
                         return (f"{a}.{b}", module, "local")
+                    if isinstance(class_symbol, str) and '.' in class_symbol:
+                        top = self._top_source(module, class_symbol, tracers)
+                        if top and top not in ("local", "python", "unknown", ""):
+                            return (f"{a}.{b}", module, top)
                     return None
             src_module, src_symbol = resolved
             return (f"{a}.{b}", src_module, src_symbol)

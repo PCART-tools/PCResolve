@@ -517,6 +517,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 return InstanceMethod(callee, method_name)
                             if '.' in callee:
                                 prefix = callee.split('.')[0]
+                                prefix_is_origin = any(
+                                    isinstance(v, str) and (v == prefix or v.startswith(prefix + "."))
+                                    for v in self.symbols.direct.values())
+                                if prefix_is_origin:
+                                    return InstanceMethod(prefix, method_name)
                                 if prefix in self.import_from_symbols:
                                     return InstanceMethod(prefix, method_name)
                                 if prefix in self.symbols.direct:
