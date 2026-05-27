@@ -225,23 +225,8 @@ class ProjectAnalyzer:
         all_provenance = self._build_symbol_provenance(module_tracers)
         deco_by = self._build_decorator_index(all_provenance)
 
-        files = []
-        for module, tracer in module_tracers.items():
-            file_path = self.module_mapper.get_file_path(module)
-            files.append(FileAnalysis(
-                file_path=file_path,
-                module_name=module,
-                symbols=self.global_symbols.get(module, {}),
-                chains=self.symbol_chains.get(module, {}),
-                symbol_provenance=[p for p in all_provenance if p.file_path == file_path],
-                api_calls=[_make_api_call(c, deco_by)
-                           for c in self.all_calls.get(module, [])],
-            ))
-
-        all_api_calls = [_make_api_call(c, deco_by)
-                         for module, calls in self.all_calls.items()
-                         for c in calls]
-
+        files = self._build_file_analysis(module_tracers, all_provenance, deco_by)
+        all_api_calls = self._build_all_api_calls(deco_by)
         library_usage = self._build_library_usage(all_api_calls, all_provenance)
 
         stats = {
@@ -274,6 +259,35 @@ class ProjectAnalyzer:
             if name in getattr(tr, 'import_aliases', set()):
                 return True
         return False
+
+    ## Build per-file analysis results.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @param deco_by Decorator evidence index.
+    #  @return List of FileAnalysis records.
+    def _build_file_analysis(self, module_tracers, all_provenance, deco_by):
+        files = []
+        for module, tracer in module_tracers.items():
+            file_path = self.module_mapper.get_file_path(module)
+            files.append(FileAnalysis(
+                file_path=file_path,
+                module_name=module,
+                symbols=self.global_symbols.get(module, {}),
+                chains=self.symbol_chains.get(module, {}),
+                symbol_provenance=[p for p in all_provenance
+                                   if p.file_path == file_path],
+                api_calls=[_make_api_call(c, deco_by)
+                           for c in self.all_calls.get(module, [])],
+            ))
+        return files
+
+    ## Build the flat project-level API call list.
+    #  @param deco_by Decorator evidence index.
+    #  @return List of ApiCall records.
+    def _build_all_api_calls(self, deco_by):
+        return [_make_api_call(c, deco_by)
+                for module, calls in self.all_calls.items()
+                for c in calls]
 
     ## Build a decorator evidence index from provenance records.
     #  @param all_provenance List of SymbolProvenance records.
