@@ -122,8 +122,12 @@ python scripts/diff_v1_v2.py \
   tests/fixtures/tested_projects/polire
 # exit 0 if regressions <= baseline AND illegal_keys == 0
 
-# PowerShell equivalent (one-liner)
-# python scripts/diff_v1_v2.py $(Get-ChildItem tests/fixtures/tested_projects -Directory | ForEach-Object { $_.FullName })
+# PowerShell equivalent (13 projects, explicit)
+# $projects = @("click1","covid19","Deep-Graph-Kernels","django","simulation",
+#   "flask1","greenbenchmark","hfhd","MAHE_OD_DATASET","polire",
+#   "political-polarisation","qho","tensorflow1")
+# $paths = $projects | ForEach-Object { "tests/fixtures/tested_projects/$_" }
+# python scripts/diff_v1_v2.py @paths
 
 # Analyse regression patterns (does not affect gate)
 python scripts/diff_v1_v2.py --taxonomy tests/fixtures/tested_projects/greenbenchmark
