@@ -13,6 +13,8 @@ from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, normalize_source, source_display, make_source_set)
+from .call_graph import (FunctionId, FunctionSummary, ClassSummary, CallEdge,
+                         ModuleCallGraph)
 
 ## Python 2 builtins not present in Python 3's builtins module.
 _PY2_BUILTINS = frozenset({
@@ -74,6 +76,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.symbol_refs = []
         self.module_scope = Scope(SCOPE_MODULE, self.module_name or "<module>")
         self.scope_stack = [self.module_scope]
+        ## Call-graph facts (Phase 7B-full PR1: read-only collection).
+        self.module_cg = ModuleCallGraph(module=module_name or "")
+        ## Stack of FunctionId for tracking the current caller context.
+        self._caller_stack = [FunctionId(module_name or "", "<module>")]
 
     ## Return the current innermost scope.
     def current_scope(self):
@@ -917,6 +923,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if not base:
             return
 
+        ## Record CallEdge fact for Phase 7B-full call graph.
+        if self._caller_stack:
+            caller = self._caller_stack[-1]
+            edge = CallEdge(
+                caller=caller,
+                callee=base,
+                call_lineno=node.lineno,
+                call_col_offset=node.col_offset,
+            )
+            self.module_cg.edges.append(edge)
+
         if isinstance(node.func, ast.Name):
             direct_name = node.func.id
         else:
@@ -1158,14 +1175,37 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if self._class_stack:
             self.function_params[self._class_stack[-1] + "." + node.name] = params
         self._func_stack.append(node.name)
+        ## Determine qualified name for call-graph facts.
+        if self._class_stack:
+            qualname = self._class_stack[-1] + "." + node.name
+        else:
+            qualname = node.name
+        fid = FunctionId(self.module_name or "", qualname)
+        self._caller_stack.append(fid)
         # Save and clear _global_names so each function independently
         # scopes global declarations.
         saved_globals = self._global_names
         self._global_names = set()
         self.generic_visit(node)
-        self._func_stack.pop()
         self._global_names = saved_globals
+        self._caller_stack.pop()
+        self._func_stack.pop()
         self.pop_scope()
+        ## Collect FunctionSummary for Phase 7B-full facts.
+        func_returns = self.return_sources.get(node.name)
+        local_assignments = {}
+        fs = FunctionSummary(
+            id=fid,
+            params=list(params),
+            returns=func_returns,
+            local_assignments=local_assignments,
+        )
+        self.module_cg.functions[qualname] = fs
+        ## Link method to its class summary.
+        if self._class_stack:
+            cn = self._class_stack[-1]
+            if cn in self.module_cg.classes:
+                self.module_cg.classes[cn].methods[node.name] = fs
         self._bind_decorated_target(node.name, node.decorator_list)
 
     ## Visit a FunctionDef node and register it as a local definition.
@@ -1205,6 +1245,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
         self.pop_scope()
         self._class_stack.pop()
+        ## Collect ClassSummary for Phase 7B-full facts.
+        class_id = FunctionId(self.module_name or "", node.name)
+        # Collect self.attr bindings for this class from instance_attrs.
+        class_attrs = {}
+        for (cn, attr_name), src in self.instance_attrs.items():
+            if cn == node.name:
+                class_attrs[attr_name] = src
+        self.module_cg.classes[node.name] = ClassSummary(
+            id=class_id,
+            bases=list(bases),
+            methods={},  # populated after method summaries are collected
+            attrs=class_attrs,
+        )
         self._bind_decorated_target(node.name, node.decorator_list)
 
     ## Visit a With node and bind context-variable aliases.

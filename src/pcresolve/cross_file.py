@@ -31,6 +31,7 @@ from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, is_structured_source, normalize_source,
                        source_display)
+from .call_graph import ProjectCallGraph
 from .types import ProjectAnalysis, FileAnalysis, ApiCall, LibraryUsage
 
 
@@ -224,6 +225,12 @@ class ProjectAnalyzer:
             )
             tracer.visit(tree)
             module_tracers[module] = tracer
+
+        ## Aggregate per-module call-graph facts (Phase 7B-full PR1).
+        self.project_cg = ProjectCallGraph()
+        for module, tracer in module_tracers.items():
+            if tracer.module_cg.functions or tracer.module_cg.classes or tracer.module_cg.edges:
+                self.project_cg.modules[module] = tracer.module_cg
 
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
