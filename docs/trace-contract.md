@@ -98,7 +98,7 @@ Phase 8B should normalise all unresolved cases to `"unknown"` with
 
 ## Known Limitations
 
-- Trace does not distinguish "parameter from call site A" vs "parameter from call site B" when a function is called from multiple locations. Resolution picks the first matching call site.
+- Some legacy parameter propagation paths do not distinguish "parameter from call site A" vs "parameter from call site B" when a function is called from multiple locations. 7A-lite and 7B-lite partially address this via `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching.
 - `return_sources` is SourceSet since Phase 5; multiple return paths are collected but alternatives classification is not yet complete.
 - Constructor argument to `self.attr` propagation and wrapper-class instance method resolution is handled by 7B-lite via `instance_attrs`, `CallResult.call_lineno`, and constructor call-site matching. Full CallGraph / return-object tracking for factory-returned instances is deferred to complete 7B.
 - `nonlocal` is first-edition no-crash only.
@@ -172,7 +172,7 @@ Decorators create two distinct kinds of evidence that must not be conflated:
 | Decorator expression call | `ApiCall.top_library` | The decorator `@lib.deco(args)` itself is a call to `lib` | Public, stable |
 | Decorated target call | `ApiCall.top_library` | A call to the decorated function/class is **always** `"local"` | Public, stable |
 | Decorator provenance evidence | `SymbolProvenance(kind="decorated_by")` | Records which libraries decorated the target | Public, stable |
-| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `func_name` match (file_path, func_name) | Public, additive-only; method calls require Phase 7B |
+| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `(file_path, scope_name, func_name)` match | Public, additive-only; method calls require Phase 7B |
 
 ### Core Invariant
 
@@ -206,7 +206,11 @@ To find all call sites potentially related to library `lib`:
 - **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
 - **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls pre-7B)
 - **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
-- **Matching**: exact match on `(file_path, func_name)` where `func_name` is the call's bare function name (e.g. `"index"` for `index()`, not `"c.method"` for method calls)
+- **Matching**: exact match on `(file_path, scope_name, func_name)` where
+  `func_name` is the call's bare function name (e.g. `"index"` for `index()`)
+  and `scope_name` disambiguates module-level, nested, and class scopes.
+  Method calls still require full class-aware receiver resolution before
+  `decorated_by` can be attached reliably.
 
 ## Phase 5 / 7A / 7B / 8B Contracts
 
