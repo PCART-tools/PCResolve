@@ -779,3 +779,75 @@ def test_method_result_object_keeps_library_for_followup_call():
     for c in calls:
         assert c.top_library == "numpy", \
             f"y_new.sum() should be numpy, got {c.top_library}"
+
+
+# ── Phase 7B-full PR1: call-graph fact integrity ───────────────────────
+
+
+def _run_code_with_cg(code, scope_model="v2"):
+    """Analyze code and return (result, project_cg)."""
+    from pcresolve.cross_file import ProjectAnalyzer
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        pa = ProjectAnalyzer(td, scope_model=scope_model)
+        result = pa.analyze()
+        return result, pa.project_cg
+
+
+def test_class_summary_methods_are_populated():
+    """ClassSummary.methods must be non-empty after class body visit."""
+    code = (
+        "class A:\n"
+        "    def m(self):\n"
+        "        pass\n"
+        "A().m()\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    classes = cg.modules.get("main", None)
+    assert classes is not None, "No module in project_cg"
+    cs = classes.classes.get("A")
+    assert cs is not None, "ClassSummary for A not found"
+    assert len(cs.methods) >= 1, f"Expected A.methods non-empty, got {list(cs.methods.keys())}"
+    assert "m" in cs.methods, f"Expected method 'm' in A.methods, got {list(cs.methods.keys())}"
+
+
+def test_nested_function_qualname_is_outer_inner():
+    """Nested function qualname must be outer.inner, not bare inner."""
+    code = (
+        "def outer():\n"
+        "    def inner():\n"
+        "        pass\n"
+        "    inner()\n"
+        "outer()\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    funcs = cg.modules.get("main", None)
+    assert funcs is not None
+    fs = funcs.functions.get("outer.inner")
+    assert fs is not None, f"Nested function 'outer.inner' not found; keys={list(funcs.functions.keys())}"
+
+
+def test_call_edge_has_caller_and_assigned_to():
+    """CallEdge must record caller, assigned_to, and receiver_source."""
+    code = (
+        "class Wrapper:\n"
+        "    def run(self):\n"
+        "        import requests\n"
+        "        x = requests.get('http://x')\n"
+        "Wrapper().run()\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    edges = []
+    for mcg in cg.modules.values():
+        edges.extend(mcg.edges)
+    assert len(edges) >= 1, "Expected at least one CallEdge"
+    # Find the requests.get edge (callee base is "requests").
+    get_edges = [e for e in edges
+                 if str(e.callee) == "requests"
+                 and e.caller.qualname != "<module>"]
+    assert len(get_edges) >= 1, f"No edge with callee='requests'; edges={[(str(e.callee), e.caller.qualname) for e in edges]}"
+    e = get_edges[0]
+    assert e.caller.qualname != "", "CallEdge must have caller"
+    assert e.assigned_to == ["x"], f"Expected assigned_to=['x'], got {e.assigned_to}"
+    assert e.receiver_source is not None, "CallEdge must have receiver_source for obj.method()"

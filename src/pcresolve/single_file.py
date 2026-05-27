@@ -80,6 +80,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.module_cg = ModuleCallGraph(module=module_name or "")
         ## Stack of FunctionId for tracking the current caller context.
         self._caller_stack = [FunctionId(module_name or "", "<module>")]
+        ## Temporary storage for assignment targets of the next call RHS.
+        self._pending_call_result_targets = []
 
     ## Return the current innermost scope.
     def current_scope(self):
@@ -795,6 +797,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if bases:
                         self.container_set_sources[container_name] = bases
 
+        ## Collect assignment target names for CallEdge.assigned_to.
+        self._pending_call_result_targets = []
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                self._pending_call_result_targets.append(target.id)
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for elt in target.elts:
+                    if isinstance(elt, ast.Name):
+                        self._pending_call_result_targets.append(elt.id)
+
         right = self.trace_source(node.value)
         if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
             func_full = self._attribute_name(node.value.func)
@@ -926,13 +938,32 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         ## Record CallEdge fact for Phase 7B-full call graph.
         if self._caller_stack:
             caller = self._caller_stack[-1]
+            ## Collect receiver source for obj.method() calls.
+            receiver_source = None
+            if isinstance(node.func, ast.Attribute):
+                receiver_source = self.get_base(node.func.value)
+            ## Collect arg sources.
+            arg_sources = {}
+            for i, arg in enumerate(node.args):
+                arg_src = self.get_base(arg)
+                if arg_src is not None:
+                    arg_sources[i] = arg_src
+            ## Collect keyword arg sources.
+            for kw in getattr(node, "keywords", []) or []:
+                arg_src = self.get_base(kw.value) if kw.arg else None
+                if arg_src is not None and kw.arg:
+                    arg_sources[kw.arg] = arg_src
             edge = CallEdge(
                 caller=caller,
                 callee=base,
+                receiver_source=receiver_source,
+                arg_sources=arg_sources,
+                assigned_to=list(self._pending_call_result_targets),
                 call_lineno=node.lineno,
                 call_col_offset=node.col_offset,
             )
             self.module_cg.edges.append(edge)
+            self._pending_call_result_targets = []
 
         if isinstance(node.func, ast.Name):
             direct_name = node.func.id
@@ -1176,10 +1207,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             self.function_params[self._class_stack[-1] + "." + node.name] = params
         self._func_stack.append(node.name)
         ## Determine qualified name for call-graph facts.
+        ## Use full _func_stack so nested functions get "outer.inner".
         if self._class_stack:
-            qualname = self._class_stack[-1] + "." + node.name
+            qualname = self._class_stack[-1] + "." + ".".join(self._func_stack)
         else:
-            qualname = node.name
+            qualname = ".".join(self._func_stack)
         fid = FunctionId(self.module_name or "", qualname)
         self._caller_stack.append(fid)
         # Save and clear _global_names so each function independently
@@ -1201,11 +1233,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             local_assignments=local_assignments,
         )
         self.module_cg.functions[qualname] = fs
-        ## Link method to its class summary.
+        ## Link method to its class summary (created before class body visit).
         if self._class_stack:
             cn = self._class_stack[-1]
             if cn in self.module_cg.classes:
-                self.module_cg.classes[cn].methods[node.name] = fs
+                if self._func_stack:
+                    method_qualname = ".".join(self._func_stack)
+                else:
+                    method_qualname = node.name
+                self.module_cg.classes[cn].methods[method_qualname] = fs
         self._bind_decorated_target(node.name, node.decorator_list)
 
     ## Visit a FunctionDef node and register it as a local definition.
@@ -1240,24 +1276,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 bases.append(base_symbol)
         self.class_methods[node.name] = methods
         self.class_bases[node.name] = bases
+        ## Create ClassSummary BEFORE generic_visit so methods can link to it.
+        class_id = FunctionId(self.module_name or "", node.name)
+        self.module_cg.classes[node.name] = ClassSummary(
+            id=class_id,
+            bases=list(bases),
+            methods={},
+            attrs={},
+        )
         self._class_stack.append(node.name)
         self.push_scope(SCOPE_CLASS, node.name)
         self.generic_visit(node)
         self.pop_scope()
         self._class_stack.pop()
-        ## Collect ClassSummary for Phase 7B-full facts.
-        class_id = FunctionId(self.module_name or "", node.name)
-        # Collect self.attr bindings for this class from instance_attrs.
+        ## Populate ClassSummary attrs collected during class body visit.
         class_attrs = {}
         for (cn, attr_name), src in self.instance_attrs.items():
             if cn == node.name:
                 class_attrs[attr_name] = src
-        self.module_cg.classes[node.name] = ClassSummary(
-            id=class_id,
-            bases=list(bases),
-            methods={},  # populated after method summaries are collected
-            attrs=class_attrs,
-        )
+        self.module_cg.classes[node.name].attrs.update(class_attrs)
         self._bind_decorated_target(node.name, node.decorator_list)
 
     ## Visit a With node and bind context-variable aliases.
