@@ -105,10 +105,25 @@ the raw gate total.
 # Create/update baselines after an improvement
 python scripts/diff_v1_v2.py --save-baseline tests/fixtures/tested_projects/<project>
 
-# Run the full 13-project gate (CI-ready)
+# Run the full 13-project gate (Bash)
 python scripts/diff_v1_v2.py \
-  tests/fixtures/tested_projects/{flask1,click1,django,tensorflow1,simulation,hfhd,covid19,qho,greenbenchmark,political-polarisation,Deep-Graph-Kernels,MAHE_OD_DATASET,polire}
+  tests/fixtures/tested_projects/flask1 \
+  tests/fixtures/tested_projects/click1 \
+  tests/fixtures/tested_projects/django \
+  tests/fixtures/tested_projects/tensorflow1 \
+  tests/fixtures/tested_projects/simulation \
+  tests/fixtures/tested_projects/hfhd \
+  tests/fixtures/tested_projects/covid19 \
+  tests/fixtures/tested_projects/qho \
+  tests/fixtures/tested_projects/greenbenchmark \
+  tests/fixtures/tested_projects/political-polarisation \
+  tests/fixtures/tested_projects/Deep-Graph-Kernels \
+  tests/fixtures/tested_projects/MAHE_OD_DATASET \
+  tests/fixtures/tested_projects/polire
 # exit 0 if regressions <= baseline AND illegal_keys == 0
+
+# PowerShell equivalent (one-liner)
+# python scripts/diff_v1_v2.py $(Get-ChildItem tests/fixtures/tested_projects -Directory | ForEach-Object { $_.FullName })
 
 # Analyse regression patterns (does not affect gate)
 python scripts/diff_v1_v2.py --taxonomy tests/fixtures/tested_projects/greenbenchmark
