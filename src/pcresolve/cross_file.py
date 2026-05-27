@@ -489,13 +489,12 @@ class ProjectAnalyzer:
             if structured is not None:
                 _, src_module, src_symbol = structured
                 return self._top_source(src_module, src_symbol, module_tracers)
-            return str(base)
+            return "local"
         if isinstance(base, str) and '.' in base:
             prefix = base.split('.')[0]
             if prefix in self.global_symbols.get(module, {}):
                 return self.global_symbols[module][prefix]
             return self._top_source(module, base, module_tracers)
-        # Simple string base: check call_assign_funcs first to avoid cross-scope pollution
         if isinstance(base, str):
             caf = tracer.call_assign_funcs.get(base)
             if caf:
@@ -1479,13 +1478,7 @@ class ProjectAnalyzer:
             top = self.extract_final_source(chain)
             if top in ("local", "python", "unknown", ""):
                 return top
-            if isinstance(symbol, str) and chain == [symbol]:
-                if self.is_local(symbol):
-                    return "local"
-                if src_tracer and _is_import_origin(src_tracer, symbol):
-                    return self._top_name(symbol)
-                return "unknown"
-            if isinstance(symbol, str) and chain == [self._top_name(symbol)]:
+            if isinstance(symbol, str) and chain in ([symbol], [self._top_name(symbol)]):
                 if self.is_local(symbol):
                     return "local"
                 if src_tracer and _is_import_origin(src_tracer, symbol):
