@@ -149,6 +149,10 @@ def _is_illegal_key(name):
 
 
 def main():
+    save_baselines = "--save-baseline" in sys.argv
+    if save_baselines:
+        sys.argv.remove("--save-baseline")
+
     if len(sys.argv) < 2:
         print("Usage: python scripts/diff_v1_v2.py <project_dir> [...]",
               file=sys.stderr)
@@ -172,10 +176,6 @@ def main():
                 paths.append(arg)
         else:
             paths.append(arg)
-
-    save_baselines = "--save-baseline" in sys.argv
-    if save_baselines:
-        sys.argv.remove("--save-baseline")
 
     total_regressions = 0
     total_illegal = 0
