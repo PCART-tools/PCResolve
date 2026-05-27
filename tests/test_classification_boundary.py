@@ -634,10 +634,11 @@ def test_assigned_chained_call_result_inherits_library():
         "Wrapper([[1]], [[2]]).run([[3]])\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "ravel" in c.expression:
-            assert c.top_library == "GPy", \
-                f"predictions.ravel() should be GPy, got {c.top_library} ({c.chain})"
+    calls = [c for c in r.all_api_calls if "ravel" in c.expression]
+    assert calls, "predictions.ravel() not collected"
+    for c in calls:
+        assert c.top_library == "GPy", \
+            f"predictions.ravel() should be GPy, got {c.top_library} ({c.chain})"
 
 
 def test_tuple_unpack_assigned_result_inherits_library():
@@ -653,10 +654,11 @@ def test_tuple_unpack_assigned_result_inherits_library():
         "Wrapper([[1]], [[2]]).run([[3]])\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "ravel" in c.expression:
-            assert c.top_library == "GPy", \
-                f"a.ravel() should be GPy, got {c.top_library} ({c.chain})"
+    calls = [c for c in r.all_api_calls if "ravel" in c.expression]
+    assert calls, "a.ravel() not collected"
+    for c in calls:
+        assert c.top_library == "GPy", \
+            f"a.ravel() should be GPy, got {c.top_library} ({c.chain})"
 
 
 def test_local_self_attr_not_polluted_to_library():
@@ -666,10 +668,11 @@ def test_local_self_attr_not_polluted_to_library():
         "    return (self.y * mask).sum()\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "sum" in c.expression:
-            assert c.top_library == "local", \
-                f"local self.y method should stay local, got {c.top_library}"
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, ".sum() not collected"
+    for c in calls:
+        assert c.top_library == "local", \
+            f"local self.y method should stay local, got {c.top_library}"
 
 
 def test_non_import_backed_receiver_stays_local():
@@ -684,7 +687,8 @@ def test_non_import_backed_receiver_stays_local():
         "A().run()\n"
     )
     r = _run_code(code)
-    for c in r.all_api_calls:
-        if "count" in c.expression:
-            assert c.top_library == "local", \
-                f"local x.count() should stay local, got {c.top_library}"
+    calls = [c for c in r.all_api_calls if "count" in c.expression]
+    assert calls, "x.count() not collected"
+    for c in calls:
+        assert c.top_library == "local", \
+            f"local x.count() should stay local, got {c.top_library}"
