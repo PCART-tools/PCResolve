@@ -279,13 +279,7 @@ def main():
             return "other"
 
         def _has_subscript(node):
-            if isinstance(node, ast.Subscript):
-                return True
-            if isinstance(node, ast.Attribute):
-                return _has_subscript(node.value)
-            if isinstance(node, ast.Call):
-                return _has_subscript(node.func)
-            return False
+            return any(isinstance(n, ast.Subscript) for n in ast.walk(node))
 
         # Separate by loss type
         tp_loss = {}   # third-party -> local/unknown
