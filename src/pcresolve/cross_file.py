@@ -223,15 +223,7 @@ class ProjectAnalyzer:
         self.get_calls(module_tracers)
 
         all_provenance = self._build_symbol_provenance(module_tracers)
-
-        deco_by = {}
-        for prov in all_provenance:
-            if prov.kind == "decorated_by":
-                if prov.top_library in ("", "local", "python", "unknown"):
-                    continue
-                key = (prov.file_path, prov.scope_name or "", prov.symbol)
-                if prov.top_library not in deco_by.setdefault(key, []):
-                    deco_by[key].append(prov.top_library)
+        deco_by = self._build_decorator_index(all_provenance)
 
         files = []
         for module, tracer in module_tracers.items():
@@ -282,6 +274,20 @@ class ProjectAnalyzer:
             if name in getattr(tr, 'import_aliases', set()):
                 return True
         return False
+
+    ## Build a decorator evidence index from provenance records.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @return Dict keyed by (file_path, scope, symbol) → [library, ...].
+    def _build_decorator_index(self, all_provenance):
+        index = {}
+        for prov in all_provenance:
+            if prov.kind == "decorated_by":
+                if prov.top_library in ("", "local", "python", "unknown"):
+                    continue
+                key = (prov.file_path, prov.scope_name or "", prov.symbol)
+                if prov.top_library not in index.setdefault(key, []):
+                    index[key].append(prov.top_library)
+        return index
 
     ## Build SymbolProvenance records from each tracer's symbol_refs.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
