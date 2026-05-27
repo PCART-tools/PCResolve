@@ -713,6 +713,25 @@ def test_container_item_append_preserves_numpy_source():
             f"append with numpy item should be numpy, got {c.top_library}"
 
 
+def test_class_instance_method_not_confused_with_container():
+    """b.add(arr) on local class stays local, not polluted to numpy."""
+    code = (
+        "import numpy as np\n"
+        "class Bag:\n"
+        "    def add(self, x):\n"
+        "        return 1\n"
+        "arr = np.array([1])\n"
+        "b = Bag()\n"
+        "b.add(arr)\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "add" in c.expression and "Bag" not in c.expression]
+    assert calls, "b.add() not collected"
+    for c in calls:
+        assert c.top_library == "local", \
+            f"b.add() should stay local, got {c.top_library} ({c.chain})"
+
+
 @pytest.mark.xfail(reason="7B-full: factory-returned instance from dict lookup loses provenance", strict=True)
 def test_factory_returned_instance_method_traces_to_library():
     """kernel = kernels[dynamic_key]; kernel.K(X) should trace to GPy."""

@@ -467,14 +467,28 @@ class ProjectAnalyzer:
                             record['confidence'] = cr.confidence
                             self.all_calls[module].append(record)
                             continue
-                    ## 7B-full PR4: try arg-source provenance from CallEdge.
-                    ## Only for known container-mutating methods (append, extend, etc.).
+                    ## 7B-full PR4: arg-source provenance for container-mutating
+                    ## methods on container-literal receivers only.
                     func_name = call_detail.get('func_name', '')
                     container_methods = ('append', 'extend', 'insert', 'add', 'update')
                     is_container_method = any(
                         func_name.endswith('.' + m) for m in container_methods)
+                    receiver = None
+                    if isinstance(base, InstanceMethod):
+                        receiver = base.receiver
+                    elif isinstance(base, str) and base != "local":
+                        receiver = base
+                    else:
+                        # Base is "local" (container literal) — extract from func_name.
+                        parts = func_name.rsplit('.', 1)
+                        if len(parts) == 2:
+                            receiver = parts[0]
+                    is_container = (
+                        is_container_method
+                        and isinstance(receiver, str)
+                        and self._is_container_receiver(tracer, receiver))
                     arg_top = None
-                    if is_container_method:
+                    if is_container:
                         arg_src = self._lookup_cg_edge_arg_source(
                             module,
                             call_detail.get('lineno', 0),
@@ -505,7 +519,19 @@ class ProjectAnalyzer:
                 if top_source in ("local", "unknown", "") and not isinstance(base, str):
                     func_name = call_detail.get('func_name', '')
                     container_methods = ('append', 'extend', 'insert', 'add', 'update')
-                    if any(func_name.endswith('.' + m) for m in container_methods):
+                    is_container_method = any(
+                        func_name.endswith('.' + m) for m in container_methods)
+                    receiver = None
+                    if isinstance(base, InstanceMethod):
+                        receiver = base.receiver
+                    elif isinstance(base, str) and base != "local":
+                        receiver = base
+                    else:
+                        parts = func_name.rsplit('.', 1)
+                        if len(parts) == 2:
+                            receiver = parts[0]
+                    if (is_container_method and isinstance(receiver, str)
+                            and self._is_container_receiver(tracer, receiver)):
                         arg_src = self._lookup_cg_edge_arg_source(
                             module,
                             call_detail.get('lineno', 0),
@@ -1453,6 +1479,24 @@ class ProjectAnalyzer:
                     if top and top not in ("local", "unknown", ""):
                         return top
         return None
+
+    ## Check whether a receiver name refers to a known container literal.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param receiver The receiver name (e.g. "lst" in lst.append).
+    #  @return True if the receiver was initialised as a list/dict/set/tuple literal.
+    def _is_container_receiver(self, tracer, receiver):
+        if not isinstance(receiver, str) or tracer is None:
+            return False
+        if receiver in ("local",):
+            return False
+        if receiver in getattr(tracer, 'container_lengths', {}):
+            return True
+        if receiver in getattr(tracer, 'container_set_sources', {}):
+            return True
+        for key in getattr(tracer, 'container_items', {}):
+            if key[0] == receiver:
+                return True
+        return False
 
     ## Look up import-backed arg source from a CallEdge (7B-full PR4).
     #
