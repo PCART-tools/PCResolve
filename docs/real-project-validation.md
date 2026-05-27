@@ -17,12 +17,12 @@ recorded limits, zero illegal keys).
 | simulation | scientific | 8 | 207 | 0 | 0 | 0 | Fully resolved (7B-lite PR 1) |
 | covid19 | data | 1 | 89 | 0 | 1 | 3 | container arg-source (7B-full PR4) |
 | political-polarisation | data/vis | 1 | 69 | 12 | 2 | 0 | pandas chains; WordCloud → wordcloud (7B-lite) |
-| hfhd | scientific | 6 | 444 | 6 | 16 | 1 | 7B-lite PR 1 reduced from 8 |
-| MAHE_OD_DATASET | ML/vision | 13 | 480 | 17 | 9 | 18 | 7B-lite PR 1 reduced from 17 |
-| greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 8 | 7B-lite PR 1 reduced from 157 |
-| polire | scientific | 35 | 421 | 5 | 18 | 1 | container arg-source (7B-full PR4) |
+| hfhd | scientific | 6 | 444 | 4 | 20 | 1 | 7B-lite PR 1 reduced from 8 |
+| MAHE_OD_DATASET | ML/vision | 13 | 480 | 16 | 5 | 10 | 7B-lite PR 1 reduced from 17 |
+| greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 0 | 7B-lite PR 1 reduced from 157 |
+| polire | scientific | 35 | 421 | 5 | 17 | 1 | container arg-source (7B-full PR4) |
 
-**Totals**: 190 regressions, 53 improvements, 31 precision changes, 0 illegal keys.
+**Totals**: 187 regressions, 52 improvements, 15 precision changes, 0 illegal keys.
 **Legend**: R=regressions, I=improvements, P=precision changes
 
 ## Current Taxonomy (--taxonomy)

@@ -1011,3 +1011,42 @@ def test_method_gets_right_attr_not_wrong_one():
     for c in shape_calls:
         assert c.top_library == "numpy", \
             f"c.shape() should be numpy, got {c.top_library} ({c.chain})"
+
+
+# ── Phase 7B-full PR4-fix: arg-source must not leak through CallResult ──
+
+
+def test_call_result_arg_source_not_leaked_to_return():
+    """y = sink(arr); y.foo() stays local — args don't become return source."""
+    code = (
+        "import numpy as np\n"
+        "def sink(x):\n"
+        "    pass\n"
+        "arr = np.array([1])\n"
+        "y = sink(arr)\n"
+        "y.foo()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "foo" in c.expression]
+    assert calls, "y.foo() not collected"
+    for c in calls:
+        assert c.top_library == "local", \
+            f"y.foo() should stay local, got {c.top_library} ({c.chain})"
+
+
+def test_void_func_assigned_result_not_polluted():
+    """obj = make(arr) where make returns None; obj.add() stays local."""
+    code = (
+        "import numpy as np\n"
+        "def make(x):\n"
+        "    return None\n"
+        "arr = np.array([1])\n"
+        "obj = make(arr)\n"
+        "obj.add(1)\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "add" in c.expression and "make" not in c.expression]
+    assert calls, "obj.add() not collected"
+    for c in calls:
+        assert c.top_library == "local", \
+            f"obj.add() should stay local, got {c.top_library} ({c.chain})"

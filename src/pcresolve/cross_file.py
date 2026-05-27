@@ -1312,11 +1312,6 @@ class ProjectAnalyzer:
                     cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
                     if cg_ret is not None:
                         return (f"{callee_display or callee}()", cur_module, cg_ret)
-                    ## 7B-full PR4: try arg-source provenance from CallEdge.
-                    arg_top = self._lookup_cg_edge_arg_source(
-                        module, cr_lineno, cr_col)
-                    if arg_top is not None:
-                        return (f"{callee_display or callee}()", module, arg_top)
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     arg_src = self._resolve_param_to_arg(
