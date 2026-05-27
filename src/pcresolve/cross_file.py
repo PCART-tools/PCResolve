@@ -151,6 +151,8 @@ def _normalize_path_for_usage(file_path, project_root):
 #  3. Resolve cross-file symbol references across the project.
 #  4. Classify every API call with its top-level library source.
 class ProjectAnalyzer:
+    # ── pipeline ───────────────────────────────────────────────────────
+
     ## Initialize the analyzer for a given project root.
     #  @param project_root Absolute path to the project root directory.
     #  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
@@ -246,6 +248,8 @@ class ProjectAnalyzer:
             library_usage=library_usage,
         )
 
+    # ── provenance helpers ───────────────────────────────────────────────
+
     ## Check whether a top name is backed by any import evidence across tracers.
     #  @param name Candidate top name.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
@@ -306,6 +310,8 @@ class ProjectAnalyzer:
     ## Build SymbolProvenance records from each tracer's symbol_refs.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return List of SymbolProvenance records.
+    # ── output construction ──────────────────────────────────────────────
+
     def _build_symbol_provenance(self, module_tracers):
         result = []
         for module, tracer in module_tracers.items():
@@ -343,6 +349,8 @@ class ProjectAnalyzer:
         return result
 
     # ── LibraryUsage evidence ────────────────────────────────────────────
+
+    # ── library usage ────────────────────────────────────────────────────
 
     def _is_usage_library(self, name):
         if name in ("", None, "local", "python", "unknown"):
@@ -651,6 +659,8 @@ class ProjectAnalyzer:
     #  @param top The resolved top-level library.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @return Reason constant string.
+    # ── classification helpers ───────────────────────────────────────────
+
     def _classify_reason(self, base, top, tracer, module, module_tracers,
                          expand_origins=True):
         if top == "local":
@@ -1039,6 +1049,8 @@ class ProjectAnalyzer:
     #  @param direct_source The structured tuple (kind, arg1, arg2).
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return (display_name, src_module, src_symbol) tuple, or None.
+    # ── structured source resolution ─────────────────────────────────────
+
     def _resolve_structured_source(self, module, direct_source, tracers):
         direct_source = normalize_source(direct_source)
         if isinstance(direct_source, SourceSet):
@@ -1335,6 +1347,8 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param visited Set of already-visited (module, symbol) pairs.
     #  @return Ordered chain list from symbol to origin.
+    # ── trace engine ─────────────────────────────────────────────────────
+
     def trace_symbol(self, module, symbol, tracers, visited, _direct_source=None):
         if (module, symbol) in visited:
             return []
