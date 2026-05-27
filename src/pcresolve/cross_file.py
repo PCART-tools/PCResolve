@@ -1151,12 +1151,20 @@ class ProjectAnalyzer:
                 if not resolved:
                     class_direct = tracer.symbols.direct.get(class_symbol)
                     if isinstance(class_direct, str) and self.is_local(class_direct):
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol)
+                        if cg_attr is not None:
+                            cg_mod, cg_top = cg_attr
+                            return (f"{a}.{b}", cg_mod, cg_top)
                         return (f"{a}.{b}", module, "local")
                     if class_direct == "local":
                         ext = self._resolve_local_method_to_external(
                             module, a, b, a, tracer, tracers)
                         if ext:
                             return (f"{a}.{b}", module, ext)
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol)
+                        if cg_attr is not None:
+                            cg_mod, cg_top = cg_attr
+                            return (f"{a}.{b}", cg_mod, cg_top)
                         return (f"{a}.{b}", module, "local")
                     if isinstance(class_symbol, str) and '.' in class_symbol:
                         top = self._top_source(module, class_symbol, tracers)
@@ -1164,6 +1172,14 @@ class ProjectAnalyzer:
                             return (f"{a}.{b}", module, top)
                     return None
             src_module, src_symbol = resolved
+            ## 7B-full PR3: if the resolved method is local, try constructor attrs.
+            top = self._top_source(src_module, src_symbol, tracers)
+            if top in ("local", "unknown", ""):
+                cg_attr = self._lookup_cg_class_attr_source(
+                    module, class_symbol)
+                if cg_attr is not None:
+                    cg_mod, cg_top = cg_attr
+                    return (f"{a}.{b}", cg_mod, cg_top)
             return (f"{a}.{b}", src_module, src_symbol)
 
         if kind == "container_iter":
@@ -1394,6 +1410,62 @@ class ProjectAnalyzer:
                     top = self._top_name(returns_norm.callee)
                     if top and top not in ("local", "unknown", ""):
                         return top
+        return None
+
+    ## Look up import-backed constructor attr from ClassSummary (7B-full PR3).
+    #
+    #  Searches ProjectCallGraph for a class's attrs; returns the first
+    #  import-backed source found as (src_module, top).  Used when a local
+    #  class method call cannot be resolved by return_sources or parameter
+    #  tracing.
+    #  @param cur_module The module where the class is defined.
+    #  @param class_name The local class name.
+    #  @return Tuple of (src_module, top_library) or None.
+    def _lookup_cg_class_attr_source(self, cur_module, class_name):
+        if not isinstance(class_name, str):
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        # Search current module first, then all modules.
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for module in search_modules:
+            mcg = cg.modules.get(module)
+            if mcg is None:
+                continue
+            cs = mcg.classes.get(class_name)
+            if cs is None:
+                continue
+            for attr_name, src in cs.attrs.items():
+                src_norm = normalize_source(src)
+                if isinstance(src_norm, CallResult):
+                    if isinstance(src_norm.callee, str):
+                        callee = src_norm.callee
+                        # Skip builtins and local names; keep dotted or non-local.
+                        if _is_builtin(callee) or self.is_local(callee):
+                            continue
+                        top = self._top_name(callee)
+                        if top and top not in ("local", "unknown", ""):
+                            return (module, top)
+                elif isinstance(src_norm, str):
+                    if (self.is_local(src_norm) or src_norm in ("local", "unknown", "")
+                            or _is_builtin(src_norm)):
+                        continue
+                    # Skip bare parameter names (self.x = x, with possible renames).
+                    bare = attr_name[5:] if attr_name.startswith("self.") else attr_name
+                    if src_norm == bare or src_norm.startswith(bare):
+                        continue
+                    # Require dotted source (external/import-backed).
+                    if '.' not in src_norm:
+                        continue
+                    top = self._top_name(src_norm)
+                    if top and top not in ("local", "unknown", ""):
+                        return (module, top)
+            # Found class but no import-backed attrs — stop searching.
+            return None
         return None
 
     #  @param module The module where the call occurs.

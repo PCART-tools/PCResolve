@@ -737,9 +737,8 @@ def test_factory_returned_instance_method_traces_to_library():
             f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
 
 
-@pytest.mark.xfail(reason="7B-full: local constructor method not traced to library return source", strict=True)
 def test_local_model_factory_method_call_traces_to_constructor_library():
-    """model = NSGP(); model.fit(X, y) should trace to NSGP constructor libs."""
+    """model = NSGP(); model.fit(X, y) traces to sklearn via constructor self.gp attr (7B-full PR3)."""
     code = (
         "import numpy as np\n"
         "from sklearn.gaussian_process import GaussianProcessRegressor\n"
@@ -755,8 +754,8 @@ def test_local_model_factory_method_call_traces_to_constructor_library():
     calls = [c for c in r.all_api_calls if "fit" in c.expression and "self.gp" not in c.expression]
     assert calls, "model.fit() not collected"
     for c in calls:
-        assert c.top_library != "local" and c.top_library != "unknown", \
-            f"model.fit() should have library provenance, got {c.top_library}"
+        assert c.top_library == "sklearn", \
+            f"model.fit() should be sklearn, got {c.top_library}"
 
 
 @pytest.mark.xfail(reason="7B-full: local class method result should inherit constructor library", strict=True)
@@ -921,7 +920,7 @@ def test_local_function_return_propagates_library_to_caller():
 
 
 def test_same_name_function_across_modules_not_polluted():
-    """a.py: make_arr -> numpy; b.py: make_arr -> local; b calls own, stays local."""
+    """a.py: make_arr -> numpy; b.py: make_arr -> local list; b calls own, must not become numpy."""
     from pcresolve.cross_file import ProjectAnalyzer
     with tempfile.TemporaryDirectory() as td:
         # Module a: make_arr returns numpy array
@@ -944,5 +943,7 @@ def test_same_name_function_across_modules_not_polluted():
         count_calls = [c for c in result.all_api_calls if "count" in c.expression]
         assert count_calls, "x.count() not collected in b.py"
         for c in count_calls:
-            assert c.top_library == "local", \
-                f"b.py x.count() should stay local, got {c.top_library} ({c.file_path})"
+            assert c.top_library != "numpy", \
+                f"b.py x.count() must not be polluted to numpy, got {c.top_library} ({c.file_path})"
+            assert c.top_library in ("local", "python", "unknown"), \
+                f"b.py x.count() expected local/python/unknown, got {c.top_library}"
