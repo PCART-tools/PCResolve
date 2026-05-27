@@ -271,6 +271,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if call_key:
                 if isinstance(call_key, CallResult):
                     return call_key
+                ## Resolve self.attr through instance_attrs so that
+                ## chained calls propagate library provenance, e.g.
+                ## predictions = self.model.predict(X)[0].reshape(...)
+                ## where self.model -> GPy.models.GPRegression.
+                if isinstance(call_key, str) and call_key.startswith("self.") and self._class_stack:
+                    cn = self._class_stack[-1]
+                    attr_src = self.instance_attrs.get((cn, call_key))
+                    if isinstance(attr_src, CallResult) and isinstance(attr_src.callee, str):
+                        call_key = attr_src.callee
+                ## Extract import-backed receiver from InstanceMethod.
+                if isinstance(call_key, InstanceMethod) and isinstance(call_key.receiver, str):
+                    call_key = call_key.receiver
                 display = ""
                 try:
                     display = ast.unparse(node.func)
@@ -819,6 +831,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
                             if isinstance(right_norm, InstanceMethod):
+                                if isinstance(right_norm.receiver, str):
+                                    self._bind_target_name(elt.id, right_norm.receiver, elt)
                                 continue
                             self._bind_target_name(elt.id, right, elt)
         else:
