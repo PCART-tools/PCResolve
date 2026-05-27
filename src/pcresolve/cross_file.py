@@ -1107,7 +1107,7 @@ class ProjectAnalyzer:
                 return None
             if class_symbol in tracer.class_methods:
                 ext = self._resolve_local_method_to_external(
-                    module, class_symbol, b, tracer, tracers)
+                    module, class_symbol, b, a, tracer, tracers)
                 if ext:
                     return (f"{a}.{b}", module, ext)
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
@@ -1120,7 +1120,7 @@ class ProjectAnalyzer:
                         return (f"{a}.{b}", module, "local")
                     if class_direct == "local":
                         ext = self._resolve_local_method_to_external(
-                            module, a, b, tracer, tracers)
+                            module, a, b, a, tracer, tracers)
                         if ext:
                             return (f"{a}.{b}", module, ext)
                         return (f"{a}.{b}", module, "local")
@@ -1233,7 +1233,8 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return External library name, or None.
     def _resolve_local_method_to_external(self, module, class_name,
-                                           method_name, tracer, tracers):
+                                           method_name, receiver,
+                                           tracer, tracers):
         rs = tracer.return_sources.get(method_name)
         if not rs:
             return None
@@ -1250,22 +1251,48 @@ class ProjectAnalyzer:
                         param_idx = ctor_params.index(param_name)
                         call_sites = (tracer.call_sites.get("__init__", [])
                                       or tracer.call_sites.get(ctor_key, []))
+                        match_ln, match_col = self._receiver_ctor_pos(
+                            receiver, tracer)
+                        matched = None
                         for cs in call_sites:
-                            if param_idx < len(cs.get("args", [])):
-                                arg_src = cs["args"][param_idx]
-                                arg_src = normalize_source(arg_src)
-                                if isinstance(arg_src, CallResult):
-                                    top = self._top_source(
-                                        module, arg_src.callee, tracers)
-                                    if top and top not in ("local", "python",
-                                                           "unknown", ""):
-                                        return top
-                                if isinstance(arg_src, str):
-                                    top = self._top_source(module, arg_src, tracers)
-                                    if top and top not in ("local", "python",
-                                                           "unknown", ""):
-                                        return top
+                            if param_idx >= len(cs.get("args", [])):
+                                continue
+                            cs_ln = cs.get("lineno", 0)
+                            cs_col = cs.get("col_offset", 0)
+                            if (match_ln and cs_ln == match_ln
+                                    and cs_col == match_col):
+                                matched = cs
+                                break
+                            if not match_ln:
+                                matched = cs
+                        if matched:
+                            arg_src = matched["args"][param_idx]
+                            arg_src = normalize_source(arg_src)
+                            if isinstance(arg_src, CallResult):
+                                top = self._top_source(
+                                    module, arg_src.callee, tracers)
+                                if top and top not in ("local", "python",
+                                                       "unknown", ""):
+                                    return top
+                            if isinstance(arg_src, str):
+                                top = self._top_source(module, arg_src, tracers)
+                                if top and top not in ("local", "python",
+                                                       "unknown", ""):
+                                    return top
         return None
+
+    ## Get the constructor call-site position for a receiver instance.
+    #  @param receiver The variable name bound to a class instance.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @return Tuple of (lineno, col_offset) or (0, 0) if unknown.
+    def _receiver_ctor_pos(self, receiver, tracer):
+        if not receiver or not isinstance(receiver, str):
+            return (0, 0)
+        sd = tracer.symbols.direct.get(receiver)
+        sd = normalize_source(sd)
+        if isinstance(sd, CallResult):
+            return (sd.call_lineno, sd.call_col_offset)
+        return (0, 0)
 
     ## Resolve a parameter name to its call-site argument for a specific callee.
     #

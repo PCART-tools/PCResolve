@@ -395,6 +395,30 @@ def test_module_level_decorator_not_leak_into_nested_scope():
                 f"nested handler() must NOT have decorated_by, got {c.decorated_by}"
 
 
+def test_local_class_multi_instance_different_libraries():
+    """Two instances of the same wrapper class with different external
+    constructor args must resolve to their respective libraries."""
+    code = ("import requests\n"
+            "import httpx\n"
+            "class Api:\n"
+            "    def __init__(self, session):\n"
+            "        self.session = session\n"
+            "    def get(self, url):\n"
+            "        return self.session.get(url)\n"
+            "a = Api(requests.Session())\n"
+            "b = Api(httpx.Client())\n"
+            "a.get('x')\n"
+            "b.get('y')\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "a.get" in c.expression:
+            assert c.top_library == "requests", \
+                f"a.get() should be requests, got {c.top_library}"
+        if "b.get" in c.expression:
+            assert c.top_library == "httpx", \
+                f"b.get() should be httpx, got {c.top_library}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"
