@@ -95,6 +95,23 @@ def _is_import_origin(tracer, symbol):
 #  @param file_path Absolute file path.
 #  @param project_root Root directory to make relative.
 #  @return Relative POSIX path, or empty string.
+def _lookup_decorated_by(file_path, func_name, deco_by):
+    """Look up decorator evidence for an ApiCall by func_name.
+    Tries exact match first, then falls back to the last dot-separated
+    segment for method calls (e.g. c.method -> method)."""
+    fn = func_name or ""
+    # exact match
+    key = (file_path, fn)
+    if key in deco_by:
+        return list(deco_by[key])
+    # method call fallback: c.method -> method
+    if "." in fn:
+        key2 = (file_path, fn.split(".")[-1])
+        if key2 in deco_by:
+            return list(deco_by[key2])
+    return []
+
+
 def _normalize_path_for_usage(file_path, project_root):
     if not file_path:
         return ""
@@ -192,8 +209,11 @@ class ProjectAnalyzer:
         deco_by = {}
         for prov in all_provenance:
             if prov.kind == "decorated_by":
+                if prov.top_library in ("", "local", "python", "unknown"):
+                    continue
                 key = (prov.file_path, prov.symbol)
-                deco_by.setdefault(key, []).append(prov.top_library)
+                if prov.top_library not in deco_by.setdefault(key, []):
+                    deco_by[key].append(prov.top_library)
 
         files = []
         for module, tracer in module_tracers.items():
@@ -222,8 +242,9 @@ class ProjectAnalyzer:
                         reason=c.get('reason', ''),
                         confidence=c.get('confidence', 1.0),
                         alternatives=c.get('alternatives', []),
-                        decorated_by=deco_by.get(
-                            (c.get('file_path', ''), c.get('func_name', '')), []),
+                        decorated_by=_lookup_decorated_by(
+                            c.get('file_path', ''),
+                            c.get('func_name', ''), deco_by),
                     )
                     for c in self.all_calls.get(module, [])
                 ],
@@ -249,9 +270,9 @@ class ProjectAnalyzer:
                     reason=c.get('reason', ''),
                     confidence=c.get('confidence', 1.0),
                     alternatives=c.get('alternatives', []),
-                    decorated_by=deco_by.get(
-                        (c.get('file_path', ''),
-                         c.get('func_name', '').split('.')[0]), []),
+                    decorated_by=_lookup_decorated_by(
+                        c.get('file_path', ''),
+                        c.get('func_name', ''), deco_by),
                 ))
 
         library_usage = self._build_library_usage(all_api_calls, all_provenance)

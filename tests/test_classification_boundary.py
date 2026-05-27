@@ -301,6 +301,27 @@ def test_apicall_decorated_by_field():
         f"decorated_by should contain flask, got {index_calls[0].decorated_by}"
 
 
+def test_decorated_method_call_has_decorated_by():
+    """A decorated method like c.method() must have decorated_by
+    set via fallback matching on the last func_name segment."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "class C:\n"
+            "    @app.route('/m')\n"
+            "    def method(self):\n"
+            "        pass\n"
+            "c = C()\n"
+            "c.method()\n")
+    r = _run_code(code)
+    method_calls = [c for c in r.all_api_calls
+                    if "method" in c.expression and c.expression != "app.route('/m')"]
+    assert len(method_calls) >= 1
+    assert "flask" in method_calls[0].decorated_by, \
+        f"c.method() decorated_by should contain flask, got {method_calls[0].decorated_by}"
+    assert method_calls[0].top_library == "local", \
+        f"c.method() should be local, got {method_calls[0].top_library}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"
