@@ -851,3 +851,50 @@ def test_call_edge_has_caller_and_assigned_to():
     assert e.caller.qualname != "", "CallEdge must have caller"
     assert e.assigned_to == ["x"], f"Expected assigned_to=['x'], got {e.assigned_to}"
     assert e.receiver_source is not None, "CallEdge must have receiver_source for obj.method()"
+    assert "pos" in e.arg_sources, f"arg_sources should have 'pos' key, got {list(e.arg_sources.keys())}"
+    assert "kw" in e.arg_sources, f"arg_sources should have 'kw' key"
+
+
+def test_nested_call_does_not_steal_assigned_to():
+    """result = outer(inner()): outer gets ['result'], inner gets []."""
+    code = (
+        "def inner():\n"
+        "    return 42\n"
+        "import numpy as np\n"
+        "result = np.array(inner())\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    edges = []
+    for mcg in cg.modules.values():
+        edges.extend(mcg.edges)
+    # np.array is the outer call — should have assigned_to
+    outer_edges = [e for e in edges if str(e.callee) == "np"]
+    assert len(outer_edges) >= 1, \
+        f"No outer edge with callee='np'; edges={[(str(e.callee), e.assigned_to) for e in edges]}"
+    outer = outer_edges[0]
+    assert outer.assigned_to == ["result"], \
+        f"outer np.array() should get assigned_to=['result'], got {outer.assigned_to}"
+    # inner() is the nested argument call — should have empty assigned_to
+    inner_edges = [e for e in edges if str(e.callee) == "local"]
+    assert len(inner_edges) >= 1, \
+        f"No inner edge; edges={[(str(e.callee), e.assigned_to, e.call_lineno) for e in edges]}"
+    assert inner_edges[0].assigned_to == [], \
+        f"inner() should get empty assigned_to, got {inner_edges[0].assigned_to}"
+
+
+def test_import_backed_self_attr_in_class_attrs():
+    """self.gp = GPRegression(...) should appear in ClassSummary.attrs."""
+    code = (
+        "from sklearn.gaussian_process import GaussianProcessRegressor\n"
+        "class Model:\n"
+        "    def __init__(self):\n"
+        "        self.gp = GaussianProcessRegressor()\n"
+        "Model()\n"
+    )
+    _, cg = _run_code_with_cg(code)
+    cs = cg.modules.get("main", None)
+    assert cs is not None
+    model_cs = cs.classes.get("Model")
+    assert model_cs is not None, f"Model not in classes; keys={list(cs.classes.keys())}"
+    assert "self.gp" in model_cs.attrs, \
+        f"self.gp should be in Model.attrs, got {list(model_cs.attrs.keys())}"

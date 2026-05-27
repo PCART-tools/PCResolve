@@ -80,8 +80,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.module_cg = ModuleCallGraph(module=module_name or "")
         ## Stack of FunctionId for tracking the current caller context.
         self._caller_stack = [FunctionId(module_name or "", "<module>")]
-        ## Temporary storage for assignment targets of the next call RHS.
-        self._pending_call_result_targets = []
+        ## Map from RHS top-level expression node id -> list of target names.
+        ## Only the outermost RHS call (not nested inner calls) consumes targets.
+        self._pending_call_targets_by_node = {}
 
     ## Return the current innermost scope.
     def current_scope(self):
@@ -797,15 +798,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if bases:
                         self.container_set_sources[container_name] = bases
 
-        ## Collect assignment target names for CallEdge.assigned_to.
-        self._pending_call_result_targets = []
+        ## Collect assignment target names keyed by RHS expression node id.
+        ## Only the top-level RHS call (not nested inner calls) consumes them.
+        targets = []
         for target in node.targets:
             if isinstance(target, ast.Name):
-                self._pending_call_result_targets.append(target.id)
+                targets.append(target.id)
             elif isinstance(target, (ast.Tuple, ast.List)):
                 for elt in target.elts:
                     if isinstance(elt, ast.Name):
-                        self._pending_call_result_targets.append(elt.id)
+                        targets.append(elt.id)
+        if targets and isinstance(node.value, ast.Call):
+            self._pending_call_targets_by_node[id(node.value)] = targets
 
         right = self.trace_source(node.value)
         if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
@@ -942,28 +946,28 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             receiver_source = None
             if isinstance(node.func, ast.Attribute):
                 receiver_source = self.get_base(node.func.value)
-            ## Collect arg sources.
-            arg_sources = {}
+            ## Collect arg sources — positional indexed, keyword by name.
+            arg_sources = {"pos": {}, "kw": {}}
             for i, arg in enumerate(node.args):
                 arg_src = self.get_base(arg)
                 if arg_src is not None:
-                    arg_sources[i] = arg_src
-            ## Collect keyword arg sources.
+                    arg_sources["pos"][i] = arg_src
             for kw in getattr(node, "keywords", []) or []:
                 arg_src = self.get_base(kw.value) if kw.arg else None
                 if arg_src is not None and kw.arg:
-                    arg_sources[kw.arg] = arg_src
+                    arg_sources["kw"][kw.arg] = arg_src
+            ## Consume assigned_to only for the top-level RHS call.
+            assigned = self._pending_call_targets_by_node.pop(id(node), [])
             edge = CallEdge(
                 caller=caller,
                 callee=base,
                 receiver_source=receiver_source,
                 arg_sources=arg_sources,
-                assigned_to=list(self._pending_call_result_targets),
+                assigned_to=assigned,
                 call_lineno=node.lineno,
                 call_col_offset=node.col_offset,
             )
             self.module_cg.edges.append(edge)
-            self._pending_call_result_targets = []
 
         if isinstance(node.func, ast.Name):
             direct_name = node.func.id
