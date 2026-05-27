@@ -467,6 +467,30 @@ class ProjectAnalyzer:
                             record['confidence'] = cr.confidence
                             self.all_calls[module].append(record)
                             continue
+                    ## 7B-full PR4: try arg-source provenance from CallEdge.
+                    ## Only for known container-mutating methods (append, extend, etc.).
+                    func_name = call_detail.get('func_name', '')
+                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
+                    is_container_method = any(
+                        func_name.endswith('.' + m) for m in container_methods)
+                    arg_top = None
+                    if is_container_method:
+                        arg_src = self._lookup_cg_edge_arg_source(
+                            module,
+                            call_detail.get('lineno', 0),
+                            call_detail.get('col_offset', 0))
+                        if arg_src is not None:
+                            arg_top = self._top_source(module, arg_src, module_tracers)
+                    if arg_top is not None:
+                        record = dict(call_detail)
+                        record['top'] = arg_top
+                        cr = self.classify_source(
+                            base, arg_top, module, tracer, module_tracers)
+                        record['reason'] = cr.reason
+                        record['confidence'] = cr.confidence
+                        record['alternatives'] = cr.alternatives
+                        self.all_calls[module].append(record)
+                        continue
                     record = dict(call_detail)
                     record['top'] = 'local'
                     cr = self.classify_source(
@@ -477,6 +501,19 @@ class ProjectAnalyzer:
                     self.all_calls[module].append(record)
                     continue
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
+                ## 7B-full PR4: try arg-source provenance for container methods.
+                if top_source in ("local", "unknown", "") and not isinstance(base, str):
+                    func_name = call_detail.get('func_name', '')
+                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
+                    if any(func_name.endswith('.' + m) for m in container_methods):
+                        arg_src = self._lookup_cg_edge_arg_source(
+                            module,
+                            call_detail.get('lineno', 0),
+                            call_detail.get('col_offset', 0))
+                        if arg_src is not None:
+                            arg_top = self._top_source(module, arg_src, module_tracers)
+                            if arg_top and arg_top not in ("local", "unknown", ""):
+                                top_source = arg_top
                 record = dict(call_detail)
                 record['top'] = top_source
                 cr = self.classify_source(
@@ -1249,6 +1286,11 @@ class ProjectAnalyzer:
                     cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
                     if cg_ret is not None:
                         return (f"{callee_display or callee}()", cur_module, cg_ret)
+                    ## 7B-full PR4: try arg-source provenance from CallEdge.
+                    arg_top = self._lookup_cg_edge_arg_source(
+                        module, cr_lineno, cr_col)
+                    if arg_top is not None:
+                        return (f"{callee_display or callee}()", module, arg_top)
                     return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
                     arg_src = self._resolve_param_to_arg(
@@ -1410,6 +1452,43 @@ class ProjectAnalyzer:
                     top = self._top_name(returns_norm.callee)
                     if top and top not in ("local", "unknown", ""):
                         return top
+        return None
+
+    ## Look up import-backed arg source from a CallEdge (7B-full PR4).
+    #
+    #  Searches ProjectCallGraph for the edge matching a call site and returns
+    #  the first import-backed positional argument source found.
+    #  @param cur_module The module where the call occurs.
+    #  @param cr_lineno Call line number.
+    #  @param cr_col Call column offset.
+    #  @return A library top string, or None.
+    def _lookup_cg_edge_arg_source(self, cur_module, cr_lineno, cr_col):
+        if not cr_lineno:
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for mod in search_modules:
+            mcg = cg.modules.get(mod)
+            if mcg is None:
+                continue
+            for edge in mcg.edges:
+                if edge.call_lineno != cr_lineno or edge.call_col_offset != cr_col:
+                    continue
+                for src in list(edge.arg_sources.get("pos", {}).values()) + list(edge.arg_sources.get("kw", {}).values()):
+                    src_norm = normalize_source(src)
+                    if isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                        return src_norm.callee
+                    if isinstance(src_norm, ContainerItem):
+                        if isinstance(src_norm.container, str):
+                            return src_norm.container
+                    if isinstance(src_norm, str) and '.' in src_norm:
+                        return src_norm
+                return None
         return None
 
     ## Look up import-backed constructor attr used by a specific method (7B-full PR3).

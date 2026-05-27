@@ -697,9 +697,8 @@ def test_non_import_backed_receiver_stays_local():
 # ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
 
 
-@pytest.mark.xfail(reason="7B-full: container item source not propagated through list append", strict=True)
 def test_container_item_append_preserves_numpy_source():
-    """new.append(new_vertices[i]) with numpy-sourced item should trace to numpy."""
+    """lst.append(arr[0]) with numpy-sourced item traces to numpy (7B-full PR4)."""
     code = (
         "import numpy as np\n"
         "arr = np.array([1, 2, 3])\n"
