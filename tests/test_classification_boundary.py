@@ -510,6 +510,42 @@ def test_self_attr_dotted_callee_traces_to_library():
                 f"self.model.predict should be GPy, got {c.top_library}"
 
 
+def test_self_attr_alias_traces_to_library():
+    """vor = self.voronoi; vor.add_points() must trace through self attr alias."""
+    code = ("from scipy.spatial import Voronoi\n"
+            "class NN:\n"
+            "    def _fit(self, X):\n"
+            "        self.voronoi = Voronoi(X)\n"
+            "    def add_point(self, X, p):\n"
+            "        vor = self.voronoi\n"
+            "        vor.add_points(p)\n"
+            "nn = NN()\n"
+            "nn._fit([[1,2],[3,4]])\n"
+            "nn.add_point([[1,2],[3,4]], [[5,6]])\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "vor.add" in c.expression:
+            assert c.top_library == "scipy", \
+                f"vor.add_points() should be scipy, got {c.top_library}"
+
+
+def test_local_self_attr_subscript_not_misattributed():
+    """Local self.attr with no external provenance must not be misattributed."""
+    code = ("class Local:\n"
+            "    def __init__(self):\n"
+            "        self.data = [1,2,3]\n"
+            "    def get(self, i):\n"
+            "        x = self.data\n"
+            "        return x[i]\n"
+            "l = Local()\n"
+            "l.get(0)\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "x[" in c.expression:
+            assert c.top_library in ("local", "python"), \
+                f"local self attr subscript must not be third-party, got {c.top_library}"
+
+
 def test_7b_factory_returned_instance_stays_local():
     """Factory-returned class instances (c = make(httpx.Client()))
     must stay local — no constructor call-site match available."""
