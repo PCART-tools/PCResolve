@@ -91,10 +91,10 @@ def _is_import_origin(tracer, symbol):
     return False
 
 
-## Normalize a file path to a relative POSIX path for library usage reporting.
-#  @param file_path Absolute file path.
-#  @param project_root Root directory to make relative.
-#  @return Relative POSIX path, or empty string.
+## Build an ApiCall from a get_calls() record dict.
+#  @param c Call record dict.
+#  @param deco_by Decorator evidence index.
+#  @return ApiCall object.
 def _make_api_call(c, deco_by):
     """Build an ApiCall from a get_calls() record dict."""
     return ApiCall(
@@ -130,6 +130,10 @@ def _lookup_decorated_by(file_path, func_name, scope_name, deco_by):
     return list(deco_by.get(key, []))
 
 
+## Normalize a file path to a relative POSIX path for library usage reporting.
+#  @param file_path Absolute file path.
+#  @param project_root Root directory to make relative.
+#  @return Relative POSIX path, or empty string.
 def _normalize_path_for_usage(file_path, project_root):
     if not file_path:
         return ""
@@ -251,9 +255,6 @@ class ProjectAnalyzer:
     # ── provenance helpers ───────────────────────────────────────────────
 
     ## Check whether a top name is backed by any import evidence across tracers.
-    #  @param name Candidate top name.
-    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
-    #  @return True if the name appears as an import origin.
     def _is_prov_import_backed(self, name, tracers):
         if not isinstance(name, str) or '.' in name:
             return bool('.' in name) if isinstance(name, str) else False
@@ -263,6 +264,8 @@ class ProjectAnalyzer:
             if name in getattr(tr, 'import_aliases', set()):
                 return True
         return False
+
+    # ── output construction ──────────────────────────────────────────────
 
     ## Build per-file analysis results.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
@@ -310,8 +313,6 @@ class ProjectAnalyzer:
     ## Build SymbolProvenance records from each tracer's symbol_refs.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return List of SymbolProvenance records.
-    # ── output construction ──────────────────────────────────────────────
-
     def _build_symbol_provenance(self, module_tracers):
         result = []
         for module, tracer in module_tracers.items():
@@ -347,8 +348,6 @@ class ProjectAnalyzer:
                 )
                 result.append(prov)
         return result
-
-    # ── LibraryUsage evidence ────────────────────────────────────────────
 
     # ── library usage ────────────────────────────────────────────────────
 
