@@ -270,8 +270,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     class_name = src.callee
                         method_key = class_name + "." + me.method
                         rs = self.return_sources.get(method_key)
-                        if rs is None:
-                            rs = self.return_sources.get(me.method)
                         if rs is not None:
                             rs = normalize_source(rs)
                             # Unwrap SourceSet: find the first import-backed source.
@@ -1561,7 +1559,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             and node.value.id in self.function_params.get(func_name, [])):
                         new_src = node.value.id
                     old = self.return_sources.get(func_name)
-                    self.return_sources[func_name] = make_source_set([old, new_src] if old else [new_src])
+                    merged = make_source_set([old, new_src] if old else [new_src])
+                    self.return_sources[func_name] = merged
+                    ## Also write qualified key so methods on different
+                    ## classes don't share return_sources via bare names.
+                    if self._class_stack:
+                        qkey = self._class_stack[-1] + "." + func_name
+                        old_q = self.return_sources.get(qkey)
+                        self.return_sources[qkey] = make_source_set(
+                            [old_q, new_src] if old_q else [new_src])
                     self._add_symbol_ref(
                         func_name + ".return", source, "return", node)
         self.generic_visit(node)

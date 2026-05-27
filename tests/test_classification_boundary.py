@@ -1049,3 +1049,25 @@ def test_void_func_assigned_result_not_polluted():
     for c in calls:
         assert c.top_library == "local", \
             f"obj.add() should stay local, got {c.top_library} ({c.chain})"
+
+
+def test_same_named_method_across_classes_not_polluted():
+    """A.get()->np, B.get()->1; b.get() result must not inherit A's numpy."""
+    code = (
+        "import numpy as np\n"
+        "class A:\n"
+        "    def get(self):\n"
+        "        return np.array([1])\n"
+        "class B:\n"
+        "    def get(self):\n"
+        "        return 1\n"
+        "b = B()\n"
+        "y = b.get()\n"
+        "y.foo()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "foo" in c.expression]
+    assert calls, "y.foo() not collected"
+    for c in calls:
+        assert c.top_library != "numpy", \
+            f"y.foo() must not be polluted to numpy, got {c.top_library} ({c.chain})"
