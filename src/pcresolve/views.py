@@ -224,6 +224,10 @@ def _full_api_call(c, root):
         "parameters": c.parameters,
         "resolved_func": c.resolved_func,
         "resolved_chain": c.resolved_chain,
+        "reason": c.reason,
+        "confidence": c.confidence,
+        "alternatives": c.alternatives,
+        "decorated_by": c.decorated_by,
     }
 
 

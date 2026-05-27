@@ -42,7 +42,13 @@
             "stats.pearsonr",
             "stats.pearsonr",
             "scipy"
-          ]
+          ],
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
+          "alternatives": [
+            "scipy"
+          ],
+          "decorated_by": []
         }
       ],
       "diagnostics": [],
@@ -155,7 +161,13 @@
         "stats.pearsonr",
         "stats.pearsonr",
         "scipy"
-      ]
+      ],
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
+      "alternatives": [
+        "scipy"
+      ],
+      "decorated_by": []
     }
   ],
   "diagnostics": [],

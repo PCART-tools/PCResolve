@@ -103,6 +103,51 @@ Phase 8B should normalise all unresolved cases to `"unknown"` with
 - Constructor argument to `self.attr` propagation is ad-hoc (via `instance_attrs`), not integrated with call graph.
 - `nonlocal` is first-edition no-crash only.
 
+## Phase 8C: Decorator Provenance Semantics
+
+Decorators create two distinct kinds of evidence that must not be conflated:
+
+| Evidence | Field | Semantics | Stability |
+|----------|-------|-----------|-----------|
+| Decorator expression call | `ApiCall.top_library` | The decorator `@lib.deco(args)` itself is a call to `lib` | Public, stable |
+| Decorated target call | `ApiCall.top_library` | A call to the decorated function/class is **always** `"local"` | Public, stable |
+| Decorator provenance evidence | `SymbolProvenance(kind="decorated_by")` | Records which libraries decorated the target | Public, stable |
+| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `func_name` match (file_path, func_name) | Public, additive-only; method calls require Phase 7B |
+
+### Core Invariant
+
+> **A decorator never changes the primary identity of the decorated target.**  
+> `@app.route("/")` makes `index()` a Flask-decorated function, but `index()` itself is still a locally-defined callable.  
+> Its `top_library` remains `"local"`. Decorator provenance is surfaced via `decorated_by`, not via `top_library`.
+
+### Decorator Identity Preservation (Phase 8C+)
+
+Local decorator functions preserve their name as evidence, and chain through `return_sources`:
+
+| Decorator | `decorated_by` evidence |
+|-----------|------------------------|
+| `@app.route("/")` | `flask` |
+| `@click.command()` | `click` |
+| `@dataclass` | `dataclasses` |
+| `@local_deco` (returns `click.command()(f)`) | `click` (via `return_sources`) |
+| `@passthrough` (returns `f`) | `"local"` (filtered from `ApiCall.decorated_by`) |
+
+### Consumer Guidance (PCART / downstream)
+
+To find all call sites potentially related to library `lib`:
+
+1. **Direct API calls**: `ApiCall.top_library == lib`
+2. **Decorated local calls**: `lib in ApiCall.decorated_by` AND `ApiCall.top_library == "local"`
+3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; Phase 7B will add class-aware `ApiCall.decorated_by` for methods
+
+### `ApiCall.decorated_by` Contract
+
+- **Field type**: `list[str]`, default `[]`
+- **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
+- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls pre-7B)
+- **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
+- **Matching**: exact match on `(file_path, func_name)` where `func_name` is the call's bare function name (e.g. `"index"` for `index()`, not `"c.method"` for method calls)
+
 ## Phase 5 / 7A / 7B / 8B Contracts
 
 - **Phase 5** must not add classification logic in `_base_top_source()`. Instead, `SourceSet` alternatives should flow through `TraceResult.tops` and be classified by the pipeline.

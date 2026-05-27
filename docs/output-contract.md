@@ -79,3 +79,56 @@
 | 1 | CLI argument error, path error, or `--strict` with error diagnostics |
 | 2 | (Reserved) Internal analyser exception |
 | 3 | (Reserved) Policy gate failure |
+
+## ApiCall Fields (Full Profile)
+
+All fields are present in the `full` profile.  Summary profile includes only
+`top_library` and `reason_counts` aggregated per library.
+
+| Field | Type | Default | Stability | Added |
+|-------|------|---------|-----------|-------|
+| `expression` | string | — | Stable | — |
+| `top_library` | string | — | Stable | — |
+| `base_symbol` | string | — | Stable | — |
+| `chain` | list | — | Stable | — |
+| `file_path` | string | `""` | Stable | — |
+| `lineno` | int | `0` | Stable | — |
+| `col_offset` | int | `0` | Stable | — |
+| `end_lineno` | int | `0` | Stable | — |
+| `end_col_offset` | int | `0` | Stable | — |
+| `func_name` | string | `""` | Stable | — |
+| `parameters` | string | `""` | Stable | — |
+| `resolved_func` | string | `""` | Stable | — |
+| `resolved_chain` | list | `[]` | Stable | — |
+| `reason` | string | `""` | Stable | Phase 8A |
+| `confidence` | float | `1.0` | Stable | Phase 8A |
+| `alternatives` | list | `[]` | Stable | Phase 8A |
+| `decorated_by` | list | `[]` | Additive | Phase 8C+ |
+
+### `ApiCall.decorated_by` Field Contract
+
+- **Type**: `list[str]`, default `[]`
+- **Stability**: additive-only within a schema version.  New decorator evidence
+  may appear; existing library entries are never removed without a version bump.
+- **Null/empty**: `[]` means "no decorator evidence found on this call".
+  May be a false negative for method calls (`obj.method()`) until Phase 7B.
+- **Values**: only import-backed library names.
+  `"local"`, `"python"`, `"unknown"` are excluded.
+- **Matching**: exact match on `(file_path, func_name)` where `func_name`
+  is the API call's bare function name (e.g. `"index"` for `index()`).
+  Method calls (`c.method()`) currently return `[]` — class resolution
+  needed for reliable scope-aware matching (Phase 7B).
+- **Existing values are not removed** when a schema version bumps;
+  they may be augmented with new library names as analysis improves.
+
+### SymbolProvenance `kind="decorated_by"`
+
+SymbolProvenance records with `kind="decorated_by"` carry:
+
+| Field | Value |
+|-------|-------|
+| `symbol` | Decorated function/class name |
+| `kind` | `"decorated_by"` |
+| `top_library` | Library providing the decorator (or `"local"`) |
+| `scope_name` | Class name for methods, empty for module-level functions |
+| `chain` | Trace chain from decorator expression to library |

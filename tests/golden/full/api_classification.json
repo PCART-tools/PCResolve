@@ -149,7 +149,11 @@
             "fetch_data",
             "fetch_data",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "get_alias('http://b.com')",
@@ -171,7 +175,13 @@
             "get_alias",
             "get_alias",
             "requests"
-          ]
+          ],
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         },
         {
           "expression": "fetcher('http://c.com')",
@@ -193,7 +203,13 @@
             "fetcher",
             "fetcher",
             "requests"
-          ]
+          ],
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         },
         {
           "expression": "LocalClient()",
@@ -215,7 +231,11 @@
             "LocalClient",
             "LocalClient",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "client.get('http://d.com')",
@@ -234,7 +254,11 @@
             "client.get",
             "client.get",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "MixedClient()",
@@ -256,7 +280,11 @@
             "MixedClient",
             "MixedClient",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "m_client.get('http://d2.com')",
@@ -275,7 +303,11 @@
             "m_client.get",
             "m_client.get",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "ThirdPartyClient()",
@@ -297,7 +329,11 @@
             "ThirdPartyClient",
             "ThirdPartyClient",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "tp.get('http://e.com')",
@@ -316,7 +352,13 @@
             "tp.get",
             "tp.get",
             "requests"
-          ]
+          ],
+          "reason": "TRANSITIVE_IMPORT",
+          "confidence": 0.9,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         },
         {
           "expression": "wrapper('http://f.com')",
@@ -338,7 +380,11 @@
             "wrapper",
             "wrapper",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         }
       ],
       "diagnostics": [],
@@ -787,7 +833,13 @@
             "requests.get",
             "requests.get",
             "requests"
-          ]
+          ],
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         },
         {
           "expression": "requests.get(url)",
@@ -808,7 +860,13 @@
             "requests.get",
             "requests.get",
             "requests"
-          ]
+          ],
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         },
         {
           "expression": "fetch_data(url)",
@@ -830,7 +888,11 @@
             "fetch_data",
             "fetch_data",
             "local"
-          ]
+          ],
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
+          "alternatives": [],
+          "decorated_by": []
         },
         {
           "expression": "partial(requests.get, timeout=10)",
@@ -851,7 +913,13 @@
             "partial",
             "functools.partial",
             "requests"
-          ]
+          ],
+          "reason": "DIRECT_IMPORT",
+          "confidence": 1.0,
+          "alternatives": [
+            "requests"
+          ],
+          "decorated_by": []
         }
       ],
       "diagnostics": [],
@@ -1205,7 +1273,11 @@
         "fetch_data",
         "fetch_data",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "get_alias('http://b.com')",
@@ -1227,7 +1299,13 @@
         "get_alias",
         "get_alias",
         "requests"
-      ]
+      ],
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     },
     {
       "expression": "fetcher('http://c.com')",
@@ -1249,7 +1327,13 @@
         "fetcher",
         "fetcher",
         "requests"
-      ]
+      ],
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     },
     {
       "expression": "LocalClient()",
@@ -1271,7 +1355,11 @@
         "LocalClient",
         "LocalClient",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "client.get('http://d.com')",
@@ -1290,7 +1378,11 @@
         "client.get",
         "client.get",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "MixedClient()",
@@ -1312,7 +1404,11 @@
         "MixedClient",
         "MixedClient",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "m_client.get('http://d2.com')",
@@ -1331,7 +1427,11 @@
         "m_client.get",
         "m_client.get",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "ThirdPartyClient()",
@@ -1353,7 +1453,11 @@
         "ThirdPartyClient",
         "ThirdPartyClient",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "tp.get('http://e.com')",
@@ -1372,7 +1476,13 @@
         "tp.get",
         "tp.get",
         "requests"
-      ]
+      ],
+      "reason": "TRANSITIVE_IMPORT",
+      "confidence": 0.9,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     },
     {
       "expression": "wrapper('http://f.com')",
@@ -1394,7 +1504,11 @@
         "wrapper",
         "wrapper",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "requests.get(url)",
@@ -1415,7 +1529,13 @@
         "requests.get",
         "requests.get",
         "requests"
-      ]
+      ],
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     },
     {
       "expression": "requests.get(url)",
@@ -1436,7 +1556,13 @@
         "requests.get",
         "requests.get",
         "requests"
-      ]
+      ],
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     },
     {
       "expression": "fetch_data(url)",
@@ -1458,7 +1584,11 @@
         "fetch_data",
         "fetch_data",
         "local"
-      ]
+      ],
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
+      "alternatives": [],
+      "decorated_by": []
     },
     {
       "expression": "partial(requests.get, timeout=10)",
@@ -1479,7 +1609,13 @@
         "partial",
         "functools.partial",
         "requests"
-      ]
+      ],
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": [
+        "requests"
+      ],
+      "decorated_by": []
     }
   ],
   "diagnostics": [],

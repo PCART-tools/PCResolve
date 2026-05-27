@@ -162,6 +162,32 @@ def test_json_stable_aliases_json_full():
     assert full == stable, "--json-stable must equal --json-full"
 
 
+def test_full_profile_includes_decorated_by():
+    """A decorated local call must include decorated_by in full JSON output."""
+    code = ("import flask\n"
+            "app = flask.Flask(__name__)\n"
+            "@app.route('/')\n"
+            "def index():\n"
+            "    return 'hello'\n"
+            "index()\n")
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "main.py"), "w") as f:
+            f.write(code)
+        r = subprocess.run(
+            [sys.executable, "-m", "pcresolve", td, "--json-full"],
+            capture_output=True, text=True)
+        data = json.loads(r.stdout)
+        index_calls = [c for c in data.get("all_api_calls", [])
+                       if c.get("expression") == "index()"]
+        assert len(index_calls) == 1, f"Expected 1 index() call, got {index_calls}"
+        call = index_calls[0]
+        assert call["top_library"] == "local", \
+            f"index() should be local, got {call['top_library']}"
+        assert "flask" in call.get("decorated_by", []), \
+            f"index().decorated_by should contain flask, got {call.get('decorated_by')}"
+
+
 def test_json_summary_excludes_full_facts():
     """Summary must not include all_api_calls or all_symbol_provenance."""
     summary = _run(["--json-summary", "tests/fixtures/tests2/"])
