@@ -183,7 +183,7 @@ def main():
             paths.append(arg)
 
     if missing:
-        print("ERROR: %d path(s) not found — aborting." % len(missing),
+        print("ERROR: %d path(s) not found - aborting." % len(missing),
               file=sys.stderr)
         sys.exit(1)
     if not paths:
