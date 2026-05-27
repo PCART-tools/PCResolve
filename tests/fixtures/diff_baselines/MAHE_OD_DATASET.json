@@ -1,5 +1,5 @@
 {
-  "regressions": 17,
+  "regressions": 16,
   "improvements": 3,
   "precision": 10,
   "illegal_keys": 0

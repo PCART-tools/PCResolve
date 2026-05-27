@@ -930,6 +930,13 @@ class ProjectAnalyzer:
         tracer = tracers.get(module)
         if not tracer:
             return None
+        if not isinstance(container_name, str):
+            cn = normalize_source(container_name)
+            if isinstance(cn, CallResult) and isinstance(cn.callee, str):
+                top = self._top_source(module, cn.callee, tracers)
+                if top and top not in ("local", "python", "unknown", ""):
+                    return (module, [top])
+            return None
         local_candidates = self._collect_container_candidates(module, tracer, container_name, tracers)
         if local_candidates:
             return (module, local_candidates)

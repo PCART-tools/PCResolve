@@ -565,6 +565,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if isinstance(receiver_node, ast.Attribute):
             receiver_name = self._attribute_name(receiver_node)
             if receiver_name is not None:
+                if receiver_name in self.symbols.direct:
+                    return receiver_name
+                chain = self._attribute_chain_list(receiver_node)
+                if chain and self.scope_model == "v2":
+                    root_src = self._lookup_name_source(chain[0])
+                    if root_src and root_src != chain[0]:
+                        return root_src
                 return receiver_name
             return self._resolve_call_receiver(receiver_node.value)
         if isinstance(receiver_node, ast.Call):
