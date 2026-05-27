@@ -419,6 +419,68 @@ def test_local_class_multi_instance_different_libraries():
                 f"b.get() should be httpx, got {c.top_library}"
 
 
+# ── Phase 7B hardening ──────────────────────────────────────────────────
+
+def test_7b_alias_receiver_follows_to_external():
+    """c = b; c.get(...) where b = Api(httpx.Client()) must still trace
+    to httpx through the alias."""
+    code = ("import requests\n"
+            "import httpx\n"
+            "class Api:\n"
+            "    def __init__(self, session):\n"
+            "        self.session = session\n"
+            "    def get(self, url):\n"
+            "        return self.session.get(url)\n"
+            "a = Api(requests.Session())\n"
+            "b = Api(httpx.Client())\n"
+            "c = b\n"
+            "c.get('z')\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "c.get" in c.expression:
+            assert c.top_library == "httpx", \
+                f"c.get() via alias should be httpx, got {c.top_library}"
+
+
+def test_7b_factory_returned_instance_stays_local():
+    """Factory-returned class instances (c = make(httpx.Client()))
+    must stay local — no constructor call-site match available."""
+    code = ("import requests\n"
+            "import httpx\n"
+            "class Api:\n"
+            "    def __init__(self, session):\n"
+            "        self.session = session\n"
+            "    def get(self, url):\n"
+            "        return self.session.get(url)\n"
+            "def make(session):\n"
+            "    return Api(session)\n"
+            "c = make(httpx.Client())\n"
+            "c.get('z')\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "c.get" in c.expression:
+            assert c.top_library == "local", \
+                f"factory c.get() should be local, got {c.top_library}"
+
+
+def test_7b_pure_local_method_stays_local():
+    """A class with no external constructor args must keep all
+    method calls as local."""
+    code = ("class Calc:\n"
+            "    def __init__(self):\n"
+            "        self.value = 0\n"
+            "    def add(self, x):\n"
+            "        self.value += x\n"
+            "        return self.value\n"
+            "c = Calc()\n"
+            "c.add(5)\n")
+    r = _run_code(code)
+    for c in r.all_api_calls:
+        if "add" in c.expression:
+            assert c.top_library == "local", \
+                f"Calc.add() should be local, got {c.top_library}"
+
+
 def test_v1_still_works_for_local_functions():
     code = ("def helper():\n"
             "    pass\n"
