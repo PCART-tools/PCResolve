@@ -692,3 +692,97 @@ def test_non_import_backed_receiver_stays_local():
     for c in calls:
         assert c.top_library == "local", \
             f"local x.count() should stay local, got {c.top_library}"
+
+
+# ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
+
+
+@pytest.mark.xfail(reason="7B-full: container item source not propagated through list append")
+def test_container_item_append_preserves_numpy_source():
+    """new.append(new_vertices[i]) with numpy-sourced item should trace to numpy."""
+    code = (
+        "import numpy as np\n"
+        "arr = np.array([1, 2, 3])\n"
+        "lst = []\n"
+        "lst.append(arr[0])\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "append" in c.expression]
+    assert calls, "lst.append() not collected"
+    for c in calls:
+        assert c.top_library == "numpy", \
+            f"append with numpy item should be numpy, got {c.top_library}"
+
+
+@pytest.mark.xfail(reason="7B-full: dict with mixed-source values and dynamic key loses provenance")
+def test_factory_returned_instance_method_traces_to_library():
+    """kernel = kern_dict[dynamic_key]; kernel.method() where dict has mixed sources."""
+    code = (
+        "import numpy as np\n"
+        "import pandas as pd\n"
+        "class Wrapper:\n"
+        "    def run(self, key):\n"
+        "        kern_dict = {\n"
+        "            'a': np.array([1, 2]),\n"
+        "            'b': pd.DataFrame(),\n"
+        "        }\n"
+        "        result = kern_dict[key]\n"
+        "        return result.shape\n"
+        "Wrapper().run('a')\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "shape" in c.expression]
+    assert calls, "result.shape not collected"
+    libs = {c.top_library for c in calls}
+    assert not (libs <= {"local", "unknown"}), \
+        f"result.shape should not all be local/unknown, got {libs}"
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "K" in c.expression]
+    assert calls, "kernel.K() not collected"
+    for c in calls:
+        assert c.top_library == "GPy", \
+            f"kernel.K() should be GPy, got {c.top_library}"
+
+
+@pytest.mark.xfail(reason="7B-full: local constructor method not traced to library return source")
+def test_local_model_factory_method_call_traces_to_constructor_library():
+    """model = NSGP(); model.fit(X, y) should trace to NSGP constructor libs."""
+    code = (
+        "import numpy as np\n"
+        "from sklearn.gaussian_process import GaussianProcessRegressor\n"
+        "class NSGP:\n"
+        "    def __init__(self):\n"
+        "        self.gp = GaussianProcessRegressor()\n"
+        "    def fit(self, X, y):\n"
+        "        self.gp.fit(X, y)\n"
+        "model = NSGP()\n"
+        "model.fit([[1]], [1])\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "fit" in c.expression and "self.gp" not in c.expression]
+    assert calls, "model.fit() not collected"
+    for c in calls:
+        assert c.top_library != "local" and c.top_library != "unknown", \
+            f"model.fit() should have library provenance, got {c.top_library}"
+
+
+@pytest.mark.xfail(reason="7B-full: local class method result should inherit constructor library")
+def test_method_result_object_keeps_library_for_followup_call():
+    """y_new = model.predict(X); y_new.sum() where model is local class instance."""
+    code = (
+        "import numpy as np\n"
+        "class LocalModel:\n"
+        "    def fit(self, X, y):\n"
+        "        pass\n"
+        "    def predict(self, X):\n"
+        "        return np.array(X)\n"
+        "model = LocalModel()\n"
+        "y_new = model.predict([[1]])\n"
+        "y_new.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "y_new.sum() not collected"
+    for c in calls:
+        assert c.top_library == "numpy", \
+            f"y_new.sum() should be numpy, got {c.top_library}"
