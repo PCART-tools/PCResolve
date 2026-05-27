@@ -1071,3 +1071,25 @@ def test_same_named_method_across_classes_not_polluted():
     for c in calls:
         assert c.top_library != "numpy", \
             f"y.foo() must not be polluted to numpy, got {c.top_library} ({c.chain})"
+
+
+@pytest.mark.xfail(reason="7B-full P2: multi-return SourceSet should not pick first import-backed source", strict=True)
+def test_multi_return_source_set_not_pick_first():
+    """Method with two returns (np.array + 1); followup call should not assume numpy."""
+    code = (
+        "import numpy as np\n"
+        "class Model:\n"
+        "    def predict(self, flag):\n"
+        "        if flag:\n"
+        "            return np.array([1])\n"
+        "        return 1\n"
+        "m = Model()\n"
+        "y = m.predict(False)\n"
+        "y.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "y.sum() not collected"
+    for c in calls:
+        assert c.top_library != "numpy", \
+            f"y.sum() should not assume numpy from multi-return, got {c.top_library}"
