@@ -1093,6 +1093,9 @@ class ProjectAnalyzer:
                 class_symbol = tracer.symbols.direct.get(a)
                 if isinstance(class_symbol, tuple) and len(class_symbol) == 3 and class_symbol[0] == "call_result":
                     class_symbol = class_symbol[1]
+                class_symbol = normalize_source(class_symbol)
+                if isinstance(class_symbol, CallResult):
+                    class_symbol = class_symbol.callee
                 if a in tracer.class_methods and class_symbol == "local":
                     class_symbol = a
             if not class_symbol:
@@ -1102,6 +1105,11 @@ class ProjectAnalyzer:
                 if receiver_top:
                     return (f"{a}.{b}", module, receiver_top)
                 return None
+            if class_symbol in tracer.class_methods:
+                ext = self._resolve_local_method_to_external(
+                    module, class_symbol, b, tracer, tracers)
+                if ext:
+                    return (f"{a}.{b}", module, ext)
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
             if not resolved:
                 if class_symbol != a and isinstance(a, str) and a in tracer.symbols.direct:
@@ -1109,6 +1117,12 @@ class ProjectAnalyzer:
                 if not resolved:
                     class_direct = tracer.symbols.direct.get(class_symbol)
                     if isinstance(class_direct, str) and self.is_local(class_direct):
+                        return (f"{a}.{b}", module, "local")
+                    if class_direct == "local":
+                        ext = self._resolve_local_method_to_external(
+                            module, a, b, tracer, tracers)
+                        if ext:
+                            return (f"{a}.{b}", module, ext)
                         return (f"{a}.{b}", module, "local")
                     return None
             src_module, src_symbol = resolved
@@ -1206,6 +1220,51 @@ class ProjectAnalyzer:
                 break
             return (f"{callee_display or callee}()", cur_module, cur_symbol)
 
+        return None
+
+    ## Try to resolve a local class method to an external source.
+    #
+    #  Checks whether the method's return_sources trace to a constructor
+    #  parameter that has external provenance via call-site arguments.
+    #  @param module The current module.
+    #  @param class_name The local class name.
+    #  @param method_name The method being called.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return External library name, or None.
+    def _resolve_local_method_to_external(self, module, class_name,
+                                           method_name, tracer, tracers):
+        rs = tracer.return_sources.get(method_name)
+        if not rs:
+            return None
+        rs = normalize_source(rs)
+        sources = rs.sources if isinstance(rs, SourceSet) else [rs]
+        for src in sources:
+            if isinstance(src, InstanceMethod):
+                param_name = src.receiver
+                if isinstance(param_name, str):
+                    ctor_key = class_name + ".__init__"
+                    ctor_params = (tracer.function_params.get("__init__", [])
+                                   or tracer.function_params.get(ctor_key, []))
+                    if param_name in ctor_params:
+                        param_idx = ctor_params.index(param_name)
+                        call_sites = (tracer.call_sites.get("__init__", [])
+                                      or tracer.call_sites.get(ctor_key, []))
+                        for cs in call_sites:
+                            if param_idx < len(cs.get("args", [])):
+                                arg_src = cs["args"][param_idx]
+                                arg_src = normalize_source(arg_src)
+                                if isinstance(arg_src, CallResult):
+                                    top = self._top_source(
+                                        module, arg_src.callee, tracers)
+                                    if top and top not in ("local", "python",
+                                                           "unknown", ""):
+                                        return top
+                                if isinstance(arg_src, str):
+                                    top = self._top_source(module, arg_src, tracers)
+                                    if top and top not in ("local", "python",
+                                                           "unknown", ""):
+                                        return top
         return None
 
     ## Resolve a parameter name to its call-site argument for a specific callee.

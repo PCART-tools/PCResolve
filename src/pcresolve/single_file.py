@@ -481,12 +481,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if not class_name:
                 if self.scope_model == "v2":
                     binding = self.current_scope().lookup(re.id)
-                    if binding is not None and binding.source == "local":
-                        return InstanceMethod(re.id, method_name)
+                    if binding is not None:
+                        if binding.source == "local":
+                            return InstanceMethod(re.id, method_name)
+                        src_norm = normalize_source(binding.source)
+                        if isinstance(src_norm, CallResult):
+                            cn = src_norm.callee
+                            if isinstance(cn, str) and cn in self.class_methods:
+                                return _resolve_on_class(cn, cn)
+                            if isinstance(cn, str) and cn in self.import_from_symbols:
+                                return InstanceMethod(cn, method_name)
                 return None
             methods = self.class_methods.get(class_name)
             if methods and method_name in methods:
-                return method_name
+                return InstanceMethod(re.id, method_name)
             if class_name in self.class_methods:
                 return InstanceMethod(re.id, method_name)
             if class_name in self.import_from_symbols:
@@ -921,6 +929,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
         if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, SourceSet)):
             display = source_display(base)
+            if isinstance(base, InstanceMethod) and isinstance(base.receiver, str):
+                top_from_receiver = self.symbols.get_top(base.receiver)
+                if top_from_receiver == "local":
+                    display = "local"
             chain = [display] if (self.scope_model == "v2" and display) else []
             record = {
                 'api': api_string,
