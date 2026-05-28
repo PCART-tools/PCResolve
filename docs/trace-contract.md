@@ -51,7 +51,7 @@ in `classification.py`, which applies priority-ordered rules:
 | `complete` | Trace outcome | Whether trace reached a terminal without errors |
 | `diagnostics` | Trace errors | Recursion limit, cycle detection, etc. |
 
-## Classification Pipeline (Phase 8A/8B — implemented in 1.0.4)
+## Classification Pipeline
 
 Rule priority order:
 
@@ -65,13 +65,10 @@ Rule priority order:
 8. Branch/fork multi-source → alternatives, confidence < 1.0
 9. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
 
-Compatibility note: in the current pre-8B implementation, unresolved non-builtin
-symbols may retain their raw symbol name as the `top_library` (e.g. an
-undefined/global/dynamic symbol whose chain resolution falls through).
-Phase 8B should normalise all unresolved cases to `"unknown"` with
-`REASON_UNRESOLVED`.
+Unresolved symbols are normalised to `"unknown"` with `REASON_UNRESOLVED`
+by `ClassificationPipeline.classify()`.
 
-## Reason Constants (Phase 8A)
+## Reason Constants
 
 | Constant | Meaning |
 |----------|---------|
@@ -99,17 +96,16 @@ Phase 8B should normalise all unresolved cases to `"unknown"` with
 
 ## Known Limitations
 
-- Some legacy parameter propagation paths do not distinguish "parameter from call site A" vs "parameter from call site B" when a function is called from multiple locations. 7A-lite and 7B-lite partially address this via `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching.
-- `return_sources` is SourceSet since Phase 5; multiple return paths are collected but alternatives classification is not yet complete.
-- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution is handled by 7B-lite via `instance_attrs`, `CallResult.call_lineno`, and constructor call-site matching. Full CallGraph / return-object tracking for factory-returned instances is deferred to complete 7B.
+- Parameter propagation uses `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching for disambiguation. Multi-call-site scenarios may still produce merged alternatives.
+- `return_sources` uses `SourceSet` for multi-return paths; alternatives classification handles ambiguous cases.
+- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution uses `instance_attrs` and constructor call-site matching. Factory-returned instances require full return-object tracking (future work).
 - `nonlocal` is first-edition no-crash only.
 
-## Phase 7B-lite: Class / Instance Method Resolution
+## Class and Instance Method Resolution
 
-7B-lite is the engineering transition layer before full 7B / CallGraph.  It
-extends existing `InstanceMethod`, `CallResult.call_lineno/call_col_offset`,
-`return_sources`, and constructor call-site facts to handle the most common
-wrapper-class patterns without introducing a full class hierarchy graph.
+PCResolve handles common wrapper-class patterns using `InstanceMethod`,
+`CallResult.call_lineno/call_col_offset`, `return_sources`, and constructor
+call-site facts, without a full class hierarchy graph.
 
 ### Supported
 
@@ -125,11 +121,11 @@ wrapper-class patterns without introducing a full class hierarchy graph.
 ### Conservative Boundaries
 
 - **Factory-returned instances**: `c = make(httpx.Client()); c.get(...)` →
-  `"local"`.  Requires full CallGraph / return-object tracking.
+  `"local"`.  Requires full CallGraph / return-object tracking (future work).
 - **Method name collision / override**: `return_sources` is keyed by bare
   method name (e.g. `"get"`).  Complex same-name methods, inheritance,
-  and overrides need `Class.method` / `FunctionId(module, qualname)` in
-  full 7B.
+  and overrides need `Class.method` / `FunctionId(module, qualname)`
+  (future work).
 - **Third-party base-class methods, `@classmethod`, `@staticmethod`,
   descriptors / properties**: not in lite scope.
 
@@ -153,18 +149,17 @@ b.get("y")   # → httpx
 c.get("z")   # → local  (known limitation)
 ```
 
-### Relationship to Phase 8C Decorator Semantics
+### Relationship to Decorator Provenance
 
-7B-lite does **not** alter the decorator provenance contract established by
-8C / 8C+:
+Class method resolution does **not** alter the decorator provenance contract:
 
 - Decorator evidence continues to be exposed via `decorated_by`.
 - A decorator never changes the primary identity of the decorated target.
 - `ApiCall.decorated_by` exact-match (file_path, scope, func_name) is
-  unchanged; method-call `decorated_by` remains deferred to full 7B
-  class-aware resolution.
+  unchanged; method-call `decorated_by` depends on future full class-aware
+  receiver resolution.
 
-## Phase 8C: Decorator Provenance Semantics
+## Decorator Provenance Semantics
 
 Decorators create two distinct kinds of evidence that must not be conflated:
 
@@ -173,7 +168,7 @@ Decorators create two distinct kinds of evidence that must not be conflated:
 | Decorator expression call | `ApiCall.top_library` | The decorator `@lib.deco(args)` itself is a call to `lib` | Public, stable |
 | Decorated target call | `ApiCall.top_library` | A call to the decorated function/class is **always** `"local"` | Public, stable |
 | Decorator provenance evidence | `SymbolProvenance(kind="decorated_by")` | Records which libraries decorated the target | Public, stable |
-| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `(file_path, scope_name, func_name)` match | Public, additive-only; method calls require Phase 7B |
+| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `(file_path, scope_name, func_name)` match | Public, additive-only; method calls require future class-aware resolution |
 
 ### Core Invariant
 
@@ -181,7 +176,7 @@ Decorators create two distinct kinds of evidence that must not be conflated:
 > `@app.route("/")` makes `index()` a Flask-decorated function, but `index()` itself is still a locally-defined callable.  
 > Its `top_library` remains `"local"`. Decorator provenance is surfaced via `decorated_by`, not via `top_library`.
 
-### Decorator Identity Preservation (Phase 8C+)
+### Decorator Identity Preservation
 
 Local decorator functions preserve their name as evidence, and chain through `return_sources`:
 
@@ -199,13 +194,13 @@ To find all call sites potentially related to library `lib`:
 
 1. **Direct API calls**: `ApiCall.top_library == lib`
 2. **Decorated local calls**: `lib in ApiCall.decorated_by` AND `ApiCall.top_library == "local"`
-3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; Phase 7B will add class-aware `ApiCall.decorated_by` for methods
+3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; `ApiCall.decorated_by` for methods depends on future full class-aware receiver resolution
 
 ### `ApiCall.decorated_by` Contract
 
 - **Field type**: `list[str]`, default `[]`
 - **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
-- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls pre-7B)
+- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls before full class-aware matching)
 - **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
 - **Matching**: exact match on `(file_path, scope_name, func_name)` where
   `func_name` is the call's bare function name (e.g. `"index"` for `index()`)
@@ -213,9 +208,34 @@ To find all call sites potentially related to library `lib`:
   Method calls still require full class-aware receiver resolution before
   `decorated_by` can be attached reliably.
 
-## Phase 5 / 7A / 7B / 8B Contracts
+### Decorated Callable Receiver Methods
 
-- **Phase 5** must not add classification logic in `_base_top_source()`. Instead, `SourceSet` alternatives should flow through `TraceResult.tops` and be classified by the pipeline.
-- **Phase 7A** should produce `CallGraph` edges that feed into `TraceResult` as the authoritative param/return propagation source, not as a third parallel path.
-- **Phase 7B** should replace `instance_attrs` with systematic class method resolution through the call graph.
-- **Phase 8B** should migrate `extract_final_source()` and `_base_top_source()` into `ClassificationPipeline` rules.
+Calls such as `hello.main()` where `hello` is a local function decorated by
+`@click.command()` are currently classified as `local`.  This is intentional:
+the decorated callable remains a same-project object, so decorator evidence
+must not replace the primary `top_library`.
+
+Decorator provenance is recorded on the decorated symbol.  Receiver-method
+calls such as `hello.main()` may require receiver-aware matching before
+that evidence can be mirrored into `ApiCall.decorated_by`.
+
+Until that matching exists, consumers that need this association should
+inspect `SymbolProvenance(kind="decorated_by")` in addition to
+`ApiCall.decorated_by`.
+
+Contract points:
+
+- `hello.main()` continues to report `top_library="local"`.
+- Decorated local callables are not reclassified as third-party primary calls.
+- The current boundary is that `decorated_by` is not propagated to receiver
+  method calls.
+- Downstream consumers should inspect both `SymbolProvenance(kind="decorated_by")`
+  and `ApiCall.decorated_by`.
+
+## Remaining Boundaries
+
+- **SourceSet alternatives**: flow through `ClassificationPipeline` for multi-source resolution.
+- **CallGraph edges**: `call_graph.py` feeds param/return propagation into trace.
+- **Class method resolution**: `instance_attrs` handles constructor args; full class-aware receiver resolution (MRO, `@classmethod`, `@staticmethod`) is future work.
+- **Classification**: `ClassificationPipeline.classify()` handles reason/confidence/alternatives.
+- **Method decorator evidence**: `ApiCall.decorated_by` matches by `(file_path, scope_name, func_name)`; class-aware receiver resolution is future work.

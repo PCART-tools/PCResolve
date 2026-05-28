@@ -69,13 +69,15 @@ Illegal keys:         0
 ## Taxonomy (--taxonomy)
 
 ```text
-third_party_api_loss: 303
-  third-party -> local:   189
-  third-party -> unknown: 114
-local_precision_change:
+TOTAL regressions: 303
+  third_party_api_loss: 285
+    third-party -> local:   262
+    third-party -> unknown: 23
+  local -> unknown:        18
+TOTAL improvements: 147
   local -> third-party:  147
-  local -> unknown:       12
-precision:                29
+TOTAL precision changes: 29
+TOTAL illegal keys: 0
 ```
 
 ## Regression Categories

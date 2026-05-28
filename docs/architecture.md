@@ -41,7 +41,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `api_calls` | `list[dict]` | Legacy call records (keyed by `api`, `top`, `base`, `chain`, ...) |
 | `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
 | `symbol_refs` | `list[SymbolRef]` | Symbol references for provenance |
-| `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet since Phase 5) |
+| `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet for multi-return) |
 | `call_sites` | `dict[str, list[dict]]` | Function name → call-site parameter sources (for ad-hoc param tracing) |
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |
@@ -93,15 +93,15 @@ Compatibility surfaces still present in the codebase:
 |---------|---------------|-------|
 | `SymbolTable.direct` | Still used as module-level fallback | Scope model writes to `Scope.bindings`; `direct` is compat bridge |
 | `api_calls` (dict list) | Still the primary single-file output | Typed `CallSite` collected in parallel |
-| `return_sources` (SourceSet) | Upgraded to `SourceSet` + CallGraph | Phase 5 / 7B-full complete |
-| `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Phase 8B complete |
-| Instance attr propagation | 7B-lite constructor arg tracking | Full class-aware receiver resolution deferred |
+| `return_sources` (SourceSet) | Multi-return tracking via `SourceSet` + CallGraph | Current default |
+| `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Current default |
+| Instance attr propagation | Constructor arg → self.attr tracking | Full class-aware receiver resolution is future work |
 | `--json` (dataclass dump) | Replaced by full provenance schema | 1.0.4+ default |
 
 ## Known Patch Zones
 
-- `_resolve_structured_source()` handles four source kinds (container_item, instance_method, container_iter, call_result) with significant branching. Future: `SourceResolver` component in Phase 9.
+- `_resolve_structured_source()` dispatches `container_item`, `instance_method`, `container_iter`, `call_result`.  `SourceSet` convergence is handled by `source_resolution.py::SourceSetResolver`.  The non-SourceSet branches still live inline here.
 
-- `trace_symbol()` mixes tracing with wildcard import resolution and parameter back-tracing. Future: `SymbolTracer` with separate `CallGraph` propagation.
+- `trace_symbol()` is the trace orchestration hotspot, mixing cross-module symbol lookup with wildcard import resolution and parameter back-tracing.  Call-graph facts (`call_graph.py`) feed into it for return-object and arg-source propagation.
 
 - `_build_symbol_provenance()` passes `_direct_source=ref.source` for all SymbolRefs, enabling per-assignment provenance even when module-level reassignment overwrites the symbol table.
