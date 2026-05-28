@@ -12,11 +12,25 @@ import os
 import sys
 import time
 
+# Ensure stdout can handle Unicode on Windows GBK consoles (Python 3.9+).
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from pcresolve.cross_file import analyze_project
 
 BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
                             "tests", "fixtures", "diff_baselines")
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..",
+                           "tests", "fixtures", "tested_projects")
+
+# Nested project paths that don't match their basename.
+_BASELINE_PATH_MAP = {
+    "barcoded_yeast_reanalysis": "giantpopflucts/barcoded_yeast_reanalysis",
+    "ex_4_2": "simulation/ex_4_2",
+}
 
 
 def load_baseline(name):

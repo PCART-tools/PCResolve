@@ -16,8 +16,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.167,
-      "v2_runtime": 0.164,
+      "v1_runtime": 0.166,
+      "v2_runtime": 0.165,
       "libraries_list": [
         "AIBO",
         "Box2D",
@@ -42,9 +42,8 @@
         "subprocess",
         "time"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.333,
-      "_score": 270
+      "has_baseline": true,
+      "audit_runtime": 0.333
     },
     {
       "project": "Contrucao",
@@ -92,7 +91,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.002,
-      "v2_runtime": 0.002,
+      "v2_runtime": 0.001,
       "libraries_list": [
         "matplotlib",
         "numpy"
@@ -182,8 +181,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.107,
-      "v2_runtime": 0.098,
+      "v1_runtime": 0.105,
+      "v2_runtime": 0.097,
       "libraries_list": [
         "PIL",
         "albumentations",
@@ -204,7 +203,7 @@
         "xml"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.206
+      "audit_runtime": 0.203
     },
     {
       "project": "Python-Workshop",
@@ -230,9 +229,8 @@
         "scipy",
         "sklearn"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.059,
-      "_score": 192
+      "has_baseline": true,
+      "audit_runtime": 0.058
     },
     {
       "project": "SDOML",
@@ -264,9 +262,8 @@
         "sunpy",
         "warnings"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.038,
-      "_score": 140
+      "has_baseline": true,
+      "audit_runtime": 0.039
     },
     {
       "project": "TSP",
@@ -293,7 +290,7 @@
         "tsplib95"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.007,
+      "audit_runtime": 0.008,
       "_score": 42
     },
     {
@@ -328,9 +325,8 @@
         "sys",
         "time"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.029,
-      "_score": 160
+      "has_baseline": true,
+      "audit_runtime": 0.029
     },
     {
       "project": "aiofiles1",
@@ -400,8 +396,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.345,
-      "v2_runtime": 0.279,
+      "v1_runtime": 0.342,
+      "v2_runtime": 0.269,
       "libraries_list": [
         "__future__",
         "argparse",
@@ -434,9 +430,8 @@
         "urllib",
         "xml"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.628,
-      "_score": 190
+      "has_baseline": true,
+      "audit_runtime": 0.614
     },
     {
       "project": "click1",
@@ -528,8 +523,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.013,
-      "v2_runtime": 0.014,
+      "v1_runtime": 0.012,
+      "v2_runtime": 0.013,
       "libraries_list": [
         "datetime",
         "math",
@@ -542,7 +537,7 @@
         "time"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.028
+      "audit_runtime": 0.026
     },
     {
       "project": "django",
@@ -572,7 +567,7 @@
         "tornado"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.019
+      "audit_runtime": 0.018
     },
     {
       "project": "final",
@@ -590,8 +585,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.066,
-      "v2_runtime": 0.059,
+      "v1_runtime": 0.064,
+      "v2_runtime": 0.058,
       "libraries_list": [
         "math",
         "matplotlib",
@@ -603,9 +598,8 @@
         "sklearn",
         "warnings"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.126,
-      "_score": 243
+      "has_baseline": true,
+      "audit_runtime": 0.123
     },
     {
       "project": "flask1",
@@ -629,7 +623,7 @@
         "flask"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.004
+      "audit_runtime": 0.003
     },
     {
       "project": "flask2",
@@ -752,7 +746,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.058,
+      "v1_runtime": 0.056,
       "v2_runtime": 0.059,
       "libraries_list": [
         "copy",
@@ -767,9 +761,8 @@
         "statistics",
         "sys"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.118,
-      "_score": 251
+      "has_baseline": true,
+      "audit_runtime": 0.116
     },
     {
       "project": "gistable",
@@ -815,7 +808,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.074,
-      "v2_runtime": 0.066,
+      "v2_runtime": 0.067,
       "libraries_list": [
         "argparse",
         "com",
@@ -850,8 +843,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.1,
-      "v2_runtime": 0.096,
+      "v1_runtime": 0.097,
+      "v2_runtime": 0.095,
       "libraries_list": [
         "datetime",
         "matplotlib",
@@ -862,7 +855,7 @@
         "warnings"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.198
+      "audit_runtime": 0.194
     },
     {
       "project": "machine-learning",
@@ -958,8 +951,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.114,
-      "v2_runtime": 0.102,
+      "v1_runtime": 0.112,
+      "v2_runtime": 0.099,
       "libraries_list": [
         "GPy",
         "copy",
@@ -979,7 +972,7 @@
         "xgboost"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.218
+      "audit_runtime": 0.212
     },
     {
       "project": "political-polarisation",
@@ -1008,7 +1001,7 @@
         "wordcloud"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.03
+      "audit_runtime": 0.029
     },
     {
       "project": "psycopg2",
@@ -1052,7 +1045,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.014,
-      "v2_runtime": 0.015,
+      "v2_runtime": 0.014,
       "libraries_list": [
         "__future__",
         "matplotlib",
@@ -1060,7 +1053,7 @@
         "scipy"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.03
+      "audit_runtime": 0.029
     },
     {
       "project": "recommendation",
@@ -1131,16 +1124,15 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.022,
-      "v2_runtime": 0.021,
+      "v1_runtime": 0.023,
+      "v2_runtime": 0.02,
       "libraries_list": [
         "bs4",
         "pandas",
         "requests"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.044,
-      "_score": 125
+      "has_baseline": true,
+      "audit_runtime": 0.043
     },
     {
       "project": "sg-restart-regridder",
@@ -1185,7 +1177,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.056,
+      "v1_runtime": 0.05,
       "v2_runtime": 0.043,
       "libraries_list": [
         "itertools",
@@ -1197,9 +1189,8 @@
         "seaborn",
         "sys"
       ],
-      "has_baseline": false,
-      "audit_runtime": 0.099,
-      "_score": 238
+      "has_baseline": true,
+      "audit_runtime": 0.094
     },
     {
       "project": "tensorflow1",
@@ -1247,7 +1238,7 @@
         "tensorflow"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.003,
+      "audit_runtime": 0.004,
       "_score": 13
     }
   ],
@@ -1261,7 +1252,7 @@
     "total_improvements": 143,
     "total_precision": 29,
     "total_illegal_keys": 0,
-    "hard_baseline_count": 12,
-    "candidate_count": 29
+    "hard_baseline_count": 21,
+    "candidate_count": 20
   }
 }

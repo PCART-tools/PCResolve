@@ -14,9 +14,9 @@
 import json
 import os
 import signal
+import subprocess
 import sys
 import time
-import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from pcresolve.cross_file import analyze_project
@@ -27,11 +27,42 @@ REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
                             "tests", "fixtures", "diff_baselines")
 
-# These are existing hard-gate baselines.
-HARD_BASELINES = {
-    os.path.splitext(f)[0]
-    for f in os.listdir(BASELINE_DIR) if f.endswith(".json")
+_HAS_SIGALRM = hasattr(signal, "SIGALRM")
+
+# Project path overrides for nested fixtures whose basename does not
+# match a top-level directory under tested_projects.
+_BASELINE_PATH_MAP = {
+    "barcoded_yeast_reanalysis": "giantpopflucts/barcoded_yeast_reanalysis",
+    "ex_4_2": "simulation/ex_4_2",
 }
+# Reverse mapping: top-level project dir -> baseline name
+_BASELINE_REVERSE_MAP = {
+    "giantpopflucts": "barcoded_yeast_reanalysis",
+    "simulation": "ex_4_2",
+}
+
+
+def _resolve_baseline_project(name):
+    """Return the real project path for a baseline name, or None."""
+    direct = os.path.join(FIXTURE_DIR, name)
+    if os.path.isdir(direct):
+        return direct
+    sub_path = _BASELINE_PATH_MAP.get(name)
+    if sub_path:
+        resolved = os.path.join(FIXTURE_DIR, sub_path)
+        if os.path.isdir(resolved):
+            return resolved
+    return None
+
+
+def _safe_print(*args, **kwargs):
+    """Print with encoding-safe fallback for Windows consoles."""
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        text = " ".join(str(a).encode("ascii", errors="replace").decode("ascii")
+                        for a in args)
+        print(text, **kwargs)
 
 
 def _is_illegal_key(name):
@@ -50,6 +81,56 @@ class TimeoutError(Exception):
 
 def _timeout_handler(signum, frame):
     raise TimeoutError("analysis timed out")
+
+
+def _run_analysis(project_path, scope_model, timeout_sec):
+    """Run analyze_project with optional cross-platform timeout.
+
+    On POSIX uses SIGALRM; on Windows falls back to subprocess
+    when timeout_sec > 0, or direct call when timeout is disabled.
+    """
+    if _HAS_SIGALRM and timeout_sec > 0:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(timeout_sec)
+        try:
+            t0 = time.perf_counter()
+            result = analyze_project(project_path, scope_model=scope_model)
+            elapsed = time.perf_counter() - t0
+        finally:
+            signal.alarm(0)
+        return result, elapsed
+
+    if not _HAS_SIGALRM and timeout_sec > 0:
+        # Windows: use subprocess with the same script as a worker.
+        worker = [sys.executable, "-c", (
+            "import sys; sys.path.insert(0,%r);"
+            "from pcresolve.cross_file import analyze_project;"
+            "import json,os;"
+            "r=analyze_project(%r,scope_model=%r);"
+            "print(json.dumps({'files':len(r.files),"
+            "'calls':len(r.all_api_calls),"
+            "'libs':len(r.library_usage)}))"
+        ) % (os.path.join(os.path.dirname(__file__), "..", "src"),
+             project_path, scope_model)]
+        try:
+            t0 = time.perf_counter()
+            proc = subprocess.run(worker, capture_output=True, text=True,
+                                  timeout=timeout_sec)
+            elapsed = time.perf_counter() - t0
+            if proc.returncode != 0:
+                raise RuntimeError("subprocess failed: %s" % proc.stderr[:200])
+            # We can't return the full result from subprocess, so return
+            # a lightweight sentinel; the caller will re-run without timeout
+            # if needed.
+            return None, elapsed
+        except subprocess.TimeoutExpired:
+            raise TimeoutError("timeout (%ds)" % timeout_sec)
+
+    # No timeout — direct call.
+    t0 = time.perf_counter()
+    result = analyze_project(project_path, scope_model=scope_model)
+    elapsed = time.perf_counter() - t0
+    return result, elapsed
 
 
 def audit_one(project_path, timeout_sec=60):
@@ -74,21 +155,18 @@ def audit_one(project_path, timeout_sec=60):
         "v1_runtime": 0,
         "v2_runtime": 0,
         "libraries_list": [],
-        "has_baseline": name in HARD_BASELINES,
+        "has_baseline": False,
     }
 
+    # Resolve baseline status using the reverse path map for nested projects.
+    bl_name = _BASELINE_REVERSE_MAP.get(name, name)
+    record["has_baseline"] = os.path.exists(
+        os.path.join(BASELINE_DIR, bl_name + ".json"))
+
+    # v1 analysis
     try:
-        # v1 analysis
-        if timeout_sec > 0:
-            signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(timeout_sec)
-        t0 = time.perf_counter()
-        try:
-            r1 = analyze_project(project_path, scope_model="v1")
-        finally:
-            if timeout_sec > 0:
-                signal.alarm(0)
-        record["v1_runtime"] = round(time.perf_counter() - t0, 3)
+        r1, t1 = _run_analysis(project_path, "v1", timeout_sec)
+        record["v1_runtime"] = round(t1, 3)
     except TimeoutError:
         record["error"] = "timeout (%ds)" % timeout_sec
         record["error_type"] = "timeout"
@@ -102,17 +180,24 @@ def audit_one(project_path, timeout_sec=60):
         record["error_type"] = "exception"
         return record
 
-    try:
-        if timeout_sec > 0:
-            signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(timeout_sec)
-        t0 = time.perf_counter()
+    if r1 is None:
+        # subprocess fallback gave no result; re-run without timeout.
         try:
-            r2 = analyze_project(project_path, scope_model="v2")
-        finally:
-            if timeout_sec > 0:
-                signal.alarm(0)
-        record["v2_runtime"] = round(time.perf_counter() - t0, 3)
+            r1, t1 = _run_analysis(project_path, "v1", 0)
+            record["v1_runtime"] = round(record["v1_runtime"] + t1, 3)
+        except RecursionError:
+            record["error"] = "RecursionError"
+            record["error_type"] = "recursion"
+            return record
+        except Exception as e:
+            record["error"] = "%s: %s" % (type(e).__name__, str(e))
+            record["error_type"] = "exception"
+            return record
+
+    # v2 analysis
+    try:
+        r2, t2 = _run_analysis(project_path, "v2", timeout_sec)
+        record["v2_runtime"] = round(t2, 3)
     except TimeoutError:
         record["error"] = "v2 timeout (%ds)" % timeout_sec
         record["error_type"] = "timeout"
@@ -125,6 +210,19 @@ def audit_one(project_path, timeout_sec=60):
         record["error"] = "v2 %s: %s" % (type(e).__name__, str(e))
         record["error_type"] = "exception"
         return record
+
+    if r2 is None:
+        try:
+            r2, t2 = _run_analysis(project_path, "v2", 0)
+            record["v2_runtime"] = round(record["v2_runtime"] + t2, 3)
+        except RecursionError:
+            record["error"] = "v2 RecursionError"
+            record["error_type"] = "recursion"
+            return record
+        except Exception as e:
+            record["error"] = "v2 %s: %s" % (type(e).__name__, str(e))
+            record["error_type"] = "exception"
+            return record
 
     # Stats from v2
     record["files_parsed"] = len(r2.files)
@@ -193,7 +291,7 @@ def main():
         if os.path.isdir(proj_path):
             projects.append(proj_path)
 
-    print("Auditing %d projects (timeout=%ds)..." % (len(projects), timeout))
+    _safe_print("Auditing %d projects (timeout=%ds)..." % (len(projects), timeout))
     results = []
     errors = 0
     crashes = 0
@@ -210,15 +308,15 @@ def main():
 
         if rec["error"]:
             crashes += 1
-            print("ERROR: %s (%.1fs)" % (rec["error"], elapsed))
+            _safe_print("ERROR: %s (%.1fs)" % (rec["error"], elapsed))
         elif rec["illegal_keys"]:
             illegal_projects += 1
-            print("ILLEGAL=%d  R=%d  I=%d  P=%d  calls=%d  libs=%d  (%.1fs)" % (
+            _safe_print("ILLEGAL=%d  R=%d  I=%d  P=%d  calls=%d  libs=%d  (%.1fs)" % (
                 rec["illegal_keys"], rec["regressions"], rec["improvements"],
                 rec["precision"], rec["api_calls"], rec["libraries"], elapsed))
         else:
             errors += rec["regressions"]
-            print("OK  R=%d  I=%d  P=%d  calls=%d  libs=%d  (%.1fs)" % (
+            _safe_print("OK  R=%d  I=%d  P=%d  calls=%d  libs=%d  (%.1fs)" % (
                 rec["regressions"], rec["improvements"],
                 rec["precision"], rec["api_calls"], rec["libraries"], elapsed))
         results.append(rec)
@@ -242,36 +340,34 @@ def main():
             continue
         if r["illegal_keys"]:
             continue
-        # Stable, non-trivial, dependency-representative
         if r["api_calls"] >= 5 and r["libraries"] >= 1:
             candidates.append(r)
 
-    print()
-    print("=" * 60)
-    print("AUDIT SUMMARY")
-    print("=" * 60)
-    print("Projects audited:    %d" % len(results))
-    print("Crashed/timeout:     %d" % len(crashed))
-    print("Illegal key projects:%d" % illegal_projects)
-    print("Clean projects:      %d" % (len(results) - len(crashed) - illegal_projects))
-    print("Total API calls:     %d" % total_calls)
-    print("Unique libraries:    %d" % total_libs)
-    print("Total regressions:   %d" % total_r)
-    print("Total improvements:  %d" % total_i)
-    print("Total precision:     %d" % total_p)
-    print("Total illegal keys:  %d" % total_illegal)
-    print("Hard baseline now:   %d" % hard_baseline_count)
-    print("Hard baseline candidates: %d" % len(candidates))
+    _safe_print()
+    _safe_print("=" * 60)
+    _safe_print("AUDIT SUMMARY")
+    _safe_print("=" * 60)
+    _safe_print("Projects audited:    %d" % len(results))
+    _safe_print("Crashed/timeout:     %d" % len(crashed))
+    _safe_print("Illegal key projects:%d" % illegal_projects)
+    _safe_print("Clean projects:      %d" % (len(results) - len(crashed) - illegal_projects))
+    _safe_print("Total API calls:     %d" % total_calls)
+    _safe_print("Unique libraries:    %d" % total_libs)
+    _safe_print("Total regressions:   %d" % total_r)
+    _safe_print("Total improvements:  %d" % total_i)
+    _safe_print("Total precision:     %d" % total_p)
+    _safe_print("Total illegal keys:  %d" % total_illegal)
+    _safe_print("Hard baseline now:   %d" % hard_baseline_count)
+    _safe_print("Hard baseline candidates: %d" % len(candidates))
 
     if crashed:
-        print()
-        print("CRASHED/TIMEOUT:")
+        _safe_print()
+        _safe_print("CRASHED/TIMEOUT:")
         for r in crashed:
-            print("  %-35s %s" % (r["project"], r["error"]))
+            _safe_print("  %-35s %s" % (r["project"], r["error"]))
 
     # Suggest new hard baseline candidates
     new_candidates = [c for c in candidates if not c["has_baseline"]]
-    # Score: prefer low regressions, high calls, representative libraries
     for c in new_candidates:
         c["_score"] = (
             -c["regressions"] * 2
@@ -280,13 +376,13 @@ def main():
         )
     new_candidates.sort(key=lambda c: -c["_score"])
 
-    print()
-    print("SUGGESTED HARD BASELINE ADDITIONS (top 15):")
+    _safe_print()
+    _safe_print("SUGGESTED HARD BASELINE ADDITIONS (top 15):")
     for c in new_candidates[:15]:
-        print("  %-35s calls=%4d  libs=%2d  R=%3d  I=%3d  P=%2d  %s" % (
+        flag = "*" if c["_score"] > 100 else " "
+        _safe_print("  %-35s calls=%4d  libs=%2d  R=%3d  I=%3d  P=%2d  %s" % (
             c["project"], c["api_calls"], c["libraries"],
-            c["regressions"], c["improvements"], c["precision"],
-            "★" if c["_score"] > 100 else " "))
+            c["regressions"], c["improvements"], c["precision"], flag))
 
     # Not recommended
     not_recommended = [
@@ -296,8 +392,8 @@ def main():
         and (r["api_calls"] < 5 or r["regressions"] > 50 or r["illegal_keys"])
     ]
     if not_recommended:
-        print()
-        print("NOT RECOMMENDED (low calls / high regressions / illegal):")
+        _safe_print()
+        _safe_print("NOT RECOMMENDED (low calls / high regressions / illegal):")
         for r in not_recommended:
             reason = ""
             if r["api_calls"] < 5:
@@ -306,7 +402,7 @@ def main():
                 reason = "high_regressions(%d)" % r["regressions"]
             elif r["illegal_keys"]:
                 reason = "illegal_keys(%d)" % r["illegal_keys"]
-            print("  %-35s %s" % (r["project"], reason))
+            _safe_print("  %-35s %s" % (r["project"], reason))
 
     # Write reports
     json_path = os.path.join(output_dir, "tested-projects-audit.json")
@@ -354,12 +450,12 @@ def main():
             for r in crashed:
                 f.write("- %s: %s\n" % (r["project"], r["error"]))
 
-    print()
-    print("Reports written:")
-    print("  " + json_path)
-    print("  " + md_path)
+    _safe_print()
+    _safe_print("Reports written:")
+    _safe_print("  " + json_path)
+    _safe_print("  " + md_path)
 
-    if total_illegal:
+    if crashed or total_illegal:
         return 1
     return 0
 
