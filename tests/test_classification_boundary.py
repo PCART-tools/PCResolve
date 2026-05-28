@@ -1119,7 +1119,6 @@ def test_cg_class_summary_method_returns_not_cross_class_polluted():
 # ── Phase 7B-full PR6-fix: static key resolution + multi-candidate guard ──
 
 
-@pytest.mark.xfail(reason="7B-full P1: static key resolution not yet implemented", strict=True)
 def test_dict_static_key_resolves_exact_item():
     """items[key] with key='b' → local item, must not pick numpy from other key."""
     code = (
@@ -1139,7 +1138,6 @@ def test_dict_static_key_resolves_exact_item():
             f"obj.sum() must not be numpy when key='b' points to Local, got {c.top_library} ({c.chain})"
 
 
-@pytest.mark.xfail(reason="7B-full P1: static key resolution not yet implemented", strict=True)
 def test_dict_static_key_exact_import_match():
     """items[key] with key='b' → pandas, should get pandas."""
     code = (
@@ -1158,7 +1156,6 @@ def test_dict_static_key_exact_import_match():
             f"obj.sum() should be pandas when key='b', got {c.top_library} ({c.chain})"
 
 
-@pytest.mark.xfail(reason="7B-full P1: multi-candidate should not pick arbitrary primary", strict=True)
 def test_multi_candidate_not_pick_arbitrary_primary():
     """items[input()] with numpy+pandas candidates: don't pick numpy as primary."""
     code = (

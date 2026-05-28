@@ -1266,9 +1266,13 @@ class ProjectAnalyzer:
                         top = self._top_source(module, src, tracers)
                         if top and top not in ("local", "python", "unknown", ""):
                             return (f"{callee_display or callee}()", module, src)
-                ## 7B-full PR6: resolve CallResult sources via CG return lookup.
+                ## 7B-full PR7: resolve str/CallResult sources via CG return lookup.
                 for src in callee.sources:
-                    if isinstance(src, CallResult) and isinstance(src.callee, str):
+                    if isinstance(src, str):
+                        cg_ret = self._lookup_cg_return_source(module, src)
+                        if cg_ret is not None:
+                            return (f"{callee_display or callee}()", module, cg_ret)
+                    elif isinstance(src, CallResult) and isinstance(src.callee, str):
                         cg_ret = self._lookup_cg_return_source(module, src.callee)
                         if cg_ret is not None:
                             return (f"{callee_display or callee}()", module, cg_ret)

@@ -82,6 +82,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._caller_stack = [FunctionId(module_name or "", "<module>")]
         ## Map from RHS top-level expression node id -> list of target names.
         ## Only the outermost RHS call (not nested inner calls) consumes targets.
+        self._literal_values = {}
         self._pending_call_targets_by_node = {}
 
     ## Return the current innermost scope.
@@ -367,15 +368,37 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
                 return ContainerItem(container_name, key_idx)
-            ## 7B-full PR6: dynamic key — collect import-backed item sources.
+            ## 7B-full PR7: try to resolve static key from literal assignment.
+            resolved_key = None
+            if isinstance(node.value, ast.Name):
+                var_name = node.value.id
+                if isinstance(node.slice, ast.Name):
+                    resolved_key = self._literal_values.get(node.slice.id)
+                if resolved_key is not None:
+                    lookup = self.container_items.get((var_name, resolved_key))
+                    if lookup is not None:
+                        return lookup
+            ## Fallback: collect item sources; only create SourceSet if
+            ## all candidates are consistent (single-source or same library).
             if container_name is not None and isinstance(node.value, ast.Name):
                 var_name = node.value.id
                 item_sources = []
                 for (cn, _), src in self.container_items.items():
                     if cn == var_name:
                         item_sources.append(src)
-                if item_sources:
+                if len(item_sources) == 1:
                     return make_source_set(item_sources)
+                if item_sources:
+                    # Check if all sources are consistent (same import alias).
+                    prefixes = set()
+                    for src in item_sources:
+                        src_norm = normalize_source(src)
+                        if isinstance(src_norm, str):
+                            prefixes.add(src_norm.split('.')[0] if '.' in src_norm else src_norm)
+                        else:
+                            prefixes.add(None)
+                    if len(prefixes) == 1 and None not in prefixes:
+                        return make_source_set(item_sources)
             return container_name
         elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
             if isinstance(node, ast.Dict):
@@ -812,6 +835,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  right-hand side to bind target symbols.
     #  @param node The Assign AST node.
     def visit_Assign(self, node):
+        ## Track literal assignments for static key resolution (PR7).
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, (str, int)):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self._literal_values[target.id] = node.value.value
+
         if isinstance(node.value, ast.Dict):
             for target in node.targets:
                 if isinstance(target, ast.Name):
