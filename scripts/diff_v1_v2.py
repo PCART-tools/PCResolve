@@ -59,11 +59,19 @@ def compare(path):
     v2_syms = {(p.file_path, p.lineno, p.col_offset, p.symbol, p.kind): p.top_library
                for p in v2.all_symbol_provenance}
 
-    # Classify API call differences
-    call_regressions = []
-    call_improvements = []
-    call_precision = []
+    # Classify API call differences with taxonomy sub-categories.
+    call_regressions = []       # third-party -> local/unknown
+    call_improvements = []      # local/unknown -> third-party
+    call_precision = []         # third-party -> another third-party
     call_same = 0
+
+    # Taxonomy sub-counts.
+    tp_to_local = 0
+    tp_to_unknown = 0
+    local_to_unknown = 0
+    local_to_python = 0
+    local_to_third_party = 0
+
     for key in v1_calls:
         v1_top = v1_calls[key]
         v2_top = v2_calls.get(key)
@@ -73,12 +81,24 @@ def compare(path):
             call_same += 1
         elif v2_top in ("local", "unknown", "") and v1_top not in ("local", "unknown", ""):
             call_regressions.append((key, v1_top, v2_top))
+            if v2_top == "local":
+                tp_to_local += 1
+            else:
+                tp_to_unknown += 1
         elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             call_improvements.append((key, v1_top, v2_top))
+            local_to_third_party += 1
         elif v1_top not in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             call_precision.append((key, v1_top, v2_top))
+        elif v1_top == "local" and v2_top == "unknown":
+            local_to_unknown += 1
+            call_regressions.append((key, v1_top, v2_top))
+        elif v1_top == "local" and v2_top == "python":
+            local_to_python += 1
+            call_improvements.append((key, v1_top, v2_top))
         else:
             call_regressions.append((key, v1_top, v2_top))
+            tp_to_unknown += 1
 
     only_v2_calls = set(v2_calls.keys()) - set(v1_calls.keys())
 
@@ -137,9 +157,16 @@ def compare(path):
         if illegal_provs:
             print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
 
+    taxonomy = {
+        "tp_to_local": tp_to_local,
+        "tp_to_unknown": tp_to_unknown,
+        "local_to_unknown": local_to_unknown,
+        "local_to_python": local_to_python,
+        "local_to_third_party": local_to_third_party,
+    }
     return (len(call_regressions), len(call_improvements),
             len(call_precision), illegal, len(v2_only_libs),
-            call_regressions)
+            call_regressions, taxonomy)
 
 
 def _is_illegal_key(name):
@@ -204,14 +231,19 @@ def main():
     has_baseline = False
     summary_lines = []
     all_regression_details = []
+    total_taxonomy = {"tp_to_local": 0, "tp_to_unknown": 0,
+                      "local_to_unknown": 0, "local_to_python": 0,
+                      "local_to_third_party": 0}
     for path in paths:
         name = os.path.basename(path)
-        regs, imps, prec, illegal_count, _, details = compare(path)
+        regs, imps, prec, illegal_count, _, details, taxonomy = compare(path)
         all_regression_details.extend(details)
         total_regressions += regs
         total_improvements += imps
         total_precision += prec
         total_illegal += illegal_count
+        for k in total_taxonomy:
+            total_taxonomy[k] += taxonomy.get(k, 0)
 
         baseline = load_baseline(name)
         if baseline:
@@ -238,6 +270,16 @@ def main():
     for line in summary_lines:
         print("  %s" % line)
     print("  TOTAL regressions: %d" % total_regressions)
+    print("    third_party_api_loss: %d" % (
+        total_taxonomy["tp_to_local"] + total_taxonomy["tp_to_unknown"]))
+    print("      third-party -> local:   %d" % total_taxonomy["tp_to_local"])
+    print("      third-party -> unknown: %d" % total_taxonomy["tp_to_unknown"])
+    print("    local_precision_change: %d" % (
+        total_taxonomy["local_to_unknown"] + total_taxonomy["local_to_python"] +
+        total_taxonomy["local_to_third_party"]))
+    print("      local -> unknown:      %d" % total_taxonomy["local_to_unknown"])
+    print("      local -> python:       %d" % total_taxonomy["local_to_python"])
+    print("      local -> third-party:  %d" % total_taxonomy["local_to_third_party"])
     print("  TOTAL improvements: %d" % total_improvements)
     print("  TOTAL precision changes: %d" % total_precision)
     print("  TOTAL illegal keys: %d" % total_illegal)
