@@ -254,7 +254,7 @@ regression gate:
 Unit tests:        557 passed, 0 failed
 Hard baselines:    21 projects, 0 exceeded
 Full audit:        42 real-world projects, 0 crashes, 0 illegal keys
-Total regressions: 303 (all classified by taxonomy)
+v1/v2 differential regressions: 303 (all classified by taxonomy)
 ```
 
 Key invariants enforced on every change:
