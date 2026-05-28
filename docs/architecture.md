@@ -3,7 +3,7 @@
 ## Pipeline Overview
 
 ```
-scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  →  cli.py / views.py
+scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  →  cli.py  →  views.py
                                         ↑                    ↑
                                    symbol_table.py    source_resolution.py
                                    scope.py           classification.py
