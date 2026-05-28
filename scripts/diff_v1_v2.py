@@ -26,27 +26,15 @@ BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..",
                            "tests", "fixtures", "tested_projects")
 
-# Nested project paths that don't match their basename.
-_BASELINE_PATH_MAP = {
-    "barcoded_yeast_reanalysis": "giantpopflucts/barcoded_yeast_reanalysis",
-    "ex_4_2": "simulation/ex_4_2",
-}
-# Reverse: top-level directory basename -> baseline name.
+# Top-level directory basename -> baseline name for nested fixtures
+# where the logical fixture dir contains only a differently-named
+# sub-project.  The recursive _expand_project_dirs carries the
+# top-level logical name through so baseline lookup and display
+# use the correct key.
 _PROJECT_TO_BASELINE = {
     "giantpopflucts": "barcoded_yeast_reanalysis",
     "simulation": "ex_4_2",
 }
-
-
-## Map a project path to its baseline name.
-#
-#  Handles nested fixtures where the top-level directory name
-#  does not match the baseline JSON filename.
-#  @param project_path Absolute or relative path to the project.
-#  @return Baseline name string.
-def _baseline_name(project_path):
-    name = os.path.basename(os.path.normpath(project_path))
-    return _PROJECT_TO_BASELINE.get(name, name)
 
 
 def load_baseline(name):
@@ -224,27 +212,34 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
-    def _expand_project_dirs(root_paths):
+    def _expand_project_dirs(root_paths, logical_name=None):
         """Recursively expand directories that contain only subdirectories
-        (no .py files) down to actual project roots.  This ensures nested
-        fixtures like simulation/ex_4_2 are analysed at the correct root
-        regardless of the entry-point depth."""
+        (no .py files) down to actual project roots.
+
+        Returns a list of (project_path, logical_name) tuples.  The
+        logical_name is the top-level fixture directory name (carried
+        down through recursion) so that `--save-baseline` and the
+        gate summary use stable names like "TSP" rather than "src".
+        """
         expanded = []
         for p in root_paths:
             if not os.path.isdir(p):
-                expanded.append(p)
+                expanded.append((p, logical_name or os.path.basename(p)))
                 continue
             subdirs = [os.path.join(p, d) for d in os.listdir(p)
                        if os.path.isdir(os.path.join(p, d))]
             py_files = [f for f in os.listdir(p) if f.endswith('.py')
                         and os.path.isfile(os.path.join(p, f))]
+            # Carry the original logical_name through recursion.
+            name = logical_name or os.path.basename(p)
             if subdirs and not py_files:
-                expanded.extend(_expand_project_dirs(sorted(subdirs)))
+                expanded.extend(
+                    _expand_project_dirs(sorted(subdirs), logical_name=name))
             else:
-                expanded.append(p)
+                expanded.append((p, name))
         return expanded
 
-    paths = []
+    project_entries = []  # list of (project_path, logical_name)
     missing = []
     for arg in sys.argv[1:]:
         if not os.path.exists(arg):
@@ -252,15 +247,15 @@ def main():
             missing.append(arg)
             continue
         if os.path.isdir(arg):
-            paths.extend(_expand_project_dirs([arg]))
+            project_entries.extend(_expand_project_dirs([arg]))
         else:
-            paths.append(arg)
+            project_entries.append((arg, os.path.basename(arg)))
 
     if missing:
         print("ERROR: %d path(s) not found - aborting." % len(missing),
               file=sys.stderr)
         sys.exit(1)
-    if not paths:
+    if not project_entries:
         print("ERROR: no valid project paths.", file=sys.stderr)
         sys.exit(1)
 
@@ -275,9 +270,7 @@ def main():
     total_taxonomy = {"tp_to_local": 0, "tp_to_unknown": 0,
                       "local_to_unknown": 0, "local_to_python": 0,
                       "local_to_third_party": 0}
-    for path in paths:
-        name = os.path.basename(path)
-        bl_name = _baseline_name(path)
+    for path, logical_name in project_entries:
         regs, imps, prec, illegal_count, _, details, taxonomy = compare(path)
         all_regression_details.extend(details)
         total_regressions += regs
@@ -287,8 +280,9 @@ def main():
         for k in total_taxonomy:
             total_taxonomy[k] += taxonomy.get(k, 0)
 
+        # Map logical name through explicit overrides for nested fixtures.
+        bl_name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
         baseline = load_baseline(bl_name)
-        display_name = bl_name if bl_name != name else name
         if baseline:
             has_baseline = True
             ok = regs <= baseline.get("regressions", 0)
@@ -297,12 +291,12 @@ def main():
             status = "OK" if ok else "EXCEEDED"
             summary_lines.append(
                 "%s: R=%d/%d I=%d P=%d illegal=%d [%s]" % (
-                    display_name, regs, baseline.get("regressions", 0),
+                    bl_name, regs, baseline.get("regressions", 0),
                     imps, prec, illegal_count, status))
         else:
             summary_lines.append(
                 "%s: R=%d I=%d P=%d illegal=%d [PENDING]" % (
-                    display_name, regs, imps, prec, illegal_count))
+                    logical_name, regs, imps, prec, illegal_count))
 
         if save_baselines:
             bp = save_baseline(bl_name, regs, imps, prec, illegal_count)
@@ -396,7 +390,7 @@ def main():
         print()
         print("No baselines found.  Run with --save-baseline to create.")
         print("  python %s --save-baseline %s" % (
-            __file__, " ".join(paths)))
+            __file__, " ".join(p for p, _ in project_entries)))
 
     return 0
 
