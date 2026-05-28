@@ -1195,3 +1195,45 @@ def test_multi_factory_same_library_dict_lookup_converges():
     for c in calls:
         assert c.top_library == "GPy", \
             f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
+
+
+@pytest.mark.xfail(reason="7B-full P1: factory + direct third-party SourceSet picks first primary", strict=True)
+def test_factory_plus_direct_not_pick_arbitrary_primary():
+    """make_arr()->numpy + pd.DataFrame() with dynamic key: not pandas/numpy."""
+    code = (
+        "import numpy as np\n"
+        "import pandas as pd\n"
+        "def make_arr():\n"
+        "    return np.array([1])\n"
+        "items = {'a': make_arr(), 'b': pd.DataFrame()}\n"
+        "key = input()\n"
+        "obj = items[key]\n"
+        "obj.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "obj.sum() not collected"
+    for c in calls:
+        assert c.top_library not in ("numpy", "pandas"), \
+            f"obj.sum() primary must not be numpy/pandas, got {c.top_library}"
+
+
+@pytest.mark.xfail(reason="7B-full P1: factory GPy + direct pandas SourceSet picks first primary", strict=True)
+def test_factory_gpy_plus_direct_not_pick_arbitrary_primary():
+    """make_rbf()->GPy + pd.DataFrame() with dynamic key: not GPy/pandas."""
+    code = (
+        "import GPy\n"
+        "import pandas as pd\n"
+        "def make_rbf():\n"
+        "    return GPy.kern.RBF(1)\n"
+        "items = {'a': make_rbf(), 'b': pd.DataFrame()}\n"
+        "key = input()\n"
+        "obj = items[key]\n"
+        "obj.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "obj.sum() not collected"
+    for c in calls:
+        assert c.top_library not in ("GPy", "pandas"), \
+            f"obj.sum() primary must not be GPy/pandas, got {c.top_library}"
