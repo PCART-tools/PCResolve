@@ -208,6 +208,30 @@ To find all call sites potentially related to library `lib`:
   Method calls still require full class-aware receiver resolution before
   `decorated_by` can be attached reliably.
 
+### Decorated Callable Receiver Methods
+
+Calls such as `hello.main()` where `hello` is a local function decorated by
+`@click.command()` are currently classified as `local`.  This is intentional:
+the decorated callable remains a same-project object, so decorator evidence
+must not replace the primary `top_library`.
+
+Decorator provenance is recorded on the decorated symbol.  Receiver-method
+calls such as `hello.main()` may require receiver-aware matching before
+that evidence can be mirrored into `ApiCall.decorated_by`.
+
+Until that matching exists, consumers that need this association should
+inspect `SymbolProvenance(kind="decorated_by")` in addition to
+`ApiCall.decorated_by`.
+
+Contract points:
+
+- `hello.main()` continues to report `top_library="local"`.
+- Decorated local callables are not reclassified as third-party primary calls.
+- The current boundary is that `decorated_by` is not propagated to receiver
+  method calls.
+- Downstream consumers should inspect both `SymbolProvenance(kind="decorated_by")`
+  and `ApiCall.decorated_by`.
+
 ## Remaining Boundaries
 
 - **SourceSet alternatives**: flow through `ClassificationPipeline` for multi-source resolution.
