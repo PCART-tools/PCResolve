@@ -1167,9 +1167,7 @@ class ProjectAnalyzer:
                 if (first in getattr(tracer, "import_aliases", set()) or
                         first in getattr(tracer, "import_from_symbols", {})):
                     return self._top_source(module, source.callee, tracers)
-                if (first in getattr(tracer, "local", set()) or
-                        first in getattr(tracer, "defined_functions", set()) or
-                        first in getattr(tracer, "class_methods", {})):
+                if self._is_known_local_symbol(tracer, source.callee):
                     return "local"
             return None
         if is_structured_source(source):
