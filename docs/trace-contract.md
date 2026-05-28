@@ -196,13 +196,13 @@ To find all call sites potentially related to library `lib`:
 
 1. **Direct API calls**: `ApiCall.top_library == lib`
 2. **Decorated local calls**: `lib in ApiCall.decorated_by` AND `ApiCall.top_library == "local"`
-3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; Phase 7B will add class-aware `ApiCall.decorated_by` for methods
+3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; `ApiCall.decorated_by` for methods depends on future full class-aware receiver resolution
 
 ### `ApiCall.decorated_by` Contract
 
 - **Field type**: `list[str]`, default `[]`
 - **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
-- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls pre-7B)
+- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls before full class-aware matching)
 - **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
 - **Matching**: exact match on `(file_path, scope_name, func_name)` where
   `func_name` is the call's bare function name (e.g. `"index"` for `index()`)
