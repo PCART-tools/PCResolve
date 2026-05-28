@@ -102,9 +102,9 @@ def test_no_sourceset_leak_in_top_library():
                 f"[{scope_model}] Leaked SourceSet in library_usage key: {lib}"
 
 
-@pytest.mark.xfail(reason="7B-full P2: multi-return SourceSet convergence", strict=True)
 def test_make_chained_call_project_level():
-    """make(True).get() at project level must resolve to requests or numpy."""
+    """make(True).get() with multi-third-party return keeps conservative primary
+    but surfaces all third-party candidates in alternatives and library_usage."""
     code = "import requests\nimport numpy as np\n"
     code += "def make(flag):\n"
     code += "    if flag:\n        return requests.Session()\n"
@@ -120,8 +120,24 @@ def test_make_chained_call_project_level():
             result = analyze_project(tmpdir, scope_model=scope_model)
             get_calls = [c for c in result.all_api_calls if "get" in c.expression]
             assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
-            assert get_calls[0].top_library in ("requests", "numpy"), \
-                f"[{scope_model}] Expected requests or numpy, got {get_calls[0].top_library}"
+            # Conservative primary: do not arbitrarily pick one third-party.
+            assert get_calls[0].top_library in ("local", "unknown"), \
+                f"[{scope_model}] Expected local/unknown (conservative), got {get_calls[0].top_library}"
+            # Alternatives must list every third-party candidate.
+            alts = getattr(get_calls[0], "alternatives", []) or []
+            assert "requests" in alts, \
+                f"[{scope_model}] alternatives missing requests: {alts}"
+            assert "numpy" in alts, \
+                f"[{scope_model}] alternatives missing numpy: {alts}"
+            assert get_calls[0].confidence < 1.0, \
+                f"[{scope_model}] FLOW_MERGE confidence should be < 1.0, got {get_calls[0].confidence}"
+            # library_usage must aggregate alternatives.
+            assert "requests" in result.library_usage, \
+                f"[{scope_model}] requests missing from library_usage"
+            assert "numpy" in result.library_usage, \
+                f"[{scope_model}] numpy missing from library_usage"
+            assert "SourceSet(" not in str(get_calls[0].top_library), \
+                f"[{scope_model}] Leaked SourceSet in top_library"
 
 
 def test_mixed_local_and_third_party_return():
