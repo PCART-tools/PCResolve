@@ -1095,10 +1095,14 @@ def test_multi_return_source_set_not_pick_first():
     calls = [c for c in r.all_api_calls if "sum" in c.expression]
     assert calls, "y.sum() not collected"
     for c in calls:
-        # v2 resolves to numpy (sole SourceSet candidate);
-        # v1 is local (pre-existing scope-model limitation).
-        assert c.top_library in ("local", "numpy"), \
-            f"Expected local or numpy, got {c.top_library}"
+        assert c.top_library == "numpy", \
+            f"v2 should resolve sole SourceSet candidate to numpy, got {c.top_library}"
+        assert "numpy" in (getattr(c, "alternatives", []) or []), \
+            f"alternatives should include numpy, got {getattr(c, 'alternatives', [])}"
+        assert getattr(c, "reason", "") == "RETURN_PROPAGATION", \
+            f"Expected RETURN_PROPAGATION, got {getattr(c, 'reason', '')}"
+        assert "numpy" in r.library_usage, \
+            "numpy missing from library_usage"
 
 
 def test_cg_class_summary_method_returns_not_cross_class_polluted():
