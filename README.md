@@ -322,4 +322,4 @@ See `docs/architecture.md` for the pipeline design,
 
 ## License
 
-MIT.  See [LICENSE](./LICENSE) for details.
+PCResolve is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
