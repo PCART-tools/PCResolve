@@ -67,17 +67,13 @@ for call in result.all_api_calls:
 }
 ```
 
-## PCART Integration
+## Consuming the Output
 
-```
-确定纳入:  call.top_library == target_library
-候选纳入:  target_library in call.alternatives
-          target_library in call.decorated_by
-排除:     call.top_library in (local, python, unknown)
-          AND target_library not in alternatives/decorated_by
-```
-
-See `docs/pcart-integration.md` for details.
+Downstream tools should treat `top_library` as the primary
+classification and `alternatives` / `decorated_by` as additional
+evidence.  A call whose `top_library` is `local` or `unknown` may
+still reference a third-party library through alternatives (e.g.
+multi-source returns or container iteration) or decorator evidence.
 
 ## Supported Patterns
 

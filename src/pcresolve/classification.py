@@ -144,5 +144,22 @@ class ClassificationPipeline:
     def _extract_alternatives(self, base, module, tracers):
         origins = self._origin_candidates(module, base, tracers,
                                           include_local=True)
-        return [x for x in self._dedupe(origins)
+        alts = [x for x in self._dedupe(origins)
                 if x not in ("", None, "unknown")]
+        return _normalize_merged_labels(alts)
+
+
+## Split merged container labels like "[requests,numpy]" into
+#  individual library names for alternatives.
+def _normalize_merged_labels(alts):
+    out = []
+    for a in alts:
+        if isinstance(a, str) and a.startswith("[") and a.endswith("]"):
+            parts = [p.strip() for p in a[1:-1].split(",") if p.strip()]
+            for p in parts:
+                if p and p not in out:
+                    out.append(p)
+        else:
+            if a not in out:
+                out.append(a)
+    return out
