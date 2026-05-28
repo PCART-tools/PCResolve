@@ -91,7 +91,7 @@ def test_tests6_cross_file_closure():
 
 def test_tests7_dict_subscript_single_file():
     """func = d[key] where d contains imported callables."""
-    result = analyze_project(os.path.join(FIXTURES, "tests7"), scope_model="v1")
+    result = analyze_project(os.path.join(FIXTURES, "tests7"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     assert tops_by_expr.get("func_get('https://example.com')") == "requests"
     assert tops_by_expr.get("func_post('https://example.com')") == "requests"
@@ -226,7 +226,7 @@ def test_tests12_decorators():
 
 def test_tests13_with_statement():
     """with requests.Session() as session: session.get(...) traced."""
-    result = analyze_project(os.path.join(FIXTURES, "tests13"), scope_model="v1")
+    result = analyze_project(os.path.join(FIXTURES, "tests13"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     assert tops_by_expr.get("session.get('https://example.com')") == "requests"
     # async with aiohttp.ClientSession() as client: client.get(...)
@@ -235,7 +235,7 @@ def test_tests13_with_statement():
 
 def test_tests13_for_loop_container_iteration():
     """for f in FUNCS: f(...) — container iteration with mixed candidates."""
-    result = analyze_project(os.path.join(FIXTURES, "tests13"), scope_model="v1")
+    result = analyze_project(os.path.join(FIXTURES, "tests13"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     # f('https://example.com') in the loop body: FUNCS = [requests.get, np.sum]
     # both candidates merged → "[requests,numpy]"

@@ -363,11 +363,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             container_name = self.trace_source(node.value)
             key_idx = self._get_slice(node.slice)
             if container_name is not None and key_idx is not None:
-                key_value = self._container_index(container_name, key_idx)
-                lookup_key = (container_name, key_value)
+                # Use the variable *name* for the container_items lookup
+                # (container_items is keyed by name, not by trace source).
+                lookup_name = node.value.id if isinstance(node.value, ast.Name) else container_name
+                key_value = self._container_index(lookup_name, key_idx)
+                lookup_key = (lookup_name, key_value)
                 if lookup_key in self.container_items:
                     return self.container_items[lookup_key]
-                return ContainerItem(container_name, key_idx)
+                return ContainerItem(lookup_name, key_idx)
             ## 7B-full PR7: try to resolve static key from literal assignment.
             resolved_key = None
             if isinstance(node.value, ast.Name):

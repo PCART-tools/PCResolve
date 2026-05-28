@@ -76,7 +76,7 @@ Output: `ProjectAnalysis`
 | `get_base` (non-call-lookup) | Returns name | Returns scope binding source |
 | `get_base` (call_lookup=True) | Returns name | Returns name (kept raw for CallResult) |
 
-v1 is the default. v2 fixes scope pollution and, as of Phase 4E, no longer produces dataclass repr or structured source display strings as library keys. v2 may still show finer-grained symbol provenance differences compared to v1. The plan is to switch default to v2 after Phase 5 (multi-value binding) and Phase 8A (classification metadata) clean up the remaining noise.
+v2 is the default as of 1.0.4. v2 fixes scope pollution and no longer produces dataclass repr or structured source display strings as library keys. v1 is available via `--scope-model v1` for legacy comparison.
 
 ## Legacy Compatibility Paths
 
@@ -90,7 +90,7 @@ The following paths exist for backward compatibility and will be replaced:
 | `call_sites`/`function_params` (ad-hoc param tracing) | CallGraph propagation | 7A |
 | `_base_top_source()` classification | `ClassificationPipeline` | 8B |
 | Instance attr propagation (`instance_attrs`) | 7B class/instance method resolution | 7B |
-| Legacy `--json` output | `--json-summary` / `--json-full` profiles | 4D (see output-contract.md) |
+| Legacy `--json` (dataclass dump) | `--json` (full provenance, 1.0.4+) | 4D (see output-contract.md) |
 
 ## Known Patch Zones
 

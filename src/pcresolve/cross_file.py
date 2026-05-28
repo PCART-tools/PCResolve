@@ -1650,6 +1650,10 @@ class ProjectAnalyzer:
             if top in ("local", "python", "unknown", ""):
                 return top
             if isinstance(symbol, str) and chain in ([symbol], [self._top_name(symbol)]):
+                # Merged container candidates like "[requests,numpy]"
+                # are not local/import-origin names — return as-is.
+                if isinstance(symbol, str) and symbol.startswith("[") and symbol.endswith("]"):
+                    return symbol
                 if self.is_local(symbol):
                     return "local"
                 if src_tracer and _is_import_origin(src_tracer, symbol):
