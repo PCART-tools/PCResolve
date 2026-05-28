@@ -42,7 +42,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
     #  @param module_name Optional dotted module name for resolving relative imports.
     #  @param is_package Whether the file is a package __init__.py.
-    #  @param scope_model "v1" (legacy single-slot) or "v2" (lexical scopes).
+    #  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
     def __init__(self, module_name=None, is_package=False, scope_model="v2",
                  file_path=""):
         self.module_name = module_name
@@ -1619,7 +1619,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 ## Analyze a single source string and return per-file results.
 #  @param source Python source code string.
 #  @param file_path Optional file path for reporting.
-#  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
+#  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
 #  @return FileAnalysis object.
 def analyze_source(source, file_path="<string>", scope_model="v2"):
     tree = ast.parse(source)
