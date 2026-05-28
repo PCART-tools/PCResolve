@@ -31,6 +31,22 @@ _BASELINE_PATH_MAP = {
     "barcoded_yeast_reanalysis": "giantpopflucts/barcoded_yeast_reanalysis",
     "ex_4_2": "simulation/ex_4_2",
 }
+# Reverse: top-level directory basename -> baseline name.
+_PROJECT_TO_BASELINE = {
+    "giantpopflucts": "barcoded_yeast_reanalysis",
+    "simulation": "ex_4_2",
+}
+
+
+## Map a project path to its baseline name.
+#
+#  Handles nested fixtures where the top-level directory name
+#  does not match the baseline JSON filename.
+#  @param project_path Absolute or relative path to the project.
+#  @return Baseline name string.
+def _baseline_name(project_path):
+    name = os.path.basename(os.path.normpath(project_path))
+    return _PROJECT_TO_BASELINE.get(name, name)
 
 
 def load_baseline(name):
@@ -250,6 +266,7 @@ def main():
                       "local_to_third_party": 0}
     for path in paths:
         name = os.path.basename(path)
+        bl_name = _baseline_name(path)
         regs, imps, prec, illegal_count, _, details, taxonomy = compare(path)
         all_regression_details.extend(details)
         total_regressions += regs
@@ -259,7 +276,8 @@ def main():
         for k in total_taxonomy:
             total_taxonomy[k] += taxonomy.get(k, 0)
 
-        baseline = load_baseline(name)
+        baseline = load_baseline(bl_name)
+        display_name = bl_name if bl_name != name else name
         if baseline:
             has_baseline = True
             ok = regs <= baseline.get("regressions", 0)
@@ -268,15 +286,15 @@ def main():
             status = "OK" if ok else "EXCEEDED"
             summary_lines.append(
                 "%s: R=%d/%d I=%d P=%d illegal=%d [%s]" % (
-                    name, regs, baseline.get("regressions", 0),
+                    display_name, regs, baseline.get("regressions", 0),
                     imps, prec, illegal_count, status))
         else:
             summary_lines.append(
                 "%s: R=%d I=%d P=%d illegal=%d [PENDING]" % (
-                    name, regs, imps, prec, illegal_count))
+                    display_name, regs, imps, prec, illegal_count))
 
         if save_baselines:
-            bp = save_baseline(name, regs, imps, prec, illegal_count)
+            bp = save_baseline(bl_name, regs, imps, prec, illegal_count)
             print("  Baseline saved: %s" % bp)
         print()
 
