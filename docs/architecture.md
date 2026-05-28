@@ -41,7 +41,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `api_calls` | `list[dict]` | Legacy call records (keyed by `api`, `top`, `base`, `chain`, ...) |
 | `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
 | `symbol_refs` | `list[SymbolRef]` | Symbol references for provenance |
-| `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet since Phase 5) |
+| `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet for multi-return) |
 | `call_sites` | `dict[str, list[dict]]` | Function name → call-site parameter sources (for ad-hoc param tracing) |
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |
@@ -93,9 +93,9 @@ Compatibility surfaces still present in the codebase:
 |---------|---------------|-------|
 | `SymbolTable.direct` | Still used as module-level fallback | Scope model writes to `Scope.bindings`; `direct` is compat bridge |
 | `api_calls` (dict list) | Still the primary single-file output | Typed `CallSite` collected in parallel |
-| `return_sources` (SourceSet) | Upgraded to `SourceSet` + CallGraph | Phase 5 / 7B-full complete |
-| `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Phase 8B complete |
-| Instance attr propagation | 7B-lite constructor arg tracking | Full class-aware receiver resolution deferred |
+| `return_sources` (SourceSet) | Multi-return tracking via `SourceSet` + CallGraph | Current default |
+| `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Current default |
+| Instance attr propagation | Constructor arg → self.attr tracking | Full class-aware receiver resolution is future work |
 | `--json` (dataclass dump) | Replaced by full provenance schema | 1.0.4+ default |
 
 ## Known Patch Zones
