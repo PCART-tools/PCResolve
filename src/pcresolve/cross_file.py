@@ -23,16 +23,13 @@ def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .ir import (SymbolProvenance, ClassificationResult,
-                    REASON_DIRECT_IMPORT, REASON_TRANSITIVE_IMPORT,
-                    REASON_LOCAL_DEFINITION, REASON_BUILTIN,
-                    REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION,
-                    REASON_FLOW_MERGE, REASON_UNRESOLVED)
+                    REASON_DIRECT_IMPORT)
 from .single_file import SingleFileAnalyzer
 from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, is_structured_source, normalize_source,
                        source_display)
 from .call_graph import ProjectCallGraph
-from .classification import classify_confidence
+from .classification import classify_confidence, ClassificationPipeline
 from .source_resolution import SourceSetResolver
 from .types import ProjectAnalysis, FileAnalysis, ApiCall, LibraryUsage
 
@@ -175,6 +172,10 @@ class ProjectAnalyzer:
             cg_return_cb=self._lookup_cg_return_source,
             known_local_cb=self._is_known_local_symbol,
             resolve_structured_cb=self._resolve_structured_source,
+            dedupe_cb=self._dedupe_list)
+        self._pipeline = ClassificationPipeline(
+            origin_candidates_cb=self._origin_candidates,
+            is_direct_import_cb=self._is_direct_import_base,
             dedupe_cb=self._dedupe_list)
 
     ## Run the full analysis: scan, parse, resolve, and collect.
@@ -738,31 +739,6 @@ class ProjectAnalyzer:
     #  @return Reason constant string.
     # ── classification helpers ───────────────────────────────────────────
 
-    def _classify_reason(self, base, top, tracer, module, module_tracers,
-                         expand_origins=True):
-        if top == "local":
-            return REASON_LOCAL_DEFINITION
-        if top == "python":
-            return REASON_BUILTIN
-        if top == "unknown" or not top:
-            return REASON_UNRESOLVED
-        base_norm = normalize_source(base)
-        if isinstance(base_norm, SourceSet):
-            return REASON_FLOW_MERGE
-        if isinstance(base_norm, CallResult):
-            if expand_origins:
-                origins = self._origin_candidates(
-                    module, base_norm, module_tracers, include_local=False)
-                unique = [o for o in self._dedupe_list(origins)
-                          if o not in ("", None, "unknown")]
-                if len(unique) > 1:
-                    return REASON_FLOW_MERGE
-            return REASON_RETURN_PROPAGATION
-        if isinstance(base, str):
-            if self._is_direct_import_base(tracer, base):
-                return REASON_DIRECT_IMPORT
-        return REASON_TRANSITIVE_IMPORT
-
     ## Determine confidence for a classification result.
     #
     #  Delegates to the standalone classify_confidence() in
@@ -773,22 +749,11 @@ class ProjectAnalyzer:
     def _classify_confidence(self, reason, alternatives=None):
         return classify_confidence(reason, alternatives)
 
-    ## Extract alternatives from a SourceSet base.
-    #  @param base The call's base.
-    #  @param module Current module name.
-    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
-    #  @return List of alternative top library strings.
-    def _extract_alternatives(self, base, module, tracers):
-        origins = self._origin_candidates(module, base, tracers, include_local=True)
-        return [x for x in self._dedupe_list(origins)
-                if x not in ("", None, "unknown")]
-
     ## Unified classification entry point for a resolved top library.
     #
-    #  Wraps reason/confidence/alternatives/is_usage_library computation
-    #  so that ApiCall and SymbolProvenance classification logic is in
-    #  one place.  Phase 8B-0: extracted from existing helpers without
-    #  changing behaviour.
+    #  Delegates to ClassificationPipeline.classify() (Phase 8B).
+    #  Kept as a thin wrapper so callers in get_calls() and
+    #  _build_symbol_provenance() do not need to change.
     #  @param base The call's base symbol or source.
     #  @param top The resolved top-level library.
     #  @param module Current module name.
@@ -797,41 +762,20 @@ class ProjectAnalyzer:
     #  @return ClassificationResult with library/reason/confidence/alternatives.
     def classify_source(self, base, top, module, tracer, module_tracers,
                         expand_origins=True, symbol=None, kind=""):
-        if top == "local":
-            alternatives = []
-            if expand_origins and isinstance(normalize_source(base), SourceSet):
-                alternatives = self._extract_alternatives(base, module, module_tracers)
-            return ClassificationResult(
-                library="local",
-                reason=REASON_FLOW_MERGE if alternatives else REASON_LOCAL_DEFINITION,
-                confidence=0.5 if alternatives else 1.0,
-                alternatives=alternatives,
-                is_usage_library=False)
-        if top == "python":
-            return ClassificationResult(
-                library="python", reason=REASON_BUILTIN,
-                confidence=1.0, alternatives=[], is_usage_library=False)
-        if top == "unknown" or not top:
-            return ClassificationResult(
-                library="unknown", reason=REASON_UNRESOLVED,
-                confidence=0.0, alternatives=[], is_usage_library=False)
-
         if kind == "import" and self._is_direct_external_import(base, top, module):
-            reason = REASON_DIRECT_IMPORT
-        else:
-            reason = self._classify_reason(
-                base, top, tracer, module, module_tracers,
+            # Override: direct external imports always use DIRECT_IMPORT reason.
+            result = self._pipeline.classify(
+                base, top, module, tracer, module_tracers,
                 expand_origins=expand_origins)
-        if expand_origins:
-            alternatives = self._extract_alternatives(base, module, module_tracers)
-        else:
-            alternatives = []
-        confidence = self._classify_confidence(reason, alternatives)
-        is_lib = self._is_usage_library(top)
-
-        return ClassificationResult(
-            library=top, reason=reason, confidence=confidence,
-            alternatives=alternatives, is_usage_library=is_lib)
+            return ClassificationResult(
+                library=result.library,
+                reason=REASON_DIRECT_IMPORT,
+                confidence=classify_confidence(REASON_DIRECT_IMPORT),
+                alternatives=result.alternatives,
+                is_usage_library=result.is_usage_library)
+        return self._pipeline.classify(
+            base, top, module, tracer, module_tracers,
+            expand_origins=expand_origins)
 
     ## Resolve the first segment of func_name to its fully qualified path.
     #  @param call_dict Dict with 'func_name' and other call data.

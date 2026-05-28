@@ -60,6 +60,10 @@ def _stable_api_call(call, project_root):
         "parameters": call.parameters,
         "resolved_func": call.resolved_func,
         "resolved_chain": call.resolved_chain,
+        "reason": call.reason,
+        "confidence": call.confidence,
+        "alternatives": call.alternatives,
+        "decorated_by": call.decorated_by,
     }
 
 
