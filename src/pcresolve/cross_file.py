@@ -32,6 +32,7 @@ from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
                        SourceSet, is_structured_source, normalize_source,
                        source_display)
 from .call_graph import ProjectCallGraph
+from .classification import classify_confidence
 from .source_resolution import SourceSetResolver
 from .types import ProjectAnalysis, FileAnalysis, ApiCall, LibraryUsage
 
@@ -763,24 +764,14 @@ class ProjectAnalyzer:
         return REASON_TRANSITIVE_IMPORT
 
     ## Determine confidence for a classification result.
+    #
+    #  Delegates to the standalone classify_confidence() in
+    #  classification.py so the confidence rules live in one place.
     #  @param reason Classification reason.
     #  @param alternatives List of alternative top libraries.
     #  @return Confidence score (0.0-1.0).
     def _classify_confidence(self, reason, alternatives=None):
-        if reason == REASON_UNRESOLVED:
-            return 0.0
-        if reason in (REASON_DIRECT_IMPORT, REASON_LOCAL_DEFINITION, REASON_BUILTIN):
-            return 1.0
-        if reason in (REASON_PARAMETER_PROPAGATION, REASON_RETURN_PROPAGATION):
-            return 0.9
-        if reason == REASON_FLOW_MERGE:
-            clean = [a for a in (alternatives or [])
-                     if a not in ("", None, "unknown")]
-            alt_count = len(clean)
-            if alt_count > 1:
-                return max(1.0 / alt_count, 0.2)
-            return 0.85
-        return 0.9
+        return classify_confidence(reason, alternatives)
 
     ## Extract alternatives from a SourceSet base.
     #  @param base The call's base.
