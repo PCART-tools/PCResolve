@@ -46,33 +46,24 @@ def test_module_requests_stays_third_party(module_symbols):
 
 
 def test_module_np_stays_numpy(module_symbols):
-    """UPDATEPHASE3: Module-level 'np' should be 'numpy'.
-    Currently 'local' because use_local() reassigns np = requests.Session()
-    and the single-slot symbol table leaks function-local bindings."""
-    # Phase 3 expectation: assert module_symbols.get("np") == "numpy"
-    assert module_symbols.get("np") == "local"
+    """Module-level 'np' should be 'numpy' with v2 lexical scopes."""
+    assert module_symbols.get("np") == "numpy", \
+        f"Expected np->numpy, got {module_symbols.get('np')}"
 
 
 def test_session_call_is_requests(calls_by_top):
-    """UPDATEPHASE3: session.get(...) should be classified as 'requests'.
-    Currently 'local' because scope pollution masks the chain."""
-    # Phase 3 expectation: assert "requests" in calls_by_top
-    assert "local" in calls_by_top
-    exprs = [c.expression for c in calls_by_top["local"]]
-    assert any("session.get" in e for e in exprs)
+    """session.get(...) should be classified as 'requests' with v2."""
+    assert "requests" in calls_by_top, \
+        f"Expected requests in calls_by_top, got {list(calls_by_top.keys())}"
 
 
 def test_function_use_param_does_not_pollute_requests(module_symbols):
-    """UPDATEPHASE3: Module-level 'requests' should stay 'requests'.
-    Currently 'local' because the parameter 'requests' in use_param()
-    overwrites the module-level import alias."""
-    # Phase 3 expectation: assert module_symbols.get("requests") == "requests"
-    assert module_symbols.get("requests") == "local"
+    """Module-level 'requests' should stay 'requests' with v2 scopes."""
+    assert module_symbols.get("requests") == "requests", \
+        f"Expected requests->requests, got {module_symbols.get('requests')}"
 
 
 def test_comprehension_var_x_not_in_module_symbols(module_symbols):
-    """UPDATEPHASE3: Comprehension variable 'x' must not leak.
-    Currently 'x' appears because comprehension targets go into the
-    single-slot symbol table."""
-    # Phase 3 expectation: assert "x" not in module_symbols
-    assert "x" in module_symbols
+    """Comprehension variable 'x' must not leak to module scope in v2."""
+    assert "x" not in module_symbols, \
+        f"x should not be in module symbols: {list(module_symbols.keys())}"

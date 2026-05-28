@@ -474,14 +474,14 @@ async def fetch(url):
 
 
 def test_async_for_loop_variable_bound():
-    """async for item in it: — loop variable bound to iterator source."""
+    """async for item in it: — loop variable bound to iterator source (v1)."""
     code = """import aiohttp
 async def iterate(it):
     async for item in it:
         val = item
     return val
 """
-    tracer = SingleFileAnalyzer()
+    tracer = SingleFileAnalyzer(scope_model="v1")
     tracer.visit(ast.parse(code))
     # item is bound from the async for iterator source
     assert "val" in tracer.symbols.direct, (
@@ -490,13 +490,13 @@ async def iterate(it):
 
 
 def test_async_with_context_variable_bound():
-    """async with ... as var: — context variable bound to context source."""
+    """async with ... as var: — context variable bound to context source (v1)."""
     code = """import aiohttp
 async def fetch(url):
     async with aiohttp.ClientSession() as session:
         return session
 """
-    tracer = SingleFileAnalyzer()
+    tracer = SingleFileAnalyzer(scope_model="v1")
     tracer.visit(ast.parse(code))
     # session should be bound to aiohttp.ClientSession's source
     assert "session" in tracer.symbols.direct, (

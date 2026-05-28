@@ -105,8 +105,8 @@ def test_explain_library_shows_files():
     """--explain-library output must include per-file call/symbol counts."""
     _, stdout, _ = _run("--explain-library", "requests", TESTS2_FIXTURE)
     assert "b.py" in stdout
-    assert "2 calls" in stdout
-    assert "3 symbols" in stdout
+    assert "1 calls" in stdout
+    assert "2 symbols" in stdout
 
 
 def test_explain_library_shows_api_calls():

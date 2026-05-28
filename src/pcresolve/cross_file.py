@@ -113,7 +113,7 @@ class ProjectAnalyzer:
     ## Initialize the analyzer for a given project root.
     #  @param project_root Absolute path to the project root directory.
     #  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
-    def __init__(self, project_root, scope_model="v1"):
+    def __init__(self, project_root, scope_model="v2"):
         self.project_root = project_root
         self.scope_model = scope_model
         self.module_mapper = ModuleMapper(project_root)
@@ -1702,6 +1702,6 @@ class ProjectAnalyzer:
 #  @param project_root Absolute path to the project root directory.
 #  @param scope_model "v1" (legacy, default) or "v2" (lexical scopes).
 #  @return ProjectAnalysis with all per-file and cross-file results.
-def analyze_project(project_root, scope_model="v1"):
+def analyze_project(project_root, scope_model="v2"):
     analyzer = ProjectAnalyzer(project_root, scope_model=scope_model)
     return analyzer.analyze()

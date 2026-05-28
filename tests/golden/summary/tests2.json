@@ -6,7 +6,7 @@
     "total_modules": 4,
     "parsed_modules": 4,
     "skipped_modules": 0,
-    "scope_model": "v1",
+    "scope_model": "v2",
     "api_call_count": 6,
     "library_count": 3,
     "diagnostic_error_count": 0,
@@ -16,28 +16,26 @@
   "libraries": {
     "numpy": {
       "api_call_count": 2,
-      "symbol_count": 8,
-      "file_count": 4,
+      "symbol_count": 5,
+      "file_count": 3,
       "files": [
-        "a.py",
         "b.py",
         "c/d.py",
         "c/e/f.py"
       ],
       "imports": [
         "data",
-        "my_data",
         "np",
         "numpy"
       ],
       "kind_counts": {
-        "import": 4,
-        "variable": 4
+        "import": 3,
+        "variable": 2
       },
       "reason_counts": {
-        "DIRECT_IMPORT": 6,
+        "DIRECT_IMPORT": 4,
         "RETURN_PROPAGATION": 2,
-        "TRANSITIVE_IMPORT": 2
+        "TRANSITIVE_IMPORT": 1
       },
       "min_confidence": 0.9,
       "max_confidence": 1.0
@@ -65,8 +63,8 @@
       "max_confidence": 1.0
     },
     "requests": {
-      "api_call_count": 3,
-      "symbol_count": 13,
+      "api_call_count": 2,
+      "symbol_count": 8,
       "file_count": 4,
       "files": [
         "a.py",
@@ -75,21 +73,19 @@
         "c/e/f.py"
       ],
       "imports": [
-        "get",
-        "my_url",
         "req",
         "requests",
         "result",
         "url"
       ],
       "kind_counts": {
-        "import": 6,
-        "variable": 7
+        "import": 4,
+        "variable": 4
       },
       "reason_counts": {
-        "DIRECT_IMPORT": 10,
-        "TRANSITIVE_IMPORT": 4,
-        "RETURN_PROPAGATION": 2
+        "DIRECT_IMPORT": 6,
+        "RETURN_PROPAGATION": 2,
+        "TRANSITIVE_IMPORT": 2
       },
       "min_confidence": 0.9,
       "max_confidence": 1.0

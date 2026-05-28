@@ -94,8 +94,7 @@
         "local_method_call": [
           "local_method_call",
           "LocalClient.get",
-          "get",
-          "local"
+          "local_lib"
         ],
         "m_client": [
           "m_client",
@@ -106,8 +105,7 @@
         "local_inherited_call": [
           "local_inherited_call",
           "MixedClient.get",
-          "get",
-          "local"
+          "local_lib"
         ],
         "tp": [
           "tp",
@@ -240,7 +238,9 @@
           "expression": "client.get('http://d.com')",
           "top_library": "local",
           "base_symbol": "LocalClient.get",
-          "chain": [],
+          "chain": [
+            "LocalClient.get"
+          ],
           "file_path": "main.py",
           "lineno": 22,
           "col_offset": 20,
@@ -289,7 +289,9 @@
           "expression": "m_client.get('http://d2.com')",
           "top_library": "local",
           "base_symbol": "MixedClient.get",
-          "chain": [],
+          "chain": [
+            "MixedClient.get"
+          ],
           "file_path": "main.py",
           "lineno": 26,
           "col_offset": 23,
@@ -338,7 +340,9 @@
           "expression": "tp.get('http://e.com')",
           "top_library": "requests",
           "base_symbol": "ThirdPartyClient.get",
-          "chain": [],
+          "chain": [
+            "ThirdPartyClient.get"
+          ],
           "file_path": "main.py",
           "lineno": 30,
           "col_offset": 28,
@@ -628,8 +632,7 @@
           "chain": [
             "local_method_call",
             "LocalClient.get",
-            "get",
-            "local"
+            "local_lib"
           ],
           "scope_name": "",
           "file_path": "main.py",
@@ -670,8 +673,7 @@
           "chain": [
             "local_inherited_call",
             "MixedClient.get",
-            "get",
-            "local"
+            "local_lib"
           ],
           "scope_name": "",
           "file_path": "main.py",
@@ -752,9 +754,7 @@
         "requests": "requests",
         "partial": "functools",
         "fetch_data": "local",
-        "url": "local",
         "LocalClient": "local",
-        "get": "local",
         "MixedClient": "local",
         "Session": "requests",
         "ThirdPartyClient": "local",
@@ -774,16 +774,8 @@
           "fetch_data",
           "local"
         ],
-        "url": [
-          "url",
-          "local"
-        ],
         "LocalClient": [
           "LocalClient",
-          "local"
-        ],
-        "get": [
-          "get",
           "local"
         ],
         "MixedClient": [
@@ -869,9 +861,8 @@
         {
           "expression": "fetch_data(url)",
           "top_library": "local",
-          "base_symbol": "fetch_data",
+          "base_symbol": "local",
           "chain": [
-            "fetch_data",
             "local"
           ],
           "file_path": "local_lib.py",
@@ -989,7 +980,7 @@
             "url",
             "local"
           ],
-          "scope_name": "",
+          "scope_name": "fetch_data",
           "file_path": "local_lib.py",
           "lineno": 5,
           "col_offset": 15,
@@ -1009,7 +1000,7 @@
             "requests.get()",
             "requests"
           ],
-          "scope_name": "",
+          "scope_name": "fetch_data",
           "file_path": "local_lib.py",
           "lineno": 7,
           "col_offset": 4,
@@ -1047,7 +1038,7 @@
             "get",
             "local"
           ],
-          "scope_name": "",
+          "scope_name": "LocalClient",
           "file_path": "local_lib.py",
           "lineno": 12,
           "col_offset": 4,
@@ -1066,7 +1057,7 @@
             "url",
             "local"
           ],
-          "scope_name": "",
+          "scope_name": "get",
           "file_path": "local_lib.py",
           "lineno": 12,
           "col_offset": 18,
@@ -1086,7 +1077,7 @@
             "requests.get()",
             "requests"
           ],
-          "scope_name": "",
+          "scope_name": "get",
           "file_path": "local_lib.py",
           "lineno": 13,
           "col_offset": 8,
@@ -1181,7 +1172,7 @@
             "url",
             "local"
           ],
-          "scope_name": "",
+          "scope_name": "wrapper",
           "file_path": "local_lib.py",
           "lineno": 29,
           "col_offset": 12,
@@ -1201,7 +1192,7 @@
             "fetch_data()",
             "requests"
           ],
-          "scope_name": "",
+          "scope_name": "wrapper",
           "file_path": "local_lib.py",
           "lineno": 31,
           "col_offset": 4,
@@ -1363,7 +1354,9 @@
       "expression": "client.get('http://d.com')",
       "top_library": "local",
       "base_symbol": "LocalClient.get",
-      "chain": [],
+      "chain": [
+        "LocalClient.get"
+      ],
       "file_path": "main.py",
       "lineno": 22,
       "col_offset": 20,
@@ -1412,7 +1405,9 @@
       "expression": "m_client.get('http://d2.com')",
       "top_library": "local",
       "base_symbol": "MixedClient.get",
-      "chain": [],
+      "chain": [
+        "MixedClient.get"
+      ],
       "file_path": "main.py",
       "lineno": 26,
       "col_offset": 23,
@@ -1461,7 +1456,9 @@
       "expression": "tp.get('http://e.com')",
       "top_library": "requests",
       "base_symbol": "ThirdPartyClient.get",
-      "chain": [],
+      "chain": [
+        "ThirdPartyClient.get"
+      ],
       "file_path": "main.py",
       "lineno": 30,
       "col_offset": 28,
@@ -1565,9 +1562,8 @@
     {
       "expression": "fetch_data(url)",
       "top_library": "local",
-      "base_symbol": "fetch_data",
+      "base_symbol": "local",
       "chain": [
-        "fetch_data",
         "local"
       ],
       "file_path": "local_lib.py",
@@ -1858,8 +1854,7 @@
       "chain": [
         "local_method_call",
         "LocalClient.get",
-        "get",
-        "local"
+        "local_lib"
       ],
       "scope_name": "",
       "file_path": "main.py",
@@ -1900,8 +1895,7 @@
       "chain": [
         "local_inherited_call",
         "MixedClient.get",
-        "get",
-        "local"
+        "local_lib"
       ],
       "scope_name": "",
       "file_path": "main.py",
@@ -2040,7 +2034,7 @@
         "url",
         "local"
       ],
-      "scope_name": "",
+      "scope_name": "fetch_data",
       "file_path": "local_lib.py",
       "lineno": 5,
       "col_offset": 15,
@@ -2060,7 +2054,7 @@
         "requests.get()",
         "requests"
       ],
-      "scope_name": "",
+      "scope_name": "fetch_data",
       "file_path": "local_lib.py",
       "lineno": 7,
       "col_offset": 4,
@@ -2098,7 +2092,7 @@
         "get",
         "local"
       ],
-      "scope_name": "",
+      "scope_name": "LocalClient",
       "file_path": "local_lib.py",
       "lineno": 12,
       "col_offset": 4,
@@ -2117,7 +2111,7 @@
         "url",
         "local"
       ],
-      "scope_name": "",
+      "scope_name": "get",
       "file_path": "local_lib.py",
       "lineno": 12,
       "col_offset": 18,
@@ -2137,7 +2131,7 @@
         "requests.get()",
         "requests"
       ],
-      "scope_name": "",
+      "scope_name": "get",
       "file_path": "local_lib.py",
       "lineno": 13,
       "col_offset": 8,
@@ -2232,7 +2226,7 @@
         "url",
         "local"
       ],
-      "scope_name": "",
+      "scope_name": "wrapper",
       "file_path": "local_lib.py",
       "lineno": 29,
       "col_offset": 12,
@@ -2252,7 +2246,7 @@
         "fetch_data()",
         "requests"
       ],
-      "scope_name": "",
+      "scope_name": "wrapper",
       "file_path": "local_lib.py",
       "lineno": 31,
       "col_offset": 4,
@@ -2353,6 +2347,6 @@
     "total_modules": 2,
     "parsed_modules": 2,
     "skipped_modules": 0,
-    "scope_model": "v1"
+    "scope_model": "v2"
   }
 }

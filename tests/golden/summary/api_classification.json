@@ -6,7 +6,7 @@
     "total_modules": 2,
     "parsed_modules": 2,
     "skipped_modules": 0,
-    "scope_model": "v1",
+    "scope_model": "v2",
     "api_call_count": 14,
     "library_count": 2,
     "diagnostic_error_count": 0,

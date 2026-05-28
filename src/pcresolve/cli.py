@@ -166,21 +166,6 @@ def _print_explain_call(result, query, top=20):
 
 # ── JSON output ──────────────────────────────────────────────────────────
 
-def _print_json_legacy(result):
-    def _serialize(obj):
-        if hasattr(obj, '__dataclass_fields__'):
-            return {k: _serialize(v) for k, v in obj.__dict__.items()}
-        elif isinstance(obj, dict):
-            return {k: _serialize(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [_serialize(v) for v in obj]
-        else:
-            return obj
-    output = _serialize(result)
-    output["schema_version"] = result.schema_version
-    print(json.dumps(output, indent=2, ensure_ascii=False))
-
-
 def _print_json_summary(result, top=20):
     v = build_summary_view(result, top=top)
     print(json.dumps(v, indent=2, ensure_ascii=False))
@@ -200,13 +185,13 @@ def main():
     parser.add_argument("project_root", nargs="?", default=None,
                         help="Absolute path to the project root directory.")
     parser.add_argument("--json", action="store_true",
-                        help="Legacy JSON output (backward-compatible).")
+                        help="Full provenance JSON output (1.0.4+).")
     parser.add_argument("--json-summary", action="store_true",
                         help="Summary JSON profile (small, stable, for CI).")
     parser.add_argument("--json-full", action="store_true",
-                        help="Full JSON profile (schema-backed, for debugging).")
+                        help=argparse.SUPPRESS)
     parser.add_argument("--json-stable", action="store_true",
-                        help="Alias for --json-full.")
+                        help=argparse.SUPPRESS)
     parser.add_argument("--debug-dump", action="store_true",
                         help="Full text output (old default, for debugging).")
     parser.add_argument("--stdin", action="store_true",
@@ -215,8 +200,8 @@ def main():
                         help="Print diagnostics in human-readable mode.")
     parser.add_argument("--strict", action="store_true",
                         help="Exit non-zero when error diagnostics are present.")
-    parser.add_argument("--scope-model", choices=("v1", "v2"), default="v1",
-                        help="Scope model: v1 (legacy), v2 (lexical scopes). Default: v1.")
+    parser.add_argument("--scope-model", choices=("v1", "v2"), default="v2",
+                        help="Scope model: v1 (legacy), v2 (lexical scopes). Default: v2.")
     parser.add_argument("--usage-summary", action="store_true",
                         help="Print library usage summary in text mode.")
     parser.add_argument("--quiet", action="store_true",
@@ -256,10 +241,9 @@ def main():
     # ── JSON modes ───────────────────────────────────────────────────
     elif args.json_summary:
         _print_json_summary(result, top=args.top)
-    elif args.json_full or args.json_stable:
+    elif args.json_full or args.json_stable or args.json:
+        # 1.0.4+: --json, --json-full, --json-stable all emit full provenance.
         _print_json_full(result)
-    elif args.json:
-        _print_json_legacy(result)
 
     # ── text modes ───────────────────────────────────────────────────
     else:

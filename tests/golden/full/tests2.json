@@ -8,7 +8,7 @@
       "module_name": "b",
       "symbols": {
         "req": "requests",
-        "get": "requests",
+        "get": "local",
         "numpy": "numpy",
         "pandas": "pandas",
         "result": "requests",
@@ -24,12 +24,7 @@
           "get",
           "c.d",
           "get",
-          "my_url",
-          "url",
-          "c.e.f",
-          "url",
-          "requests.get()",
-          "requests"
+          "c.e.f"
         ],
         "numpy": [
           "numpy"
@@ -45,8 +40,8 @@
         ],
         "check": [
           "check",
-          "get()",
-          "c.e.f"
+          "c.d()",
+          "c.d"
         ],
         "z": [
           "z",
@@ -85,12 +80,9 @@
         },
         {
           "expression": "get('http://example.com')",
-          "top_library": "requests",
-          "base_symbol": "get",
-          "chain": [
-            "get",
-            "c.d"
-          ],
+          "top_library": "local",
+          "base_symbol": "c.d",
+          "chain": [],
           "file_path": "b.py",
           "lineno": 8,
           "col_offset": 6,
@@ -102,13 +94,11 @@
           "resolved_chain": [
             "get",
             "c.d.get",
-            "requests"
+            "local"
           ],
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
-          "alternatives": [
-            "requests"
-          ],
+          "alternatives": [],
           "decorated_by": []
         },
         {
@@ -209,27 +199,22 @@
         {
           "symbol": "get",
           "kind": "import",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "get",
             "c.d",
             "get",
-            "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests.get()",
-            "requests"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "b.py",
           "lineno": 3,
           "col_offset": 0,
-          "reason": "TRANSITIVE_IMPORT",
-          "confidence": 0.9,
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
           "alternatives": []
         },
         {
@@ -298,8 +283,8 @@
           ],
           "chain": [
             "check",
-            "get()",
-            "c.e.f"
+            "c.d()",
+            "c.d"
           ],
           "scope_name": "",
           "file_path": "b.py",
@@ -356,11 +341,11 @@
       "module_name": "a",
       "symbols": {
         "result": "requests",
-        "my_url": "requests",
-        "my_data": "numpy",
+        "my_url": "local",
+        "my_data": "local",
         "test1": "requests",
-        "test2": "requests",
-        "test3": "numpy",
+        "test2": "local",
+        "test3": "local",
         "test4": "requests"
       },
       "chains": {
@@ -376,22 +361,13 @@
           "my_url",
           "c.d",
           "my_url",
-          "url",
-          "c.e.f",
-          "url",
-          "requests.get()",
-          "requests"
+          "c.e.f"
         ],
         "my_data": [
           "my_data",
           "c.d",
           "my_data",
-          "data",
-          "c.e.f",
-          "data",
-          "np.array()",
-          "np",
-          "numpy"
+          "c.e.f"
         ],
         "test1": [
           "test1",
@@ -404,30 +380,14 @@
         ],
         "test2": [
           "test2",
-          "my_url",
-          "c.d",
-          "my_url",
-          "url",
-          "c.e.f",
-          "url",
-          "requests.get()",
-          "requests"
+          "c.d"
         ],
         "test3": [
           "test3",
-          "my_data",
-          "c.d",
-          "my_data",
-          "data",
-          "c.e.f",
-          "data",
-          "np.array()",
-          "np",
-          "numpy"
+          "c.d"
         ],
         "test4": [
           "test4",
-          "test1",
           "result",
           "b",
           "result",
@@ -465,52 +425,43 @@
         {
           "symbol": "my_url",
           "kind": "import",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "my_url",
             "c.d",
             "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests.get()",
-            "requests"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "a.py",
           "lineno": 2,
           "col_offset": 0,
-          "reason": "TRANSITIVE_IMPORT",
-          "confidence": 0.9,
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
           "alternatives": []
         },
         {
           "symbol": "my_data",
           "kind": "import",
-          "top_library": "numpy",
+          "top_library": "local",
           "top_libraries": [
-            "numpy"
+            "local"
           ],
           "chain": [
             "my_data",
             "c.d",
             "my_data",
-            "data",
-            "c.e.f",
-            "data",
-            "np.array()",
-            "np",
-            "numpy"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "a.py",
           "lineno": 2,
           "col_offset": 0,
-          "reason": "TRANSITIVE_IMPORT",
-          "confidence": 0.9,
+          "reason": "LOCAL_DEFINITION",
+          "confidence": 1.0,
           "alternatives": []
         },
         {
@@ -540,53 +491,38 @@
         {
           "symbol": "test2",
           "kind": "variable",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "test2",
-            "my_url",
-            "c.d",
-            "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests.get()",
-            "requests"
+            "c.d"
           ],
           "scope_name": "",
           "file_path": "a.py",
           "lineno": 5,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
         {
           "symbol": "test3",
           "kind": "variable",
-          "top_library": "numpy",
+          "top_library": "local",
           "top_libraries": [
-            "numpy"
+            "local"
           ],
           "chain": [
             "test3",
-            "my_data",
-            "c.d",
-            "my_data",
-            "data",
-            "c.e.f",
-            "data",
-            "np.array()",
-            "np",
-            "numpy"
+            "c.d"
           ],
           "scope_name": "",
           "file_path": "a.py",
           "lineno": 6,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -599,7 +535,6 @@
           ],
           "chain": [
             "test4",
-            "test1",
             "result",
             "b",
             "result",
@@ -623,9 +558,9 @@
       "symbols": {
         "url": "requests",
         "data": "numpy",
-        "my_url": "requests",
-        "my_data": "numpy",
-        "get": "requests"
+        "my_url": "local",
+        "my_data": "local",
+        "get": "local"
       },
       "chains": {
         "url": [
@@ -645,29 +580,15 @@
         ],
         "my_url": [
           "my_url",
-          "url",
-          "c.e.f",
-          "url",
-          "requests.get()",
-          "requests"
+          "c.e.f"
         ],
         "my_data": [
           "my_data",
-          "data",
-          "c.e.f",
-          "data",
-          "np.array()",
-          "np",
-          "numpy"
+          "c.e.f"
         ],
         "get": [
           "get",
-          "my_url",
-          "url",
-          "c.e.f",
-          "url",
-          "requests.get()",
-          "requests"
+          "c.e.f"
         ]
       },
       "api_calls": [],
@@ -721,71 +642,57 @@
         {
           "symbol": "my_url",
           "kind": "variable",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests.get()",
-            "requests"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "c/d.py",
           "lineno": 3,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
         {
           "symbol": "my_data",
           "kind": "variable",
-          "top_library": "numpy",
+          "top_library": "local",
           "top_libraries": [
-            "numpy"
+            "local"
           ],
           "chain": [
             "my_data",
-            "data",
-            "c.e.f",
-            "data",
-            "np.array()",
-            "np",
-            "numpy"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "c/d.py",
           "lineno": 4,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         },
         {
           "symbol": "get",
           "kind": "variable",
-          "top_library": "requests",
+          "top_library": "local",
           "top_libraries": [
-            "requests"
+            "local"
           ],
           "chain": [
             "get",
-            "my_url",
-            "url",
-            "c.e.f",
-            "url",
-            "requests.get()",
-            "requests"
+            "c.e.f"
           ],
           "scope_name": "",
           "file_path": "c/d.py",
           "lineno": 5,
           "col_offset": 0,
-          "reason": "DIRECT_IMPORT",
+          "reason": "LOCAL_DEFINITION",
           "confidence": 1.0,
           "alternatives": []
         }
@@ -991,12 +898,9 @@
     },
     {
       "expression": "get('http://example.com')",
-      "top_library": "requests",
-      "base_symbol": "get",
-      "chain": [
-        "get",
-        "c.d"
-      ],
+      "top_library": "local",
+      "base_symbol": "c.d",
+      "chain": [],
       "file_path": "b.py",
       "lineno": 8,
       "col_offset": 6,
@@ -1008,13 +912,11 @@
       "resolved_chain": [
         "get",
         "c.d.get",
-        "requests"
+        "local"
       ],
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
-      "alternatives": [
-        "requests"
-      ],
+      "alternatives": [],
       "decorated_by": []
     },
     {
@@ -1170,27 +1072,22 @@
     {
       "symbol": "get",
       "kind": "import",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "get",
         "c.d",
         "get",
-        "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests.get()",
-        "requests"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "b.py",
       "lineno": 3,
       "col_offset": 0,
-      "reason": "TRANSITIVE_IMPORT",
-      "confidence": 0.9,
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
       "alternatives": []
     },
     {
@@ -1259,8 +1156,8 @@
       ],
       "chain": [
         "check",
-        "get()",
-        "c.e.f"
+        "c.d()",
+        "c.d"
       ],
       "scope_name": "",
       "file_path": "b.py",
@@ -1336,52 +1233,43 @@
     {
       "symbol": "my_url",
       "kind": "import",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "my_url",
         "c.d",
         "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests.get()",
-        "requests"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "a.py",
       "lineno": 2,
       "col_offset": 0,
-      "reason": "TRANSITIVE_IMPORT",
-      "confidence": 0.9,
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
       "alternatives": []
     },
     {
       "symbol": "my_data",
       "kind": "import",
-      "top_library": "numpy",
+      "top_library": "local",
       "top_libraries": [
-        "numpy"
+        "local"
       ],
       "chain": [
         "my_data",
         "c.d",
         "my_data",
-        "data",
-        "c.e.f",
-        "data",
-        "np.array()",
-        "np",
-        "numpy"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "a.py",
       "lineno": 2,
       "col_offset": 0,
-      "reason": "TRANSITIVE_IMPORT",
-      "confidence": 0.9,
+      "reason": "LOCAL_DEFINITION",
+      "confidence": 1.0,
       "alternatives": []
     },
     {
@@ -1411,53 +1299,38 @@
     {
       "symbol": "test2",
       "kind": "variable",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "test2",
-        "my_url",
-        "c.d",
-        "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests.get()",
-        "requests"
+        "c.d"
       ],
       "scope_name": "",
       "file_path": "a.py",
       "lineno": 5,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
     {
       "symbol": "test3",
       "kind": "variable",
-      "top_library": "numpy",
+      "top_library": "local",
       "top_libraries": [
-        "numpy"
+        "local"
       ],
       "chain": [
         "test3",
-        "my_data",
-        "c.d",
-        "my_data",
-        "data",
-        "c.e.f",
-        "data",
-        "np.array()",
-        "np",
-        "numpy"
+        "c.d"
       ],
       "scope_name": "",
       "file_path": "a.py",
       "lineno": 6,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1470,7 +1343,6 @@
       ],
       "chain": [
         "test4",
-        "test1",
         "result",
         "b",
         "result",
@@ -1534,71 +1406,57 @@
     {
       "symbol": "my_url",
       "kind": "variable",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests.get()",
-        "requests"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "c/d.py",
       "lineno": 3,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
     {
       "symbol": "my_data",
       "kind": "variable",
-      "top_library": "numpy",
+      "top_library": "local",
       "top_libraries": [
-        "numpy"
+        "local"
       ],
       "chain": [
         "my_data",
-        "data",
-        "c.e.f",
-        "data",
-        "np.array()",
-        "np",
-        "numpy"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "c/d.py",
       "lineno": 4,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
     {
       "symbol": "get",
       "kind": "variable",
-      "top_library": "requests",
+      "top_library": "local",
       "top_libraries": [
-        "requests"
+        "local"
       ],
       "chain": [
         "get",
-        "my_url",
-        "url",
-        "c.e.f",
-        "url",
-        "requests.get()",
-        "requests"
+        "c.e.f"
       ],
       "scope_name": "",
       "file_path": "c/d.py",
       "lineno": 5,
       "col_offset": 0,
-      "reason": "DIRECT_IMPORT",
+      "reason": "LOCAL_DEFINITION",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -1685,27 +1543,25 @@
     "numpy": {
       "library": "numpy",
       "api_call_count": 2,
-      "symbol_count": 8,
+      "symbol_count": 5,
       "files": [
-        "a.py",
         "b.py",
         "c/d.py",
         "c/e/f.py"
       ],
       "imports": [
         "data",
-        "my_data",
         "np",
         "numpy"
       ],
       "kind_counts": {
-        "import": 4,
-        "variable": 4
+        "import": 3,
+        "variable": 2
       },
       "reason_counts": {
-        "DIRECT_IMPORT": 6,
+        "DIRECT_IMPORT": 4,
         "RETURN_PROPAGATION": 2,
-        "TRANSITIVE_IMPORT": 2
+        "TRANSITIVE_IMPORT": 1
       },
       "has_evidence": true,
       "min_confidence": 0.9,
@@ -1736,8 +1592,8 @@
     },
     "requests": {
       "library": "requests",
-      "api_call_count": 3,
-      "symbol_count": 13,
+      "api_call_count": 2,
+      "symbol_count": 8,
       "files": [
         "a.py",
         "b.py",
@@ -1745,21 +1601,19 @@
         "c/e/f.py"
       ],
       "imports": [
-        "get",
-        "my_url",
         "req",
         "requests",
         "result",
         "url"
       ],
       "kind_counts": {
-        "import": 6,
-        "variable": 7
+        "import": 4,
+        "variable": 4
       },
       "reason_counts": {
-        "DIRECT_IMPORT": 10,
-        "TRANSITIVE_IMPORT": 4,
-        "RETURN_PROPAGATION": 2
+        "DIRECT_IMPORT": 6,
+        "RETURN_PROPAGATION": 2,
+        "TRANSITIVE_IMPORT": 2
       },
       "has_evidence": true,
       "min_confidence": 0.9,
@@ -1770,6 +1624,6 @@
     "total_modules": 4,
     "parsed_modules": 4,
     "skipped_modules": 0,
-    "scope_model": "v1"
+    "scope_model": "v2"
   }
 }

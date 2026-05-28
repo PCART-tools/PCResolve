@@ -20,7 +20,7 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects",
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE)
+    return analyze_project(FIXTURE, scope_model="v1")
 
 
 @pytest.fixture(scope="module")

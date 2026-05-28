@@ -43,7 +43,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param module_name Optional dotted module name for resolving relative imports.
     #  @param is_package Whether the file is a package __init__.py.
     #  @param scope_model "v1" (legacy single-slot) or "v2" (lexical scopes).
-    def __init__(self, module_name=None, is_package=False, scope_model="v1",
+    def __init__(self, module_name=None, is_package=False, scope_model="v2",
                  file_path=""):
         self.module_name = module_name
         self.is_package = is_package
@@ -1618,7 +1618,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 #  @param file_path Optional file path for reporting.
 #  @param scope_model "v1" (legacy) or "v2" (lexical scopes).
 #  @return FileAnalysis object.
-def analyze_source(source, file_path="<string>", scope_model="v1"):
+def analyze_source(source, file_path="<string>", scope_model="v2"):
     tree = ast.parse(source)
     tracer = SingleFileAnalyzer(scope_model=scope_model, file_path=file_path)
     tracer.visit(tree)
