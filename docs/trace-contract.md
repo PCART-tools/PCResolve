@@ -65,13 +65,10 @@ Rule priority order:
 8. Branch/fork multi-source → alternatives, confidence < 1.0
 9. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
 
-Compatibility note: in the current pre-8B implementation, unresolved non-builtin
-symbols may retain their raw symbol name as the `top_library` (e.g. an
-undefined/global/dynamic symbol whose chain resolution falls through).
-Phase 8B should normalise all unresolved cases to `"unknown"` with
-`REASON_UNRESOLVED`.
+Unresolved symbols are normalised to `"unknown"` with `REASON_UNRESOLVED`
+by `ClassificationPipeline.classify()`.
 
-## Reason Constants (Phase 8A)
+## Reason Constants
 
 | Constant | Meaning |
 |----------|---------|
@@ -213,9 +210,10 @@ To find all call sites potentially related to library `lib`:
   Method calls still require full class-aware receiver resolution before
   `decorated_by` can be attached reliably.
 
-## Phase 5 / 7A / 7B / 8B Contracts
+## Remaining Boundaries
 
-- **Phase 5** must not add classification logic in `_base_top_source()`. Instead, `SourceSet` alternatives should flow through `TraceResult.tops` and be classified by the pipeline.
-- **Phase 7A** should produce `CallGraph` edges that feed into `TraceResult` as the authoritative param/return propagation source, not as a third parallel path.
-- **Phase 7B** should replace `instance_attrs` with systematic class method resolution through the call graph.
-- **Phase 8B** should migrate `extract_final_source()` and `_base_top_source()` into `ClassificationPipeline` rules.
+- **SourceSet alternatives**: flow through `ClassificationPipeline` (Phase 5 done).
+- **CallGraph edges**: feed param/return propagation (Phase 7A done; 7B-full complete).
+- **Class method resolution**: `instance_attrs` still handles constructor args; full class-aware receiver resolution (including MRO, `@classmethod`, `@staticmethod`) is future work.
+- **Classification**: `ClassificationPipeline.classify()` handles reason/confidence/alternatives (Phase 8B done). `extract_final_source()` and `_base_top_source()` remain as trace helpers; `_top_source()` feeds into pipeline.
+- **Method decorator evidence**: `ApiCall.decorated_by` currently matches by `(file_path, scope_name, func_name)`; class-aware receiver resolution for methods is future work.

@@ -100,8 +100,8 @@ Compatibility surfaces still present in the codebase:
 
 ## Known Patch Zones
 
-- `_resolve_structured_source()` handles four source kinds (container_item, instance_method, container_iter, call_result) with significant branching. Future: `SourceResolver` component in Phase 9.
+- `_resolve_structured_source()` dispatches `container_item`, `instance_method`, `container_iter`, `call_result`.  `SourceSet` convergence is handled by `source_resolution.py::SourceSetResolver`.  The non-SourceSet branches still live inline here.
 
-- `trace_symbol()` mixes tracing with wildcard import resolution and parameter back-tracing. Future: `SymbolTracer` with separate `CallGraph` propagation.
+- `trace_symbol()` is the trace orchestration hotspot, mixing cross-module symbol lookup with wildcard import resolution and parameter back-tracing.  Call-graph facts (`call_graph.py`) feed into it for return-object and arg-source propagation.
 
 - `_build_symbol_provenance()` passes `_direct_source=ref.source` for all SymbolRefs, enabling per-assignment provenance even when module-level reassignment overwrites the symbol table.
