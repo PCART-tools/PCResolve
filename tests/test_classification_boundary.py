@@ -1114,3 +1114,65 @@ def test_cg_class_summary_method_returns_not_cross_class_polluted():
         returns_str = str(returns)
         assert "np" not in returns_str and "numpy" not in returns_str, \
             f"B.get returns must not leak A.get's numpy, got {returns!r}"
+
+
+# ── Phase 7B-full PR6-fix: static key resolution + multi-candidate guard ──
+
+
+@pytest.mark.xfail(reason="7B-full P1: static key resolution not yet implemented", strict=True)
+def test_dict_static_key_resolves_exact_item():
+    """items[key] with key='b' → local item, must not pick numpy from other key."""
+    code = (
+        "import numpy as np\n"
+        "class Local:\n"
+        "    def sum(self): return 1\n"
+        "items = {'a': np.array([1]), 'b': Local()}\n"
+        "key = 'b'\n"
+        "obj = items[key]\n"
+        "obj.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "obj.sum() not collected"
+    for c in calls:
+        assert c.top_library != "numpy", \
+            f"obj.sum() must not be numpy when key='b' points to Local, got {c.top_library} ({c.chain})"
+
+
+@pytest.mark.xfail(reason="7B-full P1: static key resolution not yet implemented", strict=True)
+def test_dict_static_key_exact_import_match():
+    """items[key] with key='b' → pandas, should get pandas."""
+    code = (
+        "import pandas as pd\n"
+        "import numpy as np\n"
+        "items = {'a': np.array([1]), 'b': pd.DataFrame()}\n"
+        "key = 'b'\n"
+        "obj = items[key]\n"
+        "obj.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "obj.sum() not collected"
+    for c in calls:
+        assert c.top_library == "pandas", \
+            f"obj.sum() should be pandas when key='b', got {c.top_library} ({c.chain})"
+
+
+@pytest.mark.xfail(reason="7B-full P1: multi-candidate should not pick arbitrary primary", strict=True)
+def test_multi_candidate_not_pick_arbitrary_primary():
+    """items[input()] with numpy+pandas candidates: don't pick numpy as primary."""
+    code = (
+        "import numpy as np\n"
+        "import pandas as pd\n"
+        "items = {'a': np.array([1]), 'b': pd.DataFrame()}\n"
+        "key = input()\n"
+        "obj = items[key]\n"
+        "obj.sum()\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "sum" in c.expression]
+    assert calls, "obj.sum() not collected"
+    for c in calls:
+        # Primary must not be arbitrarily set to a specific library
+        assert c.top_library not in ("numpy", "pandas"), \
+            f"obj.sum() primary must not be numpy/pandas arbitrarily, got {c.top_library}"
