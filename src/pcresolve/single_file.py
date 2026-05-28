@@ -389,16 +389,30 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if len(item_sources) == 1:
                     return make_source_set(item_sources)
                 if item_sources:
-                    # Check if all sources are consistent (same import alias).
-                    prefixes = set()
+                    # Block SourceSet for multi-candidate dicts with
+                    # different import aliases.  Factory functions (defined
+                    # in the module) are allowed — cross_file will converge
+                    # via CG return lookup.
+                    str_prefixes = set()
+                    has_factory = False
                     for src in item_sources:
                         src_norm = normalize_source(src)
                         if isinstance(src_norm, str):
-                            prefixes.add(src_norm.split('.')[0] if '.' in src_norm else src_norm)
+                            prefix = src_norm.split('.')[0] if '.' in src_norm else src_norm
+                            if prefix in self.defined_functions:
+                                has_factory = True
+                            else:
+                                str_prefixes.add(prefix)
+                        elif isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                            if src_norm.callee in self.defined_functions:
+                                has_factory = True
+                            else:
+                                str_prefixes.add(src_norm.callee)
                         else:
-                            prefixes.add(None)
-                    if len(prefixes) == 1 and None not in prefixes:
-                        return make_source_set(item_sources)
+                            str_prefixes.add(None)
+                    if has_factory or len(str_prefixes) <= 1:
+                        if None not in str_prefixes:
+                            return make_source_set(item_sources)
             return container_name
         elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
             if isinstance(node, ast.Dict):

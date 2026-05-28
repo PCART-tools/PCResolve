@@ -1173,3 +1173,25 @@ def test_multi_candidate_not_pick_arbitrary_primary():
         # Primary must not be arbitrarily set to a specific library
         assert c.top_library not in ("numpy", "pandas"), \
             f"obj.sum() primary must not be numpy/pandas arbitrarily, got {c.top_library}"
+
+
+def test_multi_factory_same_library_dict_lookup_converges():
+    """Two different factory functions both returning GPy: kernel.K() -> GPy."""
+    code = (
+        "import GPy\n"
+        "import numpy as np\n"
+        "def make_rbf():\n"
+        "    return GPy.kern.RBF(1)\n"
+        "def make_matern():\n"
+        "    return GPy.kern.Matern32(1)\n"
+        "kernels = {'a': make_rbf(), 'b': make_matern()}\n"
+        "key = input()\n"
+        "kernel = kernels[key]\n"
+        "kernel.K([[1]])\n"
+    )
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if "K" in c.expression]
+    assert calls, "kernel.K() not collected"
+    for c in calls:
+        assert c.top_library == "GPy", \
+            f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
