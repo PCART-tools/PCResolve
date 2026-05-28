@@ -85,7 +85,10 @@ PCResolve 1.0.4 is the first stable provenance contract release.
 JSON outputs before 1.0.4 are experimental and not guaranteed
 compatible.
 
-### JSON output (`--json`)
+### JSON output excerpt (`--json`)
+
+Abbreviated for readability; see `docs/output-contract.md` for the
+complete stable field list.
 
 ```json
 {
@@ -153,6 +156,7 @@ compatible.
   ],
   "library_usage": {
     "numpy": {
+      "library": "numpy",
       "api_call_count": 6,
       "symbol_count": 3,
       "files": ["main.py", "utils.py"],
