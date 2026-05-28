@@ -35,7 +35,7 @@
     },
     "requests": {
       "api_call_count": 6,
-      "symbol_count": 13,
+      "symbol_count": 14,
       "file_count": 2,
       "files": [
         "local_lib.py",
@@ -49,13 +49,13 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 6,
+        "variable": 7,
         "return": 3
       },
       "reason_counts": {
         "DIRECT_IMPORT": 9,
         "TRANSITIVE_IMPORT": 4,
-        "RETURN_PROPAGATION": 6
+        "RETURN_PROPAGATION": 7
       },
       "min_confidence": 0.9,
       "max_confidence": 1.0

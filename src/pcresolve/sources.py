@@ -65,6 +65,8 @@ class UnknownSource:
 class SourceSet:
     ## Tuple of possible sources.
     sources: tuple
+    ## Provenance origin hint: "dict_lookup", "return", or "" (unspecified).
+    origin: str = ""
 
 
 ## Union of all Source IR types and plain strings.
@@ -73,12 +75,16 @@ SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod
 #
 #  @param values Iterable of source values.
 #  @return SourceSet with deduplicated, stable-ordered sources.
-def make_source_set(values):
+def make_source_set(values, origin=""):
     items = []
     for value in values:
         norm = normalize_source(value)
         if isinstance(norm, SourceSet):
             items.extend(norm.sources)
+            if not origin and norm.origin:
+                origin = norm.origin
+            elif origin and norm.origin and origin != norm.origin:
+                origin = "mixed"
         elif norm is not None:
             items.append(norm)
     seen = set()
@@ -88,7 +94,7 @@ def make_source_set(values):
         if key not in seen:
             seen.add(key)
             deduped.append(item)
-    return SourceSet(tuple(deduped))
+    return SourceSet(tuple(deduped), origin=origin)
 
 
 ## Check whether a value is a structured source (dataclass or legacy tuple).

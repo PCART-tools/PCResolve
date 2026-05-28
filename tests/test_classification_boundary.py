@@ -125,7 +125,6 @@ def test_self_method_chain_to_external():
 
 # ── Test 8: mixed local + third-party alternatives ─────────────────────
 
-@pytest.mark.xfail(reason="7B-full P2: multi-return SourceSet convergence", strict=True)
 def test_mixed_local_third_party_alternatives():
     code = ("import requests\n"
             "class Local:\n"

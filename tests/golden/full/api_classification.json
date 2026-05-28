@@ -23,7 +23,7 @@
         "local_inherited_call": "local",
         "tp": "local",
         "thirdparty_inherited_call": "requests",
-        "nested_call": "local"
+        "nested_call": "requests"
       },
       "chains": {
         "fetch_data": [
@@ -124,8 +124,7 @@
         "nested_call": [
           "nested_call",
           "wrapper()",
-          "fetch_data",
-          "local"
+          "requests"
         ]
       },
       "api_calls": [
@@ -727,22 +726,21 @@
         {
           "symbol": "nested_call",
           "kind": "variable",
-          "top_library": "local",
+          "top_library": "requests",
           "top_libraries": [
-            "local"
+            "requests"
           ],
           "chain": [
             "nested_call",
             "wrapper()",
-            "fetch_data",
-            "local"
+            "requests"
           ],
           "scope_name": "",
           "file_path": "main.py",
           "lineno": 33,
           "col_offset": 0,
-          "reason": "LOCAL_DEFINITION",
-          "confidence": 1.0,
+          "reason": "RETURN_PROPAGATION",
+          "confidence": 0.9,
           "alternatives": []
         }
       ]
@@ -1958,22 +1956,21 @@
     {
       "symbol": "nested_call",
       "kind": "variable",
-      "top_library": "local",
+      "top_library": "requests",
       "top_libraries": [
-        "local"
+        "requests"
       ],
       "chain": [
         "nested_call",
         "wrapper()",
-        "fetch_data",
-        "local"
+        "requests"
       ],
       "scope_name": "",
       "file_path": "main.py",
       "lineno": 33,
       "col_offset": 0,
-      "reason": "LOCAL_DEFINITION",
-      "confidence": 1.0,
+      "reason": "RETURN_PROPAGATION",
+      "confidence": 0.9,
       "alternatives": []
     },
     {
@@ -2326,7 +2323,7 @@
     "requests": {
       "library": "requests",
       "api_call_count": 6,
-      "symbol_count": 13,
+      "symbol_count": 14,
       "files": [
         "local_lib.py",
         "main.py"
@@ -2339,13 +2336,13 @@
       ],
       "kind_counts": {
         "import": 4,
-        "variable": 6,
+        "variable": 7,
         "return": 3
       },
       "reason_counts": {
         "DIRECT_IMPORT": 9,
         "TRANSITIVE_IMPORT": 4,
-        "RETURN_PROPAGATION": 6
+        "RETURN_PROPAGATION": 7
       },
       "has_evidence": true,
       "min_confidence": 0.9,

@@ -800,9 +800,15 @@ class ProjectAnalyzer:
     def classify_source(self, base, top, module, tracer, module_tracers,
                         expand_origins=True, symbol=None, kind=""):
         if top == "local":
+            alternatives = []
+            if expand_origins and isinstance(normalize_source(base), SourceSet):
+                alternatives = self._extract_alternatives(base, module, module_tracers)
             return ClassificationResult(
-                library="local", reason=REASON_LOCAL_DEFINITION,
-                confidence=1.0, alternatives=[], is_usage_library=False)
+                library="local",
+                reason=REASON_FLOW_MERGE if alternatives else REASON_LOCAL_DEFINITION,
+                confidence=0.5 if alternatives else 1.0,
+                alternatives=alternatives,
+                is_usage_library=False)
         if top == "python":
             return ClassificationResult(
                 library="python", reason=REASON_BUILTIN,
@@ -1146,19 +1152,51 @@ class ProjectAnalyzer:
                 return self._top_source(src_module, src_symbol, tracers)
         return None
 
-    ## Resolve a SourceSet to a primary top library if all candidates converge.
-    def _resolve_sourceset_primary(self, module, sourceset, tracers):
+    ## Collect top-library candidates from a SourceSet, separating
+    #  third-party tops from local/unknown/present flags.
+    #  @param module Current module name.
+    #  @param sourceset SourceSet to expand.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return (deduped_third_party_tops, has_local, has_unknown).
+    def _collect_sourceset_tops(self, module, sourceset, tracers):
         tops = []
-        has_local_or_unknown = False
+        has_local = False
+        has_unknown = False
         for src in sourceset.sources:
             top = self._source_to_top_candidate(module, src, tracers)
-            if top in ("", None, "unknown", "local", "python"):
-                has_local_or_unknown = True
-                continue
-            tops.append(top)
-        unique = self._dedupe_list(tops)
-        if len(unique) == 1 and not has_local_or_unknown:
-            return unique[0]
+            if top in ("", None, "unknown"):
+                has_unknown = True
+            elif top in ("local", "python"):
+                has_local = True
+            else:
+                tops.append(top)
+        return self._dedupe_list(tops), has_local, has_unknown
+
+    ## Resolve a SourceSet to a primary top library using origin-aware rules.
+    #
+    #  dict_lookup: all valid candidates must converge to the same third-party
+    #    library with no local/unknown sources present.
+    #  return: a single third-party candidate is accepted even when
+    #    local sources are present, but unknown sources block convergence.
+    #  default (no origin): same strict rules as dict_lookup.
+    def _resolve_sourceset_primary(self, module, sourceset, tracers):
+        tops, has_local, has_unknown = self._collect_sourceset_tops(
+            module, sourceset, tracers)
+        origin = getattr(sourceset, "origin", "")
+
+        if origin == "dict_lookup":
+            if len(tops) == 1 and not has_local and not has_unknown:
+                return tops[0]
+            return None
+
+        if origin == "return":
+            if len(tops) == 1 and not has_unknown:
+                return tops[0]
+            return None
+
+        ## Default conservative: no local/unknown, single third-party.
+        if len(tops) == 1 and not has_local and not has_unknown:
+            return tops[0]
         return None
 
     # ── structured source resolution ─────────────────────────────────────
@@ -1318,6 +1356,14 @@ class ProjectAnalyzer:
                 rs = tr.return_sources.get(cur_symbol) if tr else None
                 rs = normalize_source(rs)
                 if isinstance(rs, SourceSet):
+                    ## 7B-full PR7-final: check primary convergence first
+                    ## so that "return" origin can pick third-party even
+                    ## when local sources are present.
+                    primary = self._resolve_sourceset_primary(
+                        cur_module, rs, tracers)
+                    if primary:
+                        return (f"{callee_display or callee}()",
+                                cur_module, primary)
                     for src in rs.sources:
                         if isinstance(src, str):
                             arg_src = self._resolve_param_to_arg(

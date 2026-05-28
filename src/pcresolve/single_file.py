@@ -386,10 +386,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 for (cn, _), src in self.container_items.items():
                     if cn == var_name:
                         item_sources.append(src)
-                if len(item_sources) == 1:
-                    return make_source_set(item_sources)
                 if item_sources:
-                    return make_source_set(item_sources)
+                    return make_source_set(item_sources, origin="dict_lookup")
             return container_name
         elif isinstance(node, (ast.Dict, ast.List, ast.Tuple, ast.Set)):
             if isinstance(node, ast.Dict):
@@ -1596,11 +1594,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         qkey = self._class_stack[-1] + "." + func_name
                         old_q = self.return_sources.get(qkey)
                         self.return_sources[qkey] = make_source_set(
-                            [old_q, new_src] if old_q else [new_src])
+                            [old_q, new_src] if old_q else [new_src],
+                            origin="return")
                     else:
                         old = self.return_sources.get(func_name)
                         self.return_sources[func_name] = make_source_set(
-                            [old, new_src] if old else [new_src])
+                            [old, new_src] if old else [new_src],
+                            origin="return")
                     self._add_symbol_ref(
                         func_name + ".return", source, "return", node)
         self.generic_visit(node)
