@@ -192,7 +192,7 @@ Local decorator functions preserve their name as evidence, and chain through `re
 | `@local_deco` (returns `click.command()(f)`) | `click` (via `return_sources`) |
 | `@passthrough` (returns `f`) | `"local"` (filtered from `ApiCall.decorated_by`) |
 
-### Consumer Guidance (PCART / downstream)
+### Downstream Consumer Guidance
 
 To find all call sites potentially related to library `lib`:
 

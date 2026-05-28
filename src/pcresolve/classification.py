@@ -157,9 +157,9 @@ def _normalize_merged_labels(alts):
         if isinstance(a, str) and a.startswith("[") and a.endswith("]"):
             parts = [p.strip() for p in a[1:-1].split(",") if p.strip()]
             for p in parts:
-                if p and p not in out:
+                if p and p not in ("local", "python", "unknown", "") and p not in out:
                     out.append(p)
         else:
-            if a not in out:
+            if a and a not in ("local", "python", "unknown", "") and a not in out:
                 out.append(a)
     return out
