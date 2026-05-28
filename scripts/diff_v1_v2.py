@@ -247,7 +247,19 @@ def main():
             missing.append(arg)
             continue
         if os.path.isdir(arg):
-            project_entries.extend(_expand_project_dirs([arg]))
+            subdirs = [os.path.join(arg, d) for d in sorted(os.listdir(arg))
+                       if os.path.isdir(os.path.join(arg, d))]
+            py_files = [f for f in os.listdir(arg) if f.endswith('.py')
+                        and os.path.isfile(os.path.join(arg, f))]
+            if subdirs and not py_files:
+                # Collection / wrapper directory: expand children, carrying
+                # the wrapper dir's basename as logical_name for the subtree
+                # unless this is the fixture collection itself.
+                parent_name = os.path.basename(os.path.normpath(arg))
+                carry = None if os.path.abspath(arg) == os.path.abspath(FIXTURE_DIR) else parent_name
+                project_entries.extend(_expand_project_dirs(subdirs, logical_name=carry))
+            else:
+                project_entries.extend(_expand_project_dirs([arg]))
         else:
             project_entries.append((arg, os.path.basename(arg)))
 
