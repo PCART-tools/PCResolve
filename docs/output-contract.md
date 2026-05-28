@@ -45,6 +45,7 @@ pcresolve project --explain-call "np.array"
 | `func_name` | string | Function name without arguments |
 | `parameters` | string | Argument text |
 | `top_library` | string | Resolved top-level library |
+| `base_symbol` | string | Root/base symbol used for resolution |
 | `reason` | string | DIRECT_IMPORT, RETURN_PROPAGATION, FLOW_MERGE, ... |
 | `confidence` | float | 0.0–1.0 |
 | `alternatives` | list | Alternative top libraries |

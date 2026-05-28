@@ -228,11 +228,14 @@ and confidence distribution.
 ## Architecture
 
 ```text
-scanner.py → module_mapper.py → single_file.py → cross_file.py → cli.py
+scanner.py → module_mapper.py → single_file.py → cross_file.py → cli.py → views.py
                                       ↑               ↑
-                                symbol_table.py   views.py
+                                symbol_table.py   source_resolution.py
                                 scope.py          classification.py
-                                sources.py        source_resolution.py
+                                sources.py        library_usage.py
+                                ir.py             decorator_provenance.py
+                                types.py          call_graph.py
+                                diagnostics.py
 ```
 
 | Layer | Module | Role |

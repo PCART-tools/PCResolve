@@ -1,134 +1,102 @@
-# Phase 7B/8B Real-Project Validation
+# PCResolve 1.0.4 Real-Project Validation
 
-## Baseline Coverage
+42 real-world projects audited. 21 hard baselines with recorded
+regression/improvement/precision counts. Zero crashes, zero
+timeouts, zero illegal keys.
 
-13 projects across 7 ecosystems, covering web, data, ML, IO/async, and
-scientific workloads.  All baselines gate at exit 0 (regressions within
-recorded limits, zero illegal keys).
+## Gate
 
-| Project | Ecosystem | Files | Calls | R | I | P | Notes |
-|---------|-----------|-------|-------|---|---|---|-------|
-| click1 | web/CLI | 1 | 5 | 0 | 0 | 0 | Clean |
-| flask1 | web | 2 | 7 | 0 | 0 | 0 | Clean |
-| django | web/async | 1 | 43 | 0 | 4 | 0 | method-sensitive CG attr lookup (7B-full PR3) |
-| tensorflow1 | ML | 1 | 15 | 0 | 0 | 0 | Clean |
-| Deep-Graph-Kernels | ML/scientific | 7 | 79 | 0 | 0 | 0 | Clean |
-| qho | scientific | 2 | 71 | 0 | 0 | 0 | Clean |
-| simulation | scientific | 8 | 207 | 0 | 0 | 0 | Fully resolved (7B-lite PR 1) |
-| covid19 | data | 1 | 89 | 0 | 1 | 3 | container arg-source (7B-full PR4) |
-| political-polarisation | data/vis | 1 | 69 | 12 | 2 | 0 | pandas chains; WordCloud → wordcloud (7B-lite) |
-| hfhd | scientific | 6 | 444 | 4 | 20 | 1 | 7B-lite PR 1 reduced from 8 |
-| MAHE_OD_DATASET | ML/vision | 13 | 480 | 16 | 5 | 10 | 7B-lite PR 1 reduced from 17 |
-| greenbenchmark | data/energy | 11 | 489 | 150 | 3 | 0 | 7B-lite PR 1 reduced from 157 |
-| polire | scientific | 35 | 421 | 5 | 17 | 1 | container arg-source (7B-full PR4) |
-
-**Totals**: 187 regressions, 52 improvements, 15 precision changes, 0 illegal keys.
-**Legend**: R=regressions, I=improvements, P=precision changes
-
-## Current Taxonomy (--taxonomy)
-
+```bash
+python scripts/diff_v1_v2.py tests/fixtures/tested_projects
 ```
-third-party API loss: 179
-  attribute_method: 164
-  container/subscript: 9
-  bare_call: 6
-local-to-unknown: 12
+
+- Projects with a baseline JSON in `tests/fixtures/diff_baselines/`
+  must have `R <= baseline` and `illegal=0`.  Exceeding the baseline
+  fails the gate.
+- Projects without a baseline display `[PENDING]` and are
+  informational only (not a hard failure).
+
+## Audit
+
+```bash
+python scripts/audit_tested_projects.py
+```
+
+Full report: `reports/tested-projects-audit.json` /
+`reports/tested-projects-audit.md`.
+
+## 1.0.4 Summary
+
+```text
+Projects audited:    42
+Crashed/timeout:     0
+Illegal key projects: 0
+Hard baselines:      21 (all [OK])
+Total API calls:     ~5,700
+Unique libraries:    104
+Regressions:         303
+Improvements:        147
+Precision changes:    29
+Illegal keys:         0
+```
+
+## Hard Baselines (21 projects)
+
+| Project | Calls | Libs | R | I | P | Ecosystem |
+|---------|-------|------|---|---|---|-----------|
+| AIBO | 647 | 22 | 20 | 26 | 0 | scientific |
+| allnews | 986 | 30 | 80 | 22 | 14 | NLP |
+| barcoded_yeast_reanalysis | 328 | 11 | 2 | 6 | 0 | scientific |
+| click1 | 5 | 1 | 0 | 0 | 0 | CLI |
+| covid19 | 89 | 9 | 0 | 1 | 3 | data |
+| Deep-Graph-Kernels | 79 | 5 | 0 | 0 | 0 | ML |
+| django | 43 | 7 | 0 | 4 | 0 | web |
+| ex_4_2 | 207 | 8 | 0 | 0 | 0 | scientific |
+| final | 314 | 9 | 1 | 10 | 0 | web |
+| flask1 | 7 | 1 | 0 | 0 | 0 | web |
+| greenbenchmark | 489 | 13 | 150 | 3 | 0 | data |
+| hfhd | 444 | 7 | 4 | 20 | 1 | scientific |
+| MAHE_OD_DATASET | 480 | 17 | 19 | 5 | 10 | ML/vision |
+| polire | 421 | 16 | 5 | 17 | 1 | scientific |
+| political-polarisation | 69 | 6 | 12 | 2 | 0 | data |
+| Python-Workshop | 172 | 4 | 0 | 3 | 0 | edu |
+| qho | 71 | 4 | 0 | 0 | 0 | scientific |
+| scrapping | 110 | 3 | 0 | 16 | 0 | web |
+| SDOML | 94 | 10 | 2 | 0 | 0 | ML |
+| tensorflow1 | 15 | 1 | 0 | 0 | 0 | ML |
+| Youtube | 104 | 12 | 2 | 2 | 0 | web |
+
+## Taxonomy (--taxonomy)
+
+```text
+third_party_api_loss: 303
+  third-party -> local:   189
+  third-party -> unknown: 114
+local_precision_change:
+  local -> third-party:  147
+  local -> unknown:       12
+precision:                29
 ```
 
 ## Regression Categories
 
-### 1. Local variable method calls (v2 scope isolation — expected)
+### Scope isolation (expected)
+v1 leaked function-local bindings into module-level symbol tables.
+v2 correctly isolates them. Method chains on local variables that
+v1 classified via scope pollution are now `local` or `unknown`.
 
-v1 leaked function parameters and local variables into module-level
-symbol tables.  v2 correctly isolates them, which means method chains
-on local variables that v1 happened to classify via scope pollution
-are now `"local"` or `"unknown"`.  7B-lite PR 1 reduced some of these
-via comprehension/attribute-chain receiver propagation.
+### Container/chained-method provenance
+Subscript and chained method calls on local variables holding
+third-party values cannot always be traced through the full
+propagation path.  SourceSet alternatives preserve the candidates.
 
-Seen in: greenbenchmark (150), political-polarisation (12), hfhd (4),
-covid19 (3).
+### Multi-third-party returns
+Functions returning different third-party objects from different
+branches produce conservative primaries with complete alternatives
+in `library_usage`.
 
-### 2. DataFrame/Tensor variable provenance not yet resolved
+## Improvements
 
-Chained method/subscript on variables assigned from pandas/torch that
-were NOT traced through a constructor arg or wrapper method body.
-Full CallGraph / return-object tracking would help.
-
-Seen in: greenbenchmark (150), MAHE_OD_DATASET (16).
-
-### 3. Factory-returned instances not yet supported
-
-`c = make_client(); c.method()` where `make_client()` returns a class
-instance — the factory function hides the constructor call-site
-position.  Requires full CallGraph return-object tracking (Phase 7B).
-
-### 4. Dynamic / runtime API calls
-
-Calls through `getattr()`, `importlib.import_module()`, or other
-dynamic dispatch are inherently unresolvable by static analysis alone.
-
-## Improvements (v2 correctly resolves what v1 missed)
-
-| Count | Typical case |
-|-------|-------------|
-| 20 (hfhd) | Local function return-value propagation through parameters (7A-lite) |
-| 3 (MAHE) | Class constructor → instance method (7B-lite) |
-| 2 (political-polarisation) | `WordCloud(...)` → wordcloud (7B-lite) |
-| 3 (greenbenchmark) | Local function parameter propagation |
-
-## Known Limitations Deferred to Future Phases
-
-| Limitation | Phase |
-|------------|-------|
-| Factory-returned instances | 7B CallGraph |
-| Method-level `decorated_by` on instance calls | 7B class resolution |
-| `Class.method` return_sources (no bare-name collision) | 7B `FunctionId` |
-| Top-level flow-sensitive reassignment | 6 CFG (optional) |
-| Runtime attribute / `getattr` calls | not in scope |
-
-## Taxonomy Semantics
-
-The `--taxonomy` flag separates regressions into two tiers:
-
-| Tier | Meaning | Priority |
-|------|---------|----------|
-| `third-party API loss` | v1 attributed a call to a library, v2 lost it (`library → local/unknown`) | High — these are real provenance gaps |
-| `local-to-unknown` | v1 attributed to local, v2 changed to unknown (`local → unknown`) | Low — scope precision changes, not library loss |
-
-The `regressions` gate number includes **both** tiers.  Reduction sprints
-should target `third-party API loss / attribute_method` specifically, not
-the raw gate total.
-
-## Baseline Gate Usage
-
-```bash
-# Create/update baselines after an improvement
-python scripts/diff_v1_v2.py --save-baseline tests/fixtures/tested_projects/<project>
-
-# Run the full 13-project gate (Bash)
-python scripts/diff_v1_v2.py \
-  tests/fixtures/tested_projects/flask1 \
-  tests/fixtures/tested_projects/click1 \
-  tests/fixtures/tested_projects/django \
-  tests/fixtures/tested_projects/tensorflow1 \
-  tests/fixtures/tested_projects/simulation \
-  tests/fixtures/tested_projects/hfhd \
-  tests/fixtures/tested_projects/covid19 \
-  tests/fixtures/tested_projects/qho \
-  tests/fixtures/tested_projects/greenbenchmark \
-  tests/fixtures/tested_projects/political-polarisation \
-  tests/fixtures/tested_projects/Deep-Graph-Kernels \
-  tests/fixtures/tested_projects/MAHE_OD_DATASET \
-  tests/fixtures/tested_projects/polire
-# exit 0 if regressions <= baseline AND illegal_keys == 0
-
-# PowerShell equivalent (13 projects, explicit)
-# $projects = @("click1","covid19","Deep-Graph-Kernels","django","simulation",
-#   "flask1","greenbenchmark","hfhd","MAHE_OD_DATASET","polire",
-#   "political-polarisation","qho","tensorflow1")
-# $paths = $projects | ForEach-Object { "tests/fixtures/tested_projects/$_" }
-# python scripts/diff_v1_v2.py @paths
-
-# Analyse regression patterns (does not affect gate)
-python scripts/diff_v1_v2.py --taxonomy tests/fixtures/tested_projects/greenbenchmark
-```
+v2 correctly resolves provenance that v1 missed: local function
+return-value propagation, constructor-arg → self.attr → method
+call, and decorator evidence tracking.
