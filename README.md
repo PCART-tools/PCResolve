@@ -120,7 +120,7 @@ compatible.
       "end_col_offset": 18,
       "chain": ["np.array([1,2,3])", "np", "numpy"],
       "resolved_func": "numpy.array",
-      "resolved_chain": ["np.array", "numpy.array"]
+      "resolved_chain": ["np.array", "numpy.array", "numpy"]
     }],
     "symbol_provenance": [{
       "symbol": "np",
@@ -130,16 +130,36 @@ compatible.
       "confidence": 1.0
     }]
   }],
-  "all_api_calls": [],
-  "all_symbol_provenance": [],
+  "all_api_calls": [
+    {
+      "expression": "np.array([1,2,3])",
+      "top_library": "numpy",
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0,
+      "alternatives": ["numpy"],
+      "decorated_by": [],
+      "file_path": "main.py",
+      "lineno": 4
+    }
+  ],
+  "all_symbol_provenance": [
+    {
+      "symbol": "np",
+      "kind": "import",
+      "top_library": "numpy",
+      "reason": "DIRECT_IMPORT",
+      "confidence": 1.0
+    }
+  ],
   "library_usage": {
     "numpy": {
       "api_call_count": 6,
       "symbol_count": 3,
-      "file_count": 2,
       "files": ["main.py", "utils.py"],
       "imports": ["np"],
       "reason_counts": { "DIRECT_IMPORT": 6, "RETURN_PROPAGATION": 3 },
+      "kind_counts": { "import": 2, "variable": 4 },
+      "has_evidence": true,
       "min_confidence": 0.9,
       "max_confidence": 1.0
     }
@@ -277,11 +297,16 @@ incorporates `alternatives` and `decorated_by` evidence.
 ## Development
 
 ```bash
-pip install -e .                       # editable install
-python -m pytest tests/ -v             # run tests
-python scripts/diff_v1_v2.py \        # baseline gate
-    tests/fixtures/tested_projects/
-python scripts/audit_tested_projects.py  # full audit
+pip install -e .
+
+# Run tests
+python -m pytest tests/ -v
+
+# Baseline gate
+python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
+
+# Full audit
+python scripts/audit_tested_projects.py
 ```
 
 See `docs/architecture.md` for the pipeline design,
