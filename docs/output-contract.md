@@ -80,6 +80,19 @@ and per-file `symbols`/`chains`.
 All paths use POSIX separators (`/`) relative to `project_root`.
 External paths use the `<external>/...` prefix.
 
+## Reason constants
+
+| Reason | Meaning |
+|--------|---------|
+| DIRECT_IMPORT | Call traced directly to an import alias or from-import |
+| TRANSITIVE_IMPORT | Call traced through a re-export or transitive module chain |
+| LOCAL_DEFINITION | Call is a locally defined function, method, or class |
+| BUILTIN | Call is a Python builtin (no import required) |
+| PARAMETER_PROPAGATION | Source traced through a function parameter |
+| RETURN_PROPAGATION | Source traced through a function return value |
+| FLOW_MERGE | Multiple branches/sources merged (if/else, multi-return, SourceSet) |
+| UNRESOLVED | Trace could not reach a terminal origin |
+
 ## Confidence rules
 
 | Reason | Confidence |
