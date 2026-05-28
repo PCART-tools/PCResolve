@@ -1,0 +1,251 @@
+{
+  "schema_version": "1.0",
+  "project_root": ".",
+  "files": [
+    {
+      "file_path": "pkg/main.py",
+      "module_name": "pkg.main",
+      "symbols": {
+        "a": "scipy",
+        "b": "scipy"
+      },
+      "chains": {
+        "a": [
+          "a",
+          "stats.pearsonr()",
+          "stats",
+          "scipy"
+        ],
+        "b": [
+          "b",
+          "stats.pearsonr()",
+          "stats",
+          "scipy"
+        ]
+      },
+      "api_calls": [
+        {
+          "expression": "stats.pearsonr([1, 2, 3], [4, 5, 6])",
+          "top_library": "scipy",
+          "base_symbol": "stats",
+          "chain": [],
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 7,
+          "end_lineno": 3,
+          "end_col_offset": 43,
+          "func_name": "stats.pearsonr",
+          "parameters": "[1, 2, 3], [4, 5, 6]",
+          "resolved_func": "stats.pearsonr",
+          "resolved_chain": [
+            "stats.pearsonr",
+            "stats.pearsonr",
+            "scipy"
+          ]
+        }
+      ],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "a",
+          "kind": "variable",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "a",
+            "stats.pearsonr()",
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        },
+        {
+          "symbol": "b",
+          "kind": "variable",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "b",
+            "stats.pearsonr()",
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/main.py",
+          "lineno": 3,
+          "col_offset": 3,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    },
+    {
+      "file_path": "pkg/helper.py",
+      "module_name": "pkg.helper",
+      "symbols": {
+        "stats": "scipy"
+      },
+      "chains": {
+        "stats": [
+          "stats",
+          "scipy"
+        ]
+      },
+      "api_calls": [],
+      "diagnostics": [],
+      "symbol_provenance": [
+        {
+          "symbol": "stats",
+          "kind": "import",
+          "top_library": "scipy",
+          "top_libraries": [
+            "scipy"
+          ],
+          "chain": [
+            "stats",
+            "scipy"
+          ],
+          "scope_name": "",
+          "file_path": "pkg/helper.py",
+          "lineno": 1,
+          "col_offset": 0,
+          "reason": "",
+          "confidence": 1.0,
+          "alternatives": []
+        }
+      ]
+    },
+    {
+      "file_path": "pkg/__init__.py",
+      "module_name": "pkg",
+      "symbols": {},
+      "chains": {},
+      "api_calls": [],
+      "diagnostics": [],
+      "symbol_provenance": []
+    }
+  ],
+  "all_api_calls": [
+    {
+      "expression": "stats.pearsonr([1, 2, 3], [4, 5, 6])",
+      "top_library": "scipy",
+      "base_symbol": "stats",
+      "chain": [],
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 7,
+      "end_lineno": 3,
+      "end_col_offset": 43,
+      "func_name": "stats.pearsonr",
+      "parameters": "[1, 2, 3], [4, 5, 6]",
+      "resolved_func": "stats.pearsonr",
+      "resolved_chain": [
+        "stats.pearsonr",
+        "stats.pearsonr",
+        "scipy"
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "all_symbol_provenance": [
+    {
+      "symbol": "a",
+      "kind": "variable",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "a",
+        "stats.pearsonr()",
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "b",
+      "kind": "variable",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "b",
+        "stats.pearsonr()",
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/main.py",
+      "lineno": 3,
+      "col_offset": 3,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    },
+    {
+      "symbol": "stats",
+      "kind": "import",
+      "top_library": "scipy",
+      "top_libraries": [
+        "scipy"
+      ],
+      "chain": [
+        "stats",
+        "scipy"
+      ],
+      "scope_name": "",
+      "file_path": "pkg/helper.py",
+      "lineno": 1,
+      "col_offset": 0,
+      "reason": "",
+      "confidence": 1.0,
+      "alternatives": []
+    }
+  ],
+  "library_usage": {
+    "scipy": {
+      "library": "scipy",
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "files": [
+        "pkg/helper.py",
+        "pkg/main.py"
+      ],
+      "imports": [
+        "stats"
+      ],
+      "kind_counts": {
+        "variable": 2,
+        "import": 1
+      },
+      "has_evidence": true,
+      "min_confidence": 1.0,
+      "max_confidence": 1.0
+    }
+  },
+  "stats": {
+    "total_modules": 3,
+    "parsed_modules": 3,
+    "skipped_modules": 0,
+    "scope_model": "v1"
+  }
+}

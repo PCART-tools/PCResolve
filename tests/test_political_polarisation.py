@@ -4,7 +4,7 @@ from pcresolve import analyze_project
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects", "political-polarisation")
 
 @pytest.fixture(scope="module")
-def result(): return analyze_project(FIXTURE)
+def result(): return analyze_project(FIXTURE, scope_model="v2")
 
 @pytest.fixture(scope="module")
 def calls_by_top(result):
@@ -27,7 +27,6 @@ def test_matplotlib_calls(calls_by_top):
 def test_IPython_calls(calls_by_top):
     assert "IPython" in calls_by_top
 
-@pytest.mark.xfail(reason="KNOWN: WordCloud() not resolved to wordcloud library (2 calls)")
 def test_wordcloud_calls(calls_by_top):
     assert "wordcloud" in calls_by_top
 

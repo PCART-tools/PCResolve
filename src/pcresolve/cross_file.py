@@ -21,8 +21,83 @@ _PY2_BUILTINS = frozenset({
 ## Check if a name is a Python builtin (including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
+from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
+from .ir import (SymbolProvenance, ClassificationResult,
+                    REASON_DIRECT_IMPORT)
 from .single_file import SingleFileAnalyzer
+from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
+                       SourceSet, is_structured_source, normalize_source,
+                       source_display)
+from .call_graph import ProjectCallGraph
+from .classification import classify_confidence, ClassificationPipeline
+from .decorator_provenance import build_decorator_index, lookup_decorated_by
+from .library_usage import build_library_usage
+from .source_resolution import SourceSetResolver
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
+
+
+## Remove consecutive duplicate items from a list while preserving order.
+#  @param chain Input list.
+#  @return List with no consecutive duplicates.
+def _dedup_consecutive(chain):
+    result = []
+    for item in chain:
+        if not result or item != result[-1]:
+            result.append(item)
+    return result
+
+
+## Check whether a symbol is an imported external origin in this tracer.
+#  @param tracer Single-file analyzer.
+#  @param symbol Candidate external origin.
+#  @return True if symbol matches an import source or its top-level package.
+def _is_import_origin(tracer, symbol):
+    if tracer is None or not isinstance(symbol, str):
+        return False
+    def _matches(value):
+        if not isinstance(value, str):
+            return False
+        return (value == symbol
+                or value.startswith(symbol + ".")
+                or symbol.startswith(value + "."))
+    for value in tracer.symbols.direct.values():
+        if isinstance(value, SourceSet):
+            for src in value.sources:
+                if _matches(src):
+                    return True
+        elif _matches(value):
+            return True
+    return False
+
+
+## Build an ApiCall from a get_calls() record dict.
+#  @param c Call record dict.
+#  @param deco_by Decorator evidence index.
+#  @return ApiCall object.
+def _make_api_call(c, deco_by):
+    """Build an ApiCall from a get_calls() record dict."""
+    return ApiCall(
+        expression=c['api'],
+        top_library=c['top'],
+        base_symbol=source_display(c.get('base', '')),
+        chain=c.get('chain', []),
+        file_path=c.get('file_path', ''),
+        lineno=c.get('lineno', 0),
+        col_offset=c.get('col_offset', 0),
+        end_lineno=c.get('end_lineno', 0),
+        end_col_offset=c.get('end_col_offset', 0),
+        func_name=c.get('func_name', ''),
+        parameters=c.get('parameters', ''),
+        resolved_func=c.get('resolved_func', ''),
+        resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
+        reason=c.get('reason', ''),
+        confidence=c.get('confidence', 1.0),
+        alternatives=c.get('alternatives', []),
+        decorated_by=lookup_decorated_by(
+            c.get('file_path', ''),
+            c.get('func_name', ''),
+            c.get('scope_name', ''), deco_by),
+    )
 
 
 ## Cross-file project analyzer that traces all API calls to their origins.
@@ -33,14 +108,28 @@ from .types import ProjectAnalysis, FileAnalysis, ApiCall
 #  3. Resolve cross-file symbol references across the project.
 #  4. Classify every API call with its top-level library source.
 class ProjectAnalyzer:
+    # ── pipeline ───────────────────────────────────────────────────────
+
     ## Initialize the analyzer for a given project root.
     #  @param project_root Absolute path to the project root directory.
-    def __init__(self, project_root):
+    #  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
+    def __init__(self, project_root, scope_model="v2"):
         self.project_root = project_root
+        self.scope_model = scope_model
         self.module_mapper = ModuleMapper(project_root)
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
+        self._source_resolver = SourceSetResolver(
+            top_source_cb=self._top_source,
+            cg_return_cb=self._lookup_cg_return_source,
+            known_local_cb=self._is_known_local_symbol,
+            resolve_structured_cb=self._resolve_structured_source,
+            dedupe_cb=self._dedupe_list)
+        self._pipeline = ClassificationPipeline(
+            origin_candidates_cb=self._origin_candidates,
+            is_direct_import_cb=self._is_direct_import_base,
+            dedupe_cb=self._dedupe_list)
 
     ## Run the full analysis: scan, parse, resolve, and collect.
     #  @return ProjectAnalysis with all results.
@@ -48,23 +137,111 @@ class ProjectAnalyzer:
         self.module_mapper.scan_project()
         all_modules = self.module_mapper.get_all_modules()
         module_tracers = {}
+        diagnostics = []
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
-            if file_path and os.path.exists(file_path):
+            if not file_path or not os.path.exists(file_path):
+                continue
+            try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                tracer = SingleFileAnalyzer(
+            except UnicodeDecodeError as e:
+                diagnostics.append(Diagnostic(
+                    code=ENCODING_ERROR,
+                    message="Cannot decode file: %s" % e,
+                    severity="error",
+                    file_path=file_path,
                     module_name=module,
-                    is_package=self.module_mapper.is_package(module),
-                )
+                ))
+                continue
+            except OSError as e:
+                diagnostics.append(Diagnostic(
+                    code=FILE_READ_ERROR,
+                    message="Cannot read file: %s" % e,
+                    severity="error",
+                    file_path=file_path,
+                    module_name=module,
+                ))
+                continue
+            try:
                 tree = ast.parse(code)
-                tracer.visit(tree)
-                module_tracers[module] = tracer
+            except SyntaxError as e:
+                diagnostics.append(Diagnostic(
+                    code=SYNTAX_ERROR,
+                    message=str(e),
+                    severity="error",
+                    file_path=file_path,
+                    lineno=getattr(e, 'lineno', 0),
+                    col_offset=getattr(e, 'offset', 0) if getattr(e, 'offset', 0) else 0,
+                    end_lineno=getattr(e, 'end_lineno', 0) or 0,
+                    end_col_offset=getattr(e, 'end_offset', 0) if getattr(e, 'end_offset', 0) else 0,
+                    module_name=module,
+                ))
+                continue
+            tracer = SingleFileAnalyzer(
+                module_name=module,
+                is_package=self.module_mapper.is_package(module),
+                scope_model=self.scope_model,
+                file_path=file_path,
+            )
+            tracer.visit(tree)
+            module_tracers[module] = tracer
+
+        ## Aggregate per-module call-graph facts (Phase 7B-full PR1).
+        self.project_cg = ProjectCallGraph()
+        for module, tracer in module_tracers.items():
+            if tracer.module_cg.functions or tracer.module_cg.classes or tracer.module_cg.edges:
+                self.project_cg.modules[module] = tracer.module_cg
 
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
+        all_provenance = self._build_symbol_provenance(module_tracers)
+        deco_by = self._build_decorator_index(all_provenance)
+
+        files = self._build_file_analysis(module_tracers, all_provenance, deco_by)
+        all_api_calls = self._build_all_api_calls(deco_by)
+        library_usage = self._build_library_usage(all_api_calls, all_provenance)
+
+        stats = {
+            "total_modules": len(all_modules),
+            "parsed_modules": len(module_tracers),
+            "skipped_modules": len(diagnostics),
+            "scope_model": self.scope_model,
+        }
+
+        return ProjectAnalysis(
+            project_root=self.project_root,
+            files=files,
+            all_api_calls=all_api_calls,
+            diagnostics=diagnostics,
+            stats=stats,
+            all_symbol_provenance=all_provenance,
+            library_usage=library_usage,
+        )
+
+    # ── provenance helpers ───────────────────────────────────────────────
+
+    ## Check whether a top name is backed by any import evidence across tracers.
+    def _is_prov_import_backed(self, name, tracers):
+        if not isinstance(name, str) or '.' in name:
+            return bool('.' in name) if isinstance(name, str) else False
+        for tr in tracers.values():
+            if _is_import_origin(tr, name):
+                return True
+            if name in getattr(tr, 'import_aliases', set()):
+                return True
+        return False
+
+    # ── output construction ──────────────────────────────────────────────
+
+    ## Build per-file analysis results.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @param deco_by Decorator evidence index.
+    #  @return List of FileAnalysis records.
+    def _build_file_analysis(self, module_tracers, all_provenance, deco_by):
         files = []
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
@@ -73,50 +250,77 @@ class ProjectAnalyzer:
                 module_name=module,
                 symbols=self.global_symbols.get(module, {}),
                 chains=self.symbol_chains.get(module, {}),
-                api_calls=[
-                    ApiCall(
-                        expression=c['api'],
-                        top_library=c['top'],
-                        base_symbol=str(c.get('base', '')),
-                        chain=c.get('chain', []),
-                        file_path=c.get('file_path', ''),
-                        lineno=c.get('lineno', 0),
-                        col_offset=c.get('col_offset', 0),
-                        end_lineno=c.get('end_lineno', 0),
-                        end_col_offset=c.get('end_col_offset', 0),
-                        func_name=c.get('func_name', ''),
-                        parameters=c.get('parameters', ''),
-                        resolved_func=c.get('resolved_func', ''),
-                        resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
-                    )
-                    for c in self.all_calls.get(module, [])
-                ],
+                symbol_provenance=[p for p in all_provenance
+                                   if p.file_path == file_path],
+                api_calls=[_make_api_call(c, deco_by)
+                           for c in self.all_calls.get(module, [])],
             ))
+        return files
 
-        all_api_calls = []
-        for module, calls in self.all_calls.items():
-            for c in calls:
-                all_api_calls.append(ApiCall(
-                    expression=c['api'],
-                    top_library=c['top'],
-                    base_symbol=str(c.get('base', '')),
-                    chain=c.get('chain', []),
-                    file_path=c.get('file_path', ''),
-                    lineno=c.get('lineno', 0),
-                    col_offset=c.get('col_offset', 0),
-                    end_lineno=c.get('end_lineno', 0),
-                    end_col_offset=c.get('end_col_offset', 0),
-                    func_name=c.get('func_name', ''),
-                    parameters=c.get('parameters', ''),
-                    resolved_func=c.get('resolved_func', ''),
-                    resolved_chain=[c.get('func_name', ''), c.get('resolved_func', ''), c.get('top', '')],
-                ))
+    ## Build the flat project-level API call list.
+    #  @param deco_by Decorator evidence index.
+    #  @return List of ApiCall records.
+    def _build_all_api_calls(self, deco_by):
+        return [_make_api_call(c, deco_by)
+                for module, calls in self.all_calls.items()
+                for c in calls]
 
-        return ProjectAnalysis(
-            project_root=self.project_root,
-            files=files,
-            all_api_calls=all_api_calls,
-        )
+    ## Build a decorator evidence index from provenance records.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @return Dict keyed by (file_path, scope, symbol) → [library, ...].
+    def _build_decorator_index(self, all_provenance):
+        return build_decorator_index(all_provenance)
+
+    ## Build SymbolProvenance records from each tracer's symbol_refs.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return List of SymbolProvenance records.
+    def _build_symbol_provenance(self, module_tracers):
+        result = []
+        for module, tracer in module_tracers.items():
+            file_path = self.module_mapper.get_file_path(module)
+            for ref in tracer.symbol_refs:
+                try:
+                    chain = self.trace_symbol(module, ref.symbol, module_tracers,
+                                               set(), _direct_source=ref.source)
+                except RecursionError:
+                    chain = [source_display(ref.source)]
+                chain = _dedup_consecutive(chain)
+                top = self.extract_final_source(chain) if chain else ""
+                if top and top not in ("local", "python", "unknown", ""):
+                    if '.' not in top and not self._is_prov_import_backed(top, module_tracers):
+                        top = "local"
+                tops = [top] if top else []
+                cr = self.classify_source(
+                    ref.source, top, module, tracer, module_tracers,
+                    expand_origins=False, symbol=ref.symbol, kind=ref.kind)
+                prov = SymbolProvenance(
+                    symbol=ref.symbol,
+                    kind=ref.kind,
+                    top_libraries=tops,
+                    top_library=tops[0] if tops else "unknown",
+                    chain=chain,
+                    scope_name=ref.scope_name,
+                    file_path=file_path or "",
+                    lineno=ref.lineno,
+                    col_offset=ref.col_offset,
+                    reason=cr.reason,
+                    confidence=cr.confidence,
+                    alternatives=cr.alternatives,
+                )
+                result.append(prov)
+        return result
+
+    # ── library usage ────────────────────────────────────────────────────
+
+    ## Build a library usage index from calls and provenance.
+    #
+    #  Delegates to library_usage.build_library_usage() (Phase 9-lite PR1).
+    #  @param all_api_calls List of ApiCall records.
+    #  @param all_provenance List of SymbolProvenance records.
+    #  @return Dict of library_name -> LibraryUsage.
+    def _build_library_usage(self, all_api_calls, all_provenance):
+        return build_library_usage(
+            self.project_root, all_api_calls, all_provenance)
 
     ## Check whether a module name belongs to the current project.
     #  @param module_name Dotted module name.
@@ -135,23 +339,100 @@ class ProjectAnalyzer:
 
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
+                base = call_detail.get('base')
                 if call_detail.get('top') == 'local':
-                    base = call_detail.get('base')
-                    if isinstance(base, str):
+                    if isinstance(base, str) or is_structured_source(base):
                         top_source = self._base_top_source(module, base, tracer, module_tracers)
                         if top_source and top_source != 'local':
                             record = dict(call_detail)
                             record['top'] = top_source
+                            cr = self.classify_source(
+                                base, top_source, module, tracer, module_tracers)
+                            record['reason'] = cr.reason
+                            record['alternatives'] = cr.alternatives
+                            record['confidence'] = cr.confidence
                             self.all_calls[module].append(record)
                             continue
+                    ## 7B-full PR4: arg-source provenance for container-mutating
+                    ## methods on container-literal receivers only.
+                    func_name = call_detail.get('func_name', '')
+                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
+                    is_container_method = any(
+                        func_name.endswith('.' + m) for m in container_methods)
+                    receiver = None
+                    if isinstance(base, InstanceMethod):
+                        receiver = base.receiver
+                    elif isinstance(base, str) and base != "local":
+                        receiver = base
+                    else:
+                        # Base is "local" (container literal) — extract from func_name.
+                        parts = func_name.rsplit('.', 1)
+                        if len(parts) == 2:
+                            receiver = parts[0]
+                    is_container = (
+                        is_container_method
+                        and isinstance(receiver, str)
+                        and self._is_container_receiver(tracer, receiver))
+                    arg_top = None
+                    if is_container:
+                        arg_src = self._lookup_cg_edge_arg_source(
+                            module,
+                            call_detail.get('lineno', 0),
+                            call_detail.get('col_offset', 0))
+                        if arg_src is not None:
+                            arg_top = self._top_source(module, arg_src, module_tracers)
+                    if arg_top is not None:
+                        record = dict(call_detail)
+                        record['top'] = arg_top
+                        cr = self.classify_source(
+                            base, arg_top, module, tracer, module_tracers)
+                        record['reason'] = cr.reason
+                        record['confidence'] = cr.confidence
+                        record['alternatives'] = cr.alternatives
+                        self.all_calls[module].append(record)
+                        continue
                     record = dict(call_detail)
                     record['top'] = 'local'
+                    cr = self.classify_source(
+                        base, 'local', module, tracer, module_tracers)
+                    record['reason'] = cr.reason
+                    record['confidence'] = cr.confidence
+                    record['alternatives'] = cr.alternatives
                     self.all_calls[module].append(record)
                     continue
-                base = call_detail['base']
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
+                ## 7B-full PR4: try arg-source provenance for container methods.
+                if top_source in ("local", "unknown", "") and not isinstance(base, str):
+                    func_name = call_detail.get('func_name', '')
+                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
+                    is_container_method = any(
+                        func_name.endswith('.' + m) for m in container_methods)
+                    receiver = None
+                    if isinstance(base, InstanceMethod):
+                        receiver = base.receiver
+                    elif isinstance(base, str) and base != "local":
+                        receiver = base
+                    else:
+                        parts = func_name.rsplit('.', 1)
+                        if len(parts) == 2:
+                            receiver = parts[0]
+                    if (is_container_method and isinstance(receiver, str)
+                            and self._is_container_receiver(tracer, receiver)):
+                        arg_src = self._lookup_cg_edge_arg_source(
+                            module,
+                            call_detail.get('lineno', 0),
+                            call_detail.get('col_offset', 0))
+                        if arg_src is not None:
+                            arg_top = self._top_source(module, arg_src, module_tracers)
+                            if arg_top and arg_top not in ("local", "unknown", ""):
+                                top_source = arg_top
                 record = dict(call_detail)
                 record['top'] = top_source
+                cr = self.classify_source(
+                    base, top_source, module, tracer, module_tracers)
+                record['reason'] = cr.reason
+                record['alternatives'] = cr.alternatives
+                record['confidence'] = cr.confidence
                 self.all_calls[module].append(record)
 
         for module, tracer in module_tracers.items():
@@ -167,18 +448,17 @@ class ProjectAnalyzer:
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return Top-level library name.
     def _base_top_source(self, module, base, tracer, module_tracers):
-        if isinstance(base, tuple):
+        if is_structured_source(base):
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
                 _, src_module, src_symbol = structured
                 return self._top_source(src_module, src_symbol, module_tracers)
-            return str(base)
+            return "local"
         if isinstance(base, str) and '.' in base:
             prefix = base.split('.')[0]
             if prefix in self.global_symbols.get(module, {}):
                 return self.global_symbols[module][prefix]
             return self._top_source(module, base, module_tracers)
-        # Simple string base: check call_assign_funcs first to avoid cross-scope pollution
         if isinstance(base, str):
             caf = tracer.call_assign_funcs.get(base)
             if caf:
@@ -189,6 +469,190 @@ class ProjectAnalyzer:
         if base in self.global_symbols.get(module, {}):
             return self.global_symbols[module][base]
         return self._top_source(module, base, module_tracers)
+
+    ## Check whether a symbol is a known local definition in this tracer.
+    #  @param tracer Single-file analyzer.
+    #  @param symbol Candidate symbol name.
+    #  @return True if the symbol is a local function/method/class/param.
+    def _is_known_local_symbol(self, tracer, symbol):
+        if not isinstance(symbol, str):
+            return False
+        first = symbol.split(".")[0]
+        if first in ("self", "cls"):
+            return True
+        if first in getattr(tracer, "local", set()):
+            return True
+        if first in getattr(tracer, "defined_functions", set()):
+            return True
+        if first in getattr(tracer, "class_methods", {}):
+            return True
+        for methods in getattr(tracer, "class_methods", {}).values():
+            if first in methods:
+                return True
+        direct = normalize_source(tracer.symbols.direct.get(first))
+        if direct == "local":
+            return True
+        return False
+
+    ## Check whether a string base represents a direct import.
+    #  @param tracer Single-file analyzer.
+    #  @param base Candidate base name.
+    #  @return True if base is an import alias or from-import symbol.
+    def _is_direct_import_base(self, tracer, base):
+        if not isinstance(base, str):
+            return False
+        first = base.split(".")[0]
+        if first in getattr(tracer, "import_aliases", set()):
+            return True
+        if first in getattr(tracer, "import_from_symbols", {}):
+            return True
+        direct = normalize_source(tracer.symbols.direct.get(first))
+        if isinstance(direct, str) and direct not in ("local", "python", "unknown"):
+            return True
+        return False
+
+    ## Check whether a SymbolProvenance import is a direct external import.
+    #
+    #  True when the import source is a non-local module and the resolved
+    #  top matches the source's top-level name.  Local re-exports
+    #  (local_lib -> requests) are not direct external imports.
+    #  @param base The import source value (e.g. "functools").
+    #  @param top The resolved top library.
+    #  @param module The module where the import occurs.
+    #  @return True if this is a direct external import.
+    def _is_direct_external_import(self, base, top, module):
+        if not isinstance(base, str) or not top:
+            return False
+        first = base.split(".")[0]
+        if self.is_local(first):
+            return False
+        if top == first:
+            return True
+        return False
+
+    ## Collect all origin candidates from a source value.
+    #  @param module Current module name.
+    #  @param source Source value to expand.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param include_local Whether to include "local" in results.
+    #  @return List of candidate top strings.
+    def _origin_candidates(self, module, source, tracers, include_local=True):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            out = []
+            for item in source.sources:
+                out.extend(self._origin_candidates(
+                    module, item, tracers, include_local))
+            return self._dedupe_list(out)
+        if isinstance(source, CallResult):
+            callee = source.callee
+            tracer = tracers.get(module)
+            rs = tracer.return_sources.get(callee) if tracer else None
+            if rs is not None:
+                candidates = self._origin_candidates(
+                    module, rs, tracers, include_local)
+                clean = [c for c in candidates
+                         if c not in ("", None, "unknown")]
+                if clean:
+                    return clean
+                cr_lineno = getattr(source, 'call_lineno', 0) or 0
+                cr_col = getattr(source, 'call_col_offset', 0) or 0
+                if cr_lineno:
+                    rs_norm = normalize_source(rs)
+                    if isinstance(rs_norm, SourceSet):
+                        for s in rs_norm.sources:
+                            if isinstance(s, str):
+                                arg = self._resolve_param_to_arg(
+                                    module, callee, s, tracers,
+                                    call_lineno=cr_lineno, call_col_offset=cr_col)
+                                if arg is not None:
+                                    more = self._origin_candidates(
+                                        module, arg, tracers, include_local)
+                                    for m in more:
+                                        if m not in candidates:
+                                            candidates.append(m)
+                    else:
+                        arg = self._resolve_param_to_arg(
+                            module, callee, rs, tracers,
+                            call_lineno=cr_lineno, call_col_offset=cr_col)
+                        if arg is not None:
+                            more = self._origin_candidates(
+                                module, arg, tracers, include_local)
+                            for m in more:
+                                if m not in candidates:
+                                    candidates.append(m)
+                return candidates
+            top = self._top_source(module, callee, tracers)
+            return [top] if top else []
+        if is_structured_source(source):
+            resolved = self._resolve_structured_source(module, source, tracers)
+            if resolved is not None:
+                _, src_module, src_symbol = resolved
+                return self._origin_candidates(
+                    src_module, src_symbol, tracers, include_local)
+            return ["unknown"]
+        if isinstance(source, str):
+            top = self._top_source(module, source, tracers)
+            return [top] if top else []
+        return ["unknown"]
+
+    ## Deduplicate a list preserving order.
+    #  @param items List of strings.
+    #  @return Deduplicated list.
+    @staticmethod
+    def _dedupe_list(items):
+        seen = set()
+        out = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                out.append(item)
+        return out
+
+    ## Determine the classification reason for a resolved API call.
+    #  @param base The call's base symbol or source.
+    #  @param top The resolved top-level library.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @return Reason constant string.
+    # ── classification helpers ───────────────────────────────────────────
+
+    ## Determine confidence for a classification result.
+    #
+    #  Delegates to the standalone classify_confidence() in
+    #  classification.py so the confidence rules live in one place.
+    #  @param reason Classification reason.
+    #  @param alternatives List of alternative top libraries.
+    #  @return Confidence score (0.0-1.0).
+    def _classify_confidence(self, reason, alternatives=None):
+        return classify_confidence(reason, alternatives)
+
+    ## Unified classification entry point for a resolved top library.
+    #
+    #  Delegates to ClassificationPipeline.classify() (Phase 8B).
+    #  Kept as a thin wrapper so callers in get_calls() and
+    #  _build_symbol_provenance() do not need to change.
+    #  @param base The call's base symbol or source.
+    #  @param top The resolved top-level library.
+    #  @param module Current module name.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return ClassificationResult with library/reason/confidence/alternatives.
+    def classify_source(self, base, top, module, tracer, module_tracers,
+                        expand_origins=True, symbol=None, kind=""):
+        if kind == "import" and self._is_direct_external_import(base, top, module):
+            # Override: direct external imports always use DIRECT_IMPORT reason.
+            result = self._pipeline.classify(
+                base, top, module, tracer, module_tracers,
+                expand_origins=expand_origins)
+            return ClassificationResult(
+                library=result.library,
+                reason=REASON_DIRECT_IMPORT,
+                confidence=classify_confidence(REASON_DIRECT_IMPORT),
+                alternatives=result.alternatives,
+                is_usage_library=result.is_usage_library)
+        return self._pipeline.classify(
+            base, top, module, tracer, module_tracers,
+            expand_origins=expand_origins)
 
     ## Resolve the first segment of func_name to its fully qualified path.
     #  @param call_dict Dict with 'func_name' and other call data.
@@ -273,6 +737,7 @@ class ProjectAnalyzer:
             for symbol, direct_source in tracer.symbols.direct.items():
                 chain = self.trace_symbol(module, symbol, module_tracers, set())
                 if chain:
+                    chain = _dedup_consecutive(chain)
                     self.global_symbols[module][symbol] = self.extract_final_source(chain)
                     self.symbol_chains[module][symbol] = chain
         self._call_searched_global = None
@@ -360,6 +825,13 @@ class ProjectAnalyzer:
         tracer = tracers.get(module)
         if not tracer:
             return None
+        if not isinstance(container_name, str):
+            cn = normalize_source(container_name)
+            if isinstance(cn, CallResult) and isinstance(cn.callee, str):
+                top = self._top_source(module, cn.callee, tracers)
+                if top and top not in ("local", "python", "unknown", ""):
+                    return (module, [top])
+            return None
         local_candidates = self._collect_container_candidates(module, tracer, container_name, tracers)
         if local_candidates:
             return (module, local_candidates)
@@ -400,9 +872,9 @@ class ProjectAnalyzer:
                 resolved = self._resolve_method_symbol(module, base_symbol, method_name, tracers, visited)
                 if resolved:
                     return resolved
-            base_direct = tracer.symbols.direct.get(base_symbol)
-            if isinstance(base_direct, tuple) and len(base_direct) == 3 and base_direct[0] == "call_result":
-                base_direct = base_direct[1]
+            base_direct = normalize_source(tracer.symbols.direct.get(base_symbol))
+            if isinstance(base_direct, CallResult):
+                base_direct = base_direct.callee
                 if base_direct == base_symbol:
                     base_direct = tracer.import_from_symbols.get(base_symbol, base_direct)
             if isinstance(base_direct, str):
@@ -413,9 +885,9 @@ class ProjectAnalyzer:
                         return resolved
                 else:
                     return (module, base_symbol)
-        class_direct = tracer.symbols.direct.get(class_symbol)
-        if isinstance(class_direct, tuple) and len(class_direct) == 3 and class_direct[0] == "call_result":
-            class_direct = class_direct[1]
+        class_direct = normalize_source(tracer.symbols.direct.get(class_symbol))
+        if isinstance(class_direct, CallResult):
+            class_direct = class_direct.callee
             if class_direct == class_symbol:
                 class_direct = tracer.import_from_symbols.get(class_symbol, class_direct)
         if isinstance(class_direct, str):
@@ -432,6 +904,41 @@ class ProjectAnalyzer:
                 return (module, class_symbol)
         return None
 
+    ## Trace a function or constructor parameter through collected call sites.
+    #  @param module Module containing the parameter.
+    #  @param param_name Parameter name to resolve.
+    #  @param display_symbol Symbol to use at the start of the returned chain.
+    #  @param tracer Single-file analyzer for module.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param visited Set of visited trace keys.
+    #  @return Chain from display_symbol to argument origin, or None.
+    def _trace_parameter_source(self, module, param_name, display_symbol, tracer, tracers, visited):
+        for func_name, params in tracer.function_params.items():
+            try:
+                param_idx = params.index(param_name)
+            except ValueError:
+                continue
+            for call_site in tracer.call_sites.get(func_name, []):
+                if param_idx >= len(call_site["args"]):
+                    continue
+                arg_src = call_site["args"][param_idx]
+                if isinstance(arg_src, str):
+                    sub_chain = self.trace_symbol(
+                        call_site["module"], arg_src, tracers, visited
+                    )
+                elif arg_src is not None:
+                    sub_chain = self.trace_symbol(
+                        call_site["module"], param_name, tracers, set(),
+                        _direct_source=arg_src,
+                    )
+                else:
+                    sub_chain = None
+                if sub_chain:
+                    if sub_chain[0] == display_symbol:
+                        return sub_chain
+                    return [display_symbol] + sub_chain
+        return None
+
     ## Resolve a structured (tuple) source to its concrete origin.
     #
     #  Handles the four structured tuple kinds:
@@ -443,16 +950,61 @@ class ProjectAnalyzer:
     #  @param direct_source The structured tuple (kind, arg1, arg2).
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return (display_name, src_module, src_symbol) tuple, or None.
+
+    ## Resolve a SourceSet to a primary top library using origin-aware rules.
+    #
+    #  Delegates to SourceSetResolver.  See source_resolution.py for the
+    #  origin-aware convergence rules (dict_lookup, return, default).
+    def _resolve_sourceset_primary(self, module, sourceset, tracers, _seen=None):
+        return self._source_resolver.resolve_primary(
+            module, sourceset, tracers, _seen=_seen)
+
+    # ── structured source resolution ─────────────────────────────────────
+
     def _resolve_structured_source(self, module, direct_source, tracers):
-        if not (isinstance(direct_source, tuple) and len(direct_source) == 3):
+        direct_source = normalize_source(direct_source)
+        if isinstance(direct_source, SourceSet):
+            ## 7B-full PR7-final: converge-check all candidates.
+            primary = self._resolve_sourceset_primary(module, direct_source, tracers)
+            if primary:
+                return (source_display(direct_source), module, primary)
+            ## No convergence: fall back to str pick-first (branch imports).
+            for src in direct_source.sources:
+                if isinstance(src, str):
+                    top = self._top_source(module, src, tracers)
+                    if top and top not in ("local", "python", "unknown", ""):
+                        return (source_display(direct_source), module, src)
+            for src in direct_source.sources:
+                if isinstance(src, str):
+                    return (source_display(direct_source), module, src)
             return None
-        kind, a, b = direct_source
+        callee_display = None
+        if isinstance(direct_source, ContainerItem):
+            kind, a, b = "container_item", direct_source.container, direct_source.index
+        elif isinstance(direct_source, ContainerIter):
+            kind, a, b = "container_iter", direct_source.container, "*"
+        elif isinstance(direct_source, InstanceMethod):
+            kind, a, b = "instance_method", direct_source.receiver, direct_source.method
+        elif isinstance(direct_source, CallResult):
+            kind, a, b = "call_result", direct_source.callee, None
+            callee_display = direct_source.display_name or direct_source.callee
+        elif isinstance(direct_source, tuple) and len(direct_source) == 3:
+            kind, a, b = direct_source
+        else:
+            return None
 
         if kind == "container_item":
             resolved = self._resolve_container_item(module, a, b, tracers)
             if resolved:
                 src_module, src_symbol = resolved
                 return (f"{a}[{b}]", src_module, src_symbol)
+            if is_structured_source(a):
+                structured = self._resolve_structured_source(module, a, tracers)
+                if structured is not None:
+                    _, src_module, src_symbol = structured
+                    top = self._top_source(src_module, src_symbol, tracers)
+                    if top and top not in ("local", "unknown", ""):
+                        return (f"{a}[{b}]", src_module, top)
             return (f"{a}[{b}]", module, a)
 
         if kind == "instance_method":
@@ -465,10 +1017,25 @@ class ProjectAnalyzer:
                 class_symbol = tracer.symbols.direct.get(a)
                 if isinstance(class_symbol, tuple) and len(class_symbol) == 3 and class_symbol[0] == "call_result":
                     class_symbol = class_symbol[1]
+                class_symbol = normalize_source(class_symbol)
+                if isinstance(class_symbol, CallResult):
+                    class_symbol = class_symbol.callee
                 if a in tracer.class_methods and class_symbol == "local":
                     class_symbol = a
             if not class_symbol:
+                if isinstance(a, str) and _is_import_origin(tracer, a):
+                    return (f"{a}.{b}", module, a)
+                receiver_chain = self.trace_symbol(
+                    module, a, tracers, set(), _direct_source="local")
+                receiver_top = self.extract_final_source(receiver_chain)
+                if receiver_top:
+                    return (f"{a}.{b}", module, receiver_top)
                 return None
+            if class_symbol in tracer.class_methods:
+                ext = self._resolve_local_method_to_external(
+                    module, class_symbol, b, a, tracer, tracers)
+                if ext:
+                    return (f"{a}.{b}", module, ext)
             resolved = self._resolve_method_symbol(module, class_symbol, b, tracers, set())
             if not resolved:
                 if class_symbol != a and isinstance(a, str) and a in tracer.symbols.direct:
@@ -476,9 +1043,35 @@ class ProjectAnalyzer:
                 if not resolved:
                     class_direct = tracer.symbols.direct.get(class_symbol)
                     if isinstance(class_direct, str) and self.is_local(class_direct):
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol, b)
+                        if cg_attr is not None:
+                            cg_mod, cg_top = cg_attr
+                            return (f"{a}.{b}", cg_mod, cg_top)
                         return (f"{a}.{b}", module, "local")
+                    if class_direct == "local":
+                        ext = self._resolve_local_method_to_external(
+                            module, a, b, a, tracer, tracers)
+                        if ext:
+                            return (f"{a}.{b}", module, ext)
+                        cg_attr = self._lookup_cg_class_attr_source(module, class_symbol, b)
+                        if cg_attr is not None:
+                            cg_mod, cg_top = cg_attr
+                            return (f"{a}.{b}", cg_mod, cg_top)
+                        return (f"{a}.{b}", module, "local")
+                    if isinstance(class_symbol, str) and '.' in class_symbol:
+                        top = self._top_source(module, class_symbol, tracers)
+                        if top and top not in ("local", "python", "unknown", ""):
+                            return (f"{a}.{b}", module, top)
                     return None
             src_module, src_symbol = resolved
+            ## 7B-full PR3: if the resolved method is local, try constructor attrs.
+            top = self._top_source(src_module, src_symbol, tracers)
+            if top in ("local", "unknown", ""):
+                cg_attr = self._lookup_cg_class_attr_source(
+                    module, class_symbol, b)
+                if cg_attr is not None:
+                    cg_mod, cg_top = cg_attr
+                    return (f"{a}.{b}", cg_mod, cg_top)
             return (f"{a}.{b}", src_module, src_symbol)
 
         if kind == "container_iter":
@@ -494,12 +1087,22 @@ class ProjectAnalyzer:
 
         if kind == "call_result":
             callee = a
+            cr_lineno = getattr(direct_source, 'call_lineno', 0) or 0
+            cr_col = getattr(direct_source, 'call_col_offset', 0) or 0
+            if isinstance(callee, SourceSet):
+                primary = self._resolve_sourceset_primary(module, callee, tracers)
+                if primary:
+                    return (f"{callee_display or callee}()", module, primary)
+                return (f"{callee_display or callee}()", module, "local")
             gs = getattr(self, '_call_searched_global', None)
             if gs is not None:
                 if (module, callee) in gs:
-                    return (f"{callee}()", module, callee)
-                gs.add((module, callee))
-            callee_chain = self.trace_symbol(module, callee, tracers, set())
+                    callee_chain = [callee]
+                else:
+                    gs.add((module, callee))
+                    callee_chain = self.trace_symbol(module, callee, tracers, set())
+            else:
+                callee_chain = self.trace_symbol(module, callee, tracers, set())
             def_module = module
             for item in reversed(callee_chain):
                 if isinstance(item, str) and self.is_local(item):
@@ -511,25 +1114,384 @@ class ProjectAnalyzer:
             while True:
                 tr = tracers.get(cur_module)
                 rs = tr.return_sources.get(cur_symbol) if tr else None
+                rs = normalize_source(rs)
+                if isinstance(rs, SourceSet):
+                    ## 7B-full PR7-final: check primary convergence first
+                    ## so that "return" origin can pick third-party even
+                    ## when local sources are present.
+                    primary = self._resolve_sourceset_primary(
+                        cur_module, rs, tracers)
+                    if primary:
+                        return (f"{callee_display or callee}()",
+                                cur_module, primary)
+                    for src in rs.sources:
+                        if isinstance(src, str):
+                            arg_src = self._resolve_param_to_arg(
+                                cur_module, cur_symbol, src, tracers,
+                                call_lineno=cr_lineno, call_col_offset=cr_col)
+                            if arg_src is not None:
+                                arg_src = normalize_source(arg_src)
+                                if isinstance(arg_src, CallResult):
+                                    return (f"{callee_display or callee}()",
+                                            cur_module, arg_src.callee)
+                                if isinstance(arg_src, str):
+                                    return (f"{callee_display or callee}()",
+                                            cur_module, arg_src)
+                            return (f"{callee_display or callee}()", cur_module, src)
+                        if isinstance(src, CallResult):
+                            return (f"{callee_display or callee}()", cur_module, src.callee)
                 if rs is None:
-                    return (f"{callee}()", cur_module, cur_symbol)
+                    ## 7B-full PR2: try call-graph return source before giving up.
+                    cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
+                    if cg_ret is not None:
+                        return (f"{callee_display or callee}()", module, cg_ret)
+                    return (f"{callee_display or callee}()", cur_module, cur_symbol)
                 if isinstance(rs, str):
-                    return (f"{callee}()", cur_module, rs)
-                if isinstance(rs, tuple) and len(rs) == 3 and rs[0] == "call_result":
-                    next_chain = self.trace_symbol(cur_module, rs[1], tracers, set())
-                    cur_symbol = rs[1]
+                    arg_src = self._resolve_param_to_arg(
+                        cur_module, cur_symbol, rs, tracers,
+                        call_lineno=cr_lineno, call_col_offset=cr_col)
+                    if arg_src is not None:
+                        arg_src = normalize_source(arg_src)
+                        if isinstance(arg_src, CallResult):
+                            return (f"{callee_display or callee}()",
+                                    cur_module, arg_src.callee)
+                        if isinstance(arg_src, str):
+                            return (f"{callee_display or callee}()",
+                                    cur_module, arg_src)
+                    return (f"{callee_display or callee}()", cur_module, rs)
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
+                    next_chain = self.trace_symbol(cur_module, rs.callee, tracers, set())
+                    cur_symbol = rs.callee
                     for item in reversed(next_chain):
                         if isinstance(item, str) and self.is_local(item):
                             cur_module = item
                             break
                     if (cur_module, cur_symbol) in seen:
-                        return (f"{callee}()", cur_module, cur_symbol)
+                        return (f"{callee_display or callee}()", cur_module, cur_symbol)
                     seen.add((cur_module, cur_symbol))
                     continue
                 break
-            return (f"{callee}()", cur_module, cur_symbol)
+            return (f"{callee_display or callee}()", cur_module, cur_symbol)
 
         return None
+
+    ## Try to resolve a local class method to an external source.
+    #
+    #  Checks whether the method's return_sources trace to a constructor
+    #  parameter that has external provenance via call-site arguments.
+    #  @param module The current module.
+    #  @param class_name The local class name.
+    #  @param method_name The method being called.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return External library name, or None.
+    def _resolve_local_method_to_external(self, module, class_name,
+                                           method_name, receiver,
+                                           tracer, tracers):
+        ## Check qualname first so class methods don't share bare keys.
+        qkey = class_name + "." + method_name
+        rs = tracer.return_sources.get(qkey)
+        if not rs:
+            rs = tracer.return_sources.get(method_name)
+        if not rs:
+            return None
+        rs = normalize_source(rs)
+        sources = rs.sources if isinstance(rs, SourceSet) else [rs]
+        for src in sources:
+            if isinstance(src, InstanceMethod):
+                param_name = src.receiver
+                if isinstance(param_name, str):
+                    ctor_key = class_name + ".__init__"
+                    ctor_params = (tracer.function_params.get("__init__", [])
+                                   or tracer.function_params.get(ctor_key, []))
+                    if param_name in ctor_params:
+                        param_idx = ctor_params.index(param_name)
+                        call_sites = (tracer.call_sites.get("__init__", [])
+                                      or tracer.call_sites.get(ctor_key, []))
+                        match_ln, match_col = self._receiver_ctor_pos(
+                            receiver, tracer)
+                        matched = None
+                        for cs in call_sites:
+                            if param_idx >= len(cs.get("args", [])):
+                                continue
+                            cs_ln = cs.get("lineno", 0)
+                            cs_col = cs.get("col_offset", 0)
+                            if (match_ln and cs_ln == match_ln
+                                    and cs_col == match_col):
+                                matched = cs
+                                break
+                            if not match_ln:
+                                matched = cs
+                        if matched:
+                            arg_src = matched["args"][param_idx]
+                            arg_src = normalize_source(arg_src)
+                            if isinstance(arg_src, CallResult):
+                                top = self._top_source(
+                                    module, arg_src.callee, tracers)
+                                if top and top not in ("local", "python",
+                                                       "unknown", ""):
+                                    return top
+                            if isinstance(arg_src, str):
+                                top = self._top_source(module, arg_src, tracers)
+                                if top and top not in ("local", "python",
+                                                       "unknown", ""):
+                                    return top
+        return None
+
+    ## Get the constructor call-site position for a receiver instance.
+    #  @param receiver The variable name bound to a class instance.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @return Tuple of (lineno, col_offset) or (0, 0) if unknown.
+    def _receiver_ctor_pos(self, receiver, tracer):
+        if not receiver or not isinstance(receiver, str):
+            return (0, 0)
+        sd = tracer.symbols.direct.get(receiver)
+        sd = normalize_source(sd)
+        if isinstance(sd, CallResult):
+            return (sd.call_lineno, sd.call_col_offset)
+        return (0, 0)
+
+    ## Resolve a parameter name to its call-site argument for a specific callee.
+    #
+    #  Unlike _trace_parameter_source, this only searches the given callee's
+    #  call-sites, preventing false positives from same-named parameters in
+    #  other functions.
+    ## Look up the return source of a local function via call-graph facts.
+    #
+    #  Searches the current module's ModuleCallGraph first, then falls back
+    #  to all modules (for cross-file imported local functions).  Returns a
+    #  single source only when unambiguous; SourceSet with multiple
+    #  import-backed sources is left for the classifier (7B-full PR2).
+    #  @param cur_module The module where the call occurs.
+    #  @param callee Bare function name or qualname (e.g. "make_array").
+    #  @return A non-local source string, or None.
+    def _lookup_cg_return_source(self, cur_module, callee):
+        if not isinstance(callee, str):
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        # Search current module first.  Only fall back to other modules
+        # when the function is NOT found locally (cross-file import case).
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for module in search_modules:
+            mcg = cg.modules.get(module)
+            if mcg is None:
+                continue
+            fs = mcg.functions.get(callee)
+            if fs is None:
+                continue
+            # Found in this module — if no returns, don't fall back to others.
+            if fs.returns is None:
+                return None
+            returns_norm = normalize_source(fs.returns)
+            if isinstance(returns_norm, SourceSet):
+                # Collect import-backed tops; return single if unambiguous.
+                tops = []
+                for src in returns_norm.sources:
+                    src_norm = normalize_source(src)
+                    if isinstance(src_norm, str) and not self.is_local(src_norm):
+                        top = self._top_name(src_norm)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                    elif isinstance(src_norm, InstanceMethod) and isinstance(src_norm.receiver, str):
+                        top = self._top_name(src_norm.receiver)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                    elif isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                        top = self._top_name(src_norm.callee)
+                        if top and top not in ("local", "unknown", ""):
+                            tops.append(top)
+                if len(tops) == 1:
+                    return tops[0]
+                # Multiple or zero import-backed sources — let classifier handle.
+                continue
+            if isinstance(returns_norm, str) and not self.is_local(returns_norm):
+                top = self._top_name(returns_norm)
+                if top and top not in ("local", "unknown", ""):
+                    return top
+            elif isinstance(returns_norm, CallResult):
+                if isinstance(returns_norm.callee, str):
+                    top = self._top_name(returns_norm.callee)
+                    if top and top not in ("local", "unknown", ""):
+                        return top
+        return None
+
+    ## Check whether a receiver name refers to a known container literal.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param receiver The receiver name (e.g. "lst" in lst.append).
+    #  @return True if the receiver was initialised as a list/dict/set/tuple literal.
+    def _is_container_receiver(self, tracer, receiver):
+        if not isinstance(receiver, str) or tracer is None:
+            return False
+        if receiver in ("local",):
+            return False
+        if receiver in getattr(tracer, 'container_lengths', {}):
+            return True
+        if receiver in getattr(tracer, 'container_set_sources', {}):
+            return True
+        for key in getattr(tracer, 'container_items', {}):
+            if key[0] == receiver:
+                return True
+        return False
+
+    ## Look up import-backed arg source from a CallEdge (7B-full PR4).
+    #
+    #  Searches ProjectCallGraph for the edge matching a call site and returns
+    #  the first import-backed positional argument source found.
+    #  @param cur_module The module where the call occurs.
+    #  @param cr_lineno Call line number.
+    #  @param cr_col Call column offset.
+    #  @return A library top string, or None.
+    def _lookup_cg_edge_arg_source(self, cur_module, cr_lineno, cr_col):
+        if not cr_lineno:
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for mod in search_modules:
+            mcg = cg.modules.get(mod)
+            if mcg is None:
+                continue
+            for edge in mcg.edges:
+                if edge.call_lineno != cr_lineno or edge.call_col_offset != cr_col:
+                    continue
+                for src in list(edge.arg_sources.get("pos", {}).values()) + list(edge.arg_sources.get("kw", {}).values()):
+                    src_norm = normalize_source(src)
+                    if isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                        return src_norm.callee
+                    if isinstance(src_norm, ContainerItem):
+                        if isinstance(src_norm.container, str):
+                            return src_norm.container
+                    if isinstance(src_norm, str) and '.' in src_norm:
+                        return src_norm
+                return None
+        return None
+
+    ## Look up import-backed constructor attr used by a specific method (7B-full PR3).
+    #
+    #  Searches ProjectCallGraph for edges where the method (identified by
+    #  class_name + method_name) calls through a self.attr whose constructor
+    #  source is import-backed.  Only attrs actually used by the method are
+    #  considered — a class's unrelated import-backed attrs do not leak.
+    #  @param cur_module The module where the class is defined.
+    #  @param class_name The local class name.
+    #  @param method_name The method being called (e.g. "fit").
+    #  @return Tuple of (src_module, top_library) or None.
+    def _lookup_cg_class_attr_source(self, cur_module, class_name, method_name):
+        if not isinstance(class_name, str) or not isinstance(method_name, str):
+            return None
+        cg = getattr(self, 'project_cg', None)
+        if cg is None:
+            return None
+        # Search current module first, then all modules.
+        search_modules = list(cg.modules.keys())
+        if cur_module and cur_module in search_modules:
+            search_modules.remove(cur_module)
+            search_modules.insert(0, cur_module)
+        for module in search_modules:
+            mcg = cg.modules.get(module)
+            if mcg is None:
+                continue
+            cs = mcg.classes.get(class_name)
+            if cs is None:
+                continue
+            # Collect import-backed attrs with their library provenance.
+            import_attrs = {}  # attr_name -> (src_module, top)
+            for attr_name, src in cs.attrs.items():
+                src_norm = normalize_source(src)
+                if isinstance(src_norm, CallResult):
+                    if isinstance(src_norm.callee, str):
+                        callee = src_norm.callee
+                        if _is_builtin(callee) or self.is_local(callee):
+                            continue
+                        top = self._top_name(callee)
+                        if top and top not in ("local", "unknown", ""):
+                            import_attrs[attr_name] = (module, top)
+                elif isinstance(src_norm, str):
+                    if (self.is_local(src_norm) or src_norm in ("local", "unknown", "")
+                            or _is_builtin(src_norm)):
+                        continue
+                    bare = attr_name[5:] if attr_name.startswith("self.") else attr_name
+                    if src_norm == bare or src_norm.startswith(bare):
+                        continue
+                    if '.' not in src_norm:
+                        continue
+                    top = self._top_name(src_norm)
+                    if top and top not in ("local", "unknown", ""):
+                        import_attrs[attr_name] = (module, top)
+            if not import_attrs:
+                return None
+            # Only return an attr if the method actually uses it.
+            # Check edges where caller is this method.
+            method_qualname = class_name + "." + method_name
+            method_tops = {}  # top -> (src_module, top)
+            for edge in mcg.edges:
+                if edge.caller.qualname != method_qualname:
+                    continue
+                rcvr = edge.receiver_source
+                if rcvr is None:
+                    continue
+                rcvr_norm = normalize_source(rcvr)
+                # Match receiver against import-backed attrs.
+                for attr_name, (attr_mod, attr_top) in import_attrs.items():
+                    if self._edge_receiver_matches_attr(rcvr_norm, cs, attr_name):
+                        method_tops[attr_top] = (attr_mod, attr_top)
+            if len(method_tops) == 1:
+                return list(method_tops.values())[0]
+            # Multiple candidates — return None, let classifier handle alternatives.
+            return None
+        return None
+
+    ## Check whether a CallEdge receiver matches a ClassSummary attr source.
+    #  @param rcvr_norm Normalized receiver source from the edge.
+    #  @param cs The ClassSummary.
+    #  @param attr_name The attr name to check (e.g. "self.gp").
+    #  @return True if the receiver matches the attr's source.
+    def _edge_receiver_matches_attr(self, rcvr_norm, cs, attr_name):
+        attr_src = cs.attrs.get(attr_name)
+        if attr_src is None:
+            return False
+        attr_norm = normalize_source(attr_src)
+        if isinstance(rcvr_norm, CallResult) and isinstance(attr_norm, CallResult):
+            return rcvr_norm.callee == attr_norm.callee
+        if isinstance(rcvr_norm, str) and isinstance(attr_norm, str):
+            return rcvr_norm == attr_norm
+        return rcvr_norm == attr_norm
+
+    #  @param module The module where the call occurs.
+    #  @param callee The function name whose parameter is being resolved.
+    #  @param param_name The parameter name to resolve.
+    #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return A source value from the call-site argument, or None.
+    def _resolve_param_to_arg(self, module, callee, param_name, tracers,
+                               call_lineno=0, call_col_offset=0):
+        tr = tracers.get(module)
+        if not tr or not isinstance(param_name, str):
+            return None
+        params = tr.function_params.get(callee, [])
+        if param_name not in params:
+            return None
+        param_idx = params.index(param_name)
+        best = None
+        for call_site in tr.call_sites.get(callee, []):
+            if param_idx >= len(call_site["args"]):
+                continue
+            best = call_site["args"][param_idx]
+            if call_lineno:
+                cs_lineno = call_site.get("lineno", 0)
+                cs_col = call_site.get("col_offset", 0)
+                if cs_lineno == call_lineno and cs_col == call_col_offset:
+                    return best
+        return best
 
     ## Recursively trace a symbol through cross-file imports to its origin.
     #
@@ -541,6 +1503,8 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param visited Set of already-visited (module, symbol) pairs.
     #  @return Ordered chain list from symbol to origin.
+    # ── trace engine ─────────────────────────────────────────────────────
+
     def trace_symbol(self, module, symbol, tracers, visited, _direct_source=None):
         if (module, symbol) in visited:
             return []
@@ -594,23 +1558,21 @@ class ProjectAnalyzer:
                     return [symbol, "local"]
             if symbol == "self" or (isinstance(symbol, str) and symbol.startswith("self.")):
                 return [symbol, "local"]
+            if isinstance(symbol, str) and _is_builtin(symbol):
+                return [symbol, "python"]
             return [symbol]
 
         if direct_source == "local":
-            for func_name, params in tracer.function_params.items():
-                try:
-                    param_idx = params.index(symbol)
-                except ValueError:
-                    continue
-                for call_site in tracer.call_sites.get(func_name, []):
-                    if param_idx < len(call_site["args"]):
-                        arg_src = call_site["args"][param_idx]
-                        if isinstance(arg_src, str):
-                            sub_chain = self.trace_symbol(
-                                call_site["module"], arg_src, tracers, visited
-                            )
-                            if sub_chain:
-                                return [symbol] + sub_chain
+            param_chain = self._trace_parameter_source(
+                module, symbol, symbol, tracer, tracers, visited)
+            if param_chain:
+                return param_chain
+
+        if isinstance(direct_source, str) and direct_source != symbol:
+            param_chain = self._trace_parameter_source(
+                module, direct_source, symbol, tracer, tracers, visited)
+            if param_chain:
+                return param_chain
 
         structured = self._resolve_structured_source(module, direct_source, tracers)
         if structured is not None:
@@ -618,6 +1580,14 @@ class ProjectAnalyzer:
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
             if sub_chain and sub_chain != [src_symbol]:
                 return [symbol, display_name] + sub_chain
+            src_tracer = tracers.get(src_module)
+            if (
+                sub_chain == [src_symbol]
+                and isinstance(src_symbol, str)
+                and src_tracer is not None
+                and _is_import_origin(src_tracer, src_symbol)
+            ):
+                return [symbol, display_name, src_symbol]
             if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or _is_builtin(src_symbol)):
                 if '.' in src_symbol:
                     first = src_symbol.split('.')[0]
@@ -671,15 +1641,32 @@ class ProjectAnalyzer:
             return None
         if isinstance(symbol, str) and _is_builtin(symbol):
             return "python"
+        src_tracer = tracers.get(src_module)
+        if src_tracer and self._is_known_local_symbol(src_tracer, symbol):
+            return "local"
         chain = self.trace_symbol(src_module, symbol, tracers, set())
         if chain:
-            return self.extract_final_source(chain)
-        src_tracer = tracers.get(src_module)
+            top = self.extract_final_source(chain)
+            if top in ("local", "python", "unknown", ""):
+                return top
+            if isinstance(symbol, str) and chain in ([symbol], [self._top_name(symbol)]):
+                # Merged container candidates like "[requests,numpy]"
+                # are not local/import-origin names — return as-is.
+                if isinstance(symbol, str) and symbol.startswith("[") and symbol.endswith("]"):
+                    return symbol
+                if self.is_local(symbol):
+                    return "local"
+                if src_tracer and _is_import_origin(src_tracer, symbol):
+                    return self._top_name(symbol)
+                return "unknown"
+            return top
         if src_tracer:
             top = src_tracer.symbols.get_top(symbol)
             if top:
                 return self._top_name(top)
-        return self._top_name(symbol)
+            if isinstance(symbol, str) and _is_import_origin(src_tracer, symbol):
+                return self._top_name(symbol)
+        return "unknown"
 
     ## Extract the ultimate source from a resolution chain.
     #
@@ -712,6 +1699,13 @@ class ProjectAnalyzer:
 #  returns a ProjectAnalysis object.
 #  @param project_root Absolute path to the project root directory.
 #  @return ProjectAnalysis with all per-file and cross-file results.
-def analyze_project(project_root):
-    analyzer = ProjectAnalyzer(project_root)
+## Analyze an entire project and return structured results.
+#
+#  Convenience function: creates a ProjectAnalyzer, runs analysis, and
+#  returns a ProjectAnalysis object.
+#  @param project_root Absolute path to the project root directory.
+#  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
+#  @return ProjectAnalysis with all per-file and cross-file results.
+def analyze_project(project_root, scope_model="v2"):
+    analyzer = ProjectAnalyzer(project_root, scope_model=scope_model)
     return analyzer.analyze()

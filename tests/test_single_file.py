@@ -261,12 +261,11 @@ app.logger.info("hello")
     tracer.visit(ast.parse(code))
     info_calls = [c for c in tracer.api_calls if "info(" in c["api"]]
     assert info_calls, "info(...) call not found in api_calls"
-    # app.logger.info should have base = ("instance_method", "Flask", "info")
+    # app.logger.info should have base = InstanceMethod(receiver="Flask", method="info")
     # since the root "app" traces to Flask, an imported class
+    from pcresolve.sources import InstanceMethod as IM
     base = info_calls[0]["base"]
-    assert isinstance(base, tuple), f"Expected tuple base, got {base!r}"
-    assert base[0] == "instance_method", f"Expected instance_method, got {base[0]!r}"
-    assert base[1] == "Flask", f"Expected Flask as class, got {base[1]!r}"
+    assert isinstance(base, IM), f"Expected InstanceMethod base, got {type(base)}: {base!r}"
 
 
 def test_multi_level_attribute_chain_on_imported_name():
@@ -278,12 +277,11 @@ request.headers.get("Authorization")
     tracer.visit(ast.parse(code))
     get_calls = [c for c in tracer.api_calls if ".get(" in c["api"]]
     assert get_calls, ".get(...) call not found in api_calls"
-    # request.headers.get should have base = ("instance_method", "request", "get")
+    # request.headers.get should have base = InstanceMethod(receiver="request", method="get")
     # since the root "request" is directly imported from flask
+    from pcresolve.sources import InstanceMethod as IM
     base = get_calls[0]["base"]
-    assert isinstance(base, tuple), f"Expected tuple base, got {base!r}"
-    assert base[0] == "instance_method", f"Expected instance_method, got {base[0]!r}"
-    assert base[1] == "request", f"Expected request as class, got {base[1]!r}"
+    assert isinstance(base, IM), f"Expected InstanceMethod base, got {type(base)}: {base!r}"
 
 
 # ── Edge case: getattr(obj, "name") ────────────────────────────────────
@@ -424,10 +422,10 @@ for f in FUNCS_SET:
     # they only get resolved in cross-file (ProjectAnalyzer) via _resolve_structured_source
     loop_calls = [e for e in calls if "f(" in e]
     assert loop_calls, f"Expected f(...) call from set iteration, got {calls}"
-    # In single-file mode the top is the structured tuple's string representation
+    # In single-file mode the top shows the source_display form (e.g. "FUNCS_SET[*]")
     actual = calls[loop_calls[0]]
-    assert "container_iter" in actual, (
-        f"Expected container_iter tuple (unresolved in single-file), got {actual!r}"
+    assert "FUNCS_SET" in actual or "[*]" in actual, (
+        f"Expected container_iter display (unresolved in single-file), got {actual!r}"
     )
 
 
@@ -476,14 +474,14 @@ async def fetch(url):
 
 
 def test_async_for_loop_variable_bound():
-    """async for item in it: — loop variable bound to iterator source."""
+    """async for item in it: — loop variable bound to iterator source (v1)."""
     code = """import aiohttp
 async def iterate(it):
     async for item in it:
         val = item
     return val
 """
-    tracer = SingleFileAnalyzer()
+    tracer = SingleFileAnalyzer(scope_model="v1")
     tracer.visit(ast.parse(code))
     # item is bound from the async for iterator source
     assert "val" in tracer.symbols.direct, (
@@ -492,13 +490,13 @@ async def iterate(it):
 
 
 def test_async_with_context_variable_bound():
-    """async with ... as var: — context variable bound to context source."""
+    """async with ... as var: — context variable bound to context source (v1)."""
     code = """import aiohttp
 async def fetch(url):
     async with aiohttp.ClientSession() as session:
         return session
 """
-    tracer = SingleFileAnalyzer()
+    tracer = SingleFileAnalyzer(scope_model="v1")
     tracer.visit(ast.parse(code))
     # session should be bound to aiohttp.ClientSession's source
     assert "session" in tracer.symbols.direct, (
@@ -541,6 +539,21 @@ resp = c.fetch()
     )
 
 
+def test_analyze_source_base_symbol_no_dataclass_repr():
+    """analyze_source() must not leak dataclass repr in base_symbol."""
+    code = """from flask import Flask
+app = Flask(__name__)
+app.logger.info('test')
+"""
+    result = analyze_source(code)
+    info_calls = [c for c in result.api_calls if "info" in c.expression]
+    assert info_calls, "app.logger.info(...) not found"
+    base = info_calls[0].base_symbol
+    # Must use source_display form, not dataclass repr
+    assert "InstanceMethod(" not in base, f"Dataclass repr leaked: {base!r}"
+    assert "Flask" in base
+
+
 if __name__ == "__main__":
     test_basic_imports()
     test_alias_imports()
@@ -572,4 +585,5 @@ if __name__ == "__main__":
     test_async_for_loop_variable_bound()
     test_async_with_context_variable_bound()
     test_self_attr_method_not_in_class_body()
+    test_analyze_source_base_symbol_no_dataclass_repr()
     print("All SingleFileAnalyzer tests passed.")

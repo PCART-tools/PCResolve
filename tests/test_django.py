@@ -44,7 +44,15 @@ def test_one_file_analyzed(result):
 
 def test_tornado_calls(calls_by_top):
     assert "tornado" in calls_by_top
-    assert len(calls_by_top["tornado"]) >= 10
+    tornado_exprs = {c.expression for c in calls_by_top["tornado"]}
+    # Key Tornado API calls that must be classified as tornado
+    for expr in ["tornado.gen.Return", "tornado.gen.Task",
+                 "tornado.gen.Wait", "tornado.gen.Callback",
+                 "tornado.tcpserver.TCPServer.__init__",
+                 "tornado.ioloop.IOLoop.instance()",
+                 "tornado.ioloop.IOLoop.instance().start()"]:
+        assert any(expr in e for e in tornado_exprs), \
+            f"Missing expected tornado call: {expr}"
 
 def test_redis_calls(calls_by_top):
     assert "redis" in calls_by_top

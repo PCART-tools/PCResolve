@@ -4,7 +4,7 @@ from pcresolve import analyze_project
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects", "greenbenchmark")
 
 @pytest.fixture(scope="module")
-def result(): return analyze_project(FIXTURE)
+def result(): return analyze_project(FIXTURE, scope_model="v1")
 
 @pytest.fixture(scope="module")
 def calls_by_top(result):

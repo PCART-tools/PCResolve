@@ -36,6 +36,14 @@ class ApiCall:
     resolved_func: str = ""
     ## Concise 3-level resolution chain: [func_name, resolved_func, top_library].
     resolved_chain: list = field(default_factory=list)
+    ## Classification reason constant (e.g. DIRECT_IMPORT, RETURN_PROPAGATION).
+    reason: str = ""
+    ## Confidence score (0.0-1.0).
+    confidence: float = 1.0
+    ## Alternative top libraries when multiple sources exist.
+    alternatives: list = field(default_factory=list)
+    ## Decorator provenance evidence (library names from decorators).
+    decorated_by: list = field(default_factory=list)
 
 
 ## Trace chain for a single symbol.
@@ -64,6 +72,35 @@ class FileAnalysis:
     chains: dict
     ## All API calls found in this file.
     api_calls: list
+    ## Diagnostics for this file (parse errors, etc.).
+    diagnostics: list = field(default_factory=list)
+    ## Symbol provenance records for this file.
+    symbol_provenance: list = field(default_factory=list)
+
+
+## Aggregated usage evidence for one top-level library.
+@dataclass
+class LibraryUsage:
+    ## Top-level library name.
+    library: str
+    ## Import aliases related to this library.
+    imports: list = field(default_factory=list)
+    ## Number of API calls traced to this library.
+    api_call_count: int = 0
+    ## Number of symbol provenance records traced to this library.
+    symbol_count: int = 0
+    ## Files where the library appears.
+    files: list = field(default_factory=list)
+    ## Kind counts from provenance records (import, variable, parameter, etc).
+    kind_counts: dict = field(default_factory=dict)
+    ## Reason counts from classification (DIRECT_IMPORT, RETURN_PROPAGATION, etc).
+    reason_counts: dict = field(default_factory=dict)
+    ## Whether any evidence was found.
+    has_evidence: bool = False
+    ## Minimum confidence among related evidence.
+    min_confidence: float = 0.0
+    ## Maximum confidence among related evidence.
+    max_confidence: float = 0.0
 
 
 ## Result of analyzing an entire project.
@@ -75,3 +112,13 @@ class ProjectAnalysis:
     files: list
     ## Flat list of all API calls across all files.
     all_api_calls: list
+    ## Schema version for the output format.
+    schema_version: str = "1.0"
+    ## Diagnostics collected during analysis.
+    diagnostics: list = field(default_factory=list)
+    ## Summary statistics about the analysis run.
+    stats: dict = field(default_factory=dict)
+    ## Symbol provenance records across all files.
+    all_symbol_provenance: list = field(default_factory=list)
+    ## Aggregated usage index by top-level library.
+    library_usage: dict = field(default_factory=dict)

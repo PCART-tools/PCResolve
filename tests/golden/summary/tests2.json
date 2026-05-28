@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "profile": "summary",
+  "project_root": ".",
+  "stats": {
+    "total_modules": 4,
+    "parsed_modules": 4,
+    "skipped_modules": 0,
+    "scope_model": "v2",
+    "api_call_count": 6,
+    "library_count": 3,
+    "diagnostic_error_count": 0,
+    "diagnostic_warning_count": 0
+  },
+  "diagnostics": [],
+  "libraries": {
+    "numpy": {
+      "api_call_count": 2,
+      "symbol_count": 5,
+      "file_count": 3,
+      "files": [
+        "b.py",
+        "c/d.py",
+        "c/e/f.py"
+      ],
+      "imports": [
+        "data",
+        "np",
+        "numpy"
+      ],
+      "kind_counts": {
+        "import": 3,
+        "variable": 2
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 4,
+        "RETURN_PROPAGATION": 2,
+        "TRANSITIVE_IMPORT": 1
+      },
+      "min_confidence": 0.9,
+      "max_confidence": 1.0
+    },
+    "pandas": {
+      "api_call_count": 1,
+      "symbol_count": 3,
+      "file_count": 1,
+      "files": [
+        "b.py"
+      ],
+      "imports": [
+        "get",
+        "pandas"
+      ],
+      "kind_counts": {
+        "import": 2,
+        "variable": 1
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 3,
+        "RETURN_PROPAGATION": 1
+      },
+      "min_confidence": 0.9,
+      "max_confidence": 1.0
+    },
+    "requests": {
+      "api_call_count": 2,
+      "symbol_count": 8,
+      "file_count": 4,
+      "files": [
+        "a.py",
+        "b.py",
+        "c/d.py",
+        "c/e/f.py"
+      ],
+      "imports": [
+        "req",
+        "requests",
+        "result",
+        "url"
+      ],
+      "kind_counts": {
+        "import": 4,
+        "variable": 4
+      },
+      "reason_counts": {
+        "DIRECT_IMPORT": 6,
+        "RETURN_PROPAGATION": 2,
+        "TRANSITIVE_IMPORT": 2
+      },
+      "min_confidence": 0.9,
+      "max_confidence": 1.0
+    }
+  }
+}

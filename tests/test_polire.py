@@ -31,7 +31,6 @@ def test_math(calls_by_top): assert "math" in calls_by_top
 def test_time(calls_by_top): assert "time" in calls_by_top
 def test_pytest(calls_by_top): assert "pytest" in calls_by_top
 def test_setuptools(calls_by_top): assert "setuptools" in calls_by_top
-@pytest.mark.xfail(reason="KNOWN: GP/NSGP not re-exported from polire (1 each) + [local,GP] (6)")
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["NSGP", "GP", "[local,GP]"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"

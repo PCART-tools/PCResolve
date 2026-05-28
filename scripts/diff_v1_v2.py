@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+## @package scripts.diff_v1_v2
+#  Compare v1 vs v2 analysis results on a project.
+#
+#  Usage:
+#    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/Deep-Graph-Kernels
+#    python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
+
+import ast
+import json
+import os
+import sys
+import time
+
+# Ensure stdout can handle Unicode on Windows GBK consoles (Python 3.9+).
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from pcresolve.cross_file import analyze_project
+
+BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
+                            "tests", "fixtures", "diff_baselines")
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..",
+                           "tests", "fixtures", "tested_projects")
+
+# Top-level directory basename -> baseline name for nested fixtures
+# where the logical fixture dir contains only a differently-named
+# sub-project.  The recursive _expand_project_dirs carries the
+# top-level logical name through so baseline lookup and display
+# use the correct key.
+_PROJECT_TO_BASELINE = {
+    "giantpopflucts": "barcoded_yeast_reanalysis",
+    "simulation": "ex_4_2",
+}
+
+
+def load_baseline(name):
+    path = os.path.join(BASELINE_DIR, name + ".json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
+def save_baseline(name, regressions, improvements, precision, illegal_keys):
+    os.makedirs(BASELINE_DIR, exist_ok=True)
+    path = os.path.join(BASELINE_DIR, name + ".json")
+    with open(path, "w") as f:
+        json.dump({"regressions": regressions,
+                   "improvements": improvements,
+                   "precision": precision,
+                   "illegal_keys": illegal_keys}, f, indent=2)
+    return path
+
+
+def run(model, path):
+    t0 = time.perf_counter()
+    result = analyze_project(path, scope_model=model)
+    elapsed = time.perf_counter() - t0
+    return result, elapsed
+
+
+def compare(path):
+    v1, t1 = run("v1", path)
+    v2, t2 = run("v2", path)
+
+    v1_calls = {(c.file_path, c.lineno, c.col_offset, c.expression): c.top_library
+                for c in v1.all_api_calls}
+    v2_calls = {(c.file_path, c.lineno, c.col_offset, c.expression): c.top_library
+                for c in v2.all_api_calls}
+
+    v1_syms = {(p.file_path, p.lineno, p.col_offset, p.symbol, p.kind): p.top_library
+               for p in v1.all_symbol_provenance}
+    v2_syms = {(p.file_path, p.lineno, p.col_offset, p.symbol, p.kind): p.top_library
+               for p in v2.all_symbol_provenance}
+
+    # Classify API call differences with taxonomy sub-categories.
+    call_regressions = []       # third-party -> local/unknown
+    call_improvements = []      # local/unknown -> third-party
+    call_precision = []         # third-party -> another third-party
+    call_same = 0
+
+    # Taxonomy sub-counts.
+    tp_to_local = 0
+    tp_to_unknown = 0
+    local_to_unknown = 0
+    local_to_python = 0
+    local_to_third_party = 0
+
+    for key in v1_calls:
+        v1_top = v1_calls[key]
+        v2_top = v2_calls.get(key)
+        if v2_top is None:
+            continue
+        if v2_top == v1_top:
+            call_same += 1
+        elif v2_top in ("local", "unknown", "") and v1_top not in ("local", "unknown", ""):
+            call_regressions.append((key, v1_top, v2_top))
+            if v2_top == "local":
+                tp_to_local += 1
+            else:
+                tp_to_unknown += 1
+        elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
+            call_improvements.append((key, v1_top, v2_top))
+            local_to_third_party += 1
+        elif v1_top not in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
+            call_precision.append((key, v1_top, v2_top))
+        elif v1_top == "local" and v2_top == "unknown":
+            local_to_unknown += 1
+            call_regressions.append((key, v1_top, v2_top))
+        elif v1_top == "local" and v2_top == "python":
+            local_to_python += 1
+            call_improvements.append((key, v1_top, v2_top))
+        else:
+            call_regressions.append((key, v1_top, v2_top))
+            tp_to_unknown += 1
+
+    only_v2_calls = set(v2_calls.keys()) - set(v1_calls.keys())
+
+    # Compare library usage
+    v1_libs = set(v1.library_usage.keys())
+    v2_libs = set(v2.library_usage.keys())
+    v2_only_libs = v2_libs - v1_libs
+
+    print("Project: %s" % os.path.abspath(path))
+    print("v1 time: %.3fs, v2 time: %.3fs" % (t1, t2))
+    print()
+
+    print("API Calls: v1=%d v2=%d same=%d regressions=%d improvements=%d precision=%d only_v2=%d" % (
+        len(v1_calls), len(v2_calls), call_same, len(call_regressions),
+        len(call_improvements), len(call_precision), len(only_v2_calls)))
+
+    if call_regressions:
+        print("\nRegressions (v1 third-party -> v2 local/unknown):")
+        for key, v1t, v2t in call_regressions[:20]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    if call_improvements:
+        print("\nImprovements (v1 local -> v2 third-party):")
+        for key, v1t, v2t in call_improvements[:10]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    if call_precision:
+        print("\nPrecision changes (third-party -> another third-party, e.g. SourceSet alternatives):")
+        for key, v1t, v2t in call_precision[:10]:
+            print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
+
+    print("\nLibraries: v1=%d v2=%d v2_only=%d" % (
+        len(v1_libs), len(v2_libs), len(v2_only_libs)))
+    if v2_only_libs:
+        illegal = {l for l in v2_only_libs if "(" in l or "[" in l}
+        if illegal:
+            print("  Illegal library keys: %s" % sorted(illegal))
+
+    # Symbol provenance comparison
+    v1_sym_count = len(v1_syms)
+    v2_sym_count = len(v2_syms)
+    print("\nSymbol Provenance: v1=%d v2=%d" % (v1_sym_count, v2_sym_count))
+
+    # Check for illegal library keys in v2 library_usage
+    illegal_libs = [lib for lib in v2.library_usage if _is_illegal_key(lib)]
+    # Check full facts for internal IR leaks
+    illegal_calls = [c for c in v2.all_api_calls if _is_illegal_key(c.top_library)]
+    illegal_provs = [p for p in v2.all_symbol_provenance
+                     if _is_illegal_key(p.top_library)]
+    illegal = len(illegal_libs) + len(illegal_calls) + len(illegal_provs)
+    if illegal:
+        if illegal_libs:
+            print("  Illegal library_usage keys: %s" % sorted(illegal_libs))
+        if illegal_calls:
+            print("  Illegal ApiCall.top_library: %d entries" % len(illegal_calls))
+        if illegal_provs:
+            print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
+
+    taxonomy = {
+        "tp_to_local": tp_to_local,
+        "tp_to_unknown": tp_to_unknown,
+        "local_to_unknown": local_to_unknown,
+        "local_to_python": local_to_python,
+        "local_to_third_party": local_to_third_party,
+    }
+    return (len(call_regressions), len(call_improvements),
+            len(call_precision), illegal, len(v2_only_libs),
+            call_regressions, taxonomy)
+
+
+def _is_illegal_key(name):
+    """Check if a library name looks like a dataclass repr or SourceSet display."""
+    for prefix in ("InstanceMethod(", "CallResult(", "ContainerItem(",
+                   "ContainerIter(", "UnknownSource(", "SourceSet("):
+        if name.startswith(prefix):
+            return True
+    if isinstance(name, str) and name.startswith("[") and "SourceSet" in name:
+        return True
+    return False
+
+
+def main():
+    save_baselines = "--save-baseline" in sys.argv
+    if save_baselines:
+        sys.argv.remove("--save-baseline")
+
+    show_taxonomy = "--taxonomy" in sys.argv
+    if show_taxonomy:
+        sys.argv.remove("--taxonomy")
+
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/diff_v1_v2.py <project_dir> [...]",
+              file=sys.stderr)
+        sys.exit(1)
+
+    def _expand_project_dirs(root_paths, logical_name=None):
+        """Recursively expand directories that contain only subdirectories
+        (no .py files) down to actual project roots.
+
+        Returns a list of (project_path, logical_name) tuples.  The
+        logical_name is the top-level fixture directory name (carried
+        down through recursion) so that `--save-baseline` and the
+        gate summary use stable names like "TSP" rather than "src".
+        """
+        expanded = []
+        for p in root_paths:
+            if not os.path.isdir(p):
+                expanded.append((p, logical_name or os.path.basename(p)))
+                continue
+            subdirs = [os.path.join(p, d) for d in os.listdir(p)
+                       if os.path.isdir(os.path.join(p, d))]
+            py_files = [f for f in os.listdir(p) if f.endswith('.py')
+                        and os.path.isfile(os.path.join(p, f))]
+            # Carry the original logical_name through recursion.
+            name = logical_name or os.path.basename(p)
+            if subdirs and not py_files:
+                expanded.extend(
+                    _expand_project_dirs(sorted(subdirs), logical_name=name))
+            else:
+                expanded.append((p, name))
+        return expanded
+
+    project_entries = []  # list of (project_path, logical_name)
+    missing = []
+    for arg in sys.argv[1:]:
+        if not os.path.exists(arg):
+            print("Not found: %s" % arg, file=sys.stderr)
+            missing.append(arg)
+            continue
+        if os.path.isdir(arg):
+            subdirs = [os.path.join(arg, d) for d in sorted(os.listdir(arg))
+                       if os.path.isdir(os.path.join(arg, d))]
+            py_files = [f for f in os.listdir(arg) if f.endswith('.py')
+                        and os.path.isfile(os.path.join(arg, f))]
+            if subdirs and not py_files:
+                # Collection / wrapper directory: expand children, carrying
+                # the wrapper dir's basename as logical_name for the subtree
+                # unless this is the fixture collection itself.
+                parent_name = os.path.basename(os.path.normpath(arg))
+                carry = None if os.path.abspath(arg) == os.path.abspath(FIXTURE_DIR) else parent_name
+                project_entries.extend(_expand_project_dirs(subdirs, logical_name=carry))
+            else:
+                project_entries.extend(_expand_project_dirs([arg]))
+        else:
+            project_entries.append((arg, os.path.basename(arg)))
+
+    if missing:
+        print("ERROR: %d path(s) not found - aborting." % len(missing),
+              file=sys.stderr)
+        sys.exit(1)
+    if not project_entries:
+        print("ERROR: no valid project paths.", file=sys.stderr)
+        sys.exit(1)
+
+    total_regressions = 0
+    total_improvements = 0
+    total_precision = 0
+    total_illegal = 0
+    over_baseline = 0
+    has_baseline = False
+    summary_lines = []
+    all_regression_details = []
+    total_taxonomy = {"tp_to_local": 0, "tp_to_unknown": 0,
+                      "local_to_unknown": 0, "local_to_python": 0,
+                      "local_to_third_party": 0}
+    for path, logical_name in project_entries:
+        regs, imps, prec, illegal_count, _, details, taxonomy = compare(path)
+        all_regression_details.extend(details)
+        total_regressions += regs
+        total_improvements += imps
+        total_precision += prec
+        total_illegal += illegal_count
+        for k in total_taxonomy:
+            total_taxonomy[k] += taxonomy.get(k, 0)
+
+        # Map logical name through explicit overrides for nested fixtures.
+        bl_name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
+        baseline = load_baseline(bl_name)
+        if baseline:
+            has_baseline = True
+            ok = regs <= baseline.get("regressions", 0)
+            if not ok:
+                over_baseline += 1
+            status = "OK" if ok else "EXCEEDED"
+            summary_lines.append(
+                "%s: R=%d/%d I=%d P=%d illegal=%d [%s]" % (
+                    bl_name, regs, baseline.get("regressions", 0),
+                    imps, prec, illegal_count, status))
+        else:
+            summary_lines.append(
+                "%s: R=%d I=%d P=%d illegal=%d [PENDING]" % (
+                    logical_name, regs, imps, prec, illegal_count))
+
+        if save_baselines:
+            bp = save_baseline(bl_name, regs, imps, prec, illegal_count)
+            print("  Baseline saved: %s" % bp)
+        print()
+
+    print("SUMMARY")
+    for line in summary_lines:
+        print("  %s" % line)
+    print("  TOTAL regressions: %d" % total_regressions)
+    print("    third_party_api_loss: %d" % (
+        total_taxonomy["tp_to_local"] + total_taxonomy["tp_to_unknown"]))
+    print("      third-party -> local:   %d" % total_taxonomy["tp_to_local"])
+    print("      third-party -> unknown: %d" % total_taxonomy["tp_to_unknown"])
+    if total_taxonomy["local_to_unknown"]:
+        print("    local -> unknown:        %d" % total_taxonomy["local_to_unknown"])
+    print("  TOTAL improvements: %d" % total_improvements)
+    print("    local -> third-party:  %d" % total_taxonomy["local_to_third_party"])
+    if total_taxonomy["local_to_python"]:
+        print("    local -> python:       %d" % total_taxonomy["local_to_python"])
+    print("  TOTAL precision changes: %d" % total_precision)
+    print("  TOTAL illegal keys: %d" % total_illegal)
+
+    if save_baselines:
+        print()
+        print("Baselines saved.  Rerun without --save-baseline to gate.")
+        return 0
+
+    if over_baseline:
+        print()
+        print("%d project(s) exceed baseline." % over_baseline)
+        sys.exit(1)
+
+    if total_illegal:
+        print()
+        print("Illegal keys detected (always fails).")
+        sys.exit(1)
+
+    if show_taxonomy and all_regression_details:
+        print()
+        print("REGRESSION TAXONOMY")
+
+        def _classify_expr(expr):
+            try:
+                tree = ast.parse(expr.strip(), mode="eval")
+            except SyntaxError:
+                return "parse_error"
+            node = tree.body
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name):
+                    return "bare_call"
+                if isinstance(func, ast.Attribute):
+                    receiver = func.value
+                    if _has_subscript(receiver):
+                        return "container/subscript"
+                    return "attribute_method"
+            return "other"
+
+        def _has_subscript(node):
+            return any(isinstance(n, ast.Subscript) for n in ast.walk(node))
+
+        # Separate by loss type
+        tp_loss = {}   # third-party -> local/unknown
+        lu_loss = {}   # local -> unknown
+        for key, v1t, v2t in all_regression_details:
+            expr = key[3]
+            cat = _classify_expr(expr)
+            if v1t in ("local", ""):
+                lu_loss.setdefault(cat, []).append(expr)
+            else:
+                tp_loss.setdefault(cat, []).append(expr)
+
+        def _print_section(title, data):
+            if not data:
+                return
+            total = sum(len(v) for v in data.values())
+            print("  %s (%d total)" % (title, total))
+            for cat in sorted(data, key=lambda c: -len(data[c])):
+                exprs = data[cat]
+                print("    %s: %d" % (cat, len(exprs)))
+                for e in sorted(set(exprs))[:3]:
+                    print("      %s" % e)
+                if len(set(exprs)) > 3:
+                    print("      ... +%d more" % (len(set(exprs)) - 3))
+
+        _print_section("third-party API loss (v1 had library, v2 lost it)", tp_loss)
+        _print_section("local-to-unknown (v1 had local, v2 unknown)", lu_loss)
+
+    if not has_baseline:
+        print()
+        print("No baselines found.  Run with --save-baseline to create.")
+        print("  python %s --save-baseline %s" % (
+            __file__, " ".join(p for p, _ in project_entries)))
+
+    return 0
+
+
+if __name__ == "__main__":
+    main()

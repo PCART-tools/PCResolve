@@ -100,7 +100,6 @@ def test_stdlib_modules_are_third_party(calls_by_top):
 # ── Known issues — documented limitations ──────────────────────────────
 
 
-@pytest.mark.xfail(reason="KNOWN: get_url/clean/compact are missing imports in cirrus-extract.py")
 def test_missing_imports_not_top(calls_by_top):
     leaked = [v for v in ["get_url", "clean", "compact"] if v in calls_by_top]
     assert not leaked, f"Missing-import names leaked: {leaked}"
