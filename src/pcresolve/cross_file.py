@@ -1133,18 +1133,45 @@ class ProjectAnalyzer:
     #  @return (display_name, src_module, src_symbol) tuple, or None.
 
     ## Resolve a single source to its top-library candidate (7B-full PR7-final).
-    def _source_to_top_candidate(self, module, source, tracers):
+    #
+    #  @param _seen Set of (module, "cr", callee) keys to detect cycles.
+    def _source_to_top_candidate(self, module, source, tracers, _seen=None):
+        if _seen is None:
+            _seen = set()
         source = normalize_source(source)
         if isinstance(source, str):
+            key = (module, "str", source)
+            if key in _seen:
+                return None
+            _seen.add(key)
             cg = self._lookup_cg_return_source(module, source)
             if cg:
                 return self._top_source(module, cg, tracers) or cg
             return self._top_source(module, source, tracers)
         if isinstance(source, CallResult) and isinstance(source.callee, str):
+            key = (module, "cr", source.callee)
+            if key in _seen:
+                return None
+            _seen.add(key)
             cg = self._lookup_cg_return_source(module, source.callee)
             if cg:
                 return self._top_source(module, cg, tracers) or cg
-            return self._top_source(module, source.callee, tracers)
+            ## Only trace import-backed callees through _top_source;
+            ## locally-defined callees return "local"; everything else
+            ## returns None (unknown).  This avoids recursive SourceSet
+            ## loops where a local symbol's direct binding is itself a
+            ## SourceSet that would re-enter convergence resolution.
+            tracer = tracers.get(module)
+            if tracer:
+                first = source.callee.split(".")[0]
+                if (first in getattr(tracer, "import_aliases", set()) or
+                        first in getattr(tracer, "import_from_symbols", {})):
+                    return self._top_source(module, source.callee, tracers)
+                if (first in getattr(tracer, "local", set()) or
+                        first in getattr(tracer, "defined_functions", set()) or
+                        first in getattr(tracer, "class_methods", {})):
+                    return "local"
+            return None
         if is_structured_source(source):
             resolved = self._resolve_structured_source(module, source, tracers)
             if resolved:
@@ -1158,12 +1185,14 @@ class ProjectAnalyzer:
     #  @param sourceset SourceSet to expand.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return (deduped_third_party_tops, has_local, has_unknown).
-    def _collect_sourceset_tops(self, module, sourceset, tracers):
+    def _collect_sourceset_tops(self, module, sourceset, tracers, _seen=None):
+        if _seen is None:
+            _seen = set()
         tops = []
         has_local = False
         has_unknown = False
         for src in sourceset.sources:
-            top = self._source_to_top_candidate(module, src, tracers)
+            top = self._source_to_top_candidate(module, src, tracers, _seen=_seen)
             if top in ("", None, "unknown"):
                 has_unknown = True
             elif top in ("local", "python"):
@@ -1179,9 +1208,11 @@ class ProjectAnalyzer:
     #  return: a single third-party candidate is accepted even when
     #    local sources are present, but unknown sources block convergence.
     #  default (no origin): same strict rules as dict_lookup.
-    def _resolve_sourceset_primary(self, module, sourceset, tracers):
+    def _resolve_sourceset_primary(self, module, sourceset, tracers, _seen=None):
+        if _seen is None:
+            _seen = set()
         tops, has_local, has_unknown = self._collect_sourceset_tops(
-            module, sourceset, tracers)
+            module, sourceset, tracers, _seen=_seen)
         origin = getattr(sourceset, "origin", "")
 
         if origin == "dict_lookup":
