@@ -118,7 +118,7 @@ for turning a `(base, top)` pair into a `ClassificationResult`:
 | field | default | notes |
 |-------|---------|-------|
 | `reason` | depends on base/top | `DIRECT_IMPORT`, `RETURN_PROPAGATION`, `FLOW_MERGE`, `LOCAL_DEFINITION`, etc. |
-| `confidence` | 1.0 | 0.5 when alternatives exist or a flow merge is ambiguous |
+| `confidence` | 1.0 | See `classification.py::classify_confidence()` and `docs/output-contract.md` confidence table.  local+SourceSet: 0.5; FLOW_MERGE single: 0.85; FLOW_MERGE multi: max(1/N, 0.2) |
 | `alternatives` | `[]` | extracted via `_extract_alternatives()` when `expand_origins=True` |
 | `is_usage_library` | `True` for third-party | controls `library_usage` aggregation |
 

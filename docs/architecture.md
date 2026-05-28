@@ -4,9 +4,13 @@
 
 ```
 scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  →  cli.py / views.py
-                                        ↑
-                                   symbol_table.py    types.py    sources.py
-                                   scope.py           ir.py       diagnostics.py
+                                        ↑                    ↑
+                                   symbol_table.py    source_resolution.py
+                                   scope.py           classification.py
+                                   sources.py         library_usage.py
+                                   ir.py              decorator_provenance.py
+                                   types.py           call_graph.py
+                                   diagnostics.py
 ```
 
 ## Layer Summary
@@ -44,15 +48,18 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `import_from_symbols` | `dict[str, str]` | Import alias → fully qualified name |
 | `instance_attrs` | `dict[(class, attr), source]` | `(ClassName, self.attr)` → source (v2 constructor propagation) |
 
-### Cross-File Analysis (`cross_file.py`)
+### Cross-File Analysis (`cross_file.py` + extracted sub-modules)
 
 `ProjectAnalyzer` orchestrates:
 
 1. **Parse**: Iterates files, creates `SingleFileAnalyzer` per file.
-2. **Resolve**: `resolve_cross_file_symbols()` traces each symbol through imports/assignments across modules, populates `global_symbols` and `symbol_chains`.
-3. **Classify**: `get_calls()` classifies each API call by resolving its base through the global symbol table.
-4. **Provenance**: `_build_symbol_provenance()` traces each `SymbolRef` into a `SymbolProvenance`.
-5. **Library Usage**: `_build_library_usage()` aggregates calls and provenance by `top_library`.
+2. **Resolve**: `resolve_cross_file_symbols()` traces each symbol through imports/assignments across modules, populated `global_symbols` and `symbol_chains`.
+3. **SourceSet convergence**: `SourceSetResolver` in `source_resolution.py` resolves multi-source bindings with origin-aware rules.
+4. **Classify**: `ClassificationPipeline` in `classification.py` assigns reason, confidence, and alternatives via priority-ordered rules.
+5. **Provenance**: `_build_symbol_provenance()` traces each `SymbolRef` into a `SymbolProvenance`.
+6. **Library Usage**: `build_library_usage()` in `library_usage.py` aggregates calls and provenance by `top_library`.
+7. **Decorator evidence**: `build_decorator_index()` / `lookup_decorated_by()` in `decorator_provenance.py` populate `ApiCall.decorated_by`.
+8. **Call graph**: `call_graph.py` holds `FunctionSummary` / `ClassSummary` / `CallEdge` facts.
 
 Output: `ProjectAnalysis`
 
@@ -67,7 +74,7 @@ Output: `ProjectAnalysis`
 
 ## Scope Model (v1 vs v2)
 
-| Behavior | v1 (default) | v2 (lexical scopes) |
+| Behavior | v1 (legacy) | v2 (default, lexical scopes) |
 |----------|-------------|---------------------|
 | Function params | Written to module `symbols.direct` | Only in function scope |
 | Local variables | Written to module `symbols.direct` | Only in function scope |
@@ -80,17 +87,16 @@ v2 is the default as of 1.0.4. v2 fixes scope pollution and no longer produces d
 
 ## Legacy Compatibility Paths
 
-The following paths exist for backward compatibility and will be replaced:
+Compatibility surfaces still present in the codebase:
 
-| Current | Replaced By | Phase |
-|---------|-------------|-------|
-| `SymbolTable.direct` (single-slot) | `Scope.bindings` (per-scope binding; SourceSet in Phase 5) | 3 (partial), 5 (SourceSet) |
-| `api_calls` (dict list) | `call_site_objects` (typed `CallSite`) | 4A (parallel), 9 (full migration) |
-| `return_sources` (single value) | `SourceSet` + CallGraph | 5, 7A |
-| `call_sites`/`function_params` (ad-hoc param tracing) | CallGraph propagation | 7A |
-| `_base_top_source()` classification | `ClassificationPipeline` | 8B |
-| Instance attr propagation (`instance_attrs`) | 7B class/instance method resolution | 7B |
-| Legacy `--json` (dataclass dump) | `--json` (full provenance, 1.0.4+) | 4D (see output-contract.md) |
+| Surface | Current Status | Notes |
+|---------|---------------|-------|
+| `SymbolTable.direct` | Still used as module-level fallback | Scope model writes to `Scope.bindings`; `direct` is compat bridge |
+| `api_calls` (dict list) | Still the primary single-file output | Typed `CallSite` collected in parallel |
+| `return_sources` (SourceSet) | Upgraded to `SourceSet` + CallGraph | Phase 5 / 7B-full complete |
+| `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Phase 8B complete |
+| Instance attr propagation | 7B-lite constructor arg tracking | Full class-aware receiver resolution deferred |
+| `--json` (dataclass dump) | Replaced by full provenance schema | 1.0.4+ default |
 
 ## Known Patch Zones
 

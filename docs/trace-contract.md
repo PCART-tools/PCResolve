@@ -11,7 +11,7 @@ These are distinct responsibilities with different stability guarantees.
 ```
 Source IR (single_file.py)
   → TraceResult (cross_file.py: trace_symbol)
-  → Classification (classifier.py, future Phase 8B)
+  → Classification (classification.py: ClassificationPipeline)
   → ApiCall / SymbolProvenance (cross_file.py)
 ```
 
@@ -19,26 +19,27 @@ Source IR (single_file.py)
 
 1. Given a symbol or call expression, produce an ordered chain of source references from the definition site to the ultimate origin.
 2. Report when the trace is incomplete (e.g., recursion limit, unresolvable structured source).
-3. Provide all candidate origins when the trace splits (via `SourceSet`, Phase 5).
+3. Provide all candidate origins when the trace splits (via `SourceSet`).
 4. Never assign a `top_library` directly — that is the classifier's job.
 
 ### Classify Responsibilities
 
-1. Given a `TraceResult`, determine the `top_library` using a priority-ordered rule pipeline.
+1. Given a `TraceResult`, determine the `top_library` using `ClassificationPipeline.classify()`.
 2. Assign `reason`, `confidence`, and `alternatives`.
 3. Handle ambiguous cases (multiple candidates, local + third-party mixed) explicitly.
 4. Unresolved cases produce `library = "unknown"` with `reason = "UNRESOLVED"`.
 
-## Current State (Pre-Phase 8B)
+## Current State (1.0.4)
 
-In the current implementation, trace and classify are **coupled** in several places:
+`classify_source()` in `cross_file.py` delegates to `ClassificationPipeline.classify()`
+in `classification.py`, which applies priority-ordered rules:
 
-| Location | Mixed Concern |
-|----------|--------------|
-| `extract_final_source()` (cross_file.py) | Walks chain reverse, checks `is_local`, returns `"python"` for builtins — classification inline with trace |
-| `_base_top_source()` (cross_file.py) | Resolves structured sources and determines `top` — classification inline with resolution |
-| `get_calls()` (cross_file.py) | Checks `top == 'local'` and re-resolves — classification inline with call collection |
-| `_one_api_call()` (single_file.py) | Sets `top` directly from `trace_source` results — classification in AST visitor |
+| Location | Role |
+|----------|------|
+| `extract_final_source()` (cross_file.py) | Walks chain reverse, returns ultimate source string |
+| `_base_top_source()` (cross_file.py) | Resolves structured sources, delegates to `_top_source()` |
+| `get_calls()` (cross_file.py) | Collects and classifies every API call through the pipeline |
+| `ClassificationPipeline.classify()` (classification.py) | Priority-ordered reason, confidence, alternatives assignment |
 
 ## TraceResult Fields
 
@@ -50,7 +51,7 @@ In the current implementation, trace and classify are **coupled** in several pla
 | `complete` | Trace outcome | Whether trace reached a terminal without errors |
 | `diagnostics` | Trace errors | Recursion limit, cycle detection, etc. |
 
-## Classification Pipeline (Phase 8A/8B)
+## Classification Pipeline (Phase 8A/8B — implemented in 1.0.4)
 
 Rule priority order:
 
