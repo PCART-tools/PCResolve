@@ -224,6 +224,26 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
+    def _expand_project_dirs(root_paths):
+        """Recursively expand directories that contain only subdirectories
+        (no .py files) down to actual project roots.  This ensures nested
+        fixtures like simulation/ex_4_2 are analysed at the correct root
+        regardless of the entry-point depth."""
+        expanded = []
+        for p in root_paths:
+            if not os.path.isdir(p):
+                expanded.append(p)
+                continue
+            subdirs = [os.path.join(p, d) for d in os.listdir(p)
+                       if os.path.isdir(os.path.join(p, d))]
+            py_files = [f for f in os.listdir(p) if f.endswith('.py')
+                        and os.path.isfile(os.path.join(p, f))]
+            if subdirs and not py_files:
+                expanded.extend(_expand_project_dirs(sorted(subdirs)))
+            else:
+                expanded.append(p)
+        return expanded
+
     paths = []
     missing = []
     for arg in sys.argv[1:]:
@@ -231,17 +251,8 @@ def main():
             print("Not found: %s" % arg, file=sys.stderr)
             missing.append(arg)
             continue
-        # If a directory contains subdirectories each with .py files,
-        # treat them as individual projects.
         if os.path.isdir(arg):
-            subdirs = [os.path.join(arg, d) for d in os.listdir(arg)
-                       if os.path.isdir(os.path.join(arg, d))]
-            py_files = [f for f in os.listdir(arg) if f.endswith('.py')
-                        and os.path.isfile(os.path.join(arg, f))]
-            if subdirs and not py_files:
-                paths.extend(sorted(subdirs))
-            else:
-                paths.append(arg)
+            paths.extend(_expand_project_dirs([arg]))
         else:
             paths.append(arg)
 
