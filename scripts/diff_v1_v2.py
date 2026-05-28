@@ -274,13 +274,12 @@ def main():
         total_taxonomy["tp_to_local"] + total_taxonomy["tp_to_unknown"]))
     print("      third-party -> local:   %d" % total_taxonomy["tp_to_local"])
     print("      third-party -> unknown: %d" % total_taxonomy["tp_to_unknown"])
-    print("    local_precision_change: %d" % (
-        total_taxonomy["local_to_unknown"] + total_taxonomy["local_to_python"] +
-        total_taxonomy["local_to_third_party"]))
-    print("      local -> unknown:      %d" % total_taxonomy["local_to_unknown"])
-    print("      local -> python:       %d" % total_taxonomy["local_to_python"])
-    print("      local -> third-party:  %d" % total_taxonomy["local_to_third_party"])
+    if total_taxonomy["local_to_unknown"]:
+        print("    local -> unknown:        %d" % total_taxonomy["local_to_unknown"])
     print("  TOTAL improvements: %d" % total_improvements)
+    print("    local -> third-party:  %d" % total_taxonomy["local_to_third_party"])
+    if total_taxonomy["local_to_python"]:
+        print("    local -> python:       %d" % total_taxonomy["local_to_python"])
     print("  TOTAL precision changes: %d" % total_precision)
     print("  TOTAL illegal keys: %d" % total_illegal)
 
