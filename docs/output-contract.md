@@ -1,134 +1,101 @@
-# PCResolve Output Contract
+# PCResolve 1.0.4 Output Contract
 
-## Output Profiles
+PCResolve 1.0.4 is the first stable provenance contract release.
+JSON outputs before 1.0.4 are experimental and not guaranteed
+compatible.
 
-| Profile | Flag | Audience | Stability | Volume |
-|---------|------|----------|-----------|--------|
-| `summary` | `--json-summary` | CI, scripts, dashboards | **Stable public contract** | Small |
-| `full` | `--json-full` / `--json-stable` | Debugging, golden regression | Additive internal contract | Large |
-| `legacy` | `--json` | Backward compatibility | Compatibility mode | Large |
-| `explain` | `--explain-library/symbol/call` | Human troubleshooting | Text format, not parse-stable | Small |
+## CLI
 
-## Schema Version
+```bash
+pcresolve project                  # human summary (v2 default)
+pcresolve project --json           # full provenance JSON
+pcresolve project --json-summary   # compact summary JSON (CI)
+pcresolve project --explain-library numpy
+pcresolve project --explain-symbol x
+pcresolve project --explain-call "np.array"
+```
 
-- `schema_version` is `"1.0"` for all profiles.
-- Adding optional fields does not increment the version.
-- Removing, renaming, or changing field types/semantics requires a version bump.
-- Breaking changes to the summary profile must be documented.
+- `scope_model` defaults to `v2` (lexical scopes).
+- `--scope-model v1` is still accepted for legacy compatibility.
+- `--json` is the primary machine-consumption format.
+- `--json-full` and `--json-stable` are hidden aliases for `--json`.
+- `--json-summary` is the recommended CI format.
 
-## Path Convention
+## Full provenance JSON (`--json`)
 
-- All paths in `summary`, `full`, and `json-stable` are relative POSIX.
-- Paths outside `project_root` use `<external>/...` prefix.
-- Windows `\` is normalised to `/`.
+```json
+{
+  "schema_version": "1.0",
+  "profile": "full",
+  "project_root": ".",
+  "stats": {},
+  "diagnostics": [],
+  "files": [],
+  "all_api_calls": [],
+  "all_symbol_provenance": [],
+  "library_usage": {}
+}
+```
 
-## Sort Order
+### `all_api_calls[*]` stable fields
 
-| Field | Sort |
-|-------|------|
-| Libraries | Library name, ascending |
-| Files | Relative path, ascending |
-| API calls | File path, line, column, expression |
-| Symbol provenance | File path, line, column, symbol, kind |
-| Diagnostics | File path, line, column |
+| Field | Type | Description |
+|-------|------|-------------|
+| `expression` | string | Full call expression text |
+| `func_name` | string | Function name without arguments |
+| `parameters` | string | Argument text |
+| `top_library` | string | Resolved top-level library |
+| `reason` | string | DIRECT_IMPORT, RETURN_PROPAGATION, FLOW_MERGE, ... |
+| `confidence` | float | 0.0–1.0 |
+| `alternatives` | list | Alternative top libraries |
+| `decorated_by` | list | Decorator library evidence |
+| `file_path` | string | Relative POSIX path from project_root |
+| `lineno` | int | |
+| `col_offset` | int | |
+| `end_lineno` | int | |
+| `end_col_offset` | int | |
+| `chain` | list | Trace chain |
+| `resolved_func` | string | Fully qualified function path |
+| `resolved_chain` | list | Resolved trace chain |
 
-## Null / Empty Convention
-
-- No diagnostics: `[]`
-- No library usage: `{}`
-- No evidence confidence: `0.0` / `0.0`
-
-## Summary Profile Fields
+## Summary JSON (`--json-summary`)
 
 ```json
 {
   "schema_version": "1.0",
   "profile": "summary",
   "project_root": ".",
-  "stats": {
-    "total_modules": 12,
-    "parsed_modules": 12,
-    "skipped_modules": 0,
-    "scope_model": "v1",
-    "api_call_count": 84,
-    "library_count": 5,
-    "diagnostic_error_count": 0,
-    "diagnostic_warning_count": 0
-  },
+  "stats": {},
   "diagnostics": [],
-  "libraries": {
-    "requests": {
-      "api_call_count": 18,
-      "symbol_count": 6,
-      "file_count": 3,
-      "files": ["api/client.py", "services/http.py"],
-      "imports": ["requests"],
-      "kind_counts": {"import": 1, "variable": 4},
-      "min_confidence": 1.0,
-      "max_confidence": 1.0
-    }
-  }
+  "libraries": {}
 }
 ```
 
-## Exit Codes
+Summary excludes `all_api_calls`, `all_symbol_provenance`,
+and per-file `symbols`/`chains`.
 
-| Code | Meaning |
-|------|---------|
-| 0 | Analysis complete, no blocking issues |
-| 1 | CLI argument error, path error, or `--strict` with error diagnostics |
-| 2 | (Reserved) Internal analyser exception |
-| 3 | (Reserved) Policy gate failure |
+## Path normalization
 
-## ApiCall Fields (Full Profile)
+All paths use POSIX separators (`/`) relative to `project_root`.
+External paths use the `<external>/...` prefix.
 
-All fields are present in the `full` profile.  Summary profile includes only
-`top_library` and `reason_counts` aggregated per library.
+## Confidence rules
 
-| Field | Type | Default | Stability | Added |
-|-------|------|---------|-----------|-------|
-| `expression` | string | — | Stable | — |
-| `top_library` | string | — | Stable | — |
-| `base_symbol` | string | — | Stable | — |
-| `chain` | list | — | Stable | — |
-| `file_path` | string | `""` | Stable | — |
-| `lineno` | int | `0` | Stable | — |
-| `col_offset` | int | `0` | Stable | — |
-| `end_lineno` | int | `0` | Stable | — |
-| `end_col_offset` | int | `0` | Stable | — |
-| `func_name` | string | `""` | Stable | — |
-| `parameters` | string | `""` | Stable | — |
-| `resolved_func` | string | `""` | Stable | — |
-| `resolved_chain` | list | `[]` | Stable | — |
-| `reason` | string | `""` | Stable | Phase 8A |
-| `confidence` | float | `1.0` | Stable | Phase 8A |
-| `alternatives` | list | `[]` | Stable | Phase 8A |
-| `decorated_by` | list | `[]` | Additive | Phase 8C+ |
+| Reason | Confidence |
+|--------|-----------|
+| DIRECT_IMPORT | 1.0 |
+| LOCAL_DEFINITION | 1.0 |
+| BUILTIN | 1.0 |
+| PARAMETER_PROPAGATION | 0.9 |
+| RETURN_PROPAGATION | 0.9 |
+| TRANSITIVE_IMPORT | 0.9 |
+| FLOW_MERGE (single) | 0.85 |
+| FLOW_MERGE (N alts) | max(1/N, 0.2) |
+| UNRESOLVED | 0.0 |
 
-### `ApiCall.decorated_by` Field Contract
+## Breaking changes (1.0.4)
 
-- **Type**: `list[str]`, default `[]`
-- **Stability**: field presence and `list[str]` type are stable.  Analysis
-  precision improvements may add, remove, or correct evidence entries.
-  Summary/profile schema breaking changes require a version bump.
-- **Null/empty**: `[]` means "no decorator evidence found on this call".
-  May be a false negative for method calls (`obj.method()`) until Phase 7B.
-- **Values**: only import-backed library names.
-  `"local"`, `"python"`, `"unknown"` are excluded.
-- **Matching**: exact match on `(file_path, scope_name, func_name)` where
-  `func_name` is the API call's bare function name (e.g. `"index"` for
-  `index()`) and `scope_name` disambiguates nested functions from
-  module-level calls.  Method calls (`c.method()`) currently return `[]`
-  — class resolution needed (Phase 7B).
-
-### SymbolProvenance `kind="decorated_by"`
-
-SymbolProvenance records with `kind="decorated_by"` carry:
-
-| Field | Value |
-|-------|-------|
-| `symbol` | Decorated function/class name |
-| `kind` | `"decorated_by"` |
-| `top_library` | Library providing the decorator (or `"local"`) |
-| `scope_name` | Class name for methods, empty for module-level functions |
-| `chain` | Trace chain from decorator expression to library |
+- Default `scope_model`: `v1` → `v2`.
+- `--json`: legacy dataclass dump → full provenance schema.
+- `--json-stable`: deprecated, hidden.
+- Pre-1.0.4 JSON: experimental, no compatibility guarantee.

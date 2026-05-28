@@ -1,6 +1,14 @@
-# PCResolve — Python API Call Chain Tracing
+# PCResolve — Python Third-Party Library Usage Provenance Analyzer
 
-Static analysis tool that traces every API call in a Python project back to its origin library (e.g. `requests`, `numpy`, `flask`). Each call is classified by **definition origin** (not data flow): a locally defined function is `local` even if it internally calls third-party APIs. Other classifications include `python` for builtins and the top-level library name for third-party / stdlib calls. When container iteration produces ambiguous candidates, the result is a merged label like `[requests,numpy]`.
+Static analysis tool for Python projects. Answers:
+*what third-party libraries does this project use, through which
+symbols, call chains, return values, and container propagation paths?*
+
+Two core provenance objects:
+- **API call provenance** — every call expression classified as
+  `local`, `python`, or a specific top-level library.
+- **Symbol provenance** — variables, return values, class instances,
+  attributes, container elements traced to their origin libraries.
 
 [![PyPI](https://img.shields.io/pypi/v/pcresolve)](https://pypi.org/project/pcresolve/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -8,120 +16,97 @@ Static analysis tool that traces every API call in a Python project back to its 
 ## Installation
 
 ```bash
-pip install pcresolve
+pip install pcresolve        # >= 1.0.4
 ```
 
-For development:
+Zero third-party dependencies — Python 3.9+ standard library only.
 
-```bash
-pip install -e .
-```
-
-No third-party dependencies — pcresolve uses only the Python standard library (`ast`, `os`, `sys`, `builtins`, `copy`, `typing`).
-
-Requires Python 3.9+.
-
-## Quick Start
+## Quick Start (1.0.4)
 
 ### CLI
 
 ```bash
-# Human-readable output
-pcresolve /path/to/project
-
-# JSON output
-pcresolve --json /path/to/project
-
-# Or as a module
-python -m pcresolve /path/to/project
+pcresolve /path/to/project                         # human summary (v2 default)
+pcresolve /path/to/project --json                  # full provenance JSON
+pcresolve /path/to/project --json-summary          # compact CI summary
+pcresolve /path/to/project --explain-library numpy
+pcresolve /path/to/project --explain-call "np.array"
+pcresolve /path/to/project --scope-model v1        # legacy mode
 ```
 
 ### Library API
 
 ```python
-from pcresolve import analyze_project, analyze_source
+from pcresolve import analyze_project
 
-# Analyze an entire project
 result = analyze_project("/path/to/project")
 for call in result.all_api_calls:
     print(f"{call.expression} -> {call.top_library}")
-
-# Analyze a single source string
-code = '''
-import requests
-resp = requests.get("https://example.com")
-'''
-result = analyze_source(code, file_path="example.py")
-for sym, top in result.symbols.items():
-    print(f"{sym} -> {top}")
+    print(f"  reason={call.reason} confidence={call.confidence}")
+    print(f"  alternatives={call.alternatives}")
 ```
 
-## Public API
+### JSON Output (`--json`)
 
-| Name | Description |
-|------|-------------|
-| `analyze_project(root)` | Full project analysis, returns `ProjectAnalysis` |
-| `analyze_source(code)` | Single-file analysis, returns `FileAnalysis` |
-| `scan_directory(root)` | Discover .py/.pyi files, returns `list[str]` |
-| `ProjectAnalyzer(root)` | Orchestrator class (step-by-step control) |
-| `SingleFileAnalyzer()` | AST visitor class for one file |
-| `ModuleMapper(root)` | File-path to module-name bidirectional mapping |
-| `SymbolTable()` | Per-symbol chain tracking |
-| `FileScanner()` | File system scanner |
-
-## Output Types
-
-```python
-@dataclass
-class ApiCall:
-    expression: str       # "requests.get('url')"
-    top_library: str      # "requests", "python", "local"
-    base_symbol: str      # Root symbol name
-    chain: list           # Resolution chain
-
-@dataclass
-class FileAnalysis:
-    file_path: str
-    module_name: str
-    symbols: dict         # symbol -> top-level source
-    chains: dict          # symbol -> resolution chain
-    api_calls: list
-
-@dataclass
-class ProjectAnalysis:
-    project_root: str
-    files: list
-    all_api_calls: list
+```json
+{
+  "schema_version": "1.0",
+  "profile": "full",
+  "all_api_calls": [{
+    "expression": "np.array([1,2,3])",
+    "top_library": "numpy",
+    "reason": "DIRECT_IMPORT",
+    "confidence": 1.0,
+    "alternatives": [],
+    "decorated_by": [],
+    "file_path": "main.py",
+    "lineno": 4
+  }],
+  "all_symbol_provenance": [],
+  "library_usage": {}
+}
 ```
+
+## PCART Integration
+
+```
+确定纳入:  call.top_library == target_library
+候选纳入:  target_library in call.alternatives
+          target_library in call.decorated_by
+排除:     call.top_library in (local, python, unknown)
+          AND target_library not in alternatives/decorated_by
+```
+
+See `docs/pcart-integration.md` for details.
 
 ## Supported Patterns
 
-- Direct import + direct call
-- `from/as` import + alias call
-- Variable binding / container storage (dict, list, tuple, set)
+- Direct import / `from`/`as` / alias calls
+- Variable binding, container storage (dict, list, tuple, set)
 - `partial` / lambda wrappers
-- Class encapsulation & inheritance
-- Cross-file shared third-party instances
-- Decorator pattern
-- Context managers / protocols (`with`, `async with`)
-- Chained calls / fluent API
-- `getattr` / `importlib.import_module` dynamic calls
-- `for` loop container iteration (with merged ambiguous candidates)
-- Tuple unpacking (e.g., `a, b = connect()`)
-- List / set / dict comprehension
-- BinOp receiver method calls (e.g., `(a - b).method()`)
-- Broken attribute chains across `Call` nodes (e.g., `.last().dt.days()`)
-- Self-referencing variable reassignment (e.g., `df = df.dropna()`)
-- `async def` / `async for` support
-- Wildcard import from local modules
+- Class encapsulation, constructor arg → `self.attr` propagation
+- Decorator provenance (`decorated_by` evidence, target stays `local`)
+- Context managers (`with`, `async with`)
+- Chained calls / fluent API, `getattr` / `import_module`
+- Container iteration with merged alternatives
+- Multi-return tracking with SourceSet alternatives
+- Cross-file symbol propagation, wildcard import, re-export
+
+## Breaking Changes (1.0.4)
+
+- **Default scope model**: `v1` → `v2` (lexical scopes).
+- **`--json` output**: legacy dataclass dump → full provenance schema
+  with `profile`, `reason`, `confidence`, `alternatives`, `decorated_by`.
+- **Pre-1.0.4 JSON**: experimental, no backward compatibility guarantee.
+- Use `--scope-model v1` for legacy behavior.
 
 ## Known Limitations
 
-- **`partial` alias**: `a = partial; a(requests.get, ...)` resolves to `functools` instead of `requests`. The static analysis only recognizes direct `partial(...)` calls, not aliases to `partial`.
-- **Multiple inheritance method attribution**: When a class inherits from multiple bases, method resolution stops at the first base that traces to an external library. A locally defined method may be misattributed if an external base class appears earlier in the MRO.
-- **Container iteration in single-file mode**: `for f in {requests.get, np.sum}: f(...)` produces an unresolved structured tuple in `SingleFileAnalyzer`. Full resolution to a merged candidate like `[requests,numpy]` happens only in the cross-file stage.
-- **Dynamic `import_module` with variables**: `importlib.import_module(name)` only resolves when `name` is a string literal. Variable arguments produce an unresolved result.
-- **Multiple return values**: When a function has multiple `return` statements, only the first encountered return value is recorded. Later branches (e.g., `else` paths) are not tracked.
+- Multiple return paths with different third-party libraries produce
+  conservative primary (`local`) with complete alternatives.
+- Dynamic `import_module(name)` only resolves string-literal names.
+- `@classmethod` / `@staticmethod` / descriptor / property resolution
+  is deferred to future releases.
 
 ## Running Tests
 
