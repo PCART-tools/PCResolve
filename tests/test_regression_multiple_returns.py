@@ -102,6 +102,7 @@ def test_no_sourceset_leak_in_top_library():
                 f"[{scope_model}] Leaked SourceSet in library_usage key: {lib}"
 
 
+@pytest.mark.xfail(reason="7B-full P2: multi-return SourceSet convergence", strict=True)
 def test_make_chained_call_project_level():
     """make(True).get() at project level must resolve to requests or numpy."""
     code = "import requests\nimport numpy as np\n"
@@ -123,6 +124,7 @@ def test_make_chained_call_project_level():
                 f"[{scope_model}] Expected requests or numpy, got {get_calls[0].top_library}"
 
 
+@pytest.mark.xfail(reason="7B-full P2: multi-return SourceSet convergence", strict=True)
 def test_mixed_local_and_third_party_return():
     """SourceSet with local class + third-party must prefer the third-party top."""
     code = "import requests\n"

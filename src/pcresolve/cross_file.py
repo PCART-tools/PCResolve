@@ -1125,29 +1125,60 @@ class ProjectAnalyzer:
     #  @param direct_source The structured tuple (kind, arg1, arg2).
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return (display_name, src_module, src_symbol) tuple, or None.
+
+    ## Resolve a single source to its top-library candidate (7B-full PR7-final).
+    def _source_to_top_candidate(self, module, source, tracers):
+        source = normalize_source(source)
+        if isinstance(source, str):
+            cg = self._lookup_cg_return_source(module, source)
+            if cg:
+                return self._top_source(module, cg, tracers) or cg
+            return self._top_source(module, source, tracers)
+        if isinstance(source, CallResult) and isinstance(source.callee, str):
+            cg = self._lookup_cg_return_source(module, source.callee)
+            if cg:
+                return self._top_source(module, cg, tracers) or cg
+            return self._top_source(module, source.callee, tracers)
+        if is_structured_source(source):
+            resolved = self._resolve_structured_source(module, source, tracers)
+            if resolved:
+                _, src_module, src_symbol = resolved
+                return self._top_source(src_module, src_symbol, tracers)
+        return None
+
+    ## Resolve a SourceSet to a primary top library if all candidates converge.
+    def _resolve_sourceset_primary(self, module, sourceset, tracers):
+        tops = []
+        has_local_or_unknown = False
+        for src in sourceset.sources:
+            top = self._source_to_top_candidate(module, src, tracers)
+            if top in ("", None, "unknown", "local", "python"):
+                has_local_or_unknown = True
+                continue
+            tops.append(top)
+        unique = self._dedupe_list(tops)
+        if len(unique) == 1 and not has_local_or_unknown:
+            return unique[0]
+        return None
+
     # ── structured source resolution ─────────────────────────────────────
 
     def _resolve_structured_source(self, module, direct_source, tracers):
         direct_source = normalize_source(direct_source)
         if isinstance(direct_source, SourceSet):
+            ## 7B-full PR7-final: converge-check all candidates.
+            primary = self._resolve_sourceset_primary(module, direct_source, tracers)
+            if primary:
+                return (source_display(direct_source), module, primary)
+            ## No convergence: fall back to str pick-first (branch imports).
             for src in direct_source.sources:
                 if isinstance(src, str):
                     top = self._top_source(module, src, tracers)
                     if top and top not in ("local", "python", "unknown", ""):
                         return (source_display(direct_source), module, src)
-                else:
-                    resolved = self._resolve_structured_source(module, src, tracers)
-                    if resolved is not None:
-                        _, src_module, src_symbol = resolved
-                        top = self._top_source(src_module, src_symbol, tracers)
-                        if top and top not in ("local", "python", "unknown", ""):
-                            return resolved
             for src in direct_source.sources:
                 if isinstance(src, str):
                     return (source_display(direct_source), module, src)
-                resolved = self._resolve_structured_source(module, src, tracers)
-                if resolved is not None:
-                    return resolved
             return None
         callee_display = None
         if isinstance(direct_source, ContainerItem):
@@ -1261,24 +1292,10 @@ class ProjectAnalyzer:
             cr_lineno = getattr(direct_source, 'call_lineno', 0) or 0
             cr_col = getattr(direct_source, 'call_col_offset', 0) or 0
             if isinstance(callee, SourceSet):
-                for src in callee.sources:
-                    if isinstance(src, str):
-                        top = self._top_source(module, src, tracers)
-                        if top and top not in ("local", "python", "unknown", ""):
-                            return (f"{callee_display or callee}()", module, src)
-                ## 7B-full PR7: resolve str/CallResult sources via CG return lookup.
-                for src in callee.sources:
-                    if isinstance(src, str):
-                        cg_ret = self._lookup_cg_return_source(module, src)
-                        if cg_ret is not None:
-                            return (f"{callee_display or callee}()", module, cg_ret)
-                    elif isinstance(src, CallResult) and isinstance(src.callee, str):
-                        cg_ret = self._lookup_cg_return_source(module, src.callee)
-                        if cg_ret is not None:
-                            return (f"{callee_display or callee}()", module, cg_ret)
-                for src in callee.sources:
-                    if isinstance(src, str):
-                        return (f"{callee_display or callee}()", module, src)
+                primary = self._resolve_sourceset_primary(module, callee, tracers)
+                if primary:
+                    return (f"{callee_display or callee}()", module, primary)
+                return (f"{callee_display or callee}()", module, "local")
             gs = getattr(self, '_call_searched_global', None)
             if gs is not None:
                 if (module, callee) in gs:
