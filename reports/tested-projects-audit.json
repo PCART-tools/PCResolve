@@ -7,17 +7,17 @@
       "files_skipped": 0,
       "api_calls": 647,
       "libraries": 22,
-      "regressions": 20,
-      "improvements": 26,
+      "regressions": 21,
+      "improvements": 23,
       "precision": 0,
-      "tp_to_local": 7,
+      "tp_to_local": 8,
       "tp_to_unknown": 13,
       "local_to_unknown": 0,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.166,
-      "v2_runtime": 0.165,
+      "v1_runtime": 0.179,
+      "v2_runtime": 0.174,
       "libraries_list": [
         "AIBO",
         "Box2D",
@@ -43,17 +43,17 @@
         "time"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.333
+      "audit_runtime": 0.356
     },
     {
       "project": "Contrucao",
-      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/Contrucao",
+      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/Contrucao/Tf-IDF",
       "files_parsed": 1,
       "files_skipped": 0,
       "api_calls": 51,
       "libraries": 5,
       "regressions": 2,
-      "improvements": 3,
+      "improvements": 0,
       "precision": 0,
       "tp_to_local": 2,
       "tp_to_unknown": 0,
@@ -91,7 +91,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.002,
-      "v2_runtime": 0.001,
+      "v2_runtime": 0.002,
       "libraries_list": [
         "matplotlib",
         "numpy"
@@ -116,8 +116,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.013,
-      "v2_runtime": 0.013,
+      "v1_runtime": 0.014,
+      "v2_runtime": 0.014,
       "libraries_list": [
         "apgl",
         "networkx",
@@ -126,7 +126,7 @@
         "unittest"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.026
+      "audit_runtime": 0.028
     },
     {
       "project": "EJPLab",
@@ -145,7 +145,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.009,
-      "v2_runtime": 0.009,
+      "v2_runtime": 0.01,
       "libraries_list": [
         "datasets",
         "matplotlib",
@@ -162,7 +162,7 @@
         "transformers"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.018,
+      "audit_runtime": 0.019,
       "_score": 112
     },
     {
@@ -172,16 +172,16 @@
       "files_skipped": 0,
       "api_calls": 480,
       "libraries": 17,
-      "regressions": 18,
-      "improvements": 5,
+      "regressions": 14,
+      "improvements": 3,
       "precision": 10,
-      "tp_to_local": 13,
+      "tp_to_local": 8,
       "tp_to_unknown": 0,
-      "local_to_unknown": 5,
+      "local_to_unknown": 6,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.105,
+      "v1_runtime": 0.111,
       "v2_runtime": 0.097,
       "libraries_list": [
         "PIL",
@@ -203,7 +203,7 @@
         "xml"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.203
+      "audit_runtime": 0.21
     },
     {
       "project": "Python-Workshop",
@@ -213,7 +213,7 @@
       "api_calls": 172,
       "libraries": 4,
       "regressions": 0,
-      "improvements": 3,
+      "improvements": 0,
       "precision": 0,
       "tp_to_local": 0,
       "tp_to_unknown": 0,
@@ -221,8 +221,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.031,
-      "v2_runtime": 0.027,
+      "v1_runtime": 0.033,
+      "v2_runtime": 0.029,
       "libraries_list": [
         "matplotlib",
         "numpy",
@@ -230,7 +230,7 @@
         "sklearn"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.058
+      "audit_runtime": 0.062
     },
     {
       "project": "SDOML",
@@ -248,8 +248,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.019,
-      "v2_runtime": 0.019,
+      "v1_runtime": 0.02,
+      "v2_runtime": 0.02,
       "libraries_list": [
         "argparse",
         "matplotlib",
@@ -263,17 +263,17 @@
         "warnings"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.039
+      "audit_runtime": 0.04
     },
     {
       "project": "TSP",
-      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/TSP",
+      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/TSP/src",
       "files_parsed": 1,
       "files_skipped": 0,
       "api_calls": 22,
       "libraries": 4,
       "regressions": 0,
-      "improvements": 1,
+      "improvements": 0,
       "precision": 0,
       "tp_to_local": 0,
       "tp_to_unknown": 0,
@@ -301,7 +301,7 @@
       "api_calls": 104,
       "libraries": 12,
       "regressions": 2,
-      "improvements": 2,
+      "improvements": 1,
       "precision": 0,
       "tp_to_local": 0,
       "tp_to_unknown": 2,
@@ -310,7 +310,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.015,
-      "v2_runtime": 0.014,
+      "v2_runtime": 0.015,
       "libraries_list": [
         "collections",
         "gensim",
@@ -326,7 +326,7 @@
         "time"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.029
+      "audit_runtime": 0.031
     },
     {
       "project": "aiofiles1",
@@ -351,7 +351,7 @@
         "asyncio"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.002,
+      "audit_runtime": 0.003,
       "_score": 16
     },
     {
@@ -387,17 +387,17 @@
       "files_skipped": 0,
       "api_calls": 986,
       "libraries": 30,
-      "regressions": 80,
-      "improvements": 22,
-      "precision": 14,
+      "regressions": 79,
+      "improvements": 14,
+      "precision": 15,
       "tp_to_local": 69,
-      "tp_to_unknown": 6,
+      "tp_to_unknown": 5,
       "local_to_unknown": 5,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.342,
-      "v2_runtime": 0.269,
+      "v1_runtime": 0.358,
+      "v2_runtime": 0.284,
       "libraries_list": [
         "__future__",
         "argparse",
@@ -431,7 +431,7 @@
         "xml"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.614
+      "audit_runtime": 0.646
     },
     {
       "project": "click1",
@@ -514,17 +514,17 @@
       "files_skipped": 0,
       "api_calls": 89,
       "libraries": 9,
-      "regressions": 0,
-      "improvements": 1,
-      "precision": 3,
-      "tp_to_local": 0,
+      "regressions": 3,
+      "improvements": 0,
+      "precision": 0,
+      "tp_to_local": 3,
       "tp_to_unknown": 0,
       "local_to_unknown": 0,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.012,
-      "v2_runtime": 0.013,
+      "v1_runtime": 0.013,
+      "v2_runtime": 0.014,
       "libraries_list": [
         "datetime",
         "math",
@@ -537,7 +537,7 @@
         "time"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.026
+      "audit_runtime": 0.028
     },
     {
       "project": "django",
@@ -555,7 +555,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.009,
+      "v1_runtime": 0.01,
       "v2_runtime": 0.009,
       "libraries_list": [
         "itertools",
@@ -567,7 +567,7 @@
         "tornado"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.018
+      "audit_runtime": 0.019
     },
     {
       "project": "final",
@@ -585,8 +585,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.064,
-      "v2_runtime": 0.058,
+      "v1_runtime": 0.066,
+      "v2_runtime": 0.06,
       "libraries_list": [
         "math",
         "matplotlib",
@@ -599,7 +599,7 @@
         "warnings"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.123
+      "audit_runtime": 0.127
     },
     {
       "project": "flask1",
@@ -623,7 +623,7 @@
         "flask"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.003
+      "audit_runtime": 0.004
     },
     {
       "project": "flask2",
@@ -632,23 +632,23 @@
       "files_skipped": 0,
       "api_calls": 73,
       "libraries": 1,
-      "regressions": 1,
-      "improvements": 0,
+      "regressions": 0,
+      "improvements": 10,
       "precision": 0,
-      "tp_to_local": 1,
+      "tp_to_local": 0,
       "tp_to_unknown": 0,
       "local_to_unknown": 0,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.014,
-      "v2_runtime": 0.014,
+      "v1_runtime": 0.015,
+      "v2_runtime": 0.016,
       "libraries_list": [
         "flask"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.028,
-      "_score": 76
+      "audit_runtime": 0.031,
+      "_score": 78
     },
     {
       "project": "fuel_forecast_explorer",
@@ -667,7 +667,7 @@
       "error": null,
       "error_type": null,
       "v1_runtime": 0.004,
-      "v2_runtime": 0.004,
+      "v2_runtime": 0.005,
       "libraries_list": [
         "numpy",
         "pandas"
@@ -731,14 +731,14 @@
       "_score": 20
     },
     {
-      "project": "giantpopflucts",
-      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/giantpopflucts",
+      "project": "barcoded_yeast_reanalysis",
+      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",
       "files_parsed": 9,
       "files_skipped": 0,
       "api_calls": 328,
       "libraries": 11,
       "regressions": 2,
-      "improvements": 6,
+      "improvements": 0,
       "precision": 0,
       "tp_to_local": 2,
       "tp_to_unknown": 0,
@@ -746,8 +746,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.056,
-      "v2_runtime": 0.059,
+      "v1_runtime": 0.058,
+      "v2_runtime": 0.06,
       "libraries_list": [
         "copy",
         "itertools",
@@ -762,7 +762,7 @@
         "sys"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.116
+      "audit_runtime": 0.12
     },
     {
       "project": "gistable",
@@ -780,7 +780,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.003,
+      "v1_runtime": 0.004,
       "v2_runtime": 0.003,
       "libraries_list": [
         "matplotlib",
@@ -807,8 +807,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.074,
-      "v2_runtime": 0.067,
+      "v1_runtime": 0.081,
+      "v2_runtime": 0.07,
       "libraries_list": [
         "argparse",
         "com",
@@ -825,7 +825,7 @@
         "tqdm"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.142
+      "audit_runtime": 0.153
     },
     {
       "project": "hfhd",
@@ -834,17 +834,17 @@
       "files_skipped": 0,
       "api_calls": 444,
       "libraries": 7,
-      "regressions": 4,
-      "improvements": 20,
-      "precision": 1,
+      "regressions": 6,
+      "improvements": 16,
+      "precision": 0,
       "tp_to_local": 4,
       "tp_to_unknown": 0,
-      "local_to_unknown": 0,
+      "local_to_unknown": 2,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.097,
-      "v2_runtime": 0.095,
+      "v1_runtime": 0.104,
+      "v2_runtime": 0.099,
       "libraries_list": [
         "datetime",
         "matplotlib",
@@ -855,7 +855,7 @@
         "warnings"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.194
+      "audit_runtime": 0.205
     },
     {
       "project": "machine-learning",
@@ -873,7 +873,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.006,
+      "v1_runtime": 0.007,
       "v2_runtime": 0.007,
       "libraries_list": [
         "matplotlib",
@@ -881,7 +881,7 @@
         "scipy"
       ],
       "has_baseline": false,
-      "audit_runtime": 0.013,
+      "audit_runtime": 0.014,
       "_score": 58
     },
     {
@@ -942,17 +942,17 @@
       "files_skipped": 0,
       "api_calls": 421,
       "libraries": 16,
-      "regressions": 5,
-      "improvements": 17,
-      "precision": 1,
-      "tp_to_local": 0,
+      "regressions": 6,
+      "improvements": 15,
+      "precision": 0,
+      "tp_to_local": 1,
       "tp_to_unknown": 1,
       "local_to_unknown": 4,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.112,
-      "v2_runtime": 0.099,
+      "v1_runtime": 0.116,
+      "v2_runtime": 0.103,
       "libraries_list": [
         "GPy",
         "copy",
@@ -972,7 +972,7 @@
         "xgboost"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.212
+      "audit_runtime": 0.221
     },
     {
       "project": "political-polarisation",
@@ -984,8 +984,8 @@
       "regressions": 12,
       "improvements": 2,
       "precision": 0,
-      "tp_to_local": 11,
-      "tp_to_unknown": 1,
+      "tp_to_local": 10,
+      "tp_to_unknown": 2,
       "local_to_unknown": 0,
       "illegal_keys": 0,
       "error": null,
@@ -1001,7 +1001,7 @@
         "wordcloud"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.029
+      "audit_runtime": 0.03
     },
     {
       "project": "psycopg2",
@@ -1044,8 +1044,8 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.014,
-      "v2_runtime": 0.014,
+      "v1_runtime": 0.015,
+      "v2_runtime": 0.015,
       "libraries_list": [
         "__future__",
         "matplotlib",
@@ -1053,7 +1053,7 @@
         "scipy"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.029
+      "audit_runtime": 0.03
     },
     {
       "project": "recommendation",
@@ -1063,7 +1063,7 @@
       "api_calls": 60,
       "libraries": 4,
       "regressions": 0,
-      "improvements": 2,
+      "improvements": 0,
       "precision": 0,
       "tp_to_local": 0,
       "tp_to_unknown": 0,
@@ -1071,7 +1071,7 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.009,
+      "v1_runtime": 0.01,
       "v2_runtime": 0.01,
       "libraries_list": [
         "networkx",
@@ -1124,15 +1124,15 @@
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.023,
-      "v2_runtime": 0.02,
+      "v1_runtime": 0.024,
+      "v2_runtime": 0.022,
       "libraries_list": [
         "bs4",
         "pandas",
         "requests"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.043
+      "audit_runtime": 0.046
     },
     {
       "project": "sg-restart-regridder",
@@ -1162,23 +1162,23 @@
       "_score": 25
     },
     {
-      "project": "simulation",
-      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/simulation",
+      "project": "ex_4_2",
+      "path": "/home/nuaa/Projects/PCResolve/scripts/../tests/fixtures/tested_projects/simulation/ex_4_2",
       "files_parsed": 8,
       "files_skipped": 0,
       "api_calls": 207,
       "libraries": 8,
-      "regressions": 1,
+      "regressions": 0,
       "improvements": 0,
       "precision": 0,
       "tp_to_local": 0,
       "tp_to_unknown": 0,
-      "local_to_unknown": 1,
+      "local_to_unknown": 0,
       "illegal_keys": 0,
       "error": null,
       "error_type": null,
-      "v1_runtime": 0.05,
-      "v2_runtime": 0.043,
+      "v1_runtime": 0.053,
+      "v2_runtime": 0.045,
       "libraries_list": [
         "itertools",
         "matplotlib",
@@ -1190,7 +1190,7 @@
         "sys"
       ],
       "has_baseline": true,
-      "audit_runtime": 0.094
+      "audit_runtime": 0.098
     },
     {
       "project": "tensorflow1",
@@ -1249,8 +1249,8 @@
     "total_api_calls": 5708,
     "unique_libraries": 104,
     "total_regressions": 303,
-    "total_improvements": 143,
-    "total_precision": 29,
+    "total_improvements": 117,
+    "total_precision": 25,
     "total_illegal_keys": 0,
     "hard_baseline_count": 21,
     "candidate_count": 20
