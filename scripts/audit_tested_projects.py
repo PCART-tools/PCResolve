@@ -29,30 +29,35 @@ BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
 
 _HAS_SIGALRM = hasattr(signal, "SIGALRM")
 
-# Project path overrides for nested fixtures whose basename does not
-# match a top-level directory under tested_projects.
-_BASELINE_PATH_MAP = {
-    "barcoded_yeast_reanalysis": "giantpopflucts/barcoded_yeast_reanalysis",
-    "ex_4_2": "simulation/ex_4_2",
-}
-# Reverse mapping: top-level project dir -> baseline name
-_BASELINE_REVERSE_MAP = {
+# Maps top-level directory basename → baseline name for nested fixtures.
+_PROJECT_TO_BASELINE = {
     "giantpopflucts": "barcoded_yeast_reanalysis",
     "simulation": "ex_4_2",
 }
+def _expand_project_dirs(root_paths, logical_name=None):
+    """Recursively expand directories to actual project roots.
 
+    Directories that contain only subdirectories (no .py files) are
+    expanded to their children, carrying the logical_name through.
 
-def _resolve_baseline_project(name):
-    """Return the real project path for a baseline name, or None."""
-    direct = os.path.join(FIXTURE_DIR, name)
-    if os.path.isdir(direct):
-        return direct
-    sub_path = _BASELINE_PATH_MAP.get(name)
-    if sub_path:
-        resolved = os.path.join(FIXTURE_DIR, sub_path)
-        if os.path.isdir(resolved):
-            return resolved
-    return None
+    Returns a list of (project_path, logical_name) tuples.
+    """
+    expanded = []
+    for p in root_paths:
+        if not os.path.isdir(p):
+            expanded.append((p, logical_name or os.path.basename(p)))
+            continue
+        subdirs = [os.path.join(p, d) for d in os.listdir(p)
+                   if os.path.isdir(os.path.join(p, d))]
+        py_files = [f for f in os.listdir(p) if f.endswith('.py')
+                    and os.path.isfile(os.path.join(p, f))]
+        name = logical_name or os.path.basename(p)
+        if subdirs and not py_files:
+            expanded.extend(
+                _expand_project_dirs(sorted(subdirs), logical_name=name))
+        else:
+            expanded.append((p, name))
+    return expanded
 
 
 def _safe_print(*args, **kwargs):
@@ -133,9 +138,10 @@ def _run_analysis(project_path, scope_model, timeout_sec):
     return result, elapsed
 
 
-def audit_one(project_path, timeout_sec=60):
+def audit_one(project_entry, timeout_sec=60):
     """Run v1+v2 analysis on a single project and return audit record."""
-    name = os.path.basename(project_path)
+    project_path, logical_name = project_entry
+    name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
     record = {
         "project": name,
         "path": project_path,
@@ -158,10 +164,9 @@ def audit_one(project_path, timeout_sec=60):
         "has_baseline": False,
     }
 
-    # Resolve baseline status using the reverse path map for nested projects.
-    bl_name = _BASELINE_REVERSE_MAP.get(name, name)
+    # Baseline lookup: name is already normalized via _PROJECT_TO_BASELINE.
     record["has_baseline"] = os.path.exists(
-        os.path.join(BASELINE_DIR, bl_name + ".json"))
+        os.path.join(BASELINE_DIR, name + ".json"))
 
     # v1 analysis
     try:
@@ -284,12 +289,11 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Discover projects
-    projects = []
-    for entry in sorted(os.listdir(FIXTURE_DIR)):
-        proj_path = os.path.join(FIXTURE_DIR, entry)
-        if os.path.isdir(proj_path):
-            projects.append(proj_path)
+    # Discover projects using the same expand semantics as diff_v1_v2.
+    subdirs = [os.path.join(FIXTURE_DIR, d) for d in sorted(os.listdir(FIXTURE_DIR))
+               if os.path.isdir(os.path.join(FIXTURE_DIR, d))]
+    # FIXTURE_DIR itself does not carry logical_name.
+    projects = _expand_project_dirs(subdirs, logical_name=None)
 
     _safe_print("Auditing %d projects (timeout=%ds)..." % (len(projects), timeout))
     results = []
@@ -297,12 +301,13 @@ def main():
     crashes = 0
     illegal_projects = 0
 
-    for proj_path in projects:
-        name = os.path.basename(proj_path)
-        sys.stdout.write("  %-35s " % name)
+    for entry in projects:
+        project_path, logical_name = entry
+        name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
+        sys.stdout.write("  %-35s " % (name or os.path.basename(project_path)))
         sys.stdout.flush()
         t0 = time.perf_counter()
-        rec = audit_one(proj_path, timeout_sec=timeout)
+        rec = audit_one(entry, timeout_sec=timeout)
         elapsed = time.perf_counter() - t0
         rec["audit_runtime"] = round(elapsed, 3)
 

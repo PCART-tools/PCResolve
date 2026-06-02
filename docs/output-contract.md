@@ -59,6 +59,27 @@ pcresolve project --explain-call "np.array"
 | `resolved_func` | string | Fully qualified function path |
 | `resolved_chain` | list | Resolved trace chain |
 
+### `resolved_func` semantics
+
+`resolved_func` attempts to qualify the called function through
+its receiver's provenance. It is a best-effort display hint, not a
+guaranteed precise resolution:
+
+- **Constructor calls**: when PCResolve identifies the receiver class
+  via `import_from_symbols`, `resolved_func` includes the class path
+  (e.g. `requests.Session.get`, `flask.Flask.test_client`).
+- **Factory returns**: when the receiver traces through a local
+  function that returns a third-party object, the class info is
+  typically not preserved.  PCResolve may produce a library-level
+  function (e.g. `requests.get`) when the call path normalizes;
+  otherwise the original receiver expression is preserved while
+  `top_library` carries the ownership.
+- **Local / unknown**: stays as the original expression or `local`.
+- `resolved_func` must not be treated as an importable symbol; it
+  may not exist at that path in the library.
+
+`resolved_chain` is `[func_name, resolved_func, top_library]`.
+
 ## Summary JSON (`--json-summary`)
 
 ```json

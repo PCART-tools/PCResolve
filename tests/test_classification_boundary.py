@@ -697,8 +697,8 @@ def test_non_import_backed_receiver_stays_local():
 # ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
 
 
-def test_container_item_append_preserves_numpy_source():
-    """lst.append(arr[0]) with numpy-sourced item traces to numpy (7B-full PR4)."""
+def test_container_item_append_does_not_contaminate():
+    """lst.append(arr[0]): receiver is local list, not numpy call (1.0.5 P0)."""
     code = (
         "import numpy as np\n"
         "arr = np.array([1, 2, 3])\n"
@@ -709,8 +709,10 @@ def test_container_item_append_preserves_numpy_source():
     calls = [c for c in r.all_api_calls if "append" in c.expression]
     assert calls, "lst.append() not collected"
     for c in calls:
-        assert c.top_library == "numpy", \
-            f"append with numpy item should be numpy, got {c.top_library}"
+        assert c.top_library != "numpy", \
+            f"append on local list must not be numpy, got {c.top_library}"
+        assert c.top_library in ("local", "python", "unknown"), \
+            f"append on local list should be local/python/unknown, got {c.top_library}"
 
 
 def test_class_instance_method_not_confused_with_container():

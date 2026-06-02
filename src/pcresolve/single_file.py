@@ -29,6 +29,17 @@ def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .types import FileAnalysis, ApiCall
 
+# 1.0.5 P1: known conversion targets.  Method calls (to_numpy())
+# change the result type; bare attribute reads (values) also
+# change the result type.  Bare method references (df.to_numpy
+# without calling) are NOT conversions.
+_CONVERSION_METHOD_TARGETS = {
+    ("pandas", "to_numpy"): "numpy",
+}
+_CONVERSION_ATTRIBUTE_TARGETS = {
+    ("pandas", "values"): "numpy",
+}
+
 
 ## AST visitor that traces all symbols and API calls in a single Python file.
 #
@@ -867,8 +878,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if bases:
                         self.container_set_sources[container_name] = bases
 
-        ## Collect assignment target names keyed by RHS expression node id.
-        ## Only the top-level RHS call (not nested inner calls) consumes them.
+        ## Collect assignment target names and delegate to shared pipeline.
         targets = []
         for target in node.targets:
             if isinstance(target, ast.Name):
@@ -877,16 +887,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 for elt in target.elts:
                     if isinstance(elt, ast.Name):
                         targets.append(elt.id)
-        if targets and isinstance(node.value, ast.Call):
-            self._pending_call_targets_by_node[id(node.value)] = targets
-
-        right = self.trace_source(node.value)
-        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
-            func_full = self._attribute_name(node.value.func)
-            if func_full:
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        self.call_assign_funcs[target.id] = func_full
+        right = self._visit_assignment(node, targets)
         if right:
             right_norm = normalize_source(right)
             for target in node.targets:
@@ -934,7 +935,135 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
                             self._bind_target_name(elt.id, 'local', elt)
+        # 1.0.5 P0: generic_visit already called above, before target binding.
+
+    ## Check whether a call expression is a known library→library conversion.
+    #
+    #  Unwraps trailing attribute chains (e.g. data.to_numpy().T) to find
+    #  the inner conversion call, then looks up (source_library, method).
+    #  @param value_node The RHS expression node.
+    #  @return The conversion target library name, or None.
+    ## Resolve a receiver name to its top library (v2 scope-aware).
+    def _receiver_top(self, name):
+        top = self.symbols.get_top(name)
+        if top and top not in ("local", "python", "unknown", "", name):
+            return top
+        if self.scope_model == "v2":
+            binding = self.current_scope().lookup(name)
+            if binding is not None:
+                src = normalize_source(binding.source)
+                if isinstance(src, CallResult) and isinstance(src.callee, str):
+                    callee_top = self.symbols.get_top(src.callee)
+                    if callee_top and callee_top not in ("local", name):
+                        return callee_top
+                    # Follow return_sources through local functions
+                    rs = self.return_sources.get(src.callee)
+                    if rs is not None:
+                        rs = normalize_source(rs)
+                        sources = rs.sources if isinstance(rs, SourceSet) else [rs]
+                        for s in sources:
+                            s = normalize_source(s)
+                            if isinstance(s, CallResult) and isinstance(s.callee, str):
+                                callee_top = self.symbols.get_top(s.callee)
+                                if callee_top and callee_top not in ("local", name):
+                                    return callee_top
+        return top
+
+    def _resolve_conversion_target(self, value_node):
+        # Unwrap trailing attribute chain: data.to_numpy().T → data.to_numpy()
+        call_node = value_node
+        while isinstance(call_node, ast.Attribute) and isinstance(call_node.value, (ast.Call, ast.Attribute)):
+            call_node = call_node.value
+
+        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Attribute):
+            # Method call: data.to_numpy() → conversion if method in table.
+            method = call_node.func.attr
+            receiver = call_node.func.value
+            if isinstance(receiver, ast.Name):
+                receiver_top = self._receiver_top(receiver.id)
+                if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
+                    return _CONVERSION_METHOD_TARGETS.get((receiver_top, method))
+            return None
+
+        if isinstance(call_node, ast.Attribute):
+            # Bare attribute read: data.values → conversion if attr in table.
+            # Bare method references (data.to_numpy without call) are NOT
+            # conversions — saving a method object does not change the result type.
+            attr_name = call_node.attr
+            receiver = call_node.value
+            if isinstance(receiver, ast.Name):
+                receiver_top = self._receiver_top(receiver.id)
+                if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
+                    return _CONVERSION_ATTRIBUTE_TARGETS.get((receiver_top, attr_name))
+        return None
+
+    ## Shared assignment pipeline: pending targets, trace RHS, visit, call_assign_funcs.
+    #
+    #  @param node The Assign or AnnAssign AST node.
+    #  @param target_names Flat list of target name strings.
+    #  @return The traced RHS source (right-hand value).
+    def _visit_assignment(self, node, target_names):
+        if target_names and isinstance(node.value, ast.Call):
+            self._pending_call_targets_by_node[id(node.value)] = target_names
+
+        right = self.trace_source(node.value)
+        # 1.0.5 P1: if the RHS is a known conversion call
+        # (e.g. data.to_numpy()), override the bound source
+        # so subsequent calls on the target use the post-conversion
+        # library.  Also handles data.to_numpy().T chains.
+        conversion = self._resolve_conversion_target(node.value)
+        if conversion:
+            right = conversion
+        # 1.0.5 P0: visit RHS before binding targets
         self.generic_visit(node)
+        # 1.0.5 P0: call_assign_funcs after generic_visit
+        value_node = node.value
+        # Unwrap trailing attributes for call_assign_funcs:
+        # data = data.to_numpy().T  →  extract data.to_numpy
+        while isinstance(value_node, ast.Attribute):
+            value_node = value_node.value
+        if isinstance(value_node, ast.Call) and isinstance(value_node.func, ast.Attribute):
+            func_full = self._attribute_name(value_node.func)
+            if func_full:
+                for name in target_names:
+                    self.call_assign_funcs[name] = func_full
+        return right
+
+    ## Visit an AnnAssign node (x: T = expr) with RHS-before-target ordering.
+    #
+    #  Same contract as visit_Assign: visit the RHS value before binding
+    #  the target symbol so nested RHS calls use the pre-assignment state.
+    #  @param node The AnnAssign AST node.
+    def visit_AnnAssign(self, node):
+        if node.value is None:
+            return
+        targets = []
+        if isinstance(node.target, ast.Name):
+            targets.append(node.target.id)
+        elif isinstance(node.target, (ast.Tuple, ast.List)):
+            for elt in node.target.elts:
+                if isinstance(elt, ast.Name):
+                    targets.append(elt.id)
+        right = self._visit_assignment(node, targets)
+
+        if right:
+            right_norm = normalize_source(right)
+            if isinstance(node.target, ast.Name):
+                if isinstance(right, str) and right == node.target.id:
+                    pass  # skip self-assign
+                else:
+                    self._bind_target_name(node.target.id, right, node.target)
+            elif isinstance(node.target, (ast.Tuple, ast.List)):
+                for elt in node.target.elts:
+                    if isinstance(elt, ast.Name):
+                        self._bind_target_name(elt.id, right, elt)
+        else:
+            if isinstance(node.target, ast.Name):
+                self._bind_target_name(node.target.id, 'local', node.target)
+            elif isinstance(node.target, (ast.Tuple, ast.List)):
+                for elt in node.target.elts:
+                    if isinstance(elt, ast.Name):
+                        self._bind_target_name(elt.id, 'local', elt)
 
     ## --- API call detection ---
 
@@ -1057,6 +1186,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
             'scope_name': scope_name,
         }
+        # 1.0.5 P0: snapshot call_assign_funcs for dotted calls so
+        # cross-file _resolve_func_name reads the pre-assignment
+        # state, not the final map that may include later
+        # reassignments.
+        if func_name and '.' in func_name:
+            first = func_name.split('.')[0]
+            loc['call_assign_func'] = self.call_assign_funcs.get(first)
 
         if isinstance(base, CallResult):
             # Resolve top through the callee so s.get() shows 'requests'

@@ -98,7 +98,7 @@ by `ClassificationPipeline.classify()`.
 
 - Parameter propagation uses `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching for disambiguation. Multi-call-site scenarios may still produce merged alternatives.
 - `return_sources` uses `SourceSet` for multi-return paths; alternatives classification handles ambiguous cases.
-- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution uses `instance_attrs` and constructor call-site matching. Factory-returned instances require full return-object tracking (future work).
+- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution uses `instance_attrs` and constructor call-site matching. Factory-returned instances are supported in 1.0.5 P1 via `_resolve_receiver_object_top`; complex factories with branches or unresolved returns remain conservative.
 - `nonlocal` is first-edition no-crash only.
 
 ## Class and Instance Method Resolution
@@ -120,8 +120,10 @@ call-site facts, without a full class hierarchy graph.
 
 ### Conservative Boundaries
 
-- **Factory-returned instances**: `c = make(httpx.Client()); c.get(...)` →
-  `"local"`.  Requires full CallGraph / return-object tracking (future work).
+- **Factory-returned instances**: simple local factories that return a
+  third-party object (e.g. `def make(): return requests.Session()`) are
+  supported in 1.0.5 P1.  Complex factories with branches, mutation,
+  same-name method collisions, or unresolved returns remain conservative.
 - **Method name collision / override**: `return_sources` is keyed by bare
   method name (e.g. `"get"`).  Complex same-name methods, inheritance,
   and overrides need `Class.method` / `FunctionId(module, qualname)`
@@ -134,6 +136,9 @@ call-site facts, without a full class hierarchy graph.
 ```python
 import requests, httpx
 
+def make(client):
+    return client
+
 class Api:
     def __init__(self, session):
         self.session = session
@@ -142,11 +147,11 @@ class Api:
 
 a = Api(requests.Session())
 b = Api(httpx.Client())
-c = make(httpx.Client())          # factory — not supported in lite
+c = make(httpx.Client())          # factory return — supported in 1.0.5 P1
 
 a.get("x")   # → requests
 b.get("y")   # → httpx
-c.get("z")   # → local  (known limitation)
+c.get("z")   # → httpx  (1.0.5 P1: factory return tracing)
 ```
 
 ### Relationship to Decorator Provenance
