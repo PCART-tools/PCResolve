@@ -353,44 +353,10 @@ class ProjectAnalyzer:
                             record['confidence'] = cr.confidence
                             self.all_calls[module].append(record)
                             continue
-                    ## 7B-full PR4: arg-source provenance for container-mutating
-                    ## methods on container-literal receivers only.
-                    func_name = call_detail.get('func_name', '')
-                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
-                    is_container_method = any(
-                        func_name.endswith('.' + m) for m in container_methods)
-                    receiver = None
-                    if isinstance(base, InstanceMethod):
-                        receiver = base.receiver
-                    elif isinstance(base, str) and base != "local":
-                        receiver = base
-                    else:
-                        # Base is "local" (container literal) — extract from func_name.
-                        parts = func_name.rsplit('.', 1)
-                        if len(parts) == 2:
-                            receiver = parts[0]
-                    is_container = (
-                        is_container_method
-                        and isinstance(receiver, str)
-                        and self._is_container_receiver(tracer, receiver))
-                    arg_top = None
-                    if is_container:
-                        arg_src = self._lookup_cg_edge_arg_source(
-                            module,
-                            call_detail.get('lineno', 0),
-                            call_detail.get('col_offset', 0))
-                        if arg_src is not None:
-                            arg_top = self._top_source(module, arg_src, module_tracers)
-                    if arg_top is not None:
-                        record = dict(call_detail)
-                        record['top'] = arg_top
-                        cr = self.classify_source(
-                            base, arg_top, module, tracer, module_tracers)
-                        record['reason'] = cr.reason
-                        record['confidence'] = cr.confidence
-                        record['alternatives'] = cr.alternatives
-                        self.all_calls[module].append(record)
-                        continue
+                    # 1.0.5 P0: container methods on local/builtin receivers
+                    # must not inherit argument provenance as top_library.
+                    # Argument provenance belongs in SymbolProvenance, not
+                    # ApiCall.top_library.
                     record = dict(call_detail)
                     record['top'] = 'local'
                     cr = self.classify_source(
@@ -401,31 +367,6 @@ class ProjectAnalyzer:
                     self.all_calls[module].append(record)
                     continue
                 top_source = self._base_top_source(module, base, tracer, module_tracers)
-                ## 7B-full PR4: try arg-source provenance for container methods.
-                if top_source in ("local", "unknown", "") and not isinstance(base, str):
-                    func_name = call_detail.get('func_name', '')
-                    container_methods = ('append', 'extend', 'insert', 'add', 'update')
-                    is_container_method = any(
-                        func_name.endswith('.' + m) for m in container_methods)
-                    receiver = None
-                    if isinstance(base, InstanceMethod):
-                        receiver = base.receiver
-                    elif isinstance(base, str) and base != "local":
-                        receiver = base
-                    else:
-                        parts = func_name.rsplit('.', 1)
-                        if len(parts) == 2:
-                            receiver = parts[0]
-                    if (is_container_method and isinstance(receiver, str)
-                            and self._is_container_receiver(tracer, receiver)):
-                        arg_src = self._lookup_cg_edge_arg_source(
-                            module,
-                            call_detail.get('lineno', 0),
-                            call_detail.get('col_offset', 0))
-                        if arg_src is not None:
-                            arg_top = self._top_source(module, arg_src, module_tracers)
-                            if arg_top and arg_top not in ("local", "unknown", ""):
-                                top_source = arg_top
                 record = dict(call_detail)
                 record['top'] = top_source
                 cr = self.classify_source(
@@ -680,7 +621,15 @@ class ProjectAnalyzer:
             if not self.is_local(ifs_top):
                 replacement = ifs
         else:
-            caf = tracer.call_assign_funcs.get(first)
+            # 1.0.5 P0: prefer call-site snapshot (key present)
+            # over final tracer map so RHS sub-calls see
+            # pre-assignment state.  A snapshot of None means
+            # "not in call_assign_funcs at call time", which
+            # must not be replaced by a later assignment.
+            if 'call_assign_func' in call_dict:
+                caf = call_dict['call_assign_func']
+            else:
+                caf = tracer.call_assign_funcs.get(first)
             if caf and not caf.startswith(first + '.'):
                 resolved_callee = self._resolve_func_name({'func_name': caf}, module, tracer, _visited)
                 if resolved_callee and not resolved_callee.startswith('self.'):
@@ -722,6 +671,20 @@ class ProjectAnalyzer:
 
         if len(parts) == 1:
             return replacement
+
+        # 1.0.5 P1: if the call's base has a class.method form (e.g.
+        # InstanceMethod("Session","get")), resolve the class through
+        # import_from_symbols for a more precise resolved_func
+        # (e.g. requests.Session.get instead of requests.get).
+        base_raw = call_dict.get('base', '')
+        base_norm = normalize_source(base_raw)
+        if isinstance(base_norm, InstanceMethod):
+            receiver = base_norm.receiver
+            if isinstance(receiver, str) and receiver in tracer.import_from_symbols:
+                ifs = tracer.import_from_symbols[receiver]
+                if not self.is_local(ifs.split('.')[0]):
+                    return ifs + '.' + base_norm.method
+
         return replacement + '.' + '.'.join(parts[1:])
 
     ## Resolve cross-file symbol references across all modules.
@@ -1022,9 +985,19 @@ class ProjectAnalyzer:
                     class_symbol = class_symbol.callee
                 if a in tracer.class_methods and class_symbol == "local":
                     class_symbol = a
+            # 1.0.5 P1: unified receiver object ownership.
+            receiver_top = self._resolve_receiver_object_top(
+                module, a, tracer, tracers)
+            if receiver_top:
+                return (f"{a}.{b}", module, receiver_top)
             if not class_symbol:
                 if isinstance(a, str) and _is_import_origin(tracer, a):
                     return (f"{a}.{b}", module, a)
+                # No factory top: trace through parameter sources
+                # using a hardcoded "local" starting point.
+                # Must NOT use call_assign_funcs — those carry
+                # file-level final state that may include the
+                # current call itself (e.g. s = s.strip()).
                 receiver_chain = self.trace_symbol(
                     module, a, tracers, set(), _direct_source="local")
                 receiver_top = self.extract_final_source(receiver_chain)
@@ -1114,6 +1087,28 @@ class ProjectAnalyzer:
             while True:
                 tr = tracers.get(cur_module)
                 rs = tr.return_sources.get(cur_symbol) if tr else None
+                # 1.0.5 P1: if callee is a module alias (import factory
+                # as f; f.create_app()), resolve the function name from
+                # display_name and look up return_sources in the target
+                # module (via symbols.direct).
+                if rs is None and tr is not None:
+                    display_name = callee_display or ''
+                    cur_is_simple = (not isinstance(cur_symbol, str)
+                                     or '.' not in cur_symbol)
+                    if '.' in display_name and cur_is_simple:
+                        func_from_display = display_name.rsplit('.', 1)[-1]
+                        rs = tr.return_sources.get(func_from_display)
+                        # If not found, try the resolved module from
+                        # symbols.direct (e.g. f → factory).
+                        if rs is None:
+                            mod_tracer = tracers.get(module)
+                            if mod_tracer is not None:
+                                first_seg = display_name.split('.')[0]
+                                sd = mod_tracer.symbols.direct.get(first_seg)
+                                if isinstance(sd, str) and sd in tracers:
+                                    cur_module = sd
+                                    tr = tracers[cur_module]
+                                    rs = tr.return_sources.get(func_from_display)
                 rs = normalize_source(rs)
                 if isinstance(rs, SourceSet):
                     ## 7B-full PR7-final: check primary convergence first
@@ -1174,6 +1169,125 @@ class ProjectAnalyzer:
                 break
             return (f"{callee_display or callee}()", cur_module, cur_symbol)
 
+        return None
+
+    ## Unify receiver object ownership lookup through a single entry point.
+    #
+    #  Checks the receiver's provenance in symbols.direct and traces
+    #  the callee / import alias to determine the owning library.
+    #  Currently covers factory return tracing (A1) and import alias
+    #  resolution (Case B).  Constructor provenance (A2) is gated on
+    #  single-file callee naming and will activate once call_lookup
+    #  returns the alias name rather than the module path.
+    #
+    #  @param module The current module.
+    #  @param receiver The receiver variable name.
+    #  @param tracer The SingleFileAnalyzer for the module.
+    #  @param tracers Dict of module_name → SingleFileAnalyzer.
+    #  @return Top library name, or None.
+    def _resolve_receiver_object_top(self, module, receiver, tracer, tracers):
+        sd = normalize_source(tracer.symbols.direct.get(receiver))
+        if sd is None:
+            return None
+        # Case A: CallResult — receiver was created by a call.
+        # Try factory return tracing first, then constructor provenance.
+        if isinstance(sd, CallResult) and isinstance(sd.callee, str):
+            callee = sd.callee
+            # A1: Factory return tracing (local functions with return_sources).
+            top = self._resolve_receiver_with_return_sources(
+                callee, module, tracers, set())
+            if top and top not in ("local", "python", "unknown", ""):
+                return top
+            # A2: Constructor provenance.
+            # The callee may be a simple name resolvable through symbols.direct
+            # (e.g. from ext.api import Session; s = Session() → callee="Session").
+            if isinstance(callee, str) and '.' not in callee:
+                callee_sd = normalize_source(tracer.symbols.direct.get(callee))
+                if isinstance(callee_sd, str) and callee_sd not in ("local", "python", ""):
+                    top = self._top_source(module, callee_sd, tracers)
+                    if top and top not in ("local", "python", "unknown", ""):
+                        return top
+            return None
+        # Case B: Import alias (e.g. from factory import create_app).
+        if isinstance(sd, str) and sd not in ("local", "python", ""):
+            return self._resolve_receiver_with_return_sources(
+                receiver, module, tracers, set())
+        return None
+
+    ## Resolve a receiver name through cross-file return_sources.
+    #
+    #  1.0.5 P1: supports app.test_client() → flask when app traces
+    #  to a CallResult (local or imported factory function) whose
+    #  return_sources trace to a third-party library.
+    #
+    #  Handles:
+    #    from factory import create_app → callee="create_app"
+    #    import factory → callee="factory.create_app"
+    #    import factory as f → callee="f.create_app"
+    #
+    #  @param callee The CallResult callee name (e.g. "create_app").
+    #  @param module Current module.
+    #  @param tracers Dict of module_name → SingleFileAnalyzer.
+    #  @param _visited Already-visited set for cycle detection.
+    #  @return Top library name or None.
+    def _resolve_receiver_with_return_sources(self, callee, module, tracers, _visited):
+        if not isinstance(callee, str):
+            return None
+        if (module, callee) in _visited:
+            return None
+        _visited.add((module, callee))
+
+        # Split dotted callee to find defining module and function name.
+        # factory.create_app → target_module="factory", func="create_app"
+        # pkg.factory.create_app → target_module="pkg.factory", func="create_app"
+        parts = callee.split('.')
+        func = parts[-1]
+        target_mod = None
+        for i in range(len(parts) - 1, 0, -1):
+            candidate_mod = '.'.join(parts[:i])
+            if candidate_mod in tracers:
+                target_mod = candidate_mod
+                break
+
+        if target_mod is None:
+            # Simple name: check import_from_symbols first so aliased
+            # imports resolve to the real function name.
+            # from factory import make_session as cross_make
+            #   → import_from_symbols["cross_make"] = "factory.make_session"
+            tracer = tracers.get(module)
+            if tracer is not None:
+                imported = getattr(tracer, "import_from_symbols", {}).get(callee)
+                if imported:
+                    imported_parts = imported.split(".")
+                    for i in range(len(imported_parts) - 1, 0, -1):
+                        candidate_mod = ".".join(imported_parts[:i])
+                        if candidate_mod in tracers:
+                            target_mod = candidate_mod
+                            func = ".".join(imported_parts[i:])
+                            break
+            if target_mod is None and tracer is not None:
+                sd = tracer.symbols.direct.get(callee)
+                if isinstance(sd, str) and sd in tracers:
+                    target_mod = sd
+
+        if target_mod is None:
+            target_mod = module
+
+        target_tracer = tracers.get(target_mod)
+        if target_tracer is None:
+            return None
+
+        # Check return_sources for the function in the defining module
+        rs = target_tracer.return_sources.get(func)
+        if rs is not None:
+            rs_norm = normalize_source(rs)
+            sources = rs_norm.sources if isinstance(rs_norm, SourceSet) else [rs_norm]
+            for s in sources:
+                s = normalize_source(s)
+                if isinstance(s, CallResult) and isinstance(s.callee, str):
+                    top = self._top_source(target_mod, s.callee, tracers)
+                    if top and top not in ("local", "python", "unknown", ""):
+                        return top
         return None
 
     ## Try to resolve a local class method to an external source.
@@ -1321,60 +1435,9 @@ class ProjectAnalyzer:
                         return top
         return None
 
-    ## Check whether a receiver name refers to a known container literal.
-    #  @param tracer The SingleFileAnalyzer for the module.
-    #  @param receiver The receiver name (e.g. "lst" in lst.append).
-    #  @return True if the receiver was initialised as a list/dict/set/tuple literal.
-    def _is_container_receiver(self, tracer, receiver):
-        if not isinstance(receiver, str) or tracer is None:
-            return False
-        if receiver in ("local",):
-            return False
-        if receiver in getattr(tracer, 'container_lengths', {}):
-            return True
-        if receiver in getattr(tracer, 'container_set_sources', {}):
-            return True
-        for key in getattr(tracer, 'container_items', {}):
-            if key[0] == receiver:
-                return True
-        return False
-
-    ## Look up import-backed arg source from a CallEdge (7B-full PR4).
-    #
-    #  Searches ProjectCallGraph for the edge matching a call site and returns
-    #  the first import-backed positional argument source found.
-    #  @param cur_module The module where the call occurs.
-    #  @param cr_lineno Call line number.
-    #  @param cr_col Call column offset.
-    #  @return A library top string, or None.
-    def _lookup_cg_edge_arg_source(self, cur_module, cr_lineno, cr_col):
-        if not cr_lineno:
-            return None
-        cg = getattr(self, 'project_cg', None)
-        if cg is None:
-            return None
-        search_modules = list(cg.modules.keys())
-        if cur_module and cur_module in search_modules:
-            search_modules.remove(cur_module)
-            search_modules.insert(0, cur_module)
-        for mod in search_modules:
-            mcg = cg.modules.get(mod)
-            if mcg is None:
-                continue
-            for edge in mcg.edges:
-                if edge.call_lineno != cr_lineno or edge.call_col_offset != cr_col:
-                    continue
-                for src in list(edge.arg_sources.get("pos", {}).values()) + list(edge.arg_sources.get("kw", {}).values()):
-                    src_norm = normalize_source(src)
-                    if isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
-                        return src_norm.callee
-                    if isinstance(src_norm, ContainerItem):
-                        if isinstance(src_norm.container, str):
-                            return src_norm.container
-                    if isinstance(src_norm, str) and '.' in src_norm:
-                        return src_norm
-                return None
-        return None
+    # _is_container_receiver and _lookup_cg_edge_arg_source removed
+    # (1.0.5 P0 cleanup).  Arg-source evidence belongs in
+    # SymbolProvenance, not ApiCall.top_library.
 
     ## Look up import-backed constructor attr used by a specific method (7B-full PR3).
     #
@@ -1658,6 +1721,16 @@ class ProjectAnalyzer:
                     return "local"
                 if src_tracer and _is_import_origin(src_tracer, symbol):
                     return self._top_name(symbol)
+                # 1.0.5 P1: cross-file return tracing may resolve to a
+                # library name imported in another module (e.g. flask
+                # from factory tracing).  Only for simple names that
+                # are clearly not local sub-modules.
+                if isinstance(symbol, str) and '.' not in symbol:
+                    all_mods = self.module_mapper.get_all_modules()
+                    if not any(m.endswith('.' + symbol) for m in all_mods):
+                        for _mt, mt_tracer in tracers.items():
+                            if _is_import_origin(mt_tracer, symbol):
+                                return self._top_name(symbol)
                 return "unknown"
             return top
         if src_tracer:
