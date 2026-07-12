@@ -1,3 +1,19 @@
-# django — dynamic_probe (0 records)
+# django — dynamic_probe (15 records)
 
-*No records.*
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| proxy.py:30:4 | `stream.read_until(delimiter, cb)` | library / tornado | local / local | transitive_method | dynamic_probe | gt: Tornado IOStream read method<br>v: type(stream) is tornado.iostream.IOStream; inspect.getmodule(stream.read_until)  |
+| proxy.py:49:8 | `self.r.set(self.key, self.session)` | library / redis | library / redis | transitive_method | dynamic_probe | gt: Redis StrictRedis set method<br>v: type(self.r) is redis.client.StrictRedis; inspect.getmodule(self.r.set) reports  |
+| proxy.py:51:8 | `self.set_expire()` | local / local | local / local | local_call | dynamic_probe | gt: Project-local Scope.set_expire method<br>v: type(self) is __main__.Scope; inspect.getmodule(self.set_expire) reports __main_ |
+| proxy.py:57:8 | `self.r.zadd(self.key + '::' + str(status) + '::' + str(scope.sessio...` | library / redis | library / redis | transitive_method | dynamic_probe | gt: Redis StrictRedis zadd method<br>v: type(self.r) is redis.client.StrictRedis; inspect.getmodule(self.r.zadd) reports |
+| proxy.py:69:8 | `self.r.expire(self.key + '::' + str(self.session), self.timeout)` | library / redis | library / redis | transitive_method | dynamic_probe | gt: Redis StrictRedis expire method<br>v: type(self.r) is redis.client.StrictRedis; inspect.getmodule(self.r.expire) repor |
+| proxy.py:80:14 | `self.dispatch()` | local / local | local / local | local_call | dynamic_probe | gt: Project-local SimpleEcho.dispatch method<br>v: type(self) is __main__.SimpleEcho; inspect.getmodule(self.dispatch) reports __ma |
+| proxy.py:93:22 | `line.split()` | python / python | local / local | builtin_method_local_receiver | dynamic_probe | gt: Python bytes.split method<br>v: type(line) is bytes; inspect.getmodule(line.split) returns None because bytes.sp |
+| proxy.py:97:25 | `obj[3].split('/')` | python / python | local / local | builtin_method_local_receiver | dynamic_probe | gt: Python bytes.split method<br>v: type(obj[3]) is bytes; inspect.getmodule(obj[3].split) returns None because byte |
+| proxy.py:99:16 | `scope.add_request(status[1], request)` | local / local | local / local | local_call | dynamic_probe | gt: Project-local Scope.add_request method<br>v: type(scope) is __main__.Scope; inspect.getmodule(scope.add_request) reports __ma |
+| proxy.py:109:26 | `msg.format(*args, **kwargs)` | python / python | local / local | builtin_method_local_receiver | dynamic_probe | gt: Python str.format method<br>v: type(msg) is str; inspect.getmodule(msg.format) returns None because str.format  |
+| proxy.py:129:8 | `stream.set_close_callback(conn.on_disconnect)` | library / tornado | local / local | transitive_method | dynamic_probe | gt: Tornado IOStream close callback method<br>v: type(stream) is tornado.iostream.IOStream; inspect.getmodule(stream.set_close_ca |
+| proxy.py:130:8 | `stream.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)` | library / socket | local / local | transitive_method | dynamic_probe | gt: Python socket module socket method<br>v: type(stream.socket) is socket.socket; inspect.getmodule returns None because set |
+| proxy.py:131:8 | `stream.socket.setsockopt(socket.IPPROTO_TCP, socket.SO_KEEPALIVE, 1)` | library / socket | local / local | transitive_method | dynamic_probe | gt: Python socket module socket method<br>v: type(stream.socket) is socket.socket; inspect.getmodule returns None because set |
+| proxy.py:133:14 | `conn.on_connect()` | local / local | local / local | local_call | dynamic_probe | gt: Project-local SimpleEcho.on_connect method<br>v: type(conn) is __main__.SimpleEcho; inspect.getmodule(conn.on_connect) reports __ |
+| proxy.py:143:4 | `server.listen(8889)` | library / tornado | local / local | transitive_method | dynamic_probe | gt: Inherited Tornado TCPServer listen method<br>v: type(server) is project-local SimpleEchoServer; inspect.getmodule(server.listen) |

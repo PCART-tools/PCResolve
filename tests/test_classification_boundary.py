@@ -396,8 +396,8 @@ def test_module_level_decorator_not_leak_into_nested_scope():
 
 
 def test_local_class_multi_instance_different_libraries():
-    """Two instances of the same wrapper class with different external
-    constructor args must resolve to their respective libraries."""
+    """Two instances of the same wrapper class — get() is explicitly
+    defined local method. self.session.get(url) inside it stays library."""
     code = ("import requests\n"
             "import httpx\n"
             "class Api:\n"
@@ -412,11 +412,11 @@ def test_local_class_multi_instance_different_libraries():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "a.get" in c.expression:
-            assert c.top_library == "requests", \
-                f"a.get() should be requests, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"a.get() is explicitly defined local method, got {c.top_library}"
         if "b.get" in c.expression:
-            assert c.top_library == "httpx", \
-                f"b.get() should be httpx, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"b.get() is explicitly defined local method, got {c.top_library}"
 
 
 # ── Phase 7B-lite PR 1: receiver provenance regression tests ────────────
@@ -473,8 +473,8 @@ def test_local_object_attribute_chain_not_misattributed():
 #  (4) pure-local:      test_7b_pure_local_method_stays_local
 
 def test_7b_alias_receiver_follows_to_external():
-    """(2) alias receiver — c = b; c.get(...) where b = Api(httpx.Client())
-    must still trace to httpx through the alias."""
+    """(2) alias receiver — c = b; c.get(...) where b = Api(httpx.Client()).
+    get() is explicitly defined local method (P0 identity)."""
     code = ("import requests\n"
             "import httpx\n"
             "class Api:\n"
@@ -489,8 +489,8 @@ def test_7b_alias_receiver_follows_to_external():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "c.get" in c.expression:
-            assert c.top_library == "httpx", \
-                f"c.get() via alias should be httpx, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"c.get() is explicitly defined local method, got {c.top_library}"
 
 
 def test_self_attr_dotted_callee_traces_to_library():
@@ -756,8 +756,9 @@ def test_factory_returned_instance_method_traces_to_library():
             f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
 
 
-def test_local_model_factory_method_call_traces_to_constructor_library():
-    """model = NSGP(); model.fit(X, y) traces to sklearn via constructor self.gp attr (7B-full PR3)."""
+def test_local_model_factory_method_call_is_local():
+    """model = NSGP(); model.fit(X, y) is local — fit is explicitly defined in NSGP (P0 local method identity).
+    The internal self.gp.fit(X, y) call remains sklearn."""
     code = (
         "import numpy as np\n"
         "from sklearn.gaussian_process import GaussianProcessRegressor\n"
@@ -770,11 +771,18 @@ def test_local_model_factory_method_call_traces_to_constructor_library():
         "model.fit([[1]], [1])\n"
     )
     r = _run_code(code)
+    # model.fit() — explicitly defined local method → local
     calls = [c for c in r.all_api_calls if "fit" in c.expression and "self.gp" not in c.expression]
     assert calls, "model.fit() not collected"
     for c in calls:
+        assert c.top_library == "local", \
+            f"model.fit() should be local (explicitly defined method), got {c.top_library}"
+    # self.gp.fit() inside fit method → sklearn
+    gp_calls = [c for c in r.all_api_calls if "self.gp.fit" in c.expression]
+    assert gp_calls, "self.gp.fit() not collected"
+    for c in gp_calls:
         assert c.top_library == "sklearn", \
-            f"model.fit() should be sklearn, got {c.top_library}"
+            f"self.gp.fit() should be sklearn, got {c.top_library}"
 
 
 def test_method_result_object_keeps_library_for_followup_call():
@@ -991,7 +999,8 @@ def test_unrelated_import_attr_not_leaked_to_method():
 
 
 def test_method_gets_right_attr_not_wrong_one():
-    """c.shape() gets numpy from self.arr, not requests from self.session."""
+    """c.shape() is local — shape is explicitly defined in C (P0 local method identity).
+    self.arr.reshape() inside shape method remains numpy."""
     code = (
         "import requests\n"
         "import numpy as np\n"
@@ -1005,12 +1014,13 @@ def test_method_gets_right_attr_not_wrong_one():
         "c.shape()\n"
     )
     r = _run_code(code)
+    # c.shape() — explicitly defined local method → local
     shape_calls = [c for c in r.all_api_calls
                    if "shape" in c.expression and "reshape" not in c.expression]
     assert shape_calls, "c.shape() not collected"
     for c in shape_calls:
-        assert c.top_library == "numpy", \
-            f"c.shape() should be numpy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "local", \
+            f"c.shape() should be local (explicitly defined method), got {c.top_library} ({c.chain})"
 
 
 # ── Phase 7B-full PR4-fix: arg-source must not leak through CallResult ──

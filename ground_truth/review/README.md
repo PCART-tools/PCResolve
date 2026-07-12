@@ -11,17 +11,17 @@ machine source of truth.
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
-| [click2](click2/README.md) | 8 | draft | 0 | 7 | 1 | 0 | 0 | 0 |
-| [django](django/README.md) | 44 | draft | 18 | 25 | 1 | 0 | 0 | 1 |
-| [flask1](flask1/README.md) | 7 | draft | 4 | 3 | 0 | 0 | 0 | 0 |
+| [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
+| [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 9 |
+| [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 377 | 39 | 28 | 0 | 31 |
-| [machine-learning](machine-learning/README.md) | 43 | draft | 4 | 39 | 0 | 0 | 0 | 0 |
-| [psycopg2](psycopg2/README.md) | 39 | draft | 19 | 20 | 0 | 0 | 0 | 0 |
-| [redis](redis/README.md) | 33 | draft | 20 | 13 | 0 | 0 | 0 | 0 |
-| [tensorflow1](tensorflow1/README.md) | 15 | draft | 5 | 9 | 1 | 0 | 0 | 0 |
+| [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 2 |
+| [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
+| [redis](redis/README.md) | 33 | locked | 0 | 13 | 0 | 20 | 0 | 0 |
+| [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 9 | 1 | 5 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 82 | 13 | 9 | 0 | 8 |
-| **TOTAL** | **815** | | **70** | **627** | **81** | **37** | **0** | **44** |
+| **TOTAL** | **815** | | **0** | **629** | **90** | **96** | **0** | **54** |
 
 ## Directory Layout
 
@@ -48,7 +48,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   flask1/
     README.md
@@ -56,7 +55,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   flask2/
     README.md
@@ -78,7 +76,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   psycopg2/
     README.md
@@ -86,7 +83,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   redis/
     README.md
@@ -94,7 +90,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   tensorflow1/
     README.md
@@ -102,7 +97,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   Youtube/
     README.md

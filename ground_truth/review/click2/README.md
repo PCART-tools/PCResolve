@@ -1,10 +1,10 @@
 # click2 — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 8
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 8
 
 ## Annotation Status
 
-- auto_labeled: 8
+- locked: 8
 
 ## Call Status
 

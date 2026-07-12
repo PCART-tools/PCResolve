@@ -1,4 +1,4 @@
-# django — static_obvious (25 records)
+# django — static_obvious (27 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -13,6 +13,8 @@
 | proxy.py:57:51 | `str(scope.session)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | proxy.py:57:71 | `time.time()` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
 | proxy.py:57:84 | `json.dumps(request)` | library / json | library / json | direct_import | static_obvious | v: direct import-backed API call |
+| proxy.py:62:8 | `self.set_expire()` | local / local | local / local | local_call | static_obvious | gt: Project-local Scope.set_expire method<br>v: set_expire is defined on project-local class Scope |
+| proxy.py:66:8 | `self.set_expire()` | local / local | local / local | local_call | static_obvious | gt: Project-local Scope.set_expire method<br>v: set_expire is defined on project-local class Scope |
 | proxy.py:69:36 | `str(self.session)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | proxy.py:71:8 | `Scope()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | proxy.py:92:29 | `read_until(self.stream, '\n')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

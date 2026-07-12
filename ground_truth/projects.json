@@ -40,7 +40,7 @@
     "click2": {
       "path": "tests/fixtures/tested_projects/click2",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Click CLI patterns"
     },
     "click3": {
@@ -76,7 +76,7 @@
     "django": {
       "path": "tests/fixtures/tested_projects/django",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Web framework patterns"
     },
     "EJPLab": {
@@ -100,7 +100,7 @@
     "flask1": {
       "path": "tests/fixtures/tested_projects/flask1",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Flask web app; route decorators"
     },
     "flask2": {
@@ -150,7 +150,7 @@
     "machine-learning": {
       "path": "tests/fixtures/tested_projects/machine-learning",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "ML; sklearn"
     },
     "MAHE_OD_DATASET": {
@@ -186,7 +186,7 @@
     "psycopg2": {
       "path": "tests/fixtures/tested_projects/psycopg2",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Database connector usage"
     },
     "Python-Workshop": {
@@ -210,7 +210,7 @@
     "redis": {
       "path": "tests/fixtures/tested_projects/redis",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Redis client usage"
     },
     "scrapping": {
@@ -234,7 +234,7 @@
     "tensorflow1": {
       "path": "tests/fixtures/tested_projects/tensorflow1",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "ML; tensorflow/keras"
     },
     "tensorflow2": {

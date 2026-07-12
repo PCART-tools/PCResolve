@@ -1,37 +1,36 @@
 # machine-learning — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 43
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 43
 
 ## Annotation Status
 
-- auto_labeled: 39
-- draft: 4
+- locked: 43
 
 ## Call Status
 
-- positive: 39
+- positive: 43
 
 ## Expected Kind
 
-- library: 27
+- library: 31
 - python: 11
 - local: 1
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 39
-- [needs_annotation](needs_annotation.md): 4
+- [dynamic_probe](dynamic_probe.md): 4
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 2
 
 ## Category Breakdown
 
-- (none): 4
 - builtin: 11
 - direct_import: 27
 - local_call: 1
+- transitive_method: 4
 
 ## Top Libraries
 
-- numpy: 17
-- scipy: 10
+- numpy: 19
+- scipy: 12

@@ -1,34 +1,33 @@
 # flask1 — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 7
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 7
 
 ## Annotation Status
 
-- auto_labeled: 3
-- draft: 4
+- locked: 7
 
 ## Call Status
 
-- positive: 3
+- positive: 7
 
 ## Expected Kind
 
-- library: 1
+- library: 5
 - python: 2
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 3
-- [needs_annotation](needs_annotation.md): 4
+- [static_context](static_context.md): 4
 
 ## [Suspicious Records](suspicious.md): 0
 
 ## Category Breakdown
 
-- (none): 4
 - builtin: 2
 - direct_import: 1
+- transitive_method: 4
 
 ## Top Libraries
 
-- flask: 1
+- flask: 5

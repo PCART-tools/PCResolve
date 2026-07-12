@@ -1,36 +1,35 @@
 # redis — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 33
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 33
 
 ## Annotation Status
 
-- auto_labeled: 13
-- draft: 20
+- locked: 33
 
 ## Call Status
 
-- positive: 13
+- positive: 33
 
 ## Expected Kind
 
-- library: 1
+- library: 21
 - python: 11
 - local: 1
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 13
-- [needs_annotation](needs_annotation.md): 20
+- [dynamic_probe](dynamic_probe.md): 20
 
 ## [Suspicious Records](suspicious.md): 0
 
 ## Category Breakdown
 
-- (none): 20
 - builtin: 11
 - direct_import: 1
 - local_call: 1
+- transitive_method: 20
 
 ## Top Libraries
 
-- redis: 1
+- redis: 21

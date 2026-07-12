@@ -1065,7 +1065,13 @@ class ProjectAnalyzer:
                 if receiver_top:
                     return (f"{a}.{b}", module, receiver_top)
                 return None
+            # P0: if the method is explicitly defined in a local class,
+            # preserve its primary identity as local.  The method body
+            # may call library APIs internally, but the callable itself
+            # is project-local.
             if class_symbol in tracer.class_methods:
+                if b in tracer.class_methods[class_symbol]:
+                    return (f"{a}.{b}", module, "local")
                 ext = self._resolve_local_method_to_external(
                     module, class_symbol, b, a, tracer, tracers)
                 if ext:

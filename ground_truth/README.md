@@ -261,75 +261,62 @@ AND `pcresolve_top_library` is a library that is not
 
 Excluded from precision and recall; counted in coverage metrics.
 
-## Pilot Projects
+## Locked Evaluation Set
 
-All 4 pilots are **locked** (2026-06-04).  626 calls, 0 missing, 0 stale,
-0 FP.
+All 11 evaluated projects are **locked** (2026-07-12). The set contains
+815 calls with 0 missing and 0 stale GT records. PCResolve has 757 primary
+hits and 58 primary misses, for aggregate recall 0.929.
 
-Locked pilot baseline before round-1 fixes (2026-06-04): aggregate recall 0.912.
+The earlier four-project baseline remains useful historical context. It had
+626 calls and recall 0.931 after the first 1.0.5 repair round.
 
-Current round-1 metrics after container-scope fix (2026-06-24): aggregate recall 0.931.
+### Locked Results (2026-07-12)
 
-### Pilot Results (Round 1, 2026-06-24)
-
-| Project | Calls | all P | all R | all F1 | library R | python R | local R | deco |
-|---------|-------|-------|-------|--------|-----------|----------|---------|------|
-| `click1` | 5 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1 |
-| `flask2` | 73 | 1.000 | 0.945 | 0.972 | 1.000 | 0.826 | 1.000 | 0 |
-| `hfhd` | 444 | 0.998 | 0.930 | 0.963 | 0.894 | 1.000 | 1.000 | 0 |
-| `Youtube` | 104 | 1.000 | 0.923 | 0.960 | 0.800 | 1.000 | 1.000 | 0 |
+| Project | Calls | all P | all R | all F1 | library R | python R | local R |
+|---------|-------|-------|-------|--------|-----------|----------|---------|
+| `click1` | 5 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `click2` | 8 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `django` | 44 | 1.000 | 0.705 | 0.827 | 0.783 | 0.636 | 0.600 |
+| `flask1` | 7 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | n/a |
+| `flask2` | 73 | 1.000 | 0.945 | 0.972 | 1.000 | 0.826 | 1.000 |
+| `hfhd` | 444 | 0.998 | 0.930 | 0.963 | 0.894 | 1.000 | 1.000 |
+| `machine-learning` | 43 | 0.954 | 0.954 | 0.954 | 0.935 | 1.000 | 1.000 |
+| `psycopg2` | 39 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `redis` | 33 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `tensorflow1` | 15 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| `Youtube` | 104 | 1.000 | 0.923 | 0.960 | 0.800 | 1.000 | 1.000 |
 
 ### Verification Level Breakdown
 
 | Project | static_obvious | static_context | dynamic_probe | manual_reasoned |
 |---------|---------------|----------------|---------------|-----------------|
 | `click1` | 4 | 1 | 0 | 0 |
+| `click2` | 7 | 1 | 0 | 0 |
+| `django` | 27 | 2 | 15 | 0 |
+| `flask1` | 3 | 4 | 0 | 0 |
 | `flask2` | 48 | 25 | 0 | 0 |
 | `hfhd` | 377 | 39 | 28 | 0 |
+| `machine-learning` | 39 | 0 | 4 | 0 |
+| `psycopg2` | 20 | 4 | 15 | 0 |
+| `redis` | 13 | 0 | 20 | 0 |
+| `tensorflow1` | 9 | 1 | 5 | 0 |
 | `Youtube` | 82 | 13 | 9 | 0 |
-| **TOTAL** | **511** | **78** | **37** | **0** |
+| **TOTAL** | **629** | **90** | **96** | **0** |
 
-### Primary Miss Categories
+### Repair Priority
 
-**flask2** (4 misses, all in python view):
-- 4 × `request.json.get(...)` — mapping protocol receiver; GT labels python, PCResolve says flask (P2 deferred)
+Only the four `request.json.get(...)` records are an accepted 1.0.5
+boundary. The other 54 misses remain release repair candidates unless they
+are explicitly reclassified with a documented contract rationale.
 
-**hfhd** (31 misses, 30 library + 1 wrong_owner):
-- ~28 × receiver via parameter or local function return — `x.dropna()`,
-  `data.to_numpy()`, `price.dropna()`, `resid.cumsum()`,
-  `values[...].reshape()`, `merged_values.flatten()`,
-  `self.log_rets.cumsum()`, `_preaverage(...)`, etc.
-  (need call-graph propagation, 1.0.6)
-- 1 × `y.mean()` via chained call through parameter (wrong_owner: numpy vs pandas)
-
-**Youtube** (8 misses, 8 library):
-- 3 × `x.todense()`, `y.todense()`, `centres.todense()` — scipy sparse via parameter/local
-- 2 × `D.argmin(axis=1)`, `distances.mean()` — cdist return via local
-- 1 × `centres.copy()` — ndarray method via local
-- 2 × additional ndarray method misses from local/cross-call flow
-  All 8 need scipy/numpy receiver tracking (1.0.6)
-
-**click1**: no misses — all 5 calls correctly classified.
-
-### Miss Root Causes (Round 1, 2026-06-24)
-
-| Root Cause | Projects | Example | Status |
-|-----------|----------|---------|--------|
-| Mapping protocol receiver | flask2 | `request.json.get(...)` | P2 deferred (4 remaining) |
-| Pandas/NumPy via local/param | hfhd | `x.dropna()`, `arr.reshape()` | Need call-graph (1.0.6) |
-| Scipy sparse via local/param | Youtube | `x.todense()` | Need receiver tracking (1.0.6) |
-| Scipy→NumPy via local variable | Youtube | `D.argmin(axis=1)` | Need assignment propagation (1.0.6) |
-
-**Fixed in round 1:**
-
-| Root Cause | Projects | Example | Fix |
-|-----------|----------|---------|-----|
-| Builtin function misclassification | flask2 | `getattr(...)` | Builtin detection before local fallback |
-| Builtin container method on local | flask2, Youtube | `list.append()`, `dict.get()` | Container kind detection |
-| defaultdict item kind | Youtube | `defaultdict(list)[k].append()` | Item kind tracking |
-| Chained owner: cdist→numpy | Youtube | `cdist(...).argmin()` (direct chain) | Return-type contract |
-| Chained owner: numpy ufunc→pandas | hfhd | `np.log(s).diff()` (module-level) | Receiver-preserving ufuncs |
-| Container fix over-reach | hfhd | `stp.append(...)` | Module-level-only gate on container kind |
+| Priority | Root cause | Projects | Misses | Examples | Direction |
+|----------|------------|----------|--------|----------|-----------|
+| P0 | Local method identity contaminated by member state | `django` | 4 | `self.set_expire()`, `scope.add_request()` | Resolve project-local methods before receiver attribute propagation |
+| P0 | Python builtin receiver method or literal call not recognized | `django` | 4 | `line.split()`, `msg.format()`, literal `str.format()` | Track builtin receiver type and collect literal receiver calls |
+| P1 | Imported or inherited receiver ownership lost | `django` | 5 | `stream.read_until()`, `socket.setsockopt()`, `server.listen()` | Propagate parameter and base-class receiver ownership |
+| P1 | Library return object owner differs from producer | `machine-learning` | 2 | `uarr.dot(...)` after `scipy.linalg.svd()` | Model tuple return ownership without inheriting the producer owner |
+| P1 | Parameter and local-return receiver ownership | `hfhd`, `Youtube` | 39 | `x.dropna()`, `centres.todense()`, `D.argmin()` | Add conservative inter-procedural receiver propagation |
+| P2 | Mapping-style framework payload boundary | `flask2` | 4 | `request.json.get(...)` | Keep as documented boundary for 1.0.5 |
 
 ### Labeling Conventions (1.0.5 Pilot)
 
@@ -395,18 +382,25 @@ duplicate positions like `x.dropna()` / `x.dropna().to_numpy()`).
 Expression text differences are reported separately.  They do not affect
 coverage counts once records are successfully paired.
 
-**Locked baseline coverage (2026-06-04):**
+**Locked baseline coverage (2026-07-12):**
 
 | Project | AST Calls | GT Records | Missing | Stale | ExprDiff | Status |
 |---------|-----------|------------|---------|-------|----------|--------|
 | click1 | 5 | 5 | 0 | 0 | 1 | locked |
+| click2 | 8 | 8 | 0 | 0 | 3 | locked |
+| django | 44 | 44 | 0 | 0 | 7 | locked |
+| flask1 | 7 | 7 | 0 | 0 | 4 | locked |
 | flask2 | 73 | 73 | 0 | 0 | 31 | locked |
 | hfhd | 444 | 444 | 0 | 0 | 65 | locked |
+| machine-learning | 43 | 43 | 0 | 0 | 6 | locked |
+| psycopg2 | 39 | 39 | 0 | 0 | 21 | locked |
+| redis | 33 | 33 | 0 | 0 | 17 | locked |
+| tensorflow1 | 15 | 15 | 0 | 0 | 5 | locked |
 | Youtube | 104 | 104 | 0 | 0 | 32 | locked |
-| **TOTAL** | **626** | **626** | **0** | **0** | **129** | |
+| **TOTAL** | **815** | **815** | **0** | **0** | **192** | |
 
-All 626 AST calls are covered by GT records (multiset matching).
-129 expression mismatches are benign (quote style differences between
+All 815 AST calls are covered by GT records (multiset matching).
+192 expression mismatches are benign (quote style differences between
 source code and manual annotation).
 
 ### Suspicious GT Selector
@@ -424,14 +418,22 @@ It does NOT auto-change labels; review each flagged record.
 | `pcresolve_top_library_mismatch_expected` | pcresolve_top_library != expected_top_library |
 | `manual_gt_library_call_missed_by_pcresolve` | manual_gt entries with expected_kind=library |
 
-**Suspicious counts at lock time (2026-06-04):**
+**GT mismatch counts at lock time (2026-07-12):**
 
 | Project | Total | Suspicious | Key Reasons |
 |---------|-------|------------|-------------|
-| click1 | 5 | 0 | — |
-| flask2 | 73 | 26 | transitive_method=19, mismatch=7 |
-| hfhd | 444 | 72 | transitive_method=62, mismatch=31, conversion_boundary=10, library_not_lib=29 |
-| Youtube | 104 | 28 | transitive_method=20, mismatch=17, library_not_lib=8 |
+| click1 | 5 | 0 | none |
+| click2 | 8 | 0 | none |
+| django | 44 | 13 | local identity, builtin receiver, inherited/imported receiver |
+| flask1 | 7 | 0 | none |
+| flask2 | 73 | 4 | mapping-style framework payload boundary |
+| hfhd | 444 | 31 | parameter and local-return receiver ownership |
+| machine-learning | 43 | 2 | SciPy producer returning NumPy receiver objects |
+| psycopg2 | 39 | 0 | none |
+| redis | 33 | 0 | none |
+| tensorflow1 | 15 | 0 | none |
+| Youtube | 104 | 8 | SciPy/NumPy receiver ownership through local flow |
+| **TOTAL** | **815** | **58** | 54 repair candidates, 4 accepted boundary records |
 
 JSON output: `verification/suspicious_selector.json`
 

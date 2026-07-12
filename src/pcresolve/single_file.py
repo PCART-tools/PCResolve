@@ -718,6 +718,32 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     root_src = root_src.callee
                 if root_src in self.import_from_symbols:
                     return InstanceMethod(root_src, method_name)
+                # P0: resolve instance attributes for non-self receivers
+                # whose root traces to a local class instance.
+                # e.g. client.backend.loads() where client=Client()
+                # and self.backend=json  →  trace client.backend
+                # through instance_attrs to find json, then
+                # classify loads as json.loads.
+                target_class = root_src
+                if not target_class and self.scope_model == "v2":
+                    binding = self.current_scope().lookup(root)
+                    if binding is not None:
+                        target_class = normalize_source(binding.source)
+                        if isinstance(target_class, CallResult):
+                            target_class = target_class.callee
+                if isinstance(target_class, str) and target_class in self.class_methods:
+                    if len(chain) >= 2:
+                        attr_name = "self." + ".".join(chain[1:])
+                        attr_source = self.instance_attrs.get(
+                            (target_class, attr_name))
+                        attr_source = normalize_source(attr_source)
+                        if isinstance(attr_source, CallResult):
+                            callee = attr_source.callee
+                            if isinstance(callee, str):
+                                return InstanceMethod(callee, method_name)
+                        if isinstance(attr_source, str) and attr_source not in ("local", "python", "unknown", ""):
+                            return InstanceMethod(attr_source, method_name)
+                    return _resolve_on_class(target_class, root)
         return None
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
