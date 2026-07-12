@@ -29,6 +29,7 @@ REVIEW_DIR = os.path.join(GT_DIR, "review")
 
 LEVEL_MD_ORDER = ["static_obvious", "static_context", "dynamic_probe",
                   "manual_reasoned"]
+NEEDS_ANNOTATION = "needs_annotation"  # Records awaiting GT annotation
 
 # ---------------------------------------------------------------------------
 # Rendering helpers
@@ -96,6 +97,7 @@ def _count_suspicious(records):
 
 def _is_suspicious(r):
     """Check if a single record matches any suspicious criterion."""
+    src = r.get("source", "")
     ek = r.get("expected_kind", "")
     etl = r.get("expected_top_library", "")
     pck = r.get("pcresolve_kind", "")
@@ -106,14 +108,23 @@ def _is_suspicious(r):
     level = r.get("verification_level", "")
     status = r.get("status", "")
 
+    # Manual GT: annotator-added call PCResolve missed.
+    if src == "manual_gt":
+        return True
+    # PCResolve missing candidate: GT expects but pcresolve fields empty.
+    if status == "positive" and ek and not pck:
+        return True
+    # Kind / owner mismatch.
     if pck and ek and pck != ek:
         return True
     if pctl and etl and pctl != etl and etl not in palts:
         return True
     if ek == "library" and pck and pck != "library":
         return True
+    # Missing decorator evidence.
     if edeco and not all(d in pdeco for d in edeco):
         return True
+    # Needs human reasoning or beyond scope.
     if level in ("manual_reasoned", "unsupported"):
         return True
     if status in ("ambiguous", "unsupported"):
@@ -124,6 +135,7 @@ def _is_suspicious(r):
 def _suspicious_reasons(r):
     """Return list of reason strings for a suspicious record."""
     reasons = []
+    src = r.get("source", "")
     ek = r.get("expected_kind", "")
     etl = r.get("expected_top_library", "")
     pck = r.get("pcresolve_kind", "")
@@ -134,6 +146,11 @@ def _suspicious_reasons(r):
     level = r.get("verification_level", "")
     status = r.get("status", "")
 
+    # Manual GT / PCResolve missing candidate
+    if src == "manual_gt":
+        reasons.append("manual_gt")
+    if status == "positive" and ek and not pck:
+        reasons.append("pcresolve missing candidate: expected=%s/%s" % (ek, etl))
     if pck and ek and pck != ek:
         reasons.append("kind mismatch: expected=%s pcresolve=%s" % (ek, pck))
     if pctl and etl and pctl != etl and etl not in palts:
@@ -155,7 +172,7 @@ def _suspicious_reasons(r):
 # ---------------------------------------------------------------------------
 
 def _render_overview(proj_name, records, manifest_info):
-    """Generate overview.md for a project."""
+    """Generate README.md for a project."""
     lines = []
     lines.append("# %s — Ground Truth Overview" % proj_name)
     lines.append("")
@@ -193,11 +210,14 @@ def _render_overview(proj_name, records, manifest_info):
 
     # Verification level breakdown
     levels = _count_by_level(records)
+    needs_count = len([r for r in records if not r.get("verification_level")])
     lines.append("## Verification Level Breakdown")
     lines.append("")
     for lvl in LEVEL_MD_ORDER + ["unsupported"]:
         if levels.get(lvl):
             lines.append("- [%s](%s.md): %d" % (lvl, lvl, levels[lvl]))
+    if needs_count:
+        lines.append("- [needs_annotation](needs_annotation.md): %d" % needs_count)
     lines.append("")
 
     # Suspicious count
@@ -236,6 +256,18 @@ def _render_level_view(proj_name, level, records):
     """Generate <level>.md for a set of records."""
     lines = []
     lines.append("# %s — %s (%d records)" % (proj_name, level, len(records)))
+    lines.append("")
+    lines.append(_render_record_table(records))
+    return "\n".join(lines)
+
+
+def _render_needs_annotation_view(proj_name, records):
+    """Generate needs_annotation.md — records awaiting GT annotation."""
+    lines = []
+    lines.append("# %s — Needs Annotation (%d records)" % (proj_name, len(records)))
+    lines.append("")
+    lines.append("These records do not yet have `verification_level` or ")
+    lines.append("`expected_*` fields confirmed by a human annotator.")
     lines.append("")
     lines.append(_render_record_table(records))
     return "\n".join(lines)
@@ -295,7 +327,7 @@ def _render_suspicious_view(proj_name, records):
 # ---------------------------------------------------------------------------
 
 def _render_index(project_results):
-    """Generate index.md with aggregate overview."""
+    """Generate README.md with aggregate overview."""
     lines = []
     lines.append("# Ground Truth Review Views")
     lines.append("")
@@ -308,29 +340,34 @@ def _render_index(project_results):
 
     lines.append("## Pilot Summary")
     lines.append("")
-    lines.append("| Project | Calls | Status | static_obvious | "
+    lines.append("| Project | Calls | Status | Needs Annotation | static_obvious | "
                  "static_context | dynamic_probe | manual_reasoned | Suspicious |")
-    lines.append("|---------|-------|--------|---------------|"
+    lines.append("|---------|-------|--------|-----------------|---------------|"
                  "---------------|--------------|-----------------|------------|")
     total_calls = 0
     total_sus = 0
     total_levels = Counter()
+    total_needs = 0
     for proj_name, records, manifest_info in project_results:
         levels = _count_by_level(records)
         sus = _count_suspicious(records)
+        needs = sum(1 for r in records if not r.get("verification_level"))
         total_calls += len(records)
         total_sus += sus
         total_levels.update(levels)
-        lines.append("| [%s](%s/overview.md) | %d | %s | %d | %d | %d | %d | %d |"
+        total_needs += needs
+        lines.append("| [%s](%s/README.md) | %d | %s | %d | %d | %d | %d | %d | %d |"
                      % (proj_name, proj_name, len(records),
                         manifest_info.get("status", "?"),
+                        needs,
                         levels.get("static_obvious", 0),
                         levels.get("static_context", 0),
                         levels.get("dynamic_probe", 0),
                         levels.get("manual_reasoned", 0),
                         sus))
-    lines.append("| **TOTAL** | **%d** | | **%d** | **%d** | **%d** | **%d** | **%d** |"
+    lines.append("| **TOTAL** | **%d** | | **%d** | **%d** | **%d** | **%d** | **%d** | **%d** |"
                  % (total_calls,
+                    total_needs,
                     total_levels.get("static_obvious", 0),
                     total_levels.get("static_context", 0),
                     total_levels.get("dynamic_probe", 0),
@@ -342,12 +379,15 @@ def _render_index(project_results):
     lines.append("")
     lines.append("```")
     lines.append("ground_truth/review/")
-    lines.append("  index.md")
-    for proj_name, _, _ in project_results:
+    lines.append("  README.md")
+    for proj_name, records, _ in project_results:
+        has_needs = any(not r.get("verification_level") for r in records)
         lines.append("  %s/" % proj_name)
-        lines.append("    overview.md")
+        lines.append("    README.md")
         for lvl in LEVEL_MD_ORDER:
             lines.append("    %s.md" % lvl)
+        if has_needs:
+            lines.append("    needs_annotation.md")
         lines.append("    suspicious.md")
     lines.append("```")
     lines.append("")
@@ -369,10 +409,11 @@ def main():
     with open(PROJECTS_FILE, encoding="utf-8") as f:
         manifest = json.load(f)["projects"]
 
-    # All reviewed/locked pilots (for index.md always)
+    # All pilots (reviewed, locked, or draft) for rendering.
+    # Draft projects are included so annotators have markdown views.
     all_pilot_names = [n for n, info in manifest.items()
                        if info.get("tier") == "pilot"
-                       and info.get("status") in ("reviewed", "locked")]
+                       and info.get("status") in ("reviewed", "locked", "draft")]
 
     if ns.project:
         selected_names = [n for n in all_pilot_names if n in ns.project]
@@ -398,7 +439,7 @@ def main():
         if os.path.exists(REVIEW_DIR):
             shutil.rmtree(REVIEW_DIR)
 
-    # Load ALL pilot records for index.md
+    # Load ALL pilot records for README.md
     all_project_results = []
     for name in all_pilot_names:
         path = os.path.join(CALLS_DIR, name + ".jsonl")
@@ -422,11 +463,11 @@ def main():
     # Ensure review dir exists
     os.makedirs(REVIEW_DIR, exist_ok=True)
 
-    # Generate index from ALL pilots (always)
-    index_text = _render_index(all_project_results)
-    with open(os.path.join(REVIEW_DIR, "index.md"), "w", encoding="utf-8") as f:
-        f.write(index_text)
-    print("Wrote: review/index.md")
+    # Generate review entry from ALL pilots (always).
+    readme_text = _render_index(all_project_results)
+    with open(os.path.join(REVIEW_DIR, "README.md"), "w", encoding="utf-8") as f:
+        f.write(readme_text)
+    print("Wrote: review/README.md")
 
     # Generate per-project views for selected projects only.
     # When --project is used, clean only the selected project dirs.
@@ -438,9 +479,9 @@ def main():
 
         # Overview
         overview = _render_overview(proj_name, records, manifest_info)
-        with open(os.path.join(proj_dir, "overview.md"), "w", encoding="utf-8") as f:
+        with open(os.path.join(proj_dir, "README.md"), "w", encoding="utf-8") as f:
             f.write(overview)
-        print("Wrote: review/%s/overview.md" % proj_name)
+        print("Wrote: review/%s/README.md" % proj_name)
 
         # Per-level views
         for level in LEVEL_MD_ORDER:
@@ -453,6 +494,17 @@ def main():
             print("Wrote: review/%s/%s.md (%d records)"
                   % (proj_name, level, len(subset)))
 
+        # Needs-annotation records (no verification_level set yet)
+        needs_subset = [r for r in records
+                        if not r.get("verification_level")]
+        if needs_subset:
+            text = _render_needs_annotation_view(proj_name, needs_subset)
+            with open(os.path.join(proj_dir, "needs_annotation.md"), "w",
+                      encoding="utf-8") as f:
+                f.write(text)
+            print("Wrote: review/%s/needs_annotation.md (%d records)"
+                  % (proj_name, len(needs_subset)))
+
         # Suspicious
         suspicious = _render_suspicious_view(proj_name, records)
         with open(os.path.join(proj_dir, "suspicious.md"),
@@ -460,7 +512,7 @@ def main():
             f.write(suspicious)
         print("Wrote: review/%s/suspicious.md" % proj_name)
 
-    print("\nDone.  Open review/index.md to start.")
+    print("\nDone.  Open review/README.md to start.")
     return 0
 
 

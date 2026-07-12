@@ -480,13 +480,14 @@ python scripts/render_ground_truth_review.py --project hfhd
 
 ```
 review/
-  index.md                        # aggregate pilot summary table
+  README.md                       # pilot summary table (entry point)
   <project>/
-    overview.md                   # stats, kind/level/category breakdowns
+    README.md                      # stats, kind/level/category breakdowns
     static_obvious.md             # records with verification_level=static_obvious
     static_context.md             # records with verification_level=static_context
     dynamic_probe.md              # records with verification_level=dynamic_probe
     manual_reasoned.md            # records with verification_level=manual_reasoned
+    needs_annotation.md           # records awaiting GT annotation (no verif. level)
     suspicious.md                 # cross-cutting: kind/owner mismatch, missing
                                   #   decorated_by, manual_reasoned/unsupported,
                                   #   ambiguous/unsupported status

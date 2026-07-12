@@ -258,6 +258,7 @@ def main():
     view = "all"
     selected = set()
     all_projects = "--all" in args
+    include_draft = "--include-draft" in args
     i = 0
     while i < len(args):
         a = args[i]
@@ -271,6 +272,8 @@ def main():
             view = args[i]
         elif a == "--all":
             pass
+        elif a == "--include-draft":
+            pass
         elif a.startswith("--project="):
             selected.add(a.split("=", 1)[1])
         elif a == "--project":
@@ -280,7 +283,7 @@ def main():
             i += 1
             selected.add(args[i])
         elif a in ("-h", "--help"):
-            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--project NAME] [--view all|library|python|local]")
+            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--include-draft] [--project NAME] [--view all|library|python|local]")
             return
         i += 1
 
@@ -294,6 +297,11 @@ def main():
 
     for name, info in sorted(manifest.items()):
         if not all_projects and not selected and info.get("tier") != "pilot":
+            continue
+        # Default: only locked projects.  Draft/reviewed projects need
+        # --include-draft, --all, or explicit --project to enter scoring.
+        if (not all_projects and not include_draft and not selected
+                and info.get("status") != "locked"):
             continue
         if selected and name not in selected:
             continue

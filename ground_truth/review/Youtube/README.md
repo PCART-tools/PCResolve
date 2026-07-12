@@ -22,7 +22,7 @@
 - [static_context](static_context.md): 13
 - [dynamic_probe](dynamic_probe.md): 9
 
-## [Suspicious Records](suspicious.md): 17
+## [Suspicious Records](suspicious.md): 8
 
 ## Category Breakdown
 

@@ -20,7 +20,7 @@
 | app.py:81:12 | `abort(400, description='Missing Request')` | library / flask | library / flask | direct_import | static_obvious | gt: flask abort()<br>v: direct import-backed API call |
 | app.py:87:15 | `jsonify({'task': task})` | library / flask | library / flask | direct_import | static_obvious | gt: flask jsonify()<br>v: direct import-backed API call |
 | app.py:73:5 | `app.route('/api/tasks/<int:task_id>', methods=['PUT'])` | library / flask | library / flask | decorator_expression | static_obvious | gt: @app.route() decorator expression, flask via factory return<br>v: decorator expression is import-backed usage |
-| app.py:103:22 | `getattr(error, 'description', None)` | python / python | local / local | builtin | static_obvious | gt: Python builtin getattr(); PCResolve misclassified as local<br>v: Python builtin function call |
+| app.py:103:22 | `getattr(error, 'description', None)` | python / python | python / python | builtin | static_obvious | gt: Python builtin getattr()<br>v: Python builtin function call |
 | app.py:105:57 | `str(error)` | python / python | python / python | builtin | static_obvious | gt: Python builtin str()<br>v: Python builtin function call |
 | app.py:107:19 | `jsonify({'error': description, 'status_code': error.code})` | library / flask | library / flask | direct_import | static_obvious | gt: flask jsonify()<br>v: direct import-backed API call |
 | app.py:89:5 | `app.errorhandler(400)` | library / flask | library / flask | decorator_expression | static_obvious | gt: @app.errorhandler() decorator expression, flask via factory return<br>v: decorator expression is import-backed usage |

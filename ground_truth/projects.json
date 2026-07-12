@@ -39,8 +39,8 @@
     },
     "click2": {
       "path": "tests/fixtures/tested_projects/click2",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Click CLI patterns"
     },
     "click3": {
@@ -75,8 +75,8 @@
     },
     "django": {
       "path": "tests/fixtures/tested_projects/django",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Web framework patterns"
     },
     "EJPLab": {
@@ -99,8 +99,8 @@
     },
     "flask1": {
       "path": "tests/fixtures/tested_projects/flask1",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Flask web app; route decorators"
     },
     "flask2": {
@@ -149,8 +149,8 @@
     },
     "machine-learning": {
       "path": "tests/fixtures/tested_projects/machine-learning",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "ML; sklearn"
     },
     "MAHE_OD_DATASET": {
@@ -185,8 +185,8 @@
     },
     "psycopg2": {
       "path": "tests/fixtures/tested_projects/psycopg2",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Database connector usage"
     },
     "Python-Workshop": {
@@ -209,8 +209,8 @@
     },
     "redis": {
       "path": "tests/fixtures/tested_projects/redis",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Redis client usage"
     },
     "scrapping": {
@@ -233,8 +233,8 @@
     },
     "tensorflow1": {
       "path": "tests/fixtures/tested_projects/tensorflow1",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "ML; tensorflow/keras"
     },
     "tensorflow2": {
