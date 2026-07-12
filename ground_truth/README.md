@@ -264,16 +264,20 @@ Excluded from precision and recall; counted in coverage metrics.
 ## Pilot Projects
 
 All 4 pilots are **locked** (2026-06-04).  626 calls, 0 missing, 0 stale,
-0 FP, aggregate recall 0.912.
+0 FP.
 
-### Locked Pilot Results
+Locked pilot baseline before round-1 fixes (2026-06-04): aggregate recall 0.912.
+
+Current round-1 metrics after container-scope fix (2026-06-24): aggregate recall 0.931.
+
+### Pilot Results (Round 1, 2026-06-24)
 
 | Project | Calls | all P | all R | all F1 | library R | python R | local R | deco |
 |---------|-------|-------|-------|--------|-----------|----------|---------|------|
 | `click1` | 5 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1 |
-| `flask2` | 73 | 1.000 | 0.904 | 0.950 | 1.000 | 0.720 | 1.000 | 0 |
-| `hfhd` | 444 | 0.995 | 0.930 | 0.962 | 0.894 | 1.000 | 1.000 | 0 |
-| `Youtube` | 104 | 0.989 | 0.837 | 0.906 | 0.775 | 0.869 | 1.000 | 0 |
+| `flask2` | 73 | 1.000 | 0.945 | 0.972 | 1.000 | 0.826 | 1.000 | 0 |
+| `hfhd` | 444 | 0.998 | 0.930 | 0.963 | 0.894 | 1.000 | 1.000 | 0 |
+| `Youtube` | 104 | 1.000 | 0.923 | 0.960 | 0.800 | 1.000 | 1.000 | 0 |
 
 ### Verification Level Breakdown
 
@@ -287,41 +291,45 @@ All 4 pilots are **locked** (2026-06-04).  626 calls, 0 missing, 0 stale,
 
 ### Primary Miss Categories
 
-**flask2** (7 misses, all in python view):
-- 4 × `request.json.get(...)` — mapping protocol method on Flask-derived
-  payload, classified as `library/flask` by PCResolve
-- 1 × `getattr(error, ...)` — Python builtin classified as `local`
-- 1 × `tasks.append(task)` — list.append on local container classified as `local`
-- 1 × `error_messages.get(...)` — dict.get on local container classified as `local`
+**flask2** (4 misses, all in python view):
+- 4 × `request.json.get(...)` — mapping protocol receiver; GT labels python, PCResolve says flask (P2 deferred)
 
-**hfhd** (31 misses, 29 library + 2 wrong_owner):
-- 23 × pandas Series/DataFrame methods (`.dropna()`, `.to_numpy()`,
-  `.cumsum()`, `.diff()`, `.between_time()`) classified as `local`
-- 6 × numpy ndarray methods (`.flatten()`, `.reshape()`) classified as `local`
-- 2 × `.diff()`/`.mean()` on pandas Series result of `np.log()`,
-  classified as `numpy` instead of `pandas` (wrong_owner)
+**hfhd** (31 misses, 30 library + 1 wrong_owner):
+- ~28 × receiver via parameter or local function return — `x.dropna()`,
+  `data.to_numpy()`, `price.dropna()`, `resid.cumsum()`,
+  `values[...].reshape()`, `merged_values.flatten()`,
+  `self.log_rets.cumsum()`, `_preaverage(...)`, etc.
+  (need call-graph propagation, 1.0.6)
+- 1 × `y.mean()` via chained call through parameter (wrong_owner: numpy vs pandas)
 
-**Youtube** (17 misses, 9 library + 8 python):
-- 5 × `x.todense()` — scipy sparse matrix method classified as `python` or `local`
-- 3 × `.copy()`/`.argmin()`/`.mean()` on numpy arrays classified as `local` or `unknown`
-- 1 × `.argmin()` on numpy array classified as `scipy` (wrong_owner)
-- 7 × `list.append()`/`list.extend()`/`list.index()` on local lists classified as `local`
-- 1 × `list.append()` on defaultdict list classified as `collections`
+**Youtube** (8 misses, 8 library):
+- 3 × `x.todense()`, `y.todense()`, `centres.todense()` — scipy sparse via parameter/local
+- 2 × `D.argmin(axis=1)`, `distances.mean()` — cdist return via local
+- 1 × `centres.copy()` — ndarray method via local
+- 2 × additional ndarray method misses from local/cross-call flow
+  All 8 need scipy/numpy receiver tracking (1.0.6)
 
 **click1**: no misses — all 5 calls correctly classified.
 
-### Miss Root Causes
+### Miss Root Causes (Round 1, 2026-06-24)
 
-| Root Cause | Projects | Example | GT | PCResolve |
-|-----------|----------|---------|----|-----------|
-| Mapping protocol receiver | flask2 | `request.json.get(...)` | python | library/flask |
-| Builtin method on local container | flask2, Youtube | `list.append()`, `list.extend()`, `list.index()`, `dict.get()` | python | local |
-| Pandas method on Series/DataFrame | hfhd | `x.dropna()`, `data.to_numpy()` | library/pandas | local |
-| Numpy method on ndarray | hfhd | `arr.flatten()`, `arr.reshape()` | library/numpy | local |
-| Chained owner: numpy→pandas | hfhd | `np.log(s).diff()` | library/pandas | library/numpy |
-| Chained owner: cdist→numpy | Youtube | `D.argmin(axis=1)` | library/numpy | library/scipy |
-| Scipy sparse method | Youtube | `x.todense()` | library/scipy | python/local |
-| Builtin method on defaultdict list | Youtube | `distPartDict[k].append(v)` | python | library/collections |
+| Root Cause | Projects | Example | Status |
+|-----------|----------|---------|--------|
+| Mapping protocol receiver | flask2 | `request.json.get(...)` | P2 deferred (4 remaining) |
+| Pandas/NumPy via local/param | hfhd | `x.dropna()`, `arr.reshape()` | Need call-graph (1.0.6) |
+| Scipy sparse via local/param | Youtube | `x.todense()` | Need receiver tracking (1.0.6) |
+| Scipy→NumPy via local variable | Youtube | `D.argmin(axis=1)` | Need assignment propagation (1.0.6) |
+
+**Fixed in round 1:**
+
+| Root Cause | Projects | Example | Fix |
+|-----------|----------|---------|-----|
+| Builtin function misclassification | flask2 | `getattr(...)` | Builtin detection before local fallback |
+| Builtin container method on local | flask2, Youtube | `list.append()`, `dict.get()` | Container kind detection |
+| defaultdict item kind | Youtube | `defaultdict(list)[k].append()` | Item kind tracking |
+| Chained owner: cdist→numpy | Youtube | `cdist(...).argmin()` (direct chain) | Return-type contract |
+| Chained owner: numpy ufunc→pandas | hfhd | `np.log(s).diff()` (module-level) | Receiver-preserving ufuncs |
+| Container fix over-reach | hfhd | `stp.append(...)` | Module-level-only gate on container kind |
 
 ### Labeling Conventions (1.0.5 Pilot)
 
@@ -349,11 +357,20 @@ does not expand framework internals to werkzeug/logging.
 judges the call expression's callable owner — `.to_numpy()` is a
 pandas method — not the return type.
 
-**Builtin/container method on local receiver.** `tasks.append(...)`,
-`error_messages.get(...)`: `expected_kind="python"`,
-`expected_top_library="python"`.  `local` is an acceptable alternative
-per the builtin/container receiver contract, but GT uses `python` as
-the canonical label.
+**Module-level container method on known receiver.**
+`module_list.append(...)`, `allseeds.index(...)`,
+`defaultdict(list)[k].append(...)`: `expected_kind="python"`,
+`expected_top_library="python"`.  The receiver must be declared at
+module level so the container kind is recorded in the module symbol
+table.  This is the canonical label for protocol/container-style
+usage of Python builtin types.
+
+**Function-local scaffolding container.** `stp.append(...)`,
+`local_list.append(...)` (container created and consumed inside
+a function for internal data-structure building):
+`expected_kind="local"`, `expected_top_library="local"`.  The
+callable IS Python's list.append but the usage context is internal
+scaffolding, not protocol-style API surface.
 
 ### Expansion Candidates
 
@@ -431,6 +448,10 @@ construction only.
 | 1 | `np.log(pd.Series).diff()` | `.diff()` receiver IS `pandas.Series`; GT label `library/pandas` is correct. PCResolve says `numpy` → **WRONG_OWNER**. |
 | 2 | `df.to_numpy().T` then `.reshape()` | `.to_numpy()` is pandas API (call itself). Result is `numpy.ndarray`. `.reshape()` receiver is numpy → conversion boundary confirmed. |
 | 3 | `_preaverage(...).flatten()` | `_preaverage()` operates on ndarray; `.flatten()` is numpy method. |
+| 4 | NumPy ufunc + pandas preservation matrix | `np.{log,exp,sqrt,abs}` applied to `pd.Series`/`pd.DataFrame` preserve the pandas receiver type. `.diff()`/`.mean()`/`.dropna()` bound method owner is pandas. Validates `_RECEIVER_PRESERVE_UFUNCS` static rule. |
+| 5 | Negative conversion matrix | `np.array(pd.Series)`, `np.asarray(pd.Series)`, `pd.Series.to_numpy()`, `pd.Series.values` all return `numpy.ndarray`. `.reshape()`/`.flatten()` bound method owner is numpy, NOT pandas. Validates `_CONVERSION_METHOD_TARGETS` and `_CONVERSION_ATTRIBUTE_TARGETS`. |
+
+NumPy ufunc preservation matrix validates log/exp/sqrt/abs on pandas Series/DataFrame; conversion matrix validates array/asarray/to_numpy/values return ndarray.
 
 **Youtube probes** (`probes/youtube_probe.py`):
 

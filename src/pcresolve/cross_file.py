@@ -17,8 +17,43 @@ _PY2_BUILTINS = frozenset({
     "StandardError", "unichr", "unicode", "xrange",
 })
 
+## 1.0.5 P1: builtin container/type methods keyed by container kind.
+_BUILTIN_CONTAINER_METHODS = {
+    "list": frozenset([
+        "append", "extend", "insert", "remove", "pop", "clear",
+        "index", "count", "sort", "reverse", "copy",
+    ]),
+    "dict": frozenset([
+        "get", "keys", "values", "items", "update", "pop",
+        "popitem", "clear", "copy",
+    ]),
+    "set": frozenset([
+        "add", "remove", "discard", "pop", "clear", "copy",
+        "update", "difference", "intersection", "union",
+        "symmetric_difference", "issubset", "issuperset",
+    ]),
+    "tuple": frozenset(["count", "index"]),
+    "str": frozenset([
+        "strip", "rstrip", "lstrip", "split", "rsplit", "join",
+        "replace", "find", "rfind", "rindex", "startswith",
+        "endswith", "upper", "lower", "title", "capitalize",
+        "swapcase", "center", "ljust", "rjust", "encode", "zfill",
+        "format", "format_map",
+        "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
+        "isidentifier", "islower", "isnumeric", "isprintable",
+        "isspace", "istitle", "isupper",
+    ]),
+}
 
-## Check if a name is a Python builtin (including Python 2 builtins).
+## Check if a receiver name has a known container kind from single-file analysis.
+#  @param tracer Single-file analyzer.
+#  @param receiver_name Variable name.
+#  @return Container kind string or None.
+def _receiver_container_kind(tracer, receiver_name):
+    return getattr(tracer, "container_kinds", {}).get(receiver_name)
+
+
+## Check if a name is a Python builtin(including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
@@ -366,11 +401,20 @@ class ProjectAnalyzer:
                     record['alternatives'] = cr.alternatives
                     self.all_calls[module].append(record)
                     continue
-                top_source = self._base_top_source(module, base, tracer, module_tracers)
-                record = dict(call_detail)
-                record['top'] = top_source
+                # 1.0.5 P1: preserve python top from single-file phase
+                # for calls with call-site recorded container kind.
+                call_kind = call_detail.get("receiver_container_kind")
+                if (isinstance(base, InstanceMethod)
+                        and call_kind is not None
+                        and call_detail.get("top") == "python"):
+                    record = dict(call_detail)
+                    record['top'] = "python"
+                else:
+                    top_source = self._base_top_source(module, base, tracer, module_tracers)
+                    record = dict(call_detail)
+                    record['top'] = top_source
                 cr = self.classify_source(
-                    base, top_source, module, tracer, module_tracers)
+                    base, record['top'], module, tracer, module_tracers)
                 record['reason'] = cr.reason
                 record['alternatives'] = cr.alternatives
                 record['confidence'] = cr.confidence
@@ -393,7 +437,24 @@ class ProjectAnalyzer:
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
                 _, src_module, src_symbol = structured
-                return self._top_source(src_module, src_symbol, module_tracers)
+                top = self._top_source(src_module, src_symbol, module_tracers)
+                # 1.0.5 P1: builtin container method on a receiver
+                # whose container kind is known from tracer-final state.
+                # Only apply to module-level receivers (names in
+                # tracer.symbols.direct); function-local containers
+                # doing internal data-structure building should
+                # stay local.
+                if (top == "local"
+                        and isinstance(base, InstanceMethod)
+                        and base.receiver not in tracer.class_methods
+                        and base.receiver in tracer.symbols.direct):
+                    kind = getattr(tracer, "container_item_kinds", {}).get(base.receiver)
+                    if kind is None:
+                        kind = getattr(tracer, "container_kinds", {}).get(base.receiver)
+                    if (kind is not None
+                            and base.method in _BUILTIN_CONTAINER_METHODS.get(kind, frozenset())):
+                        return "python"
+                return top
             return "local"
         if isinstance(base, str) and '.' in base:
             prefix = base.split('.')[0]
@@ -1035,6 +1096,18 @@ class ProjectAnalyzer:
                         top = self._top_source(module, class_symbol, tracers)
                         if top and top not in ("local", "python", "unknown", ""):
                             return (f"{a}.{b}", module, top)
+                    # 1.0.5 P1: builtin container method on receiver
+                    # whose container kind is known from the tracer.
+                    # Only apply to module-level receivers (names in
+                    # tracer.symbols.direct); function-local containers
+                    # doing internal data-structure building should
+                    # stay local.  (Path 1 in single_file visit_Call
+                    # applies the same gate.)
+                    kind = _receiver_container_kind(tracer, a)
+                    if (kind is not None
+                            and b in _BUILTIN_CONTAINER_METHODS.get(kind, frozenset())
+                            and a in tracer.symbols.direct):
+                        return (f"{a}.{b}", module, "python")
                     return None
             src_module, src_symbol = resolved
             ## 7B-full PR3: if the resolved method is local, try constructor attrs.

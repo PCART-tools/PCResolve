@@ -54,6 +54,191 @@ Probe 3: _preaverage return → .flatten() receiver
   .flatten() receiver is numpy, not pandas
 
 ============================================================
+Probe 4: NumPy ufunc + pandas receiver preservation matrix
+============================================================
+  Input: pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+
+  --- np.log(pd.Series) ---
+    result: <class 'pandas.core.series.Series'>
+    result __module__: pandas.core.series
+    result is pandas object: True
+    .diff method __module__: pandas.core.series
+    .diff bound receiver type: <class 'pandas.core.series.Series'>
+    .diff bound receiver __module__: pandas.core.series
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.series.Series'>
+    .mean bound receiver __module__: pandas.core.series
+
+  --- np.exp(pd.Series) ---
+    result: <class 'pandas.core.series.Series'>
+    result __module__: pandas.core.series
+    result is pandas object: True
+    .diff method __module__: pandas.core.series
+    .diff bound receiver type: <class 'pandas.core.series.Series'>
+    .diff bound receiver __module__: pandas.core.series
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.series.Series'>
+    .mean bound receiver __module__: pandas.core.series
+
+  --- np.sqrt(pd.Series) ---
+    result: <class 'pandas.core.series.Series'>
+    result __module__: pandas.core.series
+    result is pandas object: True
+    .diff method __module__: pandas.core.series
+    .diff bound receiver type: <class 'pandas.core.series.Series'>
+    .diff bound receiver __module__: pandas.core.series
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.series.Series'>
+    .mean bound receiver __module__: pandas.core.series
+
+  --- np.abs(pd.Series) ---
+    result: <class 'pandas.core.series.Series'>
+    result __module__: pandas.core.series
+    result is pandas object: True
+    .diff method __module__: pandas.core.series
+    .diff bound receiver type: <class 'pandas.core.series.Series'>
+    .diff bound receiver __module__: pandas.core.series
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.series.Series'>
+    .mean bound receiver __module__: pandas.core.series
+
+  --- DataFrame input ---
+  Input: pd.DataFrame({"a": [1.0, 2.0, 3.0]})
+  --- np.log(pd.DataFrame) ---
+    result: <class 'pandas.core.frame.DataFrame'>
+    result __module__: pandas.core.frame
+    result is pandas object: True
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .mean bound receiver __module__: pandas.core.frame
+    .dropna method __module__: pandas.core.frame
+    .dropna bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .dropna bound receiver __module__: pandas.core.frame
+
+  --- np.exp(pd.DataFrame) ---
+    result: <class 'pandas.core.frame.DataFrame'>
+    result __module__: pandas.core.frame
+    result is pandas object: True
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .mean bound receiver __module__: pandas.core.frame
+    .dropna method __module__: pandas.core.frame
+    .dropna bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .dropna bound receiver __module__: pandas.core.frame
+
+  --- np.sqrt(pd.DataFrame) ---
+    result: <class 'pandas.core.frame.DataFrame'>
+    result __module__: pandas.core.frame
+    result is pandas object: True
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .mean bound receiver __module__: pandas.core.frame
+    .dropna method __module__: pandas.core.frame
+    .dropna bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .dropna bound receiver __module__: pandas.core.frame
+
+  --- np.abs(pd.DataFrame) ---
+    result: <class 'pandas.core.frame.DataFrame'>
+    result __module__: pandas.core.frame
+    result is pandas object: True
+    .mean method __module__: pandas.core.generic
+    .mean bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .mean bound receiver __module__: pandas.core.frame
+    .dropna method __module__: pandas.core.frame
+    .dropna bound receiver type: <class 'pandas.core.frame.DataFrame'>
+    .dropna bound receiver __module__: pandas.core.frame
+
+  >>> EVIDENCE:
+  np.{log,exp,sqrt,abs}(pd.Series) preserve pandas receiver: True
+  Static rule RECEIVER_PRESERVE_UFUNCS = {log, exp, sqrt, abs} is valid.
+
+============================================================
+Probe 5: Negative conversion matrix (pandas → numpy)
+============================================================
+  Input: pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+
+  --- np.array(pd.Series) ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  --- np.asarray(pd.Series) ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  --- pd.Series.to_numpy() ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  --- pd.Series.values ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  --- DataFrame input ---
+  Input: pd.DataFrame({"a": [1,2], "b": [3,4]})
+
+  --- pd.DataFrame.to_numpy() ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  --- pd.DataFrame.values ---
+    result: <class 'numpy.ndarray'>
+    result __module__: numpy
+    result is pandas object: False
+    .reshape method __module__: None
+    .reshape bound receiver type: <class 'numpy.ndarray'>
+    .reshape bound receiver __module__: numpy
+    .flatten method __module__: None
+    .flatten bound receiver type: <class 'numpy.ndarray'>
+    .flatten bound receiver __module__: numpy
+    result is numpy: True
+
+  >>> EVIDENCE:
+  np.array(pd.Series), np.asarray(pd.Series),
+  pd.Series.to_numpy(), pd.Series.values all return numpy.ndarray.
+  .reshape() / .flatten() bound method owner is numpy, NOT pandas.
+  Static rules _CONVERSION_METHOD_TARGETS / _CONVERSION_ATTRIBUTE_TARGETS valid.
+
+============================================================
 SUMMARY
 ============================================================
   Probe 1: np.log(pd.Series).diff() → .diff() receiver is pandas
@@ -61,3 +246,7 @@ SUMMARY
   Probe 2: .to_numpy() is pandas API, returned ndarray.reshape() is numpy
            Conversion boundary: to_numpy=pandas, reshape=numpy
   Probe 3: _preaverage returns ndarray → .flatten() is numpy method
+  Probe 4: np.{log,exp,sqrt,abs}(pd.Series/DataFrame) preserve pandas
+           Validates RECEIVER_PRESERVE_UFUNCS static rule
+  Probe 5: np.array/asarray/to_numpy/values(pd.Series) → ndarray
+           Validates conversion boundary static rules

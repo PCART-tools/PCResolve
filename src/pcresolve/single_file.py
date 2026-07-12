@@ -23,10 +23,57 @@ _PY2_BUILTINS = frozenset({
     "StandardError", "unichr", "unicode", "xrange",
 })
 
+## 1.0.5 P1: builtin container/type method names whose receiver is a
+#  Python-provided object even when the receiver variable is local.
+#  When a call like x.append(...) has a receiver tracing to "local"
+#  and the method name is in this set, the callable owner is python.
+## 1.0.5 P1: builtin container/type methods keyed by container kind.
+#  The container kind (list/dict/set/tuple/str) provides context so
+#  that method classification is safe from local-class name collisions.
+_BUILTIN_CONTAINER_METHODS = {
+    "list": frozenset([
+        "append", "extend", "insert", "remove", "pop", "clear",
+        "index", "count", "sort", "reverse", "copy",
+    ]),
+    "dict": frozenset([
+        "get", "keys", "values", "items", "update", "pop",
+        "popitem", "clear", "copy",
+    ]),
+    "set": frozenset([
+        "add", "remove", "discard", "pop", "clear", "copy",
+        "update", "difference", "intersection", "union",
+        "symmetric_difference", "issubset", "issuperset",
+    ]),
+    "tuple": frozenset(["count", "index"]),
+    "str": frozenset([
+        "strip", "rstrip", "lstrip", "split", "rsplit", "join",
+        "replace", "find", "rfind", "rindex", "startswith",
+        "endswith", "upper", "lower", "title", "capitalize",
+        "swapcase", "center", "ljust", "rjust", "encode", "zfill",
+        "format", "format_map",
+        "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
+        "isidentifier", "islower", "isnumeric", "isprintable",
+        "isspace", "istitle", "isupper",
+    ]),
+}
+
 
 ## Check if a name is a Python builtin (including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
+
+
+## Check if a Call node is a defaultdict(list) call with a statically
+#  known default factory (list/dict/set/tuple/str).
+def _is_defaultdict_itemkind(node):
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Name):
+        return False
+    if node.func.id != "defaultdict" or len(node.args) < 1:
+        return False
+    factory = node.args[0]
+    return isinstance(factory, ast.Name) and factory.id in ("list", "dict", "set", "tuple", "str")
 from .types import FileAnalysis, ApiCall
 
 # 1.0.5 P1: known conversion targets.  Method calls (to_numpy())
@@ -40,8 +87,33 @@ _CONVERSION_ATTRIBUTE_TARGETS = {
     ("pandas", "values"): "numpy",
 }
 
+# 1.0.5 P1: library function return types for chained-call and
+# assignment-boundary inference.  Keyed by (library_prefix, function_name)
+# where library_prefix matches the start of the resolved import top.
+# Probe-backed: cdist() returns ndarray.
+_RETURN_TYPE_MAP = {
+    ("scipy", "cdist"): "numpy",
+}
+
+def _match_return_type(top, func_name):
+    """Check if a (top_library, function_name) pair has a known return type."""
+    if top is None:
+        return None
+    for (lib_prefix, fn), ret in _RETURN_TYPE_MAP.items():
+        if fn == func_name and (top == lib_prefix or top.startswith(lib_prefix + ".")):
+            return ret
+    return None
+
+# 1.0.5 P1: numpy ufuncs that preserve the receiver's type when
+# applied to pandas objects.  Probe-backed: np.log(pd.Series)
+# returns pd.Series.
+_RECEIVER_PRESERVE_UFUNCS = frozenset({
+    "log", "exp", "sqrt", "abs",
+})
+
 
 ## AST visitor that traces all symbols and API calls in a single Python file.
+#
 #
 #  Walks the AST to:
 #  - Record import mappings and their aliases
@@ -72,6 +144,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.function_params = {}
         self.container_items = {}
         self.container_lengths = {}
+        self.container_kinds = {}  # 1.0.5 P1: name -> "list"|"dict"|"set"|"tuple"|"str"
+        self.container_item_kinds = {}  # 1.0.5 P1+: name -> "list"|"dict"|... for defaultdict(list) etc.
         self.container_set_sources = {}
         self.class_methods = {}
         self.class_bases = {}
@@ -573,7 +647,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             class_name = normalize_source(class_name)
             if isinstance(class_name, CallResult):
                 class_name = class_name.callee
-            if not class_name:
+            # 1.0.5 P1: treat "local" class_name the same as
+            # absent — still create InstanceMethod so the
+            # builtin container method check applies.
+            if not class_name or class_name == "local":
                 if self.scope_model == "v2":
                     binding = self.current_scope().lookup(re.id)
                     if binding is not None:
@@ -586,6 +663,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 return _resolve_on_class(cn, cn)
                             if isinstance(cn, str) and cn in self.import_from_symbols:
                                 return InstanceMethod(cn, method_name)
+                # Module-level local bindings — scope lookup
+                # may return None at module scope; fall back
+                # to the direct symbol table.
+                if self.symbols.direct.get(re.id) == "local":
+                    return InstanceMethod(re.id, method_name)
                 return None
             methods = self.class_methods.get(class_name)
             if methods and method_name in methods:
@@ -848,6 +930,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     container_name = target.id
+                    self.container_kinds[container_name] = "dict"
                     for key_node, value_node in zip(node.value.keys, node.value.values):
                         if isinstance(key_node, ast.Constant):
                             key_value = key_node.value
@@ -861,6 +944,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     container_name = target.id
                     n = len(node.value.elts)
                     self.container_lengths[container_name] = n
+                    self.container_kinds[container_name] = (
+                        "list" if isinstance(node.value, ast.List) else "tuple")
                     for i, elt in enumerate(node.value.elts):
                         value_source = self.get_base(elt)
                         if value_source:
@@ -870,6 +955,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     container_name = target.id
+                    self.container_kinds[container_name] = "set"
                     bases = set()
                     for elt in node.value.elts:
                         base = self.get_base(elt)
@@ -877,6 +963,57 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             bases.add(base)
                     if bases:
                         self.container_set_sources[container_name] = bases
+
+        # 1.0.5 P1: track container kinds for comprehensions and constructors.
+        if isinstance(node.value, ast.ListComp):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.container_kinds[target.id] = "list"
+        if isinstance(node.value, ast.SetComp):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.container_kinds[target.id] = "set"
+        if isinstance(node.value, ast.DictComp):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.container_kinds[target.id] = "dict"
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.container_kinds[target.id] = "str"
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            func_id = node.value.func.id
+            if func_id in ("list", "dict", "set", "tuple", "str"):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        self.container_kinds[target.id] = func_id
+            # 1.0.5 P1+: track defaultdict(list) / defaultdict(dict) etc.
+            # so d[k].append(v) can be classified from the item kind.
+            if func_id == "defaultdict" and len(node.value.args) >= 1:
+                factory = node.value.args[0]
+                if isinstance(factory, ast.Name):
+                    factory_name = factory.id
+                    if factory_name in ("list", "dict", "set", "tuple", "str"):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name):
+                                self.container_item_kinds[target.id] = factory_name
+
+        # 1.0.5 P1: invalidate container kind for non-container RHS so
+        # re-binding (e.g. x=[] then x=Bag()) does not leak the old kind.
+        _container_rhs_types = (ast.Dict, ast.List, ast.Tuple, ast.Set,
+                                ast.ListComp, ast.SetComp, ast.DictComp)
+        _container_funcs = {"list", "dict", "set", "tuple", "str"}
+        if not isinstance(node.value, _container_rhs_types):
+            if not (isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)):
+                if not (isinstance(node.value, ast.Call)
+                        and isinstance(node.value.func, ast.Name)
+                        and (node.value.func.id in _container_funcs
+                             or _is_defaultdict_itemkind(node.value))):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            self.container_kinds.pop(target.id, None)
+                            self.container_item_kinds.pop(target.id, None)
 
         ## Collect assignment target names and delegate to shared pipeline.
         targets = []
@@ -969,6 +1106,43 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     return callee_top
         return top
 
+    ## Resolve the ownership top of an expression node.
+    #  Recursively handles ast.Call arguments so that
+    #  np.log(price.dropna()).diff() preserves the inner call's
+    #  receiver owner (pandas).
+    #  Respects conversion boundaries: data.to_numpy() returns
+    #  numpy even though the receiver is pandas.
+    def _expr_receiver_top(self, expr):
+        if isinstance(expr, ast.Name):
+            return self._receiver_top(expr.id)
+        if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute):
+            receiver = expr.func.value
+            if isinstance(receiver, ast.Name):
+                receiver_top = self._receiver_top(receiver.id)
+                if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
+                    # Check conversion boundary first:
+                    # data.to_numpy() return is numpy, not pandas.
+                    conv = _CONVERSION_METHOD_TARGETS.get((receiver_top, expr.func.attr))
+                    if conv:
+                        return conv
+                    return receiver_top
+        return None
+
+    ## Resolve (top_library, function_name) for a function expression.
+    #  Handles both bare names (cdist) and dotted names (np.log).
+    def _resolve_func_top(self, func_node):
+        if isinstance(func_node, ast.Name):
+            name = func_node.id
+            top = self.symbols.get_top(name)
+            if top and top not in ("local", "python", "unknown", "", name):
+                return (top, name)
+        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Name):
+            prefix = func_node.value.id
+            prefix_top = self.symbols.get_top(prefix)
+            if prefix_top and prefix_top not in ("local", "python", "unknown", "", prefix):
+                return (prefix_top, func_node.attr)
+        return (None, None)
+
     def _resolve_conversion_target(self, value_node):
         # Unwrap trailing attribute chain: data.to_numpy().T → data.to_numpy()
         call_node = value_node
@@ -982,8 +1156,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if isinstance(receiver, ast.Name):
                 receiver_top = self._receiver_top(receiver.id)
                 if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
-                    return _CONVERSION_METHOD_TARGETS.get((receiver_top, method))
-            return None
+                    conv = _CONVERSION_METHOD_TARGETS.get((receiver_top, method))
+                    if conv:
+                        return conv
+            # Not a known conversion method — fall through to check
+            # function-call return types (e.g. np.log, cdist).
 
         if isinstance(call_node, ast.Attribute):
             # Bare attribute read: data.values → conversion if attr in table.
@@ -995,6 +1172,22 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 receiver_top = self._receiver_top(receiver.id)
                 if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
                     return _CONVERSION_ATTRIBUTE_TARGETS.get((receiver_top, attr_name))
+            return None
+
+        # 1.0.5 P1: function-call return type.  cdist(...) → numpy,
+        # receiver-preserving ufunc np.log(pd.Series) → pandas.
+        if isinstance(call_node, ast.Call):
+            func_top, func_name = self._resolve_func_top(call_node.func)
+            if func_top and func_top not in ("local", "python", "unknown", ""):
+                # Check explicit return-type map (cdist → numpy)
+                ret = _match_return_type(func_top, func_name)
+                if ret:
+                    return ret
+                # Check receiver-preserving ufuncs (np.log + pandas)
+                if func_name in _RECEIVER_PRESERVE_UFUNCS and len(call_node.args) >= 1:
+                    arg_top = self._expr_receiver_top(call_node.args[0])
+                    if arg_top and arg_top not in ("local", "python", "unknown", ""):
+                        return arg_top
         return None
 
     ## Shared assignment pipeline: pending targets, trace RHS, visit, call_assign_funcs.
@@ -1074,7 +1267,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param node The Call AST node.
     #  @return Base symbol, structured tuple, or None.
     def _resolve_call_base_for_api(self, node):
-        if self._is_getattr_call(node):
+        # P0 (1.0.5): bare getattr() builtin calls must be classified as
+        # python, not traced through the argument's provenance.  Only
+        # trace through obj.getattr("name") style calls where getattr is
+        # accessed as an attribute on a receiver object.
+        if self._is_getattr_call(node) and not isinstance(node.func,
+                                                          ast.Name):
             if self._literal_str(node.args[1]) is not None:
                 g = self.trace_source(node.args[0])
                 if g is not None:
@@ -1086,6 +1284,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         base = self._resolve_methods(node)
         if base is not None:
             return base
+        # 1.0.5 P1+: defaultdict(list) item kind — d[k].append(v) where
+        # d = defaultdict(list) has item kind "list".
+        if isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Subscript):
+                sub = node.func.value
+                if isinstance(sub.value, ast.Name):
+                    item_kind = self.container_item_kinds.get(sub.value.id)
+                    if item_kind is not None:
+                        return InstanceMethod(sub.value.id, node.func.attr)
         ## For chained calls (A().B()), resolve via the inner call's
         ## return source so the outer call traces to the correct library.
         if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
@@ -1100,6 +1307,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return rs
             if isinstance(inner_source, SourceSet):
                 return inner_source
+            # 1.0.5 P1: library-function return types for chained
+            # calls (cdist(...).argmin(), np.log(s).diff()).
+            inner_call = node.func.value
+            func_top, func_name = self._resolve_func_top(inner_call.func)
+            if func_top and func_top not in ("local", "python", "unknown", ""):
+                ret = _match_return_type(func_top, func_name)
+                if ret:
+                    return ret
+                if func_name in _RECEIVER_PRESERVE_UFUNCS and len(inner_call.args) >= 1:
+                    arg_top = self._expr_receiver_top(inner_call.args[0])
+                    if arg_top and arg_top not in ("local", "python", "unknown", ""):
+                        return arg_top
         call_lookup_base = self.get_base(node, call_lookup=True)
         if call_lookup_base is not None:
             return call_lookup_base
@@ -1242,8 +1461,47 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             display = source_display(base)
             if isinstance(base, InstanceMethod) and isinstance(base.receiver, str):
                 top_from_receiver = self.symbols.get_top(base.receiver)
-                if top_from_receiver == "local":
-                    display = "local"
+                # 1.0.5 P1: builtin container methods on receivers
+                # whose container kind is known.  The receiver may be
+                # local via get_top, scope binding, or item kind
+                # (defaultdict(list) — receiver traces to collections
+                # but item kind is list).
+                #
+                # 1.0.5 P1 fix: container-kind→python only applies to
+                # module-level containers (names in symbol table).
+                # Function-local containers doing internal
+                # data-structure building (e.g. stp.append(),
+                # Sigma_hat_list.append()) should stay local — the
+                # callable IS Python's list.append but the usage
+                # context is internal scaffolding, not
+                # protocol-style API surface.
+                receiver_in_module_symbols = (
+                    base.receiver in self.symbols.direct)
+                rec_local = (top_from_receiver == "local")
+                if (not rec_local and self.scope_model == "v2"):
+                    binding = self.current_scope().lookup(base.receiver)
+                    if (binding is not None
+                            and binding.source == "local"):
+                        rec_local = True
+                # Check container/item kind.  Item kind takes
+                # precedence over container kind (defaultdict(list)
+                # sets item_kind=list even when a previous scope
+                # left container_kinds[receiver]=dict).
+                kind = self.container_item_kinds.get(base.receiver)
+                if kind is None:
+                    kind = self.container_kinds.get(base.receiver)
+                if rec_local or kind is not None:
+                    if (kind is not None
+                            and base.method in _BUILTIN_CONTAINER_METHODS.get(kind, frozenset())
+                            and receiver_in_module_symbols):
+                        display = "python"
+                        # Record kind at call-site time so cross-file
+                        # phase doesn't see later invalidation.
+                        loc["receiver_container_kind"] = kind
+                    elif rec_local:
+                        display = "local"
+                    else:
+                        display = display  # keep source_display default
             chain = [display] if (self.scope_model == "v2" and display) else []
             record = {
                 'api': api_string,

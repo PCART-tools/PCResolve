@@ -11,10 +11,10 @@ machine source of truth.
 | Project | Calls | Status | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|---------------|---------------|--------------|-----------------|------------|
 | [click1](click1/overview.md) | 5 | locked | 4 | 1 | 0 | 0 | 0 |
-| [flask2](flask2/overview.md) | 73 | locked | 48 | 25 | 0 | 0 | 7 |
+| [flask2](flask2/overview.md) | 73 | locked | 48 | 25 | 0 | 0 | 5 |
 | [hfhd](hfhd/overview.md) | 444 | locked | 377 | 39 | 28 | 0 | 31 |
 | [Youtube](Youtube/overview.md) | 104 | locked | 82 | 13 | 9 | 0 | 17 |
-| **TOTAL** | **626** | | **511** | **78** | **37** | **0** | **55** |
+| **TOTAL** | **626** | | **511** | **78** | **37** | **0** | **53** |
 
 ## Directory Layout
 

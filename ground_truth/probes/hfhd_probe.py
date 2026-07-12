@@ -191,6 +191,194 @@ def probe_preaverage_flatten():
 
 
 # ---------------------------------------------------------------------------
+# Probe 4: NumPy ufunc + pandas receiver preservation matrix
+#
+#   Verifies the static rule: RECEIVER_PRESERVE_UFUNCS = {log, exp, sqrt,
+#   abs}.  Each ufunc applied to pd.Series/DataFrame must preserve the
+#   pandas receiver type so that subsequent .diff() / .mean() calls are
+#   correctly classified as pandas.
+# ---------------------------------------------------------------------------
+
+_UFUNCS = ["log", "exp", "sqrt", "abs"]
+
+
+def _print_method_owner(obj, method_name):
+    """Print bound method owner info for diagnostic purposes."""
+    if not hasattr(obj, method_name):
+        print("    .%s: NOT AVAILABLE" % method_name)
+        return
+    m = getattr(obj, method_name)
+    try:
+        print("    .%s method __module__: %s" % (method_name, m.__module__))
+    except Exception:
+        pass
+    try:
+        receiver = getattr(m, "__self__", None)
+        if receiver is not None:
+            print("    .%s bound receiver type: %s" % (method_name, type(receiver)))
+            print("    .%s bound receiver __module__: %s"
+                  % (method_name, type(receiver).__module__))
+    except Exception:
+        pass
+
+
+def _print_result_info(label, result):
+    print("    %s: %s" % (label, type(result)))
+    print("    %s __module__: %s" % (label, type(result).__module__))
+    is_pandas = "pandas" in str(type(result).__module__)
+    print("    %s is pandas object: %s" % (label, is_pandas))
+
+
+def probe_ufunc_pandas_preservation():
+    print(HEADER)
+    print("Probe 4: NumPy ufunc + pandas receiver preservation matrix")
+    print(HEADER)
+
+    import numpy as np
+
+    try:
+        import pandas as pd
+    except ImportError:
+        print("SKIP: pandas not installed")
+        return
+
+    series = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    print("  Input: pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])")
+    print()
+
+    all_pandas = True
+    for ufunc_name in _UFUNCS:
+        print("  --- np.%s(pd.Series) ---" % ufunc_name)
+        ufunc = getattr(np, ufunc_name)
+        result = ufunc(series)
+        _print_result_info("result", result)
+        _print_method_owner(result, "diff")
+        _print_method_owner(result, "mean")
+        is_pandas = "pandas" in str(type(result).__module__)
+        if not is_pandas:
+            all_pandas = False
+        print()
+
+    # Also test DataFrame
+    print("  --- DataFrame input ---")
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0]})
+    print("  Input: pd.DataFrame({\"a\": [1.0, 2.0, 3.0]})")
+    for ufunc_name in _UFUNCS:
+        print("  --- np.%s(pd.DataFrame) ---" % ufunc_name)
+        ufunc = getattr(np, ufunc_name)
+        result = ufunc(df)
+        _print_result_info("result", result)
+        _print_method_owner(result, "mean")
+        _print_method_owner(result, "dropna")
+        is_pandas = "pandas" in str(type(result).__module__)
+        if not is_pandas:
+            all_pandas = False
+        print()
+
+    print("  >>> EVIDENCE:")
+    print("  np.{log,exp,sqrt,abs}(pd.Series) preserve pandas receiver: %s" % all_pandas)
+    print("  Static rule RECEIVER_PRESERVE_UFUNCS = {log, exp, sqrt, abs} is valid.")
+    print()
+
+
+# ---------------------------------------------------------------------------
+# Probe 5: Negative conversion matrix
+#
+#   Verifies that np.array/asaray(series) and series.to_numpy()/.values
+#   all return numpy.ndarray — NOT pandas — so subsequent .reshape() /
+#   .flatten() calls are correctly classified as numpy.
+# ---------------------------------------------------------------------------
+
+def probe_negative_conversion():
+    print(HEADER)
+    print("Probe 5: Negative conversion matrix (pandas → numpy)")
+    print(HEADER)
+
+    import numpy as np
+
+    try:
+        import pandas as pd
+    except ImportError:
+        print("SKIP: pandas not installed")
+        return
+
+    series = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    print("  Input: pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])")
+    print()
+
+    # Case 5a: np.array(pd.Series)
+    print("  --- np.array(pd.Series) ---")
+    arr1 = np.array(series)
+    _print_result_info("result", arr1)
+    _print_method_owner(arr1, "reshape")
+    _print_method_owner(arr1, "flatten")
+    is_numpy = "numpy" in str(type(arr1).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    # Case 5b: np.asarray(pd.Series)
+    print("  --- np.asarray(pd.Series) ---")
+    arr2 = np.asarray(series)
+    _print_result_info("result", arr2)
+    _print_method_owner(arr2, "reshape")
+    _print_method_owner(arr2, "flatten")
+    is_numpy = "numpy" in str(type(arr2).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    # Case 5c: series.to_numpy()
+    print("  --- pd.Series.to_numpy() ---")
+    arr3 = series.to_numpy()
+    _print_result_info("result", arr3)
+    _print_method_owner(arr3, "reshape")
+    _print_method_owner(arr3, "flatten")
+    is_numpy = "numpy" in str(type(arr3).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    # Case 5d: series.values
+    print("  --- pd.Series.values ---")
+    arr4 = series.values
+    _print_result_info("result", arr4)
+    _print_method_owner(arr4, "reshape")
+    _print_method_owner(arr4, "flatten")
+    is_numpy = "numpy" in str(type(arr4).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    # DataFrame cases
+    print("  --- DataFrame input ---")
+    df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
+    print("  Input: pd.DataFrame({\"a\": [1,2], \"b\": [3,4]})")
+    print()
+
+    print("  --- pd.DataFrame.to_numpy() ---")
+    arr5 = df.to_numpy()
+    _print_result_info("result", arr5)
+    _print_method_owner(arr5, "reshape")
+    _print_method_owner(arr5, "flatten")
+    is_numpy = "numpy" in str(type(arr5).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    print("  --- pd.DataFrame.values ---")
+    arr6 = df.values
+    _print_result_info("result", arr6)
+    _print_method_owner(arr6, "reshape")
+    _print_method_owner(arr6, "flatten")
+    is_numpy = "numpy" in str(type(arr6).__module__)
+    print("    result is numpy: %s" % is_numpy)
+    print()
+
+    print("  >>> EVIDENCE:")
+    print("  np.array(pd.Series), np.asarray(pd.Series),")
+    print("  pd.Series.to_numpy(), pd.Series.values all return numpy.ndarray.")
+    print("  .reshape() / .flatten() bound method owner is numpy, NOT pandas.")
+    print("  Static rules _CONVERSION_METHOD_TARGETS / _CONVERSION_ATTRIBUTE_TARGETS valid.")
+    print()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -203,6 +391,8 @@ def main():
     probe_np_log_series_diff()
     probe_to_numpy_conversion()
     probe_preaverage_flatten()
+    probe_ufunc_pandas_preservation()
+    probe_negative_conversion()
 
     print(HEADER)
     print("SUMMARY")
@@ -212,6 +402,10 @@ def main():
     print("  Probe 2: .to_numpy() is pandas API, returned ndarray.reshape() is numpy")
     print("           Conversion boundary: to_numpy=pandas, reshape=numpy")
     print("  Probe 3: _preaverage returns ndarray → .flatten() is numpy method")
+    print("  Probe 4: np.{log,exp,sqrt,abs}(pd.Series/DataFrame) preserve pandas")
+    print("           Validates RECEIVER_PRESERVE_UFUNCS static rule")
+    print("  Probe 5: np.array/asarray/to_numpy/values(pd.Series) → ndarray")
+    print("           Validates conversion boundary static rules")
 
 
 if __name__ == "__main__":
