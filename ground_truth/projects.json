@@ -2,7 +2,7 @@
   "projects": {
     "AIBO": {
       "path": "tests/fixtures/tested_projects/AIBO",
-      "tier": "pilot",
+      "tier": "expansion_candidate",
       "status": "pending",
       "notes": "Large project stress test; SciPy/NumPy/matplotlib"
     },
@@ -20,7 +20,7 @@
     },
     "allnews": {
       "path": "tests/fixtures/tested_projects/allnews",
-      "tier": "pilot",
+      "tier": "expansion_candidate",
       "status": "pending",
       "notes": "Alternative large-project pilot; NLP, NER, WikiExtractor"
     },
@@ -33,7 +33,8 @@
     "click1": {
       "path": "tests/fixtures/tested_projects/click1",
       "tier": "pilot",
-      "status": "pending",
+      "status": "locked",
+      "calls_reviewed": 5,
       "notes": "Decorator + decorated callable receiver evidence"
     },
     "click2": {
@@ -105,7 +106,8 @@
     "flask2": {
       "path": "tests/fixtures/tested_projects/flask2",
       "tier": "pilot",
-      "status": "pending",
+      "status": "locked",
+      "calls_reviewed": 73,
       "notes": "Flask factory + test client + context/receiver"
     },
     "fuel_forecast_explorer": {
@@ -141,7 +143,8 @@
     "hfhd": {
       "path": "tests/fixtures/tested_projects/hfhd",
       "tier": "pilot",
-      "status": "pending",
+      "status": "locked",
+      "calls_reviewed": 444,
       "notes": "Pandas/NumPy conversion boundary, method chaining"
     },
     "machine-learning": {
@@ -249,7 +252,8 @@
     "Youtube": {
       "path": "tests/fixtures/tested_projects/Youtube",
       "tier": "pilot",
-      "status": "pending",
+      "status": "locked",
+      "calls_reviewed": 104,
       "notes": "YouTube data analysis; NumPy/SciPy/pandas, list/iteration patterns"
     }
   }

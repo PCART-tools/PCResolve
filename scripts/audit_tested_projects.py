@@ -5,7 +5,11 @@
 #  Usage:
 #    python scripts/audit_tested_projects.py
 #    python scripts/audit_tested_projects.py --timeout 60
-#    python scripts/audit_tested_projects.py --output reports/
+#    python scripts/audit_tested_projects.py --output reports/          # ad-hoc
+#    python scripts/audit_tested_projects.py --output reports/1.0.4     # snapshot
+#
+#  Default output is reports/ for ad-hoc local audits.
+#  Committed release snapshots live under reports/<version>/.
 #
 #  Outputs:
 #    reports/tested-projects-audit.json   — machine-diffable

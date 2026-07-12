@@ -2,13 +2,15 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pcresolve)](https://pypi.org/project/pcresolve/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+Project-level Python static analysis for API ownership and library usage provenance.
+
 ## News
 
 - **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
 
 ## What is PCResolve?
 
-PCResolve is a Python project-level library/API usage provenance analyzer. It is an explainable static analysis tool for classifying Python API call expressions and tracing the symbols that feed them to their owner: an import-backed library, Python-provided API, project-local definition, or unknown.
+PCResolve is a project-level Python static analyzer for API ownership and library usage provenance. It classifies Python API call expressions and traces the symbols that feed them to their owner: an import-backed library, Python-provided API, project-local definition, or unknown.
 
 It answers questions such as:
 
@@ -18,7 +20,7 @@ It answers questions such as:
 - How did a local symbol, return value, attribute, parameter, or container element acquire library provenance?
 - Where is the analysis certain, and where are there multiple possible origins?
 
-PCResolve is designed for CI pipelines, audit workflows, IDE integration, and large-scale codebase scanning. It has zero runtime third-party dependencies and supports Python 3.9+.
+PCResolve is designed for CI pipelines, audit workflows, IDE integration, and large-scale codebase scanning. It has zero runtime dependencies and supports Python 3.9+.
 
 ## Quick Start
 
@@ -118,6 +120,7 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 - [Trace Contract](./docs/trace-contract.md)
 - [Source Semantics](./docs/source-semantics.md)
 - [Real-Project Validation](./docs/real-project-validation.md)
+- [Ground Truth Evaluation](./docs/ground-truth-evaluation.md)
 
 ## Development
 
@@ -125,7 +128,7 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 pip install -e .
 python -m pytest tests/ -v
 python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
-python scripts/audit_tested_projects.py
+python scripts/audit_tested_projects.py --output reports/1.0.4   # 1.0.4 snapshot
 ```
 
 PCResolve uses only the Python standard library at runtime. Tests use pytest.

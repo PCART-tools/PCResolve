@@ -1,0 +1,961 @@
+[
+  {
+    "project": "click1",
+    "ast_call_count": 5,
+    "gt_record_count": 5,
+    "covered_gt": 5,
+    "covered_ast": 5,
+    "missing_from_gt_count": 0,
+    "stale_in_gt_count": 0,
+    "expr_mismatch_count": 1,
+    "missing_from_gt": [],
+    "stale_in_gt": [],
+    "expr_mismatches": [
+      {
+        "file": "click_decorator.py",
+        "lineno": 7,
+        "col_offset": 4,
+        "ast_expression": "click.echo(f\"Hello, {name}!\")",
+        "gt_expression": "click.echo(f'Hello, {name}!')"
+      }
+    ]
+  },
+  {
+    "project": "flask2",
+    "ast_call_count": 73,
+    "gt_record_count": 73,
+    "covered_gt": 73,
+    "covered_ast": 73,
+    "missing_from_gt_count": 0,
+    "stale_in_gt_count": 0,
+    "expr_mismatch_count": 31,
+    "missing_from_gt": [],
+    "stale_in_gt": [],
+    "expr_mismatches": [
+      {
+        "file": "app.py",
+        "lineno": 26,
+        "col_offset": 16,
+        "ast_expression": "abort(401, description=\"invalid authorization token\")",
+        "gt_expression": "abort(401, description='invalid authorization token')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 34,
+        "col_offset": 12,
+        "ast_expression": "app.logger.info(f\"Receive Request: {request.method} {request.path}\")",
+        "gt_expression": "app.logger.info(f'Receive Request: {request.method} {request.path}')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 53,
+        "col_offset": 12,
+        "ast_expression": "abort(404, description=\"Task Not Found\")",
+        "gt_expression": "abort(404, description='Task Not Found')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 61,
+        "col_offset": 12,
+        "ast_expression": "abort(400, description=\"Missing Required Parameters\")",
+        "gt_expression": "abort(400, description='Missing Required Parameters')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 66,
+        "col_offset": 27,
+        "ast_expression": "request.json.get('description', \"\")",
+        "gt_expression": "request.json.get('description', '')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 78,
+        "col_offset": 12,
+        "ast_expression": "abort(404, description=\"Task Not Found\")",
+        "gt_expression": "abort(404, description='Task Not Found')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 81,
+        "col_offset": 12,
+        "ast_expression": "abort(400, description=\"Missing Request\")",
+        "gt_expression": "abort(400, description='Missing Request')"
+      },
+      {
+        "file": "app.py",
+        "lineno": 107,
+        "col_offset": 19,
+        "ast_expression": "jsonify({\n            'error': description,\n            'status_code': error.code\n        })",
+        "gt_expression": "jsonify({'error': description, 'status_code': error.code})"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 6,
+        "col_offset": 8,
+        "ast_expression": "print(f\"[✓] Test Pass: {test_name}\")",
+        "gt_expression": "print(f'[✓] Test Pass: {test_name}')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 9,
+        "col_offset": 8,
+        "ast_expression": "print(f\"[×] Test Failed: {test_name} - Assertion Error: {str(e)}\")",
+        "gt_expression": "print(f'[×] Test Failed: {test_name} - Assertion Error: {str(e)}')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 11,
+        "col_offset": 8,
+        "ast_expression": "print(f\"[×] Test Exception: {test_name} - Unexpected Error: {str(e)}\")",
+        "gt_expression": "print(f'[×] Test Exception: {test_name} - Unexpected Error: {str(e)}')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 23,
+        "col_offset": 15,
+        "ast_expression": "client.get(\"/api/tasks\")",
+        "gt_expression": "client.get('/api/tasks')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 33,
+        "col_offset": 15,
+        "ast_expression": "client.get(\"/api/tasks\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 36,
+        "col_offset": 11,
+        "ast_expression": "len(data[\"tasks\"])",
+        "gt_expression": "len(data['tasks'])"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 46,
+        "col_offset": 15,
+        "ast_expression": "client.get(\"/api/tasks/1\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks/1', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 51,
+        "col_offset": 15,
+        "ast_expression": "client.get(\"/api/tasks/999\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks/999', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 62,
+        "col_offset": 23,
+        "ast_expression": "client.get(\"/api/tasks\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 63,
+        "col_offset": 20,
+        "ast_expression": "len(initial_response.json[\"tasks\"])",
+        "gt_expression": "len(initial_response.json['tasks'])"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 66,
+        "col_offset": 15,
+        "ast_expression": "client.post(\n        \"/api/tasks\",\n        headers=headers,\n        json={\"title\": \"新任务\", \"description\": \"测试描述\"}\n    )",
+        "gt_expression": "client.post('/api/tasks', headers=headers, json={'title': '新任务', 'description': '测试描述'})"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 75,
+        "col_offset": 23,
+        "ast_expression": "client.get(\"/api/tasks\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 76,
+        "col_offset": 11,
+        "ast_expression": "len(updated_response.json[\"tasks\"])",
+        "gt_expression": "len(updated_response.json['tasks'])"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 79,
+        "col_offset": 15,
+        "ast_expression": "client.post(\"/api/tasks\", headers=headers, json={})",
+        "gt_expression": "client.post('/api/tasks', headers=headers, json={})"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 90,
+        "col_offset": 15,
+        "ast_expression": "client.put(\n        \"/api/tasks/1\",\n        headers=headers,\n        json={\"title\": \"更新标题\", \"done\": True}\n    )",
+        "gt_expression": "client.put('/api/tasks/1', headers=headers, json={'title': '更新标题', 'done': True})"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 100,
+        "col_offset": 22,
+        "ast_expression": "client.get(\"/api/tasks/1\", headers=headers)",
+        "gt_expression": "client.get('/api/tasks/1', headers=headers)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 104,
+        "col_offset": 15,
+        "ast_expression": "client.put(\"/api/tasks/999\", headers=headers, json={\"title\": \"无效\"})",
+        "gt_expression": "client.put('/api/tasks/999', headers=headers, json={'title': '无效'})"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 123,
+        "col_offset": 4,
+        "ast_expression": "print(\"=\"*50)",
+        "gt_expression": "print('=' * 50)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 124,
+        "col_offset": 4,
+        "ast_expression": "print(\"Test Suite Running\")",
+        "gt_expression": "print('Test Suite Running')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 125,
+        "col_offset": 4,
+        "ast_expression": "print(\"=\"*50 + \"\\n\")",
+        "gt_expression": "print('=' * 50 + '\\n')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 131,
+        "col_offset": 4,
+        "ast_expression": "print(\"\\n\" + \"=\"*50)",
+        "gt_expression": "print('\\n' + '=' * 50)"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 132,
+        "col_offset": 4,
+        "ast_expression": "print(f\"Test Result: Pass {passed} Cases; Failed {total-passed} Cases; Total: {total} Cases\")",
+        "gt_expression": "print(f'Test Result: Pass {passed} Cases; Failed {total - passed} Cases; Total: {total} Cases')"
+      },
+      {
+        "file": "flask_decorator.py",
+        "lineno": 133,
+        "col_offset": 4,
+        "ast_expression": "print(\"=\"*50)",
+        "gt_expression": "print('=' * 50)"
+      }
+    ]
+  },
+  {
+    "project": "hfhd",
+    "ast_call_count": 444,
+    "gt_record_count": 444,
+    "covered_gt": 444,
+    "covered_ast": 444,
+    "missing_from_gt_count": 0,
+    "stale_in_gt_count": 0,
+    "expr_mismatch_count": 65,
+    "missing_from_gt": [],
+    "stale_in_gt": [],
+    "expr_mismatches": [
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 50,
+        "col_offset": 8,
+        "ast_expression": "np.einsum(\"ji, jk, ki -> i\", u, sigma, u)",
+        "gt_expression": "np.einsum('ji, jk, ki -> i', u, sigma, u)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 230,
+        "col_offset": 11,
+        "ast_expression": "np.linalg.norm(S - lambd*np.eye(p), 'fro')",
+        "gt_expression": "np.linalg.norm(S - lambd * np.eye(p), 'fro')"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 460,
+        "col_offset": 18,
+        "ast_expression": "_nonlinear_shrinkage_cov(S, n-1)",
+        "gt_expression": "_nonlinear_shrinkage_cov(S, n - 1)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 642,
+        "col_offset": 17,
+        "ast_expression": "np.concatenate([dtilde0 * np.ones((p - n)), dtilde1])",
+        "gt_expression": "np.concatenate([dtilde0 * np.ones(p - n), dtilde1])"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 642,
+        "col_offset": 43,
+        "ast_expression": "np.ones((p - n))",
+        "gt_expression": "np.ones(p - n)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 663,
+        "col_offset": 11,
+        "ast_expression": "(datetime.datetime(2000, 1, 1, 9, 30)\n           + datetime.timedelta(minutes=np.ceil(6.5/L*60)) * i).time()",
+        "gt_expression": "(datetime.datetime(2000, 1, 1, 9, 30) + datetime.timedelta(minutes=np.ceil(6.5 / L * 60)) * i).time()"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 664,
+        "col_offset": 13,
+        "ast_expression": "datetime.timedelta(minutes=np.ceil(6.5/L*60))",
+        "gt_expression": "datetime.timedelta(minutes=np.ceil(6.5 / L * 60))"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 664,
+        "col_offset": 40,
+        "ast_expression": "np.ceil(6.5/L*60)",
+        "gt_expression": "np.ceil(6.5 / L * 60)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 766,
+        "col_offset": 19,
+        "ast_expression": "x.between_time(stp[j], stp[j+1], True, True)",
+        "gt_expression": "x.between_time(stp[j], stp[j + 1], True, True)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 768,
+        "col_offset": 22,
+        "ast_expression": "x.between_time(stp[j+1], stp[j], False, False)",
+        "gt_expression": "x.between_time(stp[j + 1], stp[j], False, False)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 916,
+        "col_offset": 32,
+        "ast_expression": "int(n - 2.5*n ** 0.5)",
+        "gt_expression": "int(n - 2.5 * n ** 0.5)"
+      },
+      {
+        "file": "hfhd/hd.py",
+        "lineno": 1009,
+        "col_offset": 8,
+        "ast_expression": "np.diag(1./np.sqrt(np.diag(cov)))",
+        "gt_expression": "np.diag(1.0 / np.sqrt(np.diag(cov)))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 173,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\n         'tick_series_list should be a list containing at least two pd.Series.')",
+        "gt_expression": "ValueError('tick_series_list should be a list containing at least two pd.Series.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 306,
+        "col_offset": 12,
+        "ast_expression": "int(np.sqrt(n)*0.4)",
+        "gt_expression": "int(np.sqrt(n) * 0.4)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 311,
+        "col_offset": 13,
+        "ast_expression": "g(np.arange(1, K)/K)",
+        "gt_expression": "g(np.arange(1, K) / K)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 349,
+        "col_offset": 13,
+        "ast_expression": "prange(K-1, n)",
+        "gt_expression": "prange(K - 1, n)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 351,
+        "col_offset": 28,
+        "ast_expression": "np.dot(weight, data[i-K+2:i+1, j])",
+        "gt_expression": "np.dot(weight, data[i - K + 2:i + 1, j])"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 371,
+        "col_offset": 10,
+        "ast_expression": "np.zeros((int((p*(p+1)/2)), 2), dtype=np.int16)",
+        "gt_expression": "np.zeros((int(p * (p + 1) / 2), 2), dtype=np.int16)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 371,
+        "col_offset": 20,
+        "ast_expression": "int((p*(p+1)/2))",
+        "gt_expression": "int(p * (p + 1) / 2)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 377,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"Got negative index, ``p`` probably too large for int16\")",
+        "gt_expression": "ValueError('Got negative index, ``p`` probably too large for int16')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 647,
+        "col_offset": 12,
+        "ast_expression": "int(np.ceil(n**(1/2)))",
+        "gt_expression": "int(np.ceil(n ** (1 / 2)))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 647,
+        "col_offset": 16,
+        "ast_expression": "np.ceil(n**(1/2))",
+        "gt_expression": "np.ceil(n ** (1 / 2))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 651,
+        "col_offset": 12,
+        "ast_expression": "int(np.ceil(n**(1/2)))",
+        "gt_expression": "int(np.ceil(n ** (1 / 2)))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 651,
+        "col_offset": 16,
+        "ast_expression": "np.ceil(n**(1/2))",
+        "gt_expression": "np.ceil(n ** (1 / 2))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 658,
+        "col_offset": 17,
+        "ast_expression": "range(1, M+1)",
+        "gt_expression": "range(1, M + 1)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 716,
+        "col_offset": 31,
+        "ast_expression": "_refresh_time(\n                (indeces[i, :n_not_nans_i],\n                 indeces[j, :n_not_nans_j]),\n                (values[i, :n_not_nans_i],\n                 values[j, :n_not_nans_j]))",
+        "gt_expression": "_refresh_time((indeces[i, :n_not_nans_i], indeces[j, :n_not_nans_j]), (values[i, :n_not_nans_i], values[j, :n_not_nans_j]))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 853,
+        "col_offset": 11,
+        "ast_expression": "(sk - nk/nj * sj).to_numpy()",
+        "gt_expression": "(sk - nk / nj * sj).to_numpy()"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 871,
+        "col_offset": 11,
+        "ast_expression": "np.minimum(x, 1-x)",
+        "gt_expression": "np.minimum(x, 1 - x)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1103,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"Either ``theta`` or ``k`` can be specified,\"\n                         \" but not both! One of them must be ``None``.\")",
+        "gt_expression": "ValueError('Either ``theta`` or ``k`` can be specified, but not both! One of them must be ``None``.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1119,
+        "col_offset": 15,
+        "ast_expression": "np.sum(g(np.arange(1, k)/k)**2)",
+        "gt_expression": "np.sum(g(np.arange(1, k) / k) ** 2)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1119,
+        "col_offset": 22,
+        "ast_expression": "g(np.arange(1, k)/k)",
+        "gt_expression": "g(np.arange(1, k) / k)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1120,
+        "col_offset": 15,
+        "ast_expression": "np.sum((g(np.arange(1, k)/k)-g((np.arange(1, k)-1)/k))**2)",
+        "gt_expression": "np.sum((g(np.arange(1, k) / k) - g((np.arange(1, k) - 1) / k)) ** 2)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1120,
+        "col_offset": 23,
+        "ast_expression": "g(np.arange(1, k)/k)",
+        "gt_expression": "g(np.arange(1, k) / k)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1120,
+        "col_offset": 44,
+        "ast_expression": "g((np.arange(1, k)-1)/k)",
+        "gt_expression": "g((np.arange(1, k) - 1) / k)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1122,
+        "col_offset": 17,
+        "ast_expression": "g(np.arange(1, k)/k)",
+        "gt_expression": "g(np.arange(1, k) / k)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1230,
+        "col_offset": 16,
+        "ast_expression": "np.ceil(np.sqrt(n)*theta)",
+        "gt_expression": "np.ceil(np.sqrt(n) * theta)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1233,
+        "col_offset": 16,
+        "ast_expression": "np.ceil(np.power(n, 0.5+delta)*theta)",
+        "gt_expression": "np.ceil(np.power(n, 0.5 + delta) * theta)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1233,
+        "col_offset": 24,
+        "ast_expression": "np.power(n, 0.5+delta)",
+        "gt_expression": "np.power(n, 0.5 + delta)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1263,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"x must be >= 0.\")",
+        "gt_expression": "ValueError('x must be >= 0.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1297,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"x must be >= 0.\")",
+        "gt_expression": "ValueError('x must be >= 0.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1342,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"Specified kernel not implemented.\")",
+        "gt_expression": "ValueError('Specified kernel not implemented.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1345,
+        "col_offset": 8,
+        "ast_expression": "int(c_star * xi_sq**(2/5) * n**(3/5))",
+        "gt_expression": "int(c_star * xi_sq ** (2 / 5) * n ** (3 / 5))"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1623,
+        "col_offset": 13,
+        "ast_expression": "range(1, n+1)",
+        "gt_expression": "range(1, n + 1)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1624,
+        "col_offset": 17,
+        "ast_expression": "kernel((h-c) / H)",
+        "gt_expression": "kernel((h - c) / H)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1958,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"Either ``theta`` or ``k`` can be specified,\"\n                         \" but not both! One of them must be ``None``.\")",
+        "gt_expression": "ValueError('Either ``theta`` or ``k`` can be specified, but not both! One of them must be ``None``.')"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1968,
+        "col_offset": 12,
+        "ast_expression": "_get_k((a_values.shape[0] + b_values.shape[0])/2, theta, True)",
+        "gt_expression": "_get_k((a_values.shape[0] + b_values.shape[0]) / 2, theta, True)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1972,
+        "col_offset": 17,
+        "ast_expression": "_numba_minimum(np.arange(1, k)/k)",
+        "gt_expression": "_numba_minimum(np.arange(1, k) / k)"
+      },
+      {
+        "file": "hfhd/hf.py",
+        "lineno": 1995,
+        "col_offset": 18,
+        "ast_expression": "np.sum(a_values[i] * b_values[start_b: end_b+k])",
+        "gt_expression": "np.sum(a_values[i] * b_values[start_b:end_b + k])"
+      },
+      {
+        "file": "hfhd/loss.py",
+        "lineno": 64,
+        "col_offset": 14,
+        "ast_expression": "ValueError(\"\"\"PRIAL not defined: The sample covariance attained\n            the smallest possible loss.\"\"\")",
+        "gt_expression": "ValueError('PRIAL not defined: The sample covariance attained\\n            the smallest possible loss.')"
+      },
+      {
+        "file": "hfhd/loss.py",
+        "lineno": 199,
+        "col_offset": 37,
+        "ast_expression": "np.sqrt((b-x)*(x-a))",
+        "gt_expression": "np.sqrt((b - x) * (x - a))"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 72,
+        "col_offset": 8,
+        "ast_expression": "print('''alpha+beta>=1, variance not defined\n        --> time series will not be weakly stationary''')",
+        "gt_expression": "print('alpha+beta>=1, variance not defined\\n        --> time series will not be weakly stationary')"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 175,
+        "col_offset": 13,
+        "ast_expression": "np.diag([self.uncond_var(self.factor_garch_spec)]*self.n_factors)",
+        "gt_expression": "np.diag([self.uncond_var(self.factor_garch_spec)] * self.n_factors)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 176,
+        "col_offset": 13,
+        "ast_expression": "np.diag([self.uncond_var(self.resid_garch_spec)]*self.n_stocks)",
+        "gt_expression": "np.diag([self.uncond_var(self.resid_garch_spec)] * self.n_stocks)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 177,
+        "col_offset": 13,
+        "ast_expression": "np.diag([self.uncond_var(self.industry_garch_spec)]*self.n_ind)",
+        "gt_expression": "np.diag([self.uncond_var(self.industry_garch_spec)] * self.n_ind)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 273,
+        "col_offset": 23,
+        "ast_expression": "np.random.normal(\n            0.,\n            np.sqrt(self.uncond_var(self.resid_garch_spec)),\n            self.n_stocks*n_periods\n            ).reshape(n_periods, self.n_stocks)",
+        "gt_expression": "np.random.normal(0.0, np.sqrt(self.uncond_var(self.resid_garch_spec)), self.n_stocks * n_periods)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 273,
+        "col_offset": 23,
+        "ast_expression": "np.random.normal(\n            0.,\n            np.sqrt(self.uncond_var(self.resid_garch_spec)),\n            self.n_stocks*n_periods\n            )",
+        "gt_expression": "np.random.normal(0.0, np.sqrt(self.uncond_var(self.resid_garch_spec)), self.n_stocks * n_periods).reshape(n_periods, self.n_stocks)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 297,
+        "col_offset": 24,
+        "ast_expression": "np.random.normal(0, 1, self.price.size).reshape(\n            self.price.shape[0], self.price.shape[1])",
+        "gt_expression": "np.random.normal(0, 1, self.price.size).reshape(self.price.shape[0], self.price.shape[1])"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 347,
+        "col_offset": 9,
+        "ast_expression": "sns.heatmap(data[0], vmin=vmin, vmax=vmax,\n                     xticklabels=False, yticklabels=False,)",
+        "gt_expression": "sns.heatmap(data[0], vmin=vmin, vmax=vmax, xticklabels=False, yticklabels=False)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 355,
+        "col_offset": 13,
+        "ast_expression": "sns.heatmap(data[i], vmin=vmin, vmax=vmax,\n                         xticklabels=False, yticklabels=False,)",
+        "gt_expression": "sns.heatmap(data[i], vmin=vmin, vmax=vmax, xticklabels=False, yticklabels=False)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 403,
+        "col_offset": 18,
+        "ast_expression": "np.exp((log_rets - var/2).cumsum(axis=0))",
+        "gt_expression": "np.exp((log_rets - var / 2).cumsum(axis=0))"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 403,
+        "col_offset": 25,
+        "ast_expression": "(log_rets - var/2).cumsum(axis=0)",
+        "gt_expression": "(log_rets - var / 2).cumsum(axis=0)"
+      },
+      {
+        "file": "hfhd/sim.py",
+        "lineno": 406,
+        "col_offset": 15,
+        "ast_expression": "np.random.normal(0, 1, price.size).reshape(\n        price.shape[0], price.shape[1])",
+        "gt_expression": "np.random.normal(0, 1, price.size).reshape(price.shape[0], price.shape[1])"
+      },
+      {
+        "file": "main_test.py",
+        "lineno": 6,
+        "col_offset": 22,
+        "ast_expression": "np.column_stack(\n            (np.arange(10, 15)/10, np.flip(np.arange(10, 15)/10)))",
+        "gt_expression": "np.column_stack((np.arange(10, 15) / 10, np.flip(np.arange(10, 15) / 10)))"
+      },
+      {
+        "file": "main_test.py",
+        "lineno": 7,
+        "col_offset": 35,
+        "ast_expression": "np.flip(np.arange(10, 15)/10)",
+        "gt_expression": "np.flip(np.arange(10, 15) / 10)"
+      },
+      {
+        "file": "main_test.py",
+        "lineno": 9,
+        "col_offset": 8,
+        "ast_expression": "sim.Universe(0.01,\n                     [0.000000001, 0, 0.48, 0.5, 0.00000001],\n                     [0.000000001, 0, 0.48, 0.5, 0.00000001],\n                     [0.000000001, 0, 0.48, 0.5, 0.00000001],\n                     factor_loadings,\n                     ind_loadings,\n                     0.5,\n                     100,\n                     'm')",
+        "gt_expression": "sim.Universe(0.01, [1e-09, 0, 0.48, 0.5, 1e-08], [1e-09, 0, 0.48, 0.5, 1e-08], [1e-09, 0, 0.48, 0.5, 1e-08], factor_loadings, ind_loadings, 0.5, 100, 'm')"
+      }
+    ]
+  },
+  {
+    "project": "Youtube",
+    "ast_call_count": 104,
+    "gt_record_count": 104,
+    "covered_gt": 104,
+    "covered_ast": 104,
+    "missing_from_gt_count": 0,
+    "stale_in_gt_count": 0,
+    "expr_mismatch_count": 32,
+    "missing_from_gt": [],
+    "stale_in_gt": [],
+    "expr_mismatches": [
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 30,
+        "col_offset": 9,
+        "ast_expression": "open( name + '.pkl', 'wb')",
+        "gt_expression": "open(name + '.pkl', 'wb')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 34,
+        "col_offset": 9,
+        "ast_expression": "open( name + '.pkl', 'rb')",
+        "gt_expression": "open(name + '.pkl', 'rb')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 39,
+        "col_offset": 8,
+        "ast_expression": "gensim.models.Word2Vec.load_word2vec_format('vectors.bin', binary=True,norm_only = True)",
+        "gt_expression": "gensim.models.Word2Vec.load_word2vec_format('vectors.bin', binary=True, norm_only=True)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 47,
+        "col_offset": 0,
+        "ast_expression": "print(\"Vectors Loaded.\")",
+        "gt_expression": "print('Vectors Loaded.')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 53,
+        "col_offset": 0,
+        "ast_expression": "print(\"InitSeeds Loaded.\")",
+        "gt_expression": "print('InitSeeds Loaded.')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 63,
+        "col_offset": 0,
+        "ast_expression": "print(str(degree) + \" closest points per cluster\")",
+        "gt_expression": "print(str(degree) + ' closest points per cluster')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 66,
+        "col_offset": 9,
+        "ast_expression": "range(0,len(cat))",
+        "gt_expression": "range(0, len(cat))"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 91,
+        "col_offset": 4,
+        "ast_expression": "print(str(numInter) + \" more iterations left ...\")",
+        "gt_expression": "print(str(numInter) + ' more iterations left ...')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 99,
+        "col_offset": 4,
+        "ast_expression": "print(str(time.time()-t0))",
+        "gt_expression": "print(str(time.time() - t0))"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 99,
+        "col_offset": 10,
+        "ast_expression": "str(time.time()-t0)",
+        "gt_expression": "str(time.time() - t0)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 101,
+        "col_offset": 4,
+        "ast_expression": "print(\"Level \"+ str(level) + \" Done.\")",
+        "gt_expression": "print('Level ' + str(level) + ' Done.')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 105,
+        "col_offset": 4,
+        "ast_expression": "print(\"Mapping Centroids to Labels\")",
+        "gt_expression": "print('Mapping Centroids to Labels')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 114,
+        "col_offset": 4,
+        "ast_expression": "print(\"Computing the next level of seeds\")",
+        "gt_expression": "print('Computing the next level of seeds')"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 15,
+        "ast_expression": "sorted(zip(range(0,transform.shape[0]),np.argmax(transform, axis = 1),np.amax(transform,axis = 1)), key = operator.itemgetter(1,2), reverse = True)",
+        "gt_expression": "sorted(zip(range(0, transform.shape[0]), np.argmax(transform, axis=1), np.amax(transform, axis=1)), key=operator.itemgetter(1, 2), reverse=True)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 22,
+        "ast_expression": "zip(range(0,transform.shape[0]),np.argmax(transform, axis = 1),np.amax(transform,axis = 1))",
+        "gt_expression": "zip(range(0, transform.shape[0]), np.argmax(transform, axis=1), np.amax(transform, axis=1))"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 26,
+        "ast_expression": "range(0,transform.shape[0])",
+        "gt_expression": "range(0, transform.shape[0])"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 54,
+        "ast_expression": "np.argmax(transform, axis = 1)",
+        "gt_expression": "np.argmax(transform, axis=1)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 85,
+        "ast_expression": "np.amax(transform,axis = 1)",
+        "gt_expression": "np.amax(transform, axis=1)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 119,
+        "col_offset": 121,
+        "ast_expression": "operator.itemgetter(1,2)",
+        "gt_expression": "operator.itemgetter(1, 2)"
+      },
+      {
+        "file": "FuunyClusters.py",
+        "lineno": 147,
+        "col_offset": 4,
+        "ast_expression": "save_obj(wordsTemp,path + \"words\"+str(level))",
+        "gt_expression": "save_obj(wordsTemp, path + 'words' + str(level))"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 32,
+        "col_offset": 14,
+        "ast_expression": "ValueError( \"kmeans: X %s and centres %s must have the same number of columns\" % (X.shape, centres.shape ))",
+        "gt_expression": "ValueError('kmeans: X %s and centres %s must have the same number of columns' % (X.shape, centres.shape))"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 34,
+        "col_offset": 8,
+        "ast_expression": "print (\"kmeans: X %s  centres %s  delta=%.2g  maxiter=%d  metric=%s\" % (X.shape, centres.shape, delta, maxiter, metric))",
+        "gt_expression": "print('kmeans: X %s  centres %s  delta=%.2g  maxiter=%d  metric=%s' % (X.shape, centres.shape, delta, maxiter, metric))"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 37,
+        "col_offset": 17,
+        "ast_expression": "range( 1, maxiter+1 )",
+        "gt_expression": "range(1, maxiter + 1)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 38,
+        "col_offset": 12,
+        "ast_expression": "cdist_sparse( np.float16(X), np.float16(centres), metric=metric, p=p )",
+        "gt_expression": "cdist_sparse(np.float16(X), np.float16(centres), metric=metric, p=p)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 47,
+        "col_offset": 16,
+        "ast_expression": "np.where( xtoc == jc )",
+        "gt_expression": "np.where(xtoc == jc)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 49,
+        "col_offset": 30,
+        "ast_expression": "X[c].mean( axis=0 )",
+        "gt_expression": "X[c].mean(axis=0)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 61,
+        "col_offset": 23,
+        "ast_expression": "cdist( X, Y, **kwargs )",
+        "gt_expression": "cdist(X, Y, **kwargs)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 64,
+        "col_offset": 8,
+        "ast_expression": "np.empty( (X.shape[0], Y.shape[0]), np.float64 )",
+        "gt_expression": "np.empty((X.shape[0], Y.shape[0]), np.float64)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 67,
+        "col_offset": 19,
+        "ast_expression": "cdist( x.todense(), Y, **kwargs )",
+        "gt_expression": "cdist(x.todense(), Y, **kwargs)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 70,
+        "col_offset": 21,
+        "ast_expression": "cdist( X, y.todense(), **kwargs )",
+        "gt_expression": "cdist(X, y.todense(), **kwargs)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 74,
+        "col_offset": 25,
+        "ast_expression": "cdist( x.todense(), y.todense(), **kwargs )",
+        "gt_expression": "cdist(x.todense(), y.todense(), **kwargs)"
+      },
+      {
+        "file": "Kmeans.py",
+        "lineno": 85,
+        "col_offset": 8,
+        "ast_expression": "cdist( X, centres, metric=metric, p=p )",
+        "gt_expression": "cdist(X, centres, metric=metric, p=p)"
+      }
+    ]
+  }
+]

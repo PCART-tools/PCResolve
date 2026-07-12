@@ -1,0 +1,63 @@
+PCResolve 1.0.5 — hfhd Dynamic Probes
+Purpose: Verify receiver object ownership for high-risk calls
+See: ground_truth/probes/hfhd_probe.py
+
+============================================================
+Probe 1: np.log(pd.Series).diff() — receiver owner
+============================================================
+  pd.Series created: <class 'pandas.core.series.Series'>
+  pd.Series.__module__: pandas.core.series
+  np.log(pd.Series) result type: <class 'pandas.core.series.Series'>
+  np.log(pd.Series) result __module__: pandas.core.series
+  .diff bound method receiver type: <class 'pandas.core.series.Series'>
+  .diff bound method receiver __module__: pandas.core.series
+  .diff function __module__: pandas.core.series
+  .diff() result type: <class 'pandas.core.series.Series'>
+  .diff() result __module__: pandas.core.series
+
+  >>> EVIDENCE:
+  np.log(pd.Series) returns: Series (module: pandas.core.series)
+  .diff() is a method of: Series
+  The receiver of .diff() IS a pandas object: True
+
+============================================================
+Probe 2: pd.DataFrame.to_numpy() → conversion boundary
+============================================================
+  pd.DataFrame created: <class 'pandas.core.frame.DataFrame'>
+  .to_numpy method __module__: pandas.core.frame
+  .to_numpy method __name__: to_numpy
+  .to_numpy() result type: <class 'numpy.ndarray'>
+  .to_numpy() result __module__: numpy
+  ndarray.T result type: <class 'numpy.ndarray'>
+  ndarray.T result __module__: numpy
+  .reshape method __module__: None
+  .reshape(1,-1) result type: <class 'numpy.ndarray'>
+
+  >>> EVIDENCE:
+  .to_numpy() belongs to: pandas (call itself is pandas API)
+  .to_numpy() returns: numpy.ndarray (module: numpy)
+  .reshape() on result is: numpy method, NOT pandas
+  Conversion boundary confirmed: after .to_numpy(), owner → numpy
+
+============================================================
+Probe 3: _preaverage return → .flatten() receiver
+============================================================
+  np.array result type: <class 'numpy.ndarray'>
+  np.array result __module__: numpy
+  .flatten method __module__: None
+  .flatten() result type: <class 'numpy.ndarray'>
+  .flatten() result __module__: numpy
+
+  >>> EVIDENCE:
+  ndarray.flatten() __module__: numpy
+  _preaverage() operates on numpy arrays and returns ndarray
+  .flatten() receiver is numpy, not pandas
+
+============================================================
+SUMMARY
+============================================================
+  Probe 1: np.log(pd.Series).diff() → .diff() receiver is pandas
+           GT expects library/pandas; PCResolve says numpy (WRONG)
+  Probe 2: .to_numpy() is pandas API, returned ndarray.reshape() is numpy
+           Conversion boundary: to_numpy=pandas, reshape=numpy
+  Probe 3: _preaverage returns ndarray → .flatten() is numpy method

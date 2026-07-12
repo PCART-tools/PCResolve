@@ -27,8 +27,8 @@ python scripts/diff_v1_v2.py tests/fixtures/tested_projects
 python scripts/audit_tested_projects.py
 ```
 
-Full report: `reports/tested-projects-audit.json` /
-`reports/tested-projects-audit.md`.
+Full report (1.0.4 snapshot): `reports/1.0.4/tested-projects-audit.json` /
+`reports/1.0.4/tested-projects-audit.md`.
 
 ## 1.0.4 Summary
 
