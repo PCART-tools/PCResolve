@@ -93,6 +93,8 @@ _CONVERSION_ATTRIBUTE_TARGETS = {
 # Probe-backed: cdist() returns ndarray.
 _RETURN_TYPE_MAP = {
     ("scipy", "cdist"): "numpy",
+    ("scipy", "svd"): "numpy",
+    ("numpy", "dot"): "numpy",
 }
 
 def _match_return_type(top, func_name):
@@ -1095,7 +1097,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         if isinstance(elt, ast.Name):
                             if isinstance(right_norm, InstanceMethod):
                                 if isinstance(right_norm.receiver, str):
-                                    self._bind_target_name(elt.id, right_norm.receiver, elt)
+                                    # 1.0.5 P1: consult return-type map
+                                    # before binding.  linalg.svd(arr)
+                                    # returns numpy arrays even though
+                                    # linalg is scipy.
+                                    rcvr_top = self.symbols.get_top(
+                                        right_norm.receiver)
+                                    if rcvr_top:
+                                        ret = _match_return_type(
+                                            rcvr_top, right_norm.method)
+                                        if ret:
+                                            self._bind_target_name(
+                                                elt.id, ret, elt)
+                                            continue
+                                    self._bind_target_name(
+                                        elt.id, right_norm.receiver, elt)
                                 continue
                             self._bind_target_name(elt.id, right, elt)
         else:

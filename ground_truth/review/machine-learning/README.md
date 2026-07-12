@@ -21,7 +21,7 @@
 - [static_obvious](static_obvious.md): 39
 - [dynamic_probe](dynamic_probe.md): 4
 
-## [Suspicious Records](suspicious.md): 2
+## [Suspicious Records](suspicious.md): 0
 
 ## Category Breakdown
 
