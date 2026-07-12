@@ -1,4 +1,4 @@
-# Youtube — static_obvious (82 records)
+# Youtube — static_obvious (81 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -57,7 +57,6 @@
 | FuunyClusters.py:133:21 | `tuple(n)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | FuunyClusters.py:135:48 | `tuple(cent)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | FuunyClusters.py:137:42 | `tuple(new)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| FuunyClusters.py:140:8 | `my_prbar.update()` | library / pyprind | library / pyprind | transitive_method | static_obvious | v: direct import-backed API call (pyprind) |
 | FuunyClusters.py:145:38 | `tuple(n)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | FuunyClusters.py:146:4 | `print(wordsTemp)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | FuunyClusters.py:147:4 | `save_obj(wordsTemp, path + 'words' + str(level))` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

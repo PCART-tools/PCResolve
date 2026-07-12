@@ -8,8 +8,8 @@
     },
     "aiofiles1": {
       "path": "tests/fixtures/tested_projects/aiofiles1",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Async file I/O library usage"
     },
     "aiomqtt1": {
@@ -45,8 +45,8 @@
     },
     "click3": {
       "path": "tests/fixtures/tested_projects/click3",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Low calls; may not be suitable for full GT"
     },
     "Contrucao": {
@@ -161,14 +161,14 @@
     },
     "mysql": {
       "path": "tests/fixtures/tested_projects/mysql",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Database connector usage"
     },
     "polars-book-cn": {
       "path": "tests/fixtures/tested_projects/polars-book-cn",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Polars DataFrame examples"
     },
     "polire": {
@@ -239,8 +239,8 @@
     },
     "tensorflow2": {
       "path": "tests/fixtures/tested_projects/tensorflow2",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "ML; tensorflow"
     },
     "TSP": {

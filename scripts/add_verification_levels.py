@@ -340,6 +340,17 @@ def add_levels(proj_name, dry_run=False):
     stats = {"total": len(records)}
     for rec in records:
         level, vnotes = _classify(rec)
+
+        # P1 guard: RETURN_PROPAGATION can never be static_obvious.
+        # The receiver identity depends on return-value propagation,
+        # so the evidence floor is static_context regardless of
+        # what a downstream category-based rule might suggest.
+        if (rec.get("pcresolve_reason") == "RETURN_PROPAGATION"
+                and level == "static_obvious"):
+            level = "static_context"
+            vnotes = ("receiver ownership inferred through "
+                      "return-value propagation")
+
         rec["verification_level"] = level
         rec["verification_notes"] = vnotes
         stats[level] = stats.get(level, 0) + 1
@@ -418,6 +429,17 @@ def check_lock(proj_name):
                 result["ok"] = False
                 result["blockers"].append(
                     "missing verification_notes at %s:%d:%d %s" % (
+                        rec.get("file", ""), rec.get("lineno", 0),
+                        rec.get("col_offset", 0),
+                        rec.get("expression", "")[:60]))
+
+            # P1 guard: RETURN_PROPAGATION requires >= static_context.
+            if (rec.get("pcresolve_reason") == "RETURN_PROPAGATION"
+                    and level == "static_obvious"):
+                result["ok"] = False
+                result["blockers"].append(
+                    "RETURN_PROPAGATION requires static_context or "
+                    "stronger at %s:%d:%d %s" % (
                         rec.get("file", ""), rec.get("lineno", 0),
                         rec.get("col_offset", 0),
                         rec.get("expression", "")[:60]))

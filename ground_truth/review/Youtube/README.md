@@ -18,8 +18,8 @@
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 82
-- [static_context](static_context.md): 13
+- [static_obvious](static_obvious.md): 81
+- [static_context](static_context.md): 14
 - [dynamic_probe](dynamic_probe.md): 9
 
 ## [Suspicious Records](suspicious.md): 8
