@@ -14,8 +14,8 @@
     },
     "aiomqtt1": {
       "path": "tests/fixtures/tested_projects/aiomqtt1",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Async MQTT client usage"
     },
     "allnews": {
@@ -57,8 +57,8 @@
     },
     "covid19": {
       "path": "tests/fixtures/tested_projects/covid19",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Data analysis; pandas/NumPy"
     },
     "CustomSamplers": {
@@ -69,8 +69,8 @@
     },
     "Deep-Graph-Kernels": {
       "path": "tests/fixtures/tested_projects/Deep-Graph-Kernels",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "reviewed",
       "notes": "ML; torch/sklearn"
     },
     "django": {
@@ -118,8 +118,8 @@
     },
     "galax": {
       "path": "tests/fixtures/tested_projects/galax",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Astronomy; NumPy/SciPy"
     },
     "gender": {
@@ -215,8 +215,8 @@
     },
     "scrapping": {
       "path": "tests/fixtures/tested_projects/scrapping",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Web scraping; requests/BeautifulSoup"
     },
     "SDOML": {

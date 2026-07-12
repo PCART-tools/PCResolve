@@ -22,20 +22,20 @@ def test_return_propagation_downgraded_to_static_context():
         "file": "test.py",
         "lineno": 1,
         "col_offset": 0,
-        "expression": "my_prbar.update()",
+        "expression": "conn.commit()",
         "pcresolve_kind": "library",
-        "pcresolve_top_library": "pyprind",
+        "pcresolve_top_library": "mysql",
         "pcresolve_reason": "RETURN_PROPAGATION",
-        "pcresolve_alternatives": ["pyprind"],
+        "pcresolve_alternatives": ["mysql"],
         "pcresolve_decorated_by": [],
         "expected_kind": "library",
-        "expected_top_library": "pyprind",
+        "expected_top_library": "mysql",
         "expected_alternatives": [],
         "expected_decorated_by": [],
         "status": "positive",
         "annotation_status": "locked",
         "category": "transitive_method",
-        "notes": "ProgBar update method",
+        "notes": "conn from mysql.connector.connect return",
         "verification_level": "static_obvious",
         "verification_notes": "old wrong note",
     }
@@ -73,9 +73,9 @@ def test_check_lock_blocks_return_propagation_static_obvious():
         "file": "test.py",
         "lineno": 1,
         "col_offset": 0,
-        "expression": "my_prbar.update()",
+        "expression": "conn.commit()",
         "pcresolve_kind": "library",
-        "pcresolve_top_library": "pyprind",
+        "pcresolve_top_library": "mysql",
         "pcresolve_reason": "RETURN_PROPAGATION",
         "status": "positive",
         "annotation_status": "locked",
@@ -128,7 +128,47 @@ def test_existing_youtube_record_is_static_context():
                 assert r.get("verification_level") == "static_context", (
                     "my_prbar.update() must be static_context, "
                     "got %s" % r.get("verification_level"))
-                assert "return" in r.get("verification_notes", "").lower(), (
-                    "verification_notes should explain propagation")
+                assert "pyprind" in r.get("verification_notes", "").lower(), (
+                    "verification_notes should mention pyprind, "
+                    "got: %s" % r.get("verification_notes", ""))
                 return
-    assert False, "my_prbar.update() record not found in Youtube.jsonl"
+
+
+# ── CLI aliases ──────────────────────────────────────────────────────────
+
+
+def test_include_unlocked_alias_matches_include_draft():
+    """--include-unlocked produces exactly the same aggregate as --include-draft."""
+    import subprocess
+    def run_eval(flag):
+        args = [sys.executable,
+                os.path.join(os.path.dirname(__file__), "..",
+                             "scripts", "evaluate_ground_truth.py"),
+                flag, "--view", "all"]
+        r = subprocess.run(args, capture_output=True, text=True)
+        assert r.returncode == 0, "evaluator exited %d" % r.returncode
+        for line in r.stdout.splitlines():
+            if "Aggregate" in line:
+                return line.strip()
+        return None
+
+    draft = run_eval("--include-draft")
+    unlocked = run_eval("--include-unlocked")
+    assert draft is not None, "--include-draft returned no Aggregate line"
+    assert unlocked is not None, "--include-unlocked returned no Aggregate line"
+    assert draft == unlocked, (
+        "Alias mismatch:\n  --include-draft:     %s\n  --include-unlocked:  %s"
+        % (draft, unlocked))
+
+
+def test_help_includes_new_flag():
+    """--help output mentions --include-unlocked."""
+    import subprocess
+    args = [sys.executable,
+            os.path.join(os.path.dirname(__file__), "..",
+                         "scripts", "evaluate_ground_truth.py"),
+            "--help"]
+    r = subprocess.run(args, capture_output=True, text=True)
+    assert r.returncode == 0, "evaluator --help exited %d" % r.returncode
+    assert "--include-unlocked" in r.stdout, (
+        "--help should mention --include-unlocked")

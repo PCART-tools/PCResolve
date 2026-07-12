@@ -7,8 +7,10 @@
 #  precision/recall/ownership by expected_kind.
 #
 #  Usage:
-#    python scripts/evaluate_ground_truth.py                    # pilot only
-#    python scripts/evaluate_ground_truth.py --all               # all projects
+#    python scripts/evaluate_ground_truth.py                                    # locked pilots only
+#    python scripts/evaluate_ground_truth.py --include-draft                    # locked + reviewed/draft
+#    python scripts/evaluate_ground_truth.py --include-unlocked                 # same as --include-draft
+#    python scripts/evaluate_ground_truth.py --all                              # all projects
 #    python scripts/evaluate_ground_truth.py --project click1
 
 import json
@@ -42,7 +44,7 @@ def _kind_from_top(top):
 
 def _kind_in_view(kind, view):
     if view == "all":
-        return kind in ("library", "python", "local")
+        return kind in ("library", "python", "local", "unknown")
     return kind == view
 
 
@@ -114,7 +116,9 @@ def evaluate_one(name, info, view="all"):
         # relevance is decided by _kind_in_view on the pc side.
         if status in ("negative", "unsupported"):
             included.append(r)
-        elif view == "all" and ek in ("library", "python", "local"):
+        elif view == "all" and ek in ("library", "python", "local", "unknown"):
+            included.append(r)
+        elif view == "unknown" and ek == "unknown":
             included.append(r)
         elif view == "library" and ek == "library":
             included.append(r)
@@ -258,7 +262,8 @@ def main():
     view = "all"
     selected = set()
     all_projects = "--all" in args
-    include_draft = "--include-draft" in args
+    include_draft = ("--include-draft" in args
+                     or "--include-unlocked" in args)
     i = 0
     while i < len(args):
         a = args[i]
@@ -272,7 +277,7 @@ def main():
             view = args[i]
         elif a == "--all":
             pass
-        elif a == "--include-draft":
+        elif a in ("--include-draft", "--include-unlocked"):
             pass
         elif a.startswith("--project="):
             selected.add(a.split("=", 1)[1])
@@ -283,12 +288,12 @@ def main():
             i += 1
             selected.add(args[i])
         elif a in ("-h", "--help"):
-            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--include-draft] [--project NAME] [--view all|library|python|local]")
+            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--include-draft|--include-unlocked] [--project NAME] [--view all|library|python|local|unknown]")
             return
         i += 1
 
-    if view not in ("all", "library", "python", "local"):
-        print("ERROR: --view must be one of: all, library, python, local", file=sys.stderr)
+    if view not in ("all", "library", "python", "local", "unknown"):
+        print("ERROR: --view must be one of: all, library, python, local, unknown", file=sys.stderr)
         sys.exit(1)
 
     total_gt = 0

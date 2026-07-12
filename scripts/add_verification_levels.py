@@ -313,14 +313,15 @@ def _classify_transitive(rec):
     if "issparse(" in expr:
         return ("static_obvious", "direct scipy.sparse API call")
 
-    # pyprind / progress bar
+    # pyprind / progress bar — receiver from ProgBar() constructor
     if ".update()" in expr and "prbar" in expr.lower():
-        return ("static_obvious", "direct import-backed API call (pyprind)")
+        return ("static_context",
+                "receiver ownership inferred from pyprind.ProgBar() return")
 
-    # remaining unmatched transitive
-    return ("manual_reasoned",
-            "transitive_method: no specific probe or context rule matched; "
-            "review receiver provenance manually")
+    # remaining unmatched transitive — depends on receiver provenance
+    return ("static_context",
+            "transitive method; receiver ownership inferred through "
+            "return-value propagation or import chain")
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +335,13 @@ def add_levels(proj_name, dry_run=False):
         print("SKIP %s: JSONL not found" % proj_name)
         return None
 
+    # Skip locked projects — their verification levels are final.
+    with open(PROJECTS_FILE, encoding="utf-8") as f:
+        manifest = json.load(f).get("projects", {})
+    if manifest.get(proj_name, {}).get("status") == "locked":
+        print("SKIP %s: already locked" % proj_name)
+        return None
+
     with open(path, encoding="utf-8") as f:
         records = [json.loads(line) for line in f if line.strip()]
 
@@ -341,10 +349,14 @@ def add_levels(proj_name, dry_run=False):
     for rec in records:
         level, vnotes = _classify(rec)
 
-        # P1 guard: RETURN_PROPAGATION can never be static_obvious.
-        # The receiver identity depends on return-value propagation,
-        # so the evidence floor is static_context regardless of
-        # what a downstream category-based rule might suggest.
+        # P1 guard: RETURN_PROPAGATION and UNRESOLVED can never be
+        # static_obvious.  These depend on receiver provenance or
+        # are not yet statically resolvable.
+        if rec.get("pcresolve_reason") == "UNRESOLVED":
+            if level == "static_obvious":
+                level = "manual_reasoned"
+                vnotes = ("unresolved receiver; unknown owner "
+                          "requires manual confirmation")
         if (rec.get("pcresolve_reason") == "RETURN_PROPAGATION"
                 and level == "static_obvious"):
             level = "static_context"
@@ -439,6 +451,17 @@ def check_lock(proj_name):
                 result["ok"] = False
                 result["blockers"].append(
                     "RETURN_PROPAGATION requires static_context or "
+                    "stronger at %s:%d:%d %s" % (
+                        rec.get("file", ""), rec.get("lineno", 0),
+                        rec.get("col_offset", 0),
+                        rec.get("expression", "")[:60]))
+
+            # P1 guard: UNRESOLVED requires >= manual_reasoned.
+            if (rec.get("pcresolve_reason") == "UNRESOLVED"
+                    and level == "static_obvious"):
+                result["ok"] = False
+                result["blockers"].append(
+                    "UNRESOLVED requires manual_reasoned or "
                     "stronger at %s:%d:%d %s" % (
                         rec.get("file", ""), rec.get("lineno", 0),
                         rec.get("col_offset", 0),

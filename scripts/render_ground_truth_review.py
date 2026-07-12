@@ -132,9 +132,13 @@ def _is_suspicious(r):
     # Missing decorator evidence.
     if edeco and not all(d in pdeco for d in edeco):
         return True
-    # Needs human reasoning or beyond scope.
-    if level in ("manual_reasoned", "unsupported"):
+    # Out of scope or beyond static analysis.
+    if level == "unsupported":
         return True
+    # manual_reasoned is only suspicious when there is an actual
+    # mismatch (already caught above by kind/owner checks).
+    # Matched manual_reasoned records need human review but are
+    # NOT mismatches — they go in manual_reasoned.md separately.
     if status in ("ambiguous", "unsupported"):
         return True
     return False
