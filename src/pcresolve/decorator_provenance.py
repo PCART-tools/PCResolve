@@ -31,6 +31,11 @@ def build_decorator_index(all_provenance):
 #  Matches by (file_path, scope_name, func_name).  Scope-aware
 #  matching prevents cross-scope pollution in both directions.
 #
+#  For dotted func_names (e.g. "hello.main"), also tries the receiver
+#  part ("hello") so that decorator evidence on the decorated callable
+#  propagates to receiver method calls.  Does NOT guess libraries from
+#  method names alone.
+#
 #  @param file_path  File path of the call.
 #  @param func_name  Function name (or base name) of the call.
 #  @param scope_name Scope where the call occurs ("" for module-level).
@@ -38,4 +43,11 @@ def build_decorator_index(all_provenance):
 #  @return List of library names that decorate the target.
 def lookup_decorated_by(file_path, func_name, scope_name, deco_by):
     key = (file_path, scope_name or "", func_name or "")
-    return list(deco_by.get(key, []))
+    result = list(deco_by.get(key, []))
+    # 1.0.5 P2: receiver-aware lookup — if func_name is dotted,
+    # also check the receiver part for decorator evidence.
+    if not result and func_name and '.' in func_name:
+        receiver = func_name.split('.')[0]
+        receiver_key = (file_path, scope_name or "", receiver)
+        result = list(deco_by.get(receiver_key, []))
+    return result

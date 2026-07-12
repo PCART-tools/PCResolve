@@ -160,9 +160,10 @@ Class method resolution does **not** alter the decorator provenance contract:
 
 - Decorator evidence continues to be exposed via `decorated_by`.
 - A decorator never changes the primary identity of the decorated target.
-- `ApiCall.decorated_by` exact-match (file_path, scope, func_name) is
-  unchanged; method-call `decorated_by` depends on future full class-aware
-  receiver resolution.
+- `ApiCall.decorated_by` uses two-level matching (1.0.5 P2):
+  exact `(file_path, scope_name, func_name)` with receiver-aware fallback
+  for dotted calls.  Instance methods on decorated classes still require
+  full class-aware resolution (future work).
 
 ## Decorator Provenance Semantics
 
@@ -173,7 +174,7 @@ Decorators create two distinct kinds of evidence that must not be conflated:
 | Decorator expression call | `ApiCall.top_library` | The decorator `@lib.deco(args)` itself is a call to `lib` | Public, stable |
 | Decorated target call | `ApiCall.top_library` | A call to the decorated function/class is **always** `"local"` | Public, stable |
 | Decorator provenance evidence | `SymbolProvenance(kind="decorated_by")` | Records which libraries decorated the target | Public, stable |
-| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `(file_path, scope_name, func_name)` match | Public, additive-only; method calls require future class-aware resolution |
+| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence via two-level match: exact `(file_path, scope_name, func_name)` then receiver-aware fallback for dotted calls | Public, additive-only |
 
 ### Core Invariant
 
@@ -199,41 +200,45 @@ To find all call sites potentially related to library `lib`:
 
 1. **Direct API calls**: `ApiCall.top_library == lib`
 2. **Decorated local calls**: `lib in ApiCall.decorated_by` AND `ApiCall.top_library == "local"`
-3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; `ApiCall.decorated_by` for methods depends on future full class-aware receiver resolution
+3. **Method calls**: decorated callable receiver methods (e.g. `hello.main()`) are supported in 1.0.5 P2 via receiver-aware lookup.  Full class-aware receiver resolution (instance methods on decorated classes) is future work.
 
 ### `ApiCall.decorated_by` Contract
 
 - **Field type**: `list[str]`, default `[]`
 - **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
-- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls before full class-aware matching)
+- **Null/empty semantics**: `[]` means "no decorator evidence found on this call".  1.0.5 P2 supports receiver-aware lookup for dotted method calls (e.g. `hello.main()`); instance methods on decorated classes require full class-aware resolution (future work).
 - **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
-- **Matching**: exact match on `(file_path, scope_name, func_name)` where
-  `func_name` is the call's bare function name (e.g. `"index"` for `index()`)
-  and `scope_name` disambiguates module-level, nested, and class scopes.
-  Method calls still require full class-aware receiver resolution before
-  `decorated_by` can be attached reliably.
+- **Matching**: two-level lookup:
+  1. exact: `(file_path, scope_name, func_name)`
+  2. receiver-aware fallback (1.0.5 P2): if `func_name` is dotted,
+     match the first dot-segment as the receiver in the decorator index
+  Supported: `hello.main()` where `hello` has `decorated_by` provenance.
+  Not yet supported: instance methods on decorated classes, MRO-based
+  receiver resolution, aliased receivers (e.g. `cmd = hello; cmd.main()`).
 
 ### Decorated Callable Receiver Methods
 
 Calls such as `hello.main()` where `hello` is a local function decorated by
-`@click.command()` are currently classified as `local`.  This is intentional:
+`@click.command()` are classified as `local`.  This is intentional:
 the decorated callable remains a same-project object, so decorator evidence
 must not replace the primary `top_library`.
 
-Decorator provenance is recorded on the decorated symbol.  Receiver-method
-calls such as `hello.main()` may require receiver-aware matching before
-that evidence can be mirrored into `ApiCall.decorated_by`.
+1.0.5 P2 adds receiver-aware `decorated_by` lookup: when `func_name` is
+dotted (e.g. `hello.main`), `lookup_decorated_by` also checks the receiver
+part (`hello`) in the decorator index.  This means `hello.main().decorated_by`
+now contains `["click"]` while `top_library` stays `local`.
 
-Until that matching exists, consumers that need this association should
-inspect `SymbolProvenance(kind="decorated_by")` in addition to
-`ApiCall.decorated_by`.
+Receivers are identified by the first dot-segment of `func_name`; the
+lookup does NOT guess libraries from method names like `main`, `run`,
+or `callback`.
 
 Contract points:
 
 - `hello.main()` continues to report `top_library="local"`.
 - Decorated local callables are not reclassified as third-party primary calls.
-- The current boundary is that `decorated_by` is not propagated to receiver
-  method calls.
+- 1.0.5 P2: receiver-aware lookup propagates `decorated_by` from the
+  decorated callable to its dotted method calls (e.g. `hello.main()`).
+- Full class-aware decorated instance methods are future work.
 - Downstream consumers should inspect both `SymbolProvenance(kind="decorated_by")`
   and `ApiCall.decorated_by`.
 
@@ -243,4 +248,4 @@ Contract points:
 - **CallGraph edges**: `call_graph.py` feeds param/return propagation into trace.
 - **Class method resolution**: `instance_attrs` handles constructor args; full class-aware receiver resolution (MRO, `@classmethod`, `@staticmethod`) is future work.
 - **Classification**: `ClassificationPipeline.classify()` handles reason/confidence/alternatives.
-- **Method decorator evidence**: `ApiCall.decorated_by` matches by `(file_path, scope_name, func_name)`; class-aware receiver resolution is future work.
+- **Method decorator evidence**: `ApiCall.decorated_by` uses exact `(file_path, scope_name, func_name)` match plus receiver-aware fallback for dotted decorated callable calls (1.0.5 P2); full class-aware decorated instance methods are future work.
