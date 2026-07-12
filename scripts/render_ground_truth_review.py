@@ -109,8 +109,16 @@ def _is_suspicious(r):
     status = r.get("status", "")
 
     # Manual GT: annotator-added call PCResolve missed.
+    # Only flag when PCResolve still does not produce a matching
+    # prediction; once collected correctly, the record graduates.
     if src == "manual_gt":
-        return True
+        if not pck or not pctl:
+            return True
+        if pck != ek:
+            return True
+        if pctl != etl and etl not in palts:
+            return True
+        return False
     # PCResolve missing candidate: GT expects but pcresolve fields empty.
     if status == "positive" and ek and not pck:
         return True

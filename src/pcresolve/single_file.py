@@ -744,6 +744,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         if isinstance(attr_source, str) and attr_source not in ("local", "python", "unknown", ""):
                             return InstanceMethod(attr_source, method_name)
                     return _resolve_on_class(target_class, root)
+        if isinstance(re, ast.Constant):
+            # Literal constant method call: "str".format() → python.
+            # The receiver is a literal Python builtin type, so the
+            # method callable is always python.
+            if isinstance(re.value, str):
+                return InstanceMethod("str", method_name)
+            if isinstance(re.value, bytes):
+                return InstanceMethod("bytes", method_name)
         return None
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].

@@ -19,7 +19,7 @@
 | proxy.py:71:8 | `Scope()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | proxy.py:92:29 | `read_until(self.stream, '\n')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | proxy.py:109:8 | `print('{}'.format(msg.format(*args, **kwargs)))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| proxy.py:109:14 | `"{}".format(msg.format(*args, **kwargs))` | python / python |  /  | builtin | static_obvious | gt: PCResolve missed literal str.format()<br>v: literal str.format(); call-collection gap |
+| proxy.py:109:14 | `'{}'.format(msg.format(*args, **kwargs))` | python / python | python / python | builtin | static_obvious | gt: Previously manual GT (call-collection gap); now collected and matched<br>v: literal str.format() collected; builtin receiver resolved statically |
 | proxy.py:119:8 | `tornado.tcpserver.TCPServer.__init__(self, io_loop=io_loop, ssl_opt...` | library / tornado | library / tornado | direct_import | static_obvious | v: import-backed dotted module call: tornado.tcpserver.TCPServer.__init__ |
 | proxy.py:122:31 | `itertools.count(1)` | library / itertools | library / itertools | direct_import | static_obvious | v: direct import-backed API call |
 | proxy.py:128:15 | `SimpleEcho()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

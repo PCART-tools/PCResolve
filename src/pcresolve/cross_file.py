@@ -909,6 +909,21 @@ class ProjectAnalyzer:
                         return resolved
                 else:
                     return (module, base_symbol)
+            # P0: handle external base classes not in symbols.direct.
+            # When a local class inherits from tornado.tcpserver.TCPServer
+            # and the base_symbol dotted name isn't stored as a symbol,
+            # check whether the top-level prefix is an import.
+            if (isinstance(base_symbol, str) and '.' in base_symbol
+                    and not base_direct):
+                prefix = base_symbol.split('.')[0]
+                aliases = getattr(tracer, "import_aliases", set())
+                alias_prefixes = {
+                    a.split('.')[0] for a in aliases if isinstance(a, str)}
+                alias_prefixes |= {
+                    a.split('.')[0] for a in getattr(
+                        tracer, "import_from_symbols", {}) if isinstance(a, str)}
+                if prefix in alias_prefixes:
+                    return (module, prefix)
         class_direct = normalize_source(tracer.symbols.direct.get(class_symbol))
         if isinstance(class_direct, CallResult):
             class_direct = class_direct.callee
@@ -1052,6 +1067,8 @@ class ProjectAnalyzer:
             if receiver_top:
                 return (f"{a}.{b}", module, receiver_top)
             if not class_symbol:
+                if isinstance(a, str) and _is_builtin(a):
+                    return (f"{a}.{b}", module, "python")
                 if isinstance(a, str) and _is_import_origin(tracer, a):
                     return (f"{a}.{b}", module, a)
                 # No factory top: trace through parameter sources

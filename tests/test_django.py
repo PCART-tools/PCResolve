@@ -103,3 +103,41 @@ def test_self_r_calls_still_redis(calls_by_top):
     for pattern in ["self.r.set(", "self.r.zadd(", "self.r.expire("]:
         found = any(pattern in e for e in redis_exprs)
         assert found, f"Missing expected redis call: {pattern}"
+
+
+# ── P0: Literal string methods + inherited external methods ──────────────
+
+
+def test_literal_format_is_python(result):
+    """'"{}".format(...)' on str literal → python."""
+    format_calls = [c for c in result.all_api_calls
+                    if "'{}'.format" in c.expression]
+    assert len(format_calls) >= 1, \
+        "literal '{}'.format() not found in output"
+    for c in format_calls:
+        assert c.top_library == "python", \
+            f"'{c.expression}' should be python, got {c.top_library}"
+
+
+def test_server_listen_is_tornado(calls_by_top):
+    """server.listen(8889) — inherited from tornado.tcpserver.TCPServer."""
+    tornado_calls = calls_by_top.get("tornado", [])
+    listen_calls = [c for c in tornado_calls
+                    if "server.listen" in c.expression]
+    assert len(listen_calls) >= 1, \
+        f"Expected server.listen() as tornado, found {len(listen_calls)}"
+    # Verify it's not in local
+    local_calls = calls_by_top.get("local", [])
+    local_listen = [c for c in local_calls
+                    if "server.listen" in c.expression]
+    assert len(local_listen) == 0, \
+        "server.listen() should NOT be classified as local"
+
+
+def test_self_set_expire_still_local(calls_by_top):
+    """self.set_expire() (3 occurrences) → local (not tornado)."""
+    local_calls = calls_by_top.get("local", [])
+    expire_local = [c for c in local_calls
+                    if "set_expire" in c.expression]
+    assert len(expire_local) == 3, \
+        f"Expected 3 self.set_expire() as local, found {len(expire_local)}"
