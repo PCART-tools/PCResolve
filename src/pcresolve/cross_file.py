@@ -1112,7 +1112,7 @@ class ProjectAnalyzer:
                 rs = normalize_source(rs)
                 if isinstance(rs, SourceSet):
                     ## 7B-full PR7-final: check primary convergence first
-                    ## so that "return" origin can pick third-party even
+                    ## so that "return" origin can pick import-backed library even
                     ## when local sources are present.
                     primary = self._resolve_sourceset_primary(
                         cur_module, rs, tracers)
@@ -1218,7 +1218,7 @@ class ProjectAnalyzer:
     #
     #  1.0.5 P1: supports app.test_client() → flask when app traces
     #  to a CallResult (local or imported factory function) whose
-    #  return_sources trace to a third-party library.
+    #  return_sources trace to an import-backed library.
     #
     #  Handles:
     #    from factory import create_app → callee="create_app"

@@ -20,14 +20,14 @@ Source IR (single_file.py)
 1. Given a symbol or call expression, produce an ordered chain of source references from the definition site to the ultimate origin.
 2. Report when the trace is incomplete (e.g., recursion limit, unresolvable structured source).
 3. Provide all candidate origins when the trace splits (via `SourceSet`).
-4. Never assign a `top_library` directly — that is the classifier's job.
+4. Never assign a `top_library` directly: that is the classifier's job.
 
 ### Classify Responsibilities
 
 1. Given a `TraceResult`, determine the `top_library` using `ClassificationPipeline.classify()`.
 2. Assign `reason`, `confidence`, and `alternatives`.
-3. Handle ambiguous cases (multiple candidates, local + third-party mixed) explicitly.
-4. Unresolved cases produce `library = "unknown"` with `reason = "UNRESOLVED"`.
+3. Handle ambiguous cases (multiple candidates, local + import-backed mixed) explicitly.
+4. Unresolved cases produce `top_library = "unknown"` with `reason = "UNRESOLVED"`.
 
 ## Current State (1.0.4)
 
@@ -57,8 +57,8 @@ Rule priority order:
 
 1. Local function/method definition → `"local"`
 2. Python builtin / implicit builtin (no import required) → `"python"`
-3. Imported stdlib module (via import/from import) → top-level module name
-4. Imported third-party module (via import/from import) → top-level package name
+3. Imported module/package (via import/from import) → top-level owner name
+   e.g. `json`, `pathlib`, `requests`, `numpy`
 5. Cross-file re-export → library name
 6. Parameter propagation → library name, confidence < 1.0
 7. Return value propagation → library name, confidence < 1.0
@@ -121,14 +121,14 @@ call-site facts, without a full class hierarchy graph.
 ### Conservative Boundaries
 
 - **Factory-returned instances**: simple local factories that return a
-  third-party object (e.g. `def make(): return requests.Session()`) are
+  import-backed library-owned object (e.g. `def make(): return requests.Session()`) are
   supported in 1.0.5 P1.  Complex factories with branches, mutation,
   same-name method collisions, or unresolved returns remain conservative.
 - **Method name collision / override**: `return_sources` is keyed by bare
   method name (e.g. `"get"`).  Complex same-name methods, inheritance,
   and overrides need `Class.method` / `FunctionId(module, qualname)`
   (future work).
-- **Third-party base-class methods, `@classmethod`, `@staticmethod`,
+- **Import-backed base-class methods, `@classmethod`, `@staticmethod`,
   descriptors / properties**: not in lite scope.
 
 ### Minimal Examples
@@ -147,7 +147,7 @@ class Api:
 
 a = Api(requests.Session())
 b = Api(httpx.Client())
-c = make(httpx.Client())          # factory return — supported in 1.0.5 P1
+c = make(httpx.Client())          # factory return: supported in 1.0.5 P1
 
 a.get("x")   # → requests
 b.get("y")   # → httpx
@@ -235,7 +235,7 @@ or `callback`.
 Contract points:
 
 - `hello.main()` continues to report `top_library="local"`.
-- Decorated local callables are not reclassified as third-party primary calls.
+- Decorated local callables are not reclassified as import-backed primary calls.
 - 1.0.5 P2: receiver-aware lookup propagates `decorated_by` from the
   decorated callable to its dotted method calls (e.g. `hello.main()`).
 - Full class-aware decorated instance methods are future work.

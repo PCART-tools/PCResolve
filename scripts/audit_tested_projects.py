@@ -152,8 +152,8 @@ def audit_one(project_entry, timeout_sec=60):
         "regressions": 0,
         "improvements": 0,
         "precision": 0,
-        "tp_to_local": 0,
-        "tp_to_unknown": 0,
+        "library_to_local": 0,
+        "library_to_unknown": 0,
         "local_to_unknown": 0,
         "illegal_keys": 0,
         "error": None,
@@ -259,9 +259,9 @@ def audit_one(project_entry, timeout_sec=60):
         if v2_top in ("local", "unknown", "") and v1_top not in ("local", "unknown", ""):
             record["regressions"] += 1
             if v2_top == "local":
-                record["tp_to_local"] += 1
+                record["library_to_local"] += 1
             else:
-                record["tp_to_unknown"] += 1
+                record["library_to_unknown"] += 1
         elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             record["improvements"] += 1
         elif v1_top == "local" and v2_top == "unknown":

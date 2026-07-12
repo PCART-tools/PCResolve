@@ -78,17 +78,17 @@ def compare(path):
                for p in v2.all_symbol_provenance}
 
     # Classify API call differences with taxonomy sub-categories.
-    call_regressions = []       # third-party -> local/unknown
-    call_improvements = []      # local/unknown -> third-party
-    call_precision = []         # third-party -> another third-party
+    call_regressions = []       # import-backed library -> local/unknown
+    call_improvements = []      # local/unknown -> import-backed library
+    call_precision = []         # import-backed library -> different library
     call_same = 0
 
     # Taxonomy sub-counts.
-    tp_to_local = 0
-    tp_to_unknown = 0
+    library_to_local = 0
+    library_to_unknown = 0
     local_to_unknown = 0
     local_to_python = 0
-    local_to_third_party = 0
+    local_to_library = 0
 
     for key in v1_calls:
         v1_top = v1_calls[key]
@@ -100,12 +100,12 @@ def compare(path):
         elif v2_top in ("local", "unknown", "") and v1_top not in ("local", "unknown", ""):
             call_regressions.append((key, v1_top, v2_top))
             if v2_top == "local":
-                tp_to_local += 1
+                library_to_local += 1
             else:
-                tp_to_unknown += 1
+                library_to_unknown += 1
         elif v1_top in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             call_improvements.append((key, v1_top, v2_top))
-            local_to_third_party += 1
+            local_to_library += 1
         elif v1_top not in ("local", "unknown", "") and v2_top not in ("local", "unknown", ""):
             call_precision.append((key, v1_top, v2_top))
         elif v1_top == "local" and v2_top == "unknown":
@@ -116,7 +116,7 @@ def compare(path):
             call_improvements.append((key, v1_top, v2_top))
         else:
             call_regressions.append((key, v1_top, v2_top))
-            tp_to_unknown += 1
+            library_to_unknown += 1
 
     only_v2_calls = set(v2_calls.keys()) - set(v1_calls.keys())
 
@@ -134,17 +134,17 @@ def compare(path):
         len(call_improvements), len(call_precision), len(only_v2_calls)))
 
     if call_regressions:
-        print("\nRegressions (v1 third-party -> v2 local/unknown):")
+        print("\nRegressions (v1 import-backed library -> v2 local/unknown):")
         for key, v1t, v2t in call_regressions[:20]:
             print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
 
     if call_improvements:
-        print("\nImprovements (v1 local -> v2 third-party):")
+        print("\nImprovements (v1 local -> v2 import-backed library):")
         for key, v1t, v2t in call_improvements[:10]:
             print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
 
     if call_precision:
-        print("\nPrecision changes (third-party -> another third-party, e.g. SourceSet alternatives):")
+        print("\nPrecision changes (import-backed library -> different library, e.g. SourceSet alternatives):")
         for key, v1t, v2t in call_precision[:10]:
             print("  %s:%d:%d %s: %s -> %s" % (key[0], key[1], key[2], key[3], v1t, v2t))
 
@@ -176,11 +176,11 @@ def compare(path):
             print("  Illegal SymbolProvenance.top_library: %d entries" % len(illegal_provs))
 
     taxonomy = {
-        "tp_to_local": tp_to_local,
-        "tp_to_unknown": tp_to_unknown,
+        "library_to_local": library_to_local,
+        "library_to_unknown": library_to_unknown,
         "local_to_unknown": local_to_unknown,
         "local_to_python": local_to_python,
-        "local_to_third_party": local_to_third_party,
+        "local_to_library": local_to_library,
     }
     return (len(call_regressions), len(call_improvements),
             len(call_precision), illegal, len(v2_only_libs),
@@ -279,9 +279,9 @@ def main():
     has_baseline = False
     summary_lines = []
     all_regression_details = []
-    total_taxonomy = {"tp_to_local": 0, "tp_to_unknown": 0,
+    total_taxonomy = {"library_to_local": 0, "library_to_unknown": 0,
                       "local_to_unknown": 0, "local_to_python": 0,
-                      "local_to_third_party": 0}
+                      "local_to_library": 0}
     for path, logical_name in project_entries:
         regs, imps, prec, illegal_count, _, details, taxonomy = compare(path)
         all_regression_details.extend(details)
@@ -319,14 +319,14 @@ def main():
     for line in summary_lines:
         print("  %s" % line)
     print("  TOTAL regressions: %d" % total_regressions)
-    print("    third_party_api_loss: %d" % (
-        total_taxonomy["tp_to_local"] + total_taxonomy["tp_to_unknown"]))
-    print("      third-party -> local:   %d" % total_taxonomy["tp_to_local"])
-    print("      third-party -> unknown: %d" % total_taxonomy["tp_to_unknown"])
+    print("    library_api_loss: %d" % (
+        total_taxonomy["library_to_local"] + total_taxonomy["library_to_unknown"]))
+    print("      import-backed library -> local:   %d" % total_taxonomy["library_to_local"])
+    print("      import-backed library -> unknown: %d" % total_taxonomy["library_to_unknown"])
     if total_taxonomy["local_to_unknown"]:
         print("    local -> unknown:        %d" % total_taxonomy["local_to_unknown"])
     print("  TOTAL improvements: %d" % total_improvements)
-    print("    local -> third-party:  %d" % total_taxonomy["local_to_third_party"])
+    print("    local -> library:  %d" % total_taxonomy["local_to_library"])
     if total_taxonomy["local_to_python"]:
         print("    local -> python:       %d" % total_taxonomy["local_to_python"])
     print("  TOTAL precision changes: %d" % total_precision)
@@ -372,7 +372,7 @@ def main():
             return any(isinstance(n, ast.Subscript) for n in ast.walk(node))
 
         # Separate by loss type
-        tp_loss = {}   # third-party -> local/unknown
+        tp_loss = {}   # import-backed library -> local/unknown
         lu_loss = {}   # local -> unknown
         for key, v1t, v2t in all_regression_details:
             expr = key[3]
@@ -395,7 +395,7 @@ def main():
                 if len(set(exprs)) > 3:
                     print("      ... +%d more" % (len(set(exprs)) - 3))
 
-        _print_section("third-party API loss (v1 had library, v2 lost it)", tp_loss)
+        _print_section("library API loss (v1 had import-backed library, v2 lost it)", tp_loss)
         _print_section("local-to-unknown (v1 had local, v2 unknown)", lu_loss)
 
     if not has_baseline:

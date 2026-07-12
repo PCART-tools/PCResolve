@@ -4,6 +4,11 @@
 regression/improvement/precision counts. Zero crashes, zero
 timeouts, zero illegal keys.
 
+This validation report focuses on call-site ownership. Symbol
+provenance is validated indirectly when it affects call
+classification; standalone symbol ground truth is outside this
+report's scope.
+
 ## Gate
 
 ```bash
@@ -70,12 +75,12 @@ Illegal keys:         0
 
 ```text
 TOTAL regressions: 303
-  third_party_api_loss: 285
-    third-party -> local:   262
-    third-party -> unknown: 23
+  library_api_loss: 285
+    import-backed library -> local:   262
+    import-backed library -> unknown: 23
   local -> unknown:        18
 TOTAL improvements: 147
-  local -> third-party:  147
+  local -> library:  147
 TOTAL precision changes: 29
 TOTAL illegal keys: 0
 ```
@@ -89,11 +94,11 @@ v1 classified via scope pollution are now `local` or `unknown`.
 
 ### Container/chained-method provenance
 Subscript and chained method calls on local variables holding
-third-party values cannot always be traced through the full
+import-backed values cannot always be traced through the full
 propagation path.  SourceSet alternatives preserve the candidates.
 
-### Multi-third-party returns
-Functions returning different third-party objects from different
+### Multi-library returns (legacy diff taxonomy)
+Functions returning different import-backed objects from different
 branches produce conservative primaries with complete alternatives
 in `library_usage`.
 

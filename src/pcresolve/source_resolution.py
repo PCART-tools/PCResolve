@@ -15,8 +15,8 @@ from pcresolve.sources import (normalize_source, CallResult,
 ## Resolves a SourceSet to a primary top-library candidate.
 #
 #  Uses origin-aware rules:
-#  - "return": accepts local + single third-party convergence.
-#  - "dict_lookup": strict — no local, no unknown, single third-party.
+#  - "return": accepts local + single import-backed library convergence.
+#  - "dict_lookup": strict — no local, no unknown, single import-backed.
 #  - default (no origin): same strict rules as dict_lookup.
 #
 #  Callbacks are injected so this module does not import ProjectAnalyzer.
@@ -60,14 +60,14 @@ class SourceSetResolver:
                 return tops[0]
             return None
 
-        ## Default conservative: no local/unknown, single third-party.
+        ## Default conservative: no local/unknown, single import-backed library.
         if len(tops) == 1 and not has_local and not has_unknown:
             return tops[0]
         return None
 
     # ── internal helpers ────────────────────────────────────────────────
 
-    ## Collect third-party top candidates and local/unknown flags
+    ## Collect import-backed-library top candidates and local/unknown flags
     #  from every source inside a SourceSet.
     def _collect_tops(self, module, sourceset, tracers, _seen=None):
         if _seen is None:

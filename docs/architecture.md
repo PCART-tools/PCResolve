@@ -1,5 +1,7 @@
 # PCResolve Architecture
 
+PCResolve has two connected analysis surfaces: call-site ownership and symbol provenance. `all_api_calls` is the primary classification output. `all_symbol_provenance` explains the symbol flows that support those call classifications.
+
 ## Pipeline Overview
 
 ```

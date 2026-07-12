@@ -45,7 +45,7 @@ def classify_confidence(reason, alternatives=None):
 #
 #  Rule priority (highest first):
 #   1. LOCAL_DEFINITION    — local function, method, or class
-#   2. BUILTIN             — Python builtin / stdlib
+#   2. BUILTIN             — Python-provided builtin API
 #   3. UNRESOLVED          — unknown or empty top
 #   4. DIRECT_IMPORT       — import alias or from-import
 #   5. FLOW_MERGE          — SourceSet base (multi-source)
@@ -94,7 +94,7 @@ class ClassificationPipeline:
                 library="unknown", reason=REASON_UNRESOLVED,
                 confidence=0.0, alternatives=[], is_usage_library=False)
 
-        # Rules 4-7: third-party categories.
+        # Rules 4-7: import-backed library owner categories.
         reason = self._determine_reason(
             base, top, tracer, module, tracers, expand_origins)
 

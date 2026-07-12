@@ -112,7 +112,7 @@ def build_library_usage(project_root, all_api_calls, all_provenance):
 
 ## Check whether a name should be counted as a usage library.
 #  @param name Candidate library name.
-#  @return True if the name is a valid third-party library.
+#  @return True if the name is a valid import-backed library owner.
 def _is_usage_library(name):
     if name in ("", None, "local", "python", "unknown"):
         return False

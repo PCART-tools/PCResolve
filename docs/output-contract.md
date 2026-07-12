@@ -23,6 +23,11 @@ pcresolve project --explain-call "np.array"
 
 ## Full provenance JSON (`--json`)
 
+`all_api_calls` is the primary consumption surface. `all_symbol_provenance`
+provides the explanation and evidence layer: it records which imports,
+aliases, assignments, parameters, returns, attributes, containers, and
+decorators support each call classification.
+
 ```json
 {
   "schema_version": "1.0",
@@ -44,7 +49,7 @@ pcresolve project --explain-call "np.array"
 | `expression` | string | Full call expression text |
 | `func_name` | string | Function name without arguments |
 | `parameters` | string | Argument text |
-| `top_library` | string | Resolved top-level library |
+| `top_library` | string | Resolved primary owner: import-backed top-level library name, or `local`, `python`, `unknown`. PCResolve does not distinguish stdlib from PyPI: any import-backed owner keeps its top-level name (e.g. `json`, `pathlib`, `requests`, `numpy`). |
 | `base_symbol` | string | Root/base symbol used for resolution |
 | `reason` | string | DIRECT_IMPORT, RETURN_PROPAGATION, FLOW_MERGE, ... |
 | `confidence` | float | 0.0–1.0 |
@@ -69,7 +74,7 @@ guaranteed precise resolution:
   via `import_from_symbols`, `resolved_func` includes the class path
   (e.g. `requests.Session.get`, `flask.Flask.test_client`).
 - **Factory returns**: when the receiver traces through a local
-  function that returns a third-party object, the class info is
+  function that returns an import-backed library-owned object, the class info is
   typically not preserved.  PCResolve may produce a library-level
   function (e.g. `requests.get`) when the call path normalizes;
   otherwise the original receiver expression is preserved while

@@ -8,13 +8,14 @@
 
 ## What is PCResolve?
 
-PCResolve is a Python project-level third-party library usage provenance analyzer. It is an explainable static analysis tool for tracing Python API call expressions to their most likely origin library.
+PCResolve is a Python project-level library/API usage provenance analyzer. It is an explainable static analysis tool for classifying Python API call expressions and tracing the symbols that feed them to their owner: an import-backed library, Python-provided API, project-local definition, or unknown.
 
 It answers questions such as:
 
-- Which third-party libraries does this project call?
-- Which call expression belongs to `numpy`, `requests`, `flask`, `sklearn`, or another top-level library?
-- How did a local symbol, return value, attribute, parameter, or container element acquire third-party provenance?
+- Which import-backed libraries and Python APIs does this project call?
+- Which call expression belongs to `numpy`, `requests`, `json`, `pathlib`, `flask`, or another top-level library owner?
+- Which calls are library-owned, Python-provided, local, or unknown?
+- How did a local symbol, return value, attribute, parameter, or container element acquire library provenance?
 - Where is the analysis certain, and where are there multiple possible origins?
 
 PCResolve is designed for CI pipelines, audit workflows, IDE integration, and large-scale codebase scanning. It has zero runtime third-party dependencies and supports Python 3.9+.
@@ -75,7 +76,10 @@ For the complete JSON contract, see [docs/output-contract.md](./docs/output-cont
 
 ## Analysis Capabilities
 
-PCResolve tracks both API call provenance and symbol provenance.
+PCResolve reports two connected views: API call ownership and symbol provenance.
+API calls are the primary classification target. Symbol provenance explains the
+imports, aliases, assignments, parameters, returns, attributes, containers, and
+decorators that support each classification.
 
 Supported patterns include:
 
@@ -103,7 +107,7 @@ The regression gate checks that library keys stay clean, golden JSON output rema
 
 ## Limitations
 
-PCResolve is static by design. It does not execute project code and does not model arbitrary runtime reflection, monkey patching, dynamic imports, descriptors, or full third-party library internals.
+PCResolve is static by design. It does not execute project code and does not model arbitrary runtime reflection, monkey patching, dynamic imports, descriptors, or full library internals.
 
 When a single origin cannot be determined confidently, PCResolve reports conservative results and preserves alternative evidence rather than choosing an unsupported library owner.
 

@@ -9,7 +9,7 @@
 ## Build a decorator evidence index from SymbolProvenance records.
 #
 #  Keys are (file_path, scope_name, symbol) tuples; values are
-#  lists of third-party library names that decorate the symbol.
+#  lists of import-backed library names that decorate the symbol.
 #  Local/python/unknown/empty top_library entries are excluded.
 #
 #  @param all_provenance List of SymbolProvenance records.
