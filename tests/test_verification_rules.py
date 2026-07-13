@@ -246,3 +246,149 @@ def test_comprehension_parens_equivalent():
     e1 = "print({k: v for (k, v) in sorted(x)})"
     e2 = "print({k: v for k, v in sorted(x)})"
     assert _normalize_expr(e1) == _normalize_expr(e2)
+
+
+# ── Schema type validation ────────────────────────────────────────────────
+
+
+def test_expected_alternatives_string_fails_lock_check():
+    """--check must fail when expected_alternatives is a string, not a list."""
+    rec = {
+        "file": "test.py", "lineno": 1, "col_offset": 0,
+        "expression": "foo.bar()", "project": "test",
+        "expected_kind": "library", "expected_top_library": "numpy",
+        "expected_alternatives": "",
+        "status": "positive",
+        "annotation_status": "reviewed",
+        "category": "transitive_method",
+        "verification_level": "static_context",
+        "verification_notes": "test record",
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        jsonl_path = os.path.join(tmp, "test.jsonl")
+        with open(jsonl_path, "w") as f:
+            f.write(json.dumps(rec) + "\n")
+
+        import add_verification_levels as avl
+        old_calls = avl.CALLS_DIR
+        old_proj = avl.PROJECTS_FILE
+        avl.CALLS_DIR = tmp
+        proj_manifest = os.path.join(tmp, "projects.json")
+        with open(proj_manifest, "w") as f:
+            json.dump({"projects": {"test": {"status": "reviewed"}}}, f)
+        avl.PROJECTS_FILE = proj_manifest
+
+        try:
+            result = check_lock("test")
+        finally:
+            avl.CALLS_DIR = old_calls
+            avl.PROJECTS_FILE = old_proj
+
+    assert result is not None, "check_lock returned None"
+    assert result["ok"] is False, (
+        "check_lock must fail when expected_alternatives is a string")
+    blocker_msgs = " ".join(result["blockers"])
+    assert "expected_alternatives must be a list" in blocker_msgs, (
+        "blockers must mention expected_alternatives type, got: %s" % blocker_msgs)
+
+
+def test_expected_alternatives_list_passes_lock_check():
+    """--check must pass when expected_alternatives is a proper list."""
+    rec = {
+        "file": "test.py", "lineno": 1, "col_offset": 0,
+        "expression": "foo.bar()", "project": "test",
+        "expected_kind": "library", "expected_top_library": "numpy",
+        "expected_alternatives": [],
+        "status": "positive",
+        "annotation_status": "reviewed",
+        "category": "transitive_method",
+        "verification_level": "static_context",
+        "verification_notes": "test record",
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        jsonl_path = os.path.join(tmp, "test.jsonl")
+        with open(jsonl_path, "w") as f:
+            f.write(json.dumps(rec) + "\n")
+
+        import add_verification_levels as avl
+        old_calls = avl.CALLS_DIR
+        old_proj = avl.PROJECTS_FILE
+        avl.CALLS_DIR = tmp
+        proj_manifest = os.path.join(tmp, "projects.json")
+        with open(proj_manifest, "w") as f:
+            json.dump({"projects": {"test": {"status": "reviewed"}}}, f)
+        avl.PROJECTS_FILE = proj_manifest
+
+        try:
+            result = check_lock("test")
+        finally:
+            avl.CALLS_DIR = old_calls
+            avl.PROJECTS_FILE = old_proj
+
+    assert result is not None, "check_lock returned None"
+    assert result["ok"] is True, (
+        "check_lock must pass for valid list expected_alternatives, "
+        "blockers: %s" % result.get("blockers", []))
+
+
+# ── Project field invariant ─────────────────────────────────────────────
+
+
+def _make_reviewed_record(project_name="test"):
+    return {
+        "file": "test.py", "lineno": 1, "col_offset": 0,
+        "expression": "foo.bar()", "project": project_name,
+        "expected_kind": "library", "expected_top_library": "numpy",
+        "expected_alternatives": [],
+        "status": "positive",
+        "annotation_status": "reviewed",
+        "category": "transitive_method",
+        "verification_level": "static_context",
+        "verification_notes": "test record",
+    }
+
+
+def _run_check_with_records(proj_name, records, manifest_status="reviewed"):
+    with tempfile.TemporaryDirectory() as tmp:
+        jsonl_path = os.path.join(tmp, f"{proj_name}.jsonl")
+        with open(jsonl_path, "w") as f:
+            for rec in records:
+                f.write(json.dumps(rec) + "\n")
+
+        import add_verification_levels as avl
+        old_calls, old_proj = avl.CALLS_DIR, avl.PROJECTS_FILE
+        avl.CALLS_DIR = tmp
+        proj_manifest = os.path.join(tmp, "projects.json")
+        with open(proj_manifest, "w") as f:
+            json.dump({"projects": {proj_name: {"status": manifest_status}}}, f)
+        avl.PROJECTS_FILE = proj_manifest
+
+        try:
+            return check_lock(proj_name)
+        finally:
+            avl.CALLS_DIR = old_calls
+            avl.PROJECTS_FILE = old_proj
+
+
+def test_project_field_matches_jsonl_name_passes():
+    """project field matches JSONL name -> pass."""
+    rec = _make_reviewed_record(project_name="simulation")
+    result = _run_check_with_records("simulation", [rec])
+    assert result is not None
+    assert result["ok"] is True, (
+        "check_lock must pass when project matches JSONL name, "
+        "blockers: %s" % result.get("blockers", []))
+
+
+def test_project_field_mismatch_fails():
+    """project field differs from JSONL name -> fail."""
+    rec = _make_reviewed_record(project_name="ex_4_2")
+    result = _run_check_with_records("simulation", [rec])
+    assert result is not None
+    assert result["ok"] is False, (
+        "check_lock must fail when project field mismatches JSONL name")
+    blocker_msgs = " ".join(result["blockers"])
+    assert "project field mismatch" in blocker_msgs, (
+        "blockers must mention project field mismatch, got: %s" % blocker_msgs)

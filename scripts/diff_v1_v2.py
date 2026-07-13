@@ -26,17 +26,6 @@ BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..",
                            "tests", "fixtures", "tested_projects")
 
-# Top-level directory basename -> baseline name for nested fixtures
-# where the logical fixture dir contains only a differently-named
-# sub-project.  The recursive _expand_project_dirs carries the
-# top-level logical name through so baseline lookup and display
-# use the correct key.
-_PROJECT_TO_BASELINE = {
-    "giantpopflucts": "barcoded_yeast_reanalysis",
-    "simulation": "ex_4_2",
-}
-
-
 def load_baseline(name):
     path = os.path.join(BASELINE_DIR, name + ".json")
     if os.path.exists(path):
@@ -293,8 +282,7 @@ def main():
             total_taxonomy[k] += taxonomy.get(k, 0)
 
         # Map logical name through explicit overrides for nested fixtures.
-        bl_name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
-        baseline = load_baseline(bl_name)
+        baseline = load_baseline(logical_name)
         if baseline:
             has_baseline = True
             ok = regs <= baseline.get("regressions", 0)
@@ -303,7 +291,7 @@ def main():
             status = "OK" if ok else "EXCEEDED"
             summary_lines.append(
                 "%s: R=%d/%d I=%d P=%d illegal=%d [%s]" % (
-                    bl_name, regs, baseline.get("regressions", 0),
+                    logical_name, regs, baseline.get("regressions", 0),
                     imps, prec, illegal_count, status))
         else:
             summary_lines.append(
@@ -311,7 +299,7 @@ def main():
                     logical_name, regs, imps, prec, illegal_count))
 
         if save_baselines:
-            bp = save_baseline(bl_name, regs, imps, prec, illegal_count)
+            bp = save_baseline(logical_name, regs, imps, prec, illegal_count)
             print("  Baseline saved: %s" % bp)
         print()
 

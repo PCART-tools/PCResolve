@@ -488,6 +488,34 @@ def check_lock(proj_name):
     else:
         result["state"] = list(ann_statuses)[0]
 
+    # Schema invariant: record["project"] must match JSONL project name.
+    for rec in records:
+        if rec.get("project") != proj_name:
+            result["ok"] = False
+            result["blockers"].append(
+                "project field mismatch: expected=%s got=%s at %s:%d:%d %s" % (
+                    proj_name, rec.get("project"),
+                    rec.get("file", ""), rec.get("lineno", 0),
+                    rec.get("col_offset", 0),
+                    rec.get("expression", "")[:60]))
+
+    # Schema type gate: list-typed fields must actually be lists
+    _list_fields = (
+        "expected_alternatives", "expected_decorated_by",
+        "pcresolve_alternatives", "pcresolve_decorated_by",
+    )
+    for rec in records:
+        for field in _list_fields:
+            value = rec.get(field)
+            if value is not None and not isinstance(value, list):
+                result["ok"] = False
+                result["blockers"].append(
+                    "%s must be a list (got %s) at %s:%d:%d %s" % (
+                        field, type(value).__name__,
+                        rec.get("file", ""), rec.get("lineno", 0),
+                        rec.get("col_offset", 0),
+                        rec.get("expression", "")[:60]))
+
     # Cross-check with projects.json
     if result["state"] and manifest_status != result["state"]:
         result["ok"] = False

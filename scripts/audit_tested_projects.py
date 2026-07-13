@@ -33,11 +33,6 @@ BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
 
 _HAS_SIGALRM = hasattr(signal, "SIGALRM")
 
-# Maps top-level directory basename → baseline name for nested fixtures.
-_PROJECT_TO_BASELINE = {
-    "giantpopflucts": "barcoded_yeast_reanalysis",
-    "simulation": "ex_4_2",
-}
 def _expand_project_dirs(root_paths, logical_name=None):
     """Recursively expand directories to actual project roots.
 
@@ -145,7 +140,7 @@ def _run_analysis(project_path, scope_model, timeout_sec):
 def audit_one(project_entry, timeout_sec=60):
     """Run v1+v2 analysis on a single project and return audit record."""
     project_path, logical_name = project_entry
-    name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
+    name = logical_name
     record = {
         "project": name,
         "path": project_path,
@@ -168,7 +163,7 @@ def audit_one(project_entry, timeout_sec=60):
         "has_baseline": False,
     }
 
-    # Baseline lookup: name is already normalized via _PROJECT_TO_BASELINE.
+    # Baseline lookup by logical project name.
     record["has_baseline"] = os.path.exists(
         os.path.join(BASELINE_DIR, name + ".json"))
 
@@ -307,7 +302,7 @@ def main():
 
     for entry in projects:
         project_path, logical_name = entry
-        name = _PROJECT_TO_BASELINE.get(logical_name, logical_name)
+        name = logical_name
         sys.stdout.write("  %-35s " % (name or os.path.basename(project_path)))
         sys.stdout.flush()
         t0 = time.perf_counter()

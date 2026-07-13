@@ -1,0 +1,48 @@
+# simulation — static_context (44 records)
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| plot_results.py:59:6 | `fig1.add_gridspec(nrows=1, ncols=1, left=0.01, right=0.4)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:60:6 | `fig1.add_gridspec(nrows=1, ncols=1, left=0.54, right=0.93)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:61:6 | `fig1.add_gridspec(nrows=1, ncols=1, left=0.95, right=0.99)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:65:10 | `fig1.add_subplot(gs1[0, 0])` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:66:10 | `fig1.add_subplot(gs2[0, 0])` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:67:6 | `fig1.add_subplot(gs3[0, 0])` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| plot_results.py:70:0 | `ax3.plot([], [], '-k', linewidth=1, label='Analytical')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax3 from plt.figure()/add_subplot; matplotlib ax3 method |
+| plot_results.py:71:0 | `ax3.plot([], [], 'ok', label='Mpsa/Mpfa', markersize=4)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax3 from plt.figure()/add_subplot; matplotlib ax3 method |
+| plot_results.py:79:4 | `ax1.plot(p_exact[:, 0], p_exact[:, t + 1], color=color)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax1 from plt.figure()/add_subplot; matplotlib ax1 method |
+| plot_results.py:80:4 | `ax1.plot(p_numer[:, 0], p_numer[:, t + 1], 'o', markersize=3, color...` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax1 from plt.figure()/add_subplot; matplotlib ax1 method |
+| plot_results.py:83:4 | `ax2.plot(ux_exact[:, 0], ux_exact[:, t + 1], color=color)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:84:4 | `ax2.plot(ux_numer[:, 0], ux_numer[:, t + 1], 'o', markersize=3, col...` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:87:4 | `ax3.plot([], [], color=color, label='t = {} s'.format(np.int(times)))` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax3 from plt.figure()/add_subplot; matplotlib ax3 method |
+| plot_results.py:90:0 | `ax1.tick_params(axis='both', which='major')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax1 from plt.figure()/add_subplot; matplotlib ax1 method |
+| plot_results.py:91:0 | `ax1.set_xlabel('$x\\,/\\,a$')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax1 from plt.figure()/add_subplot; matplotlib ax1 method |
+| plot_results.py:92:0 | `ax1.set_ylabel('$a\\,p\\,/\\,F$')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax1 from plt.figure()/add_subplot; matplotlib ax1 method |
+| plot_results.py:94:0 | `ax2.yaxis.set_major_formatter(FormatStrFormatter('%.4f'))` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:95:0 | `ax2.tick_params(axis='both', which='major')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:96:0 | `ax2.set_xlabel('$x\\,/\\,a$')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:97:0 | `ax2.set_ylabel('$u_x\\,/\\,a$')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax2 from plt.figure()/add_subplot; matplotlib ax2 method |
+| plot_results.py:99:0 | `ax3.legend(loc='center left', frameon=False)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax3 from plt.figure()/add_subplot; matplotlib ax3 method |
+| plot_results.py:100:0 | `ax3.axis('off')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: ax3 from plt.figure()/add_subplot; matplotlib ax3 method |
+| plot_results.py:105:0 | `fig1.savefig(output_folder + output_files, bbox_inches='tight')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: fig1 from plt.figure()/add_subplot; matplotlib fig1 method |
+| analytical.py:94:17 | `opt.bisect(f, x0 + np.pi / 4, x0 + np.pi / 2 - 10000000 * 2.2204e-1...` | library / scipy | library / scipy | transitive_method | static_context | v: import scipy.optimize as opt (line 13); .bisect is scipy function |
+| main.py:24:5 | `create_grid.make_grid(mesh_size, domain_size)` | local / local | local / local | local_call | static_context | v: import create_grid (line 15); .make_grid is a function defined in local module c |
+| main.py:25:4 | `gb.grids_of_dimension(2)` | library / porepy | library / porepy | direct_import | static_context | v: gb is a porepy GridBucket (from create_grid.make_grid via porepy); .grids_of_dim |
+| main.py:34:4 | `gb.node_props(g)` | library / porepy | library / porepy | transitive_method | static_context | v: gb is a porepy GridBucket; .node_props is porepy GridBucket method |
+| main.py:44:0 | `data.set_time_parameters(d, kw_f, time_parameters)` | local / local | local / local | local_call | static_context | v: data.set_time_parameters is a function defined in local project module |
+| main.py:47:0 | `data.set_physical_parameters(d, kw_f, kw_m)` | local / local | local / local | local_call | static_context | v: data.set_physical_parameters is a function defined in local project module |
+| main.py:50:13 | `analytical.extract_exact_data(g, d, kw_f, kw_m)` | local / local | local / local | local_call | static_context | v: analytical.extract_exact_data is a function defined in local project module |
+| main.py:53:10 | `data.set_boundary_conditions(g, d, kw_f, kw_m, exact_data)` | local / local | local / local | local_call | static_context | v: data.set_boundary_conditions is a function defined in local project module |
+| main.py:56:0 | `data.assign_parameters(g, d, kw_f, kw_m, bc_dict)` | local / local | local / local | local_call | static_context | v: data.assign_parameters is a function defined in local project module |
+| main.py:59:0 | `data.initial_condition(d, v_f, v_m, exact_data)` | local / local | local / local | local_call | static_context | v: data.initial_condition is a function defined in local project module |
+| main.py:62:12 | `discretization.discretize(gb, d, kw_f, kw_m, v_f, v_m)` | local / local | local / local | local_call | static_context | v: discretization.discretize is a function defined in local project module |
+| main.py:65:6 | `solve.solve_mandel(gb, d, kw_f, kw_m, v_f, v_m, assembler, bc_dict)` | local / local | local / local | local_call | static_context | v: solve.solve_mandel is a function defined in local project module |
+| main.py:71:0 | `export_results.generate_csv(gb, d, kw_f, kw_m, v_f, v_m, plot_times...` | local / local | local / local | local_call | static_context | v: export_results.generate_csv is a function defined in local project module |
+| create_grid.py:37:9 | `network_2d.mesh(mesh_args)` | library / porepy | library / porepy | transitive_method | static_context | v: import porepy as pp; network_2d.mesh is porepy method |
+| discretization.py:64:4 | `biot_discretizer._discretize_mech(g, d)` | library / porepy | library / porepy | transitive_method | static_context | v: biot_discretizer is a porepy Biot discretization object; ._discretize_mech is po |
+| discretization.py:65:4 | `biot_discretizer._discretize_flow(g, d)` | library / porepy | library / porepy | transitive_method | static_context | v: biot_discretizer is a porepy Biot discretization object; ._discretize_flow is po |
+| discretization.py:81:23 | `ImplicitMassMatrix(kw_f, v_1)` | library / porepy | library / porepy | direct_import | static_context | v: from porepy imports; ImplicitMassMatrix is a porepy class |
+| discretization.py:92:4 | `assembler.discretize(term_filter=[term_11_0, term_11_1])` | library / porepy | library / porepy | transitive_method | static_context | v: assembler is a porepy Assembler object; .discretize is porepy method |
+| solve.py:84:15 | `assembler.assemble_matrix_rhs()` | library / porepy | library / porepy | transitive_method | static_context | v: assembler is a porepy Assembler object; .assemble_matrix_rhs is porepy method |
+| solve.py:85:12 | `sps.linalg.spsolve(A, b)` | library / scipy | library / scipy | transitive_method | static_context | v: import scipy.sparse as sps; .linalg.spsolve is scipy function |
+| solve.py:88:8 | `assembler.distribute_variable(x)` | library / porepy | library / porepy | transitive_method | static_context | v: assembler is a porepy Assembler object; .distribute_variable is porepy method |

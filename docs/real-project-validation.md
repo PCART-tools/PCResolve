@@ -51,12 +51,12 @@ Illegal keys:         0
 |---------|-------|------|---|---|---|-----------|
 | AIBO | 647 | 22 | 20 | 26 | 0 | scientific |
 | allnews | 986 | 30 | 80 | 22 | 14 | NLP |
-| barcoded_yeast_reanalysis | 328 | 11 | 2 | 6 | 0 | scientific |
+| giantpopflucts | 328 | 11 | 2 | 6 | 0 | scientific |
 | click1 | 5 | 1 | 0 | 0 | 0 | CLI |
 | covid19 | 89 | 9 | 0 | 1 | 3 | data |
 | Deep-Graph-Kernels | 79 | 5 | 0 | 0 | 0 | ML |
 | django | 43 | 7 | 0 | 4 | 0 | web |
-| ex_4_2 | 207 | 8 | 0 | 0 | 0 | scientific |
+| simulation | 207 | 8 | 0 | 0 | 0 | scientific |
 | final | 314 | 9 | 1 | 10 | 0 | web |
 | flask1 | 7 | 1 | 0 | 0 | 0 | web |
 | greenbenchmark | 489 | 13 | 150 | 3 | 0 | data |

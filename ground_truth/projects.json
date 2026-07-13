@@ -24,7 +24,7 @@
       "status": "pending",
       "notes": "Alternative large-project pilot; NLP, NER, WikiExtractor"
     },
-    "barcoded_yeast_reanalysis": {
+    "giantpopflucts": {
       "path": "tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",
       "tier": "pending",
       "status": "pending",
@@ -85,16 +85,16 @@
       "status": "locked",
       "notes": "Scientific; NumPy/SciPy"
     },
-    "ex_4_2": {
+    "simulation": {
       "path": "tests/fixtures/tested_projects/simulation/ex_4_2",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Nested fixture; simulation"
     },
     "final": {
       "path": "tests/fixtures/tested_projects/final",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "General-purpose"
     },
     "flask1": {
@@ -191,8 +191,8 @@
     },
     "Python-Workshop": {
       "path": "tests/fixtures/tested_projects/Python-Workshop",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Teaching materials; mixed import-backed libraries"
     },
     "qho": {
@@ -221,8 +221,8 @@
     },
     "SDOML": {
       "path": "tests/fixtures/tested_projects/SDOML",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Astronomy; NumPy/SciPy/sunpy/skimage"
     },
     "sg-restart-regridder": {
@@ -245,8 +245,8 @@
     },
     "TSP": {
       "path": "tests/fixtures/tested_projects/TSP/src",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Traveling salesman; NumPy/matplotlib.  Path is expanded project root (wrapper dir → src)."
     },
     "Youtube": {

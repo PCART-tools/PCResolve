@@ -466,6 +466,19 @@ NumPy ufunc preservation matrix validates log/exp/sqrt/abs on pandas Series/Data
 
 Probe outputs: `verification/hfhd_probe_output.txt`, `verification/youtube_probe_output.txt`
 
+**Round 6 probes** (`probes/round6_probe.py`):
+
+The consolidated probe covers the reviewed receiver boundaries in TSP,
+SDOML, Python-Workshop, simulation, and final. It verifies builtin list/string
+methods, NumPy arrays and `poly1d` results, Pandas DataFrame/Series/GroupBy and
+plot accessors, skimage conversion results, tsplib95 problem methods, and
+PorePy grid receivers. Optional libraries are reported as `SKIP` when they are
+not installed; installed libraries must satisfy the ownership assertions.
+
+```bash
+python ground_truth/probes/round6_probe.py
+```
+
 ### Human Review Views
 
 `scripts/render_ground_truth_review.py` generates Markdown audit views from

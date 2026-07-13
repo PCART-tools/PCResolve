@@ -278,7 +278,7 @@ def _render_needs_annotation_view(proj_name, records):
     lines = []
     lines.append("# %s — Needs Annotation (%d records)" % (proj_name, len(records)))
     lines.append("")
-    lines.append("These records do not yet have `verification_level` or ")
+    lines.append("These records do not yet have `verification_level` or")
     lines.append("`expected_*` fields confirmed by a human annotator.")
     lines.append("")
     lines.append(_render_record_table(records))

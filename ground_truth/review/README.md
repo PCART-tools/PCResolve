@@ -21,6 +21,8 @@ machine source of truth.
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
 | [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 43 | 13 | 0 | 0 | 0 |
+| [simulation](simulation/README.md) | 208 | locked | 0 | 149 | 44 | 15 | 0 | 15 |
+| [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 43 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
 | [fuel_forecast_explorer](fuel_forecast_explorer/README.md) | 25 | locked | 0 | 5 | 20 | 0 | 0 | 0 |
@@ -33,15 +35,18 @@ machine source of truth.
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 58 | 12 | 0 | 0 | 0 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
+| [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 4 |
 | [qho](qho/README.md) | 71 | locked | 0 | 61 | 10 | 0 | 0 | 0 |
 | [recommendation](recommendation/README.md) | 60 | locked | 0 | 40 | 20 | 0 | 0 | 0 |
 | [redis](redis/README.md) | 33 | locked | 0 | 13 | 0 | 20 | 0 | 0 |
 | [scrapping](scrapping/README.md) | 110 | locked | 0 | 104 | 6 | 0 | 0 | 0 |
+| [SDOML](SDOML/README.md) | 94 | locked | 0 | 75 | 16 | 3 | 0 | 6 |
 | [sg-restart-regridder](sg-restart-regridder/README.md) | 10 | locked | 0 | 6 | 4 | 0 | 0 | 0 |
 | [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 9 | 1 | 5 | 0 | 0 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
+| [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 2 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **1555** | | **0** | **1232** | **222** | **99** | **2** | **50** |
+| **TOTAL** | **2367** | | **0** | **1718** | **477** | **170** | **2** | **120** |
 
 ## Directory Layout
 
@@ -119,6 +124,20 @@ ground_truth/review/
     manual_reasoned.md
     suspicious.md
   EJPLab/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    suspicious.md
+  simulation/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    suspicious.md
+  final/
     README.md
     static_obvious.md
     static_context.md
@@ -209,6 +228,13 @@ ground_truth/review/
     dynamic_probe.md
     manual_reasoned.md
     suspicious.md
+  Python-Workshop/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    suspicious.md
   qho/
     README.md
     static_obvious.md
@@ -237,6 +263,13 @@ ground_truth/review/
     dynamic_probe.md
     manual_reasoned.md
     suspicious.md
+  SDOML/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    suspicious.md
   sg-restart-regridder/
     README.md
     static_obvious.md
@@ -252,6 +285,13 @@ ground_truth/review/
     manual_reasoned.md
     suspicious.md
   tensorflow2/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    suspicious.md
+  TSP/
     README.md
     static_obvious.md
     static_context.md
