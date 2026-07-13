@@ -16,7 +16,7 @@ machine source of truth.
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
 | [click3](click3/README.md) | 4 | locked | 0 | 4 | 0 | 0 | 0 | 0 |
 | [covid19](covid19/README.md) | 89 | locked | 0 | 67 | 22 | 0 | 0 | 0 |
-| [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | reviewed | 0 | 69 | 8 | 0 | 3 | 1 |
+| [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | reviewed | 0 | 69 | 8 | 1 | 2 | 1 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
@@ -31,7 +31,7 @@ machine source of truth.
 | [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 9 | 1 | 5 | 0 | 0 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **1183** | | **0** | **944** | **140** | **96** | **3** | **51** |
+| **TOTAL** | **1183** | | **0** | **944** | **140** | **97** | **2** | **51** |
 
 ## Directory Layout
 

@@ -21,7 +21,8 @@
 
 - [static_obvious](static_obvious.md): 69
 - [static_context](static_context.md): 8
-- [manual_reasoned](manual_reasoned.md): 3
+- [dynamic_probe](dynamic_probe.md): 1
+- [manual_reasoned](manual_reasoned.md): 2
 
 ## [Suspicious Records](suspicious.md): 1
 
