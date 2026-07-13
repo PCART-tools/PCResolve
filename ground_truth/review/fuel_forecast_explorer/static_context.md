@@ -1,0 +1,24 @@
+# fuel_forecast_explorer — static_context (20 records)
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| data_cleaning.py:8:0 | `df.info(verbose=True, null_counts=True)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:15:0 | `df['site_brand'].fillna(value='Unknown', inplace=True)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:16:0 | `df.info(verbose=True, null_counts=True)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:19:15 | `df['siteid'].astype(str)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:21:0 | `df.info(verbose=True, null_counts=True)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:25:4 | `df.site_brand.str.lower().str.replace(' ', '_').str.replace('/', '')` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:25:4 | `df.site_brand.str.lower().str.replace(' ', '_')` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:25:4 | `df.site_brand.str.lower()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:28:4 | `df.fuel_type.str.lower().str.replace(' ', '_').str.replace('/', '')` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:28:4 | `df.fuel_type.str.lower().str.replace(' ', '_')` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:28:4 | `df.fuel_type.str.lower()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:36:14 | `df.price.replace(9999, -1)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:39:14 | `df.price.replace(-1, 9999)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:41:5 | `df.dropna()` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .dropna( method on pandas Series/DataFrame |
+| data_cleaning.py:42:0 | `df.info(verbose=True, null_counts=True)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:46:27 | `closed_sites['SiteCode'].astype(str)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:47:15 | `closed_sites[closed_sites.SiteStatus == 'Closed'].SiteCode.tolist()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:50:11 | `df[~df.siteid.isin(closed_sites)].copy()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:50:15 | `df.siteid.isin(closed_sites)` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| data_cleaning.py:53:0 | `df_clean.to_csv('./data/aggregated/prices_all_clean.csv.gz', index=...` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |

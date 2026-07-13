@@ -51,8 +51,8 @@
     },
     "Contrucao": {
       "path": "tests/fixtures/tested_projects/Contrucao/Tf-IDF",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Scientific; NumPy/SciPy.  Path is expanded project root (wrapper dir → Tf-IDF)."
     },
     "covid19": {
@@ -63,8 +63,8 @@
     },
     "CustomSamplers": {
       "path": "tests/fixtures/tested_projects/CustomSamplers",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "ML sampling; torch"
     },
     "Deep-Graph-Kernels": {
@@ -81,8 +81,8 @@
     },
     "EJPLab": {
       "path": "tests/fixtures/tested_projects/EJPLab",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Scientific; NumPy/SciPy"
     },
     "ex_4_2": {
@@ -112,8 +112,8 @@
     },
     "fuel_forecast_explorer": {
       "path": "tests/fixtures/tested_projects/fuel_forecast_explorer",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Data analysis"
     },
     "galax": {
@@ -124,14 +124,14 @@
     },
     "gender": {
       "path": "tests/fixtures/tested_projects/gender",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Small data analysis"
     },
     "gistable": {
       "path": "tests/fixtures/tested_projects/gistable",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "GitHub Gist API usage"
     },
     "greenbenchmark": {
@@ -179,8 +179,8 @@
     },
     "political-polarisation": {
       "path": "tests/fixtures/tested_projects/political-polarisation",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "NLP; pandas/NLTK"
     },
     "psycopg2": {
@@ -197,14 +197,14 @@
     },
     "qho": {
       "path": "tests/fixtures/tested_projects/qho",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Quantum harmonic oscillator; NumPy/SciPy"
     },
     "recommendation": {
       "path": "tests/fixtures/tested_projects/recommendation",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Recommendation system"
     },
     "redis": {
@@ -227,8 +227,8 @@
     },
     "sg-restart-regridder": {
       "path": "tests/fixtures/tested_projects/sg-restart-regridder",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "locked",
       "notes": "Climate data; NumPy/xarray"
     },
     "tensorflow1": {

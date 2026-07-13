@@ -77,12 +77,52 @@ def relative_file(file_path, proj_root):
         return _norm_path(file_path)
 
 
-def match_key(rec):
+def pos_key(rec):
+    """Position-only key: (project, file, lineno, col_offset)."""
     return (rec.get("project", ""),
             _norm_path(rec.get("file", "")),
             rec.get("lineno", 0),
-            rec.get("col_offset", 0),
-            rec.get("expression", ""))
+            rec.get("col_offset", 0))
+
+
+def _normalize_expr(expr):
+    """Normalize an expression for cross-version comparison.
+
+    Collapses whitespace and removes semantically irrelevant
+    parentheses around comprehension targets that differ between
+    Python 3.9 and 3.13 ast.unparse() output.  Example:
+    `for (k, v)` and `for k, v` both normalize to `for k, v`.
+    """
+    import re
+    s = re.sub(r"\s+", " ", expr).strip()
+    # Remove parens around comprehension targets: for (x, y) → for x, y
+    s = re.sub(r"\bfor\s+\(([^)]+)\)\s+in\b", r"for \1 in", s)
+    return s
+
+
+def match_position(gt_entries, pc_candidates):
+    """One-to-one multiset match at a single (file, line, col) position.
+
+    Consumes PC candidates so each is used at most once.  Returns a
+    dict mapping GT-index → PC dict, and a list of unmatched PC
+    candidates that can be reported as uncovered_prediction.
+    """
+    remaining = list(pc_candidates)
+    matches = {}
+
+    # Round 1: exact normalized-expression match, consuming candidates.
+    for gt_index, gt in gt_entries:
+        gt_norm = _normalize_expr(gt.get("expression", ""))
+        for i, pc in enumerate(remaining):
+            if _normalize_expr(pc.get("expression", "")) == gt_norm:
+                matches[gt_index] = remaining.pop(i)
+                break
+
+    # Round 2: single-GT + single-PC unmatched → position fallback.
+    if len(gt_entries) == 1 and len(pc_candidates) == 1 and not matches:
+        matches[gt_entries[0][0]] = remaining.pop(0)
+
+    return matches, remaining
 
 
 def evaluate_one(name, info, view="all"):
@@ -93,20 +133,37 @@ def evaluate_one(name, info, view="all"):
         return None
 
     result = analyze_project(proj_root, scope_model="v2")
-    pc_calls = {}
+    pc_by_pos = {}
     for c in result.all_api_calls:
         key = (name, relative_file(c.file_path, proj_root),
-               c.lineno, c.col_offset, c.expression)
-        pc_calls[key] = {
+               c.lineno, c.col_offset)
+        pc_by_pos.setdefault(key, []).append({
             "top_library": c.top_library,
             "kind": _kind_from_top(c.top_library),
             "alternatives": c.alternatives,
             "decorated_by": c.decorated_by,
             "reason": c.reason,
-        }
+            "expression": c.expression,
+        })
 
-    # All GT keys (including draft) for uncovered-prediction tracking.
-    covered_gt_keys = set(match_key(r) for r in gt_records)
+    # All GT positions (including draft/unscored) for uncovered tracking.
+    all_gt = load_gt(name)
+    covered_gt_positions = set(pos_key(r) for r in all_gt)
+
+    # Build per-position matches (one-to-one multiset).
+    # Group GT records by position, then match against PC candidates.
+    gt_by_pos = {}
+    for i, r in enumerate(gt_records):
+        gt_by_pos.setdefault(pos_key(r), []).append((i, r))
+    pos_matches = {}    # pos → {gt_index: pc_dict}
+    unmatched_pc = {}   # pos → [remaining pc candidates]
+
+    for pos, gt_entries in gt_by_pos.items():
+        pcs = pc_by_pos.get(pos, [])
+        matches, remaining = match_position(gt_entries, pcs)
+        pos_matches[pos] = matches
+        if remaining:
+            unmatched_pc[pos] = remaining
 
     included = []
     for r in gt_records:
@@ -146,9 +203,12 @@ def evaluate_one(name, info, view="all"):
         "uncovered_prediction": 0,
     }
 
-    for gt in included:
-        key = match_key(gt)
-        pc = pc_calls.get(key)
+    for idx, gt in enumerate(gt_records):
+        if gt not in included:
+            continue
+        pos = pos_key(gt)
+        matches = pos_matches.get(pos, {})
+        pc = matches.get(idx)
 
         status = gt.get("status", "")
         if status not in ("positive", "negative", "ambiguous", "unsupported"):
@@ -221,14 +281,19 @@ def evaluate_one(name, info, view="all"):
         if pc_kind == expected_kind and pc_top != expected_top and expected_top not in pc_alts:
             metrics["primary_identity_miss"] += 1
 
-    # Uncovered predictions: PCResolve output not covered by ANY GT
-    # record (including draft/unscored).  Does NOT enter P/R/F1;
-    # tracked as annotation-coverage risk until GT is reviewed/locked.
-    for key, pc in pc_calls.items():
-        if key in covered_gt_keys:
-            continue
-        if _kind_in_view(pc["kind"], view):
-            metrics["uncovered_prediction"] += 1
+    # Uncovered predictions: PC candidates that were not consumed
+    # by any GT record during one-to-one matching, either because
+    # the position has no GT at all or because there were more PC
+    # candidates than GT records at that position.
+    for pos, pcs in pc_by_pos.items():
+        if pos not in covered_gt_positions:
+            for pc in pcs:
+                if _kind_in_view(pc["kind"], view):
+                    metrics["uncovered_prediction"] += 1
+        elif pos in unmatched_pc:
+            for pc in unmatched_pc[pos]:
+                if _kind_in_view(pc["kind"], view):
+                    metrics["uncovered_prediction"] += 1
 
     tp = metrics["primary_hit"]
     fp = metrics["false_positive"] + metrics["wrong_owner"]

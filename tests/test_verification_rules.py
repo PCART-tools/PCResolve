@@ -11,6 +11,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from add_verification_levels import add_levels, check_lock
+from evaluate_ground_truth import pos_key, match_position, _normalize_expr
 
 
 def test_return_propagation_downgraded_to_static_context():
@@ -172,3 +173,76 @@ def test_help_includes_new_flag():
     assert r.returncode == 0, "evaluator --help exited %d" % r.returncode
     assert "--include-unlocked" in r.stdout, (
         "--help should mention --include-unlocked")
+
+
+# ── Position-first matching ──────────────────────────────────────────────
+
+
+def test_pos_key_no_expression():
+    """pos_key uses only (file, lineno, col_offset), not expression."""
+    rec = {"project": "test", "file": "f.py", "lineno": 1, "col_offset": 0,
+           "expression": "dontcare"}
+    key = pos_key(rec)
+    assert len(key) == 4, key
+    assert key[3] == 0  # col_offset
+    assert "dontcare" not in key
+
+
+def test_match_position_single_candidate():
+    """Single GT + single PC → direct match."""
+    matches, remaining = match_position(
+        [(0, {"expression": "x.y()"})],
+        [{"top_library": "numpy", "expression": "x.y()"}])
+    assert len(matches) == 1
+    assert matches[0]["top_library"] == "numpy"
+    assert len(remaining) == 0
+
+
+def test_two_gt_one_pc_no_reuse():
+    """2 GT + 1 PC at same position → 1 hit + 1 miss, no reuse."""
+    gt_entries = [
+        (0, {"expression": "a().b()"}),
+        (1, {"expression": "a()"}),
+    ]
+    pc = [{"top_library": "numpy", "expression": "a().b()"}]
+    matches, remaining = match_position(gt_entries, pc)
+    # Only one PC candidate → at most one GT can match
+    assert len(matches) == 1
+    assert len(remaining) == 0
+    # The matched GT should be the one whose expression matches
+    assert 0 in matches  # a().b() matches
+    assert 1 not in matches  # a() has no candidate
+
+
+def test_one_gt_two_pc_produces_uncovered():
+    """1 GT + 2 PC at same position → 1 hit + 1 remaining (uncovered)."""
+    gt_entries = [(0, {"expression": "a().b()"})]
+    pc = [
+        {"top_library": "numpy", "expression": "a().b()"},
+        {"top_library": "python", "expression": "a()"},
+    ]
+    matches, remaining = match_position(gt_entries, pc)
+    assert len(matches) == 1
+    assert matches[0]["top_library"] == "numpy"
+    assert len(remaining) == 1
+    assert remaining[0]["top_library"] == "python"
+
+
+def test_match_position_expression_fallback():
+    """Multiple candidates → match by normalized expression."""
+    gt_entries = [(0, {"expression": "x.reshape((3,3))"}),
+                  (1, {"expression": "print('ok')"})]
+    pc = [{"top_library": "numpy", "expression": "x.reshape((3,3))"},
+          {"top_library": "python", "expression": "print('ok')"}]
+    matches, remaining = match_position(gt_entries, pc)
+    assert len(matches) == 2
+    assert matches[0]["top_library"] == "numpy"
+    assert matches[1]["top_library"] == "python"
+    assert len(remaining) == 0
+
+
+def test_comprehension_parens_equivalent():
+    """`for (k, v)` and `for k, v` normalize to the same string."""
+    e1 = "print({k: v for (k, v) in sorted(x)})"
+    e2 = "print({k: v for k, v in sorted(x)})"
+    assert _normalize_expr(e1) == _normalize_expr(e2)
