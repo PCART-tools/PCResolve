@@ -113,6 +113,13 @@ _RECEIVER_PRESERVE_UFUNCS = frozenset({
     "log", "exp", "sqrt", "abs",
 })
 
+# Methods known to be valid on compare-result objects, keyed by
+# the result owner.  Only these (owner, method) pairs allow a
+# compare-receiver call to be classified as that owner.
+_COMPARE_RESULT_METHODS = {
+    "numpy": frozenset(["any", "all"]),
+}
+
 
 ## AST visitor that traces all symbols and API calls in a single Python file.
 #
@@ -754,7 +761,57 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return InstanceMethod("str", method_name)
             if isinstance(re.value, bytes):
                 return InstanceMethod("bytes", method_name)
+        if isinstance(re, ast.Compare):
+            result = self._resolve_compare_result_top(re, method_name)
+            if result is not None:
+                return result
+            # Owner could not be resolved — still collect the call
+            # so it isn't silently dropped.  The cross-file resolver
+            # will treat it conservatively.
+            return InstanceMethod("__unresolved_compare__", method_name)
         return None
+
+    ## Resolve the owner of a comparison-result method call.
+    #
+    #  For (np.diag(W) == np.zeros(...)).any(), both sides of the
+    #  comparison are numpy expressions, so the result is a boolean
+    #  ndarray and .any() belongs to numpy.
+    #
+    #  Only returns an owner when ALL operands resolve to the same
+    #  library AND the method is in _COMPARE_RESULT_METHODS for that
+    #  library.  Returns None otherwise — no fallback to the first
+    #  operand (which would overclaim ownership for mixed libraries).
+    #  @param compare_node The ast.Compare node.
+    #  @param method_name The method being called on the result.
+    #  @return InstanceMethod or None.
+    def _resolve_compare_result_top(self, compare_node, method_name):
+        # Collect the top library of every operand.
+        operands = [compare_node.left] + list(compare_node.comparators)
+        tops = []
+        for op in operands:
+            base = self.get_base(op)
+            if isinstance(base, str):
+                top = self.symbols.get_top(base)
+                if top and top not in ("local", "python", "unknown", ""):
+                    tops.append(top)
+                    continue
+            # Could not resolve this operand — conservative bail-out.
+            return None
+
+        if not tops:
+            return None
+
+        first = tops[0]
+        # All operands must have the same owner.
+        if any(t != first for t in tops[1:]):
+            return None
+
+        # Only allow methods known to exist on compare-result objects.
+        allowed = _COMPARE_RESULT_METHODS.get(first)
+        if allowed is None or method_name not in allowed:
+            return None
+
+        return InstanceMethod(first, method_name)
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
     #  @param node The starting Attribute node.
@@ -1508,6 +1565,27 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
 
         if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, SourceSet)):
+            # Unresolved compare receiver: owner cannot be determined.
+            # Emit as unknown so the call is collected but not
+            # misattributed to local.
+            if (isinstance(base, InstanceMethod)
+                    and isinstance(base.receiver, str)
+                    and base.receiver == "__unresolved_compare__"):
+                display = "unknown"
+                chain = ["unknown"] if (self.scope_model == "v2") else []
+                record = {
+                    'api': api_string,
+                    'top': display,
+                    'chain': chain,
+                    'base': base,
+                    'direct_name_callee': direct_name,
+                }
+                record.update(loc)
+                self.api_calls.append(record)
+                self._collect_call_site(api_string, func_name, parameters,
+                                        base, loc)
+                return
+
             display = source_display(base)
             if isinstance(base, InstanceMethod) and isinstance(base.receiver, str):
                 top_from_receiver = self.symbols.get_top(base.receiver)

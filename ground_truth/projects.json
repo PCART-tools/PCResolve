@@ -70,7 +70,7 @@
     "Deep-Graph-Kernels": {
       "path": "tests/fixtures/tested_projects/Deep-Graph-Kernels",
       "tier": "pilot",
-      "status": "reviewed",
+      "status": "locked",
       "notes": "ML; torch/sklearn"
     },
     "django": {

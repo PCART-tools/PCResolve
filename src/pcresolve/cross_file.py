@@ -375,6 +375,18 @@ class ProjectAnalyzer:
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
                 base = call_detail.get('base')
+                if call_detail.get('top') == 'unknown':
+                    # Preserve unknown top — the single-file phase
+                    # already determined the owner cannot be resolved.
+                    record = dict(call_detail)
+                    record['top'] = 'unknown'
+                    cr = self.classify_source(
+                        base, 'unknown', module, tracer, module_tracers)
+                    record['reason'] = cr.reason
+                    record['confidence'] = cr.confidence
+                    record['alternatives'] = cr.alternatives
+                    self.all_calls[module].append(record)
+                    continue
                 if call_detail.get('top') == 'local':
                     if isinstance(base, str) or is_structured_source(base):
                         top_source = self._base_top_source(module, base, tracer, module_tracers)

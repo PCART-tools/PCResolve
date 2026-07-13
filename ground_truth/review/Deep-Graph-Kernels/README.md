@@ -1,10 +1,10 @@
 # Deep-Graph-Kernels — Ground Truth Overview
 
-**Status:** reviewed  |  **Tier:** pilot  |  **Calls:** 80
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 80
 
 ## Annotation Status
 
-- reviewed: 80
+- locked: 80
 
 ## Call Status
 
@@ -24,7 +24,7 @@
 - [dynamic_probe](dynamic_probe.md): 1
 - [manual_reasoned](manual_reasoned.md): 2
 
-## [Suspicious Records](suspicious.md): 1
+## [Suspicious Records](suspicious.md): 0
 
 ## Category Breakdown
 
