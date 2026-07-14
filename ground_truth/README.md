@@ -43,9 +43,15 @@ Human annotators may add calls that PCResolve missed as
 
 | `annotation_status` | Meaning |
 |----------------------|---------|
+| `auto_labeled` | Mechanically labeled by high-confidence rules (DIRECT_IMPORT, BUILTIN, bare local definition, decorated local callable). Not human-reviewed and not lock-ready. |
 | `draft` | Initial labeling; `expected_*` and `status` may be empty. |
 | `reviewed` | Reviewed by a second annotator. All required fields populated. |
 | `locked` | Finalized. No further changes without schema version bump. |
+
+Draft projects may mix `draft` and `auto_labeled` records.  Both must
+be converted to `reviewed` before the project can be locked.
+`add_verification_levels.py --check` rejects anything other than
+uniform `reviewed` or `locked`.
 
 ### Lock Criteria
 
@@ -148,7 +154,7 @@ Manual GT entry (annotator-added call PCResolve missed):
 | `expected_alternatives` | no | Acceptable alternative libraries |
 | `expected_decorated_by` | no | Decorator libraries for the call |
 | `status` | reviewed+ | `positive`, `negative`, `ambiguous`, or `unsupported` |
-| `annotation_status` | yes | `draft`, `reviewed`, or `locked` |
+| `annotation_status` | yes | `auto_labeled`, `draft`, `reviewed`, or `locked` |
 | `category` | no | Semantic category for error analysis |
 | `notes` | no | Free-text annotator notes |
 | `verification_level` | locked | `static_obvious`, `static_context`, `dynamic_probe`, `manual_reasoned`, or `unsupported` |

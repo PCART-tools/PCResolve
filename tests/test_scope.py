@@ -517,3 +517,54 @@ def test_library_usage_same_filename_different_dirs():
         assert len(files) == 2, (
             f"Expected 2 distinct files, got {files}"
         )
+
+
+# ── skip_parent_classes: Python class-namespace semantics ─────────────────
+
+
+def test_skip_parent_classes_class_body_reads_own_bindings():
+    """Class body can read its own earlier bindings."""
+    mod = Scope(SCOPE_MODULE, "mod")
+    cls = Scope(SCOPE_CLASS, "C", parent=mod)
+    cls.bind("factory", "requests")
+    b = cls.lookup("factory", skip_parent_classes=True)
+    assert b is not None and b.source == "requests", f"got {b}"
+
+
+def test_skip_parent_classes_class_body_local_callable_shadows():
+    """Class body local callable shadows builtin via own binding."""
+    mod = Scope(SCOPE_MODULE, "mod")
+    cls = Scope(SCOPE_CLASS, "C", parent=mod)
+    cls.bind("open", "local")
+    b = cls.lookup("open", skip_parent_classes=True)
+    assert b is not None and b.source == "local", f"got {b}"
+
+
+def test_skip_parent_classes_method_body_skips_class_namespace():
+    """Method body bare name skips enclosing class namespace."""
+    mod = Scope(SCOPE_MODULE, "mod")
+    cls = Scope(SCOPE_CLASS, "C", parent=mod)
+    cls.bind("open", "local")
+    meth = Scope(SCOPE_FUNCTION, "meth", parent=cls)
+    b = meth.lookup("open", skip_parent_classes=True)
+    assert b is None, f"method must not see class 'open', got {b}"
+
+
+def test_skip_parent_classes_nested_class_skips_outer_class():
+    """Nested class body skips outer class namespace for bare names."""
+    mod = Scope(SCOPE_MODULE, "mod")
+    outer = Scope(SCOPE_CLASS, "Outer", parent=mod)
+    outer.bind("x", "outer_x")
+    inner = Scope(SCOPE_CLASS, "Inner", parent=outer)
+    b = inner.lookup("x", skip_parent_classes=True)
+    assert b is None, f"nested class must not see outer class binding, got {b}"
+
+
+def test_skip_parent_classes_module_binding_visible():
+    """Module-level binding visible through class scope chain."""
+    mod = Scope(SCOPE_MODULE, "mod")
+    mod.bind("something", "library")
+    cls = Scope(SCOPE_CLASS, "C", parent=mod)
+    meth = Scope(SCOPE_FUNCTION, "meth", parent=cls)
+    b = meth.lookup("something", skip_parent_classes=True)
+    assert b is not None and b.source == "library", f"got {b}"

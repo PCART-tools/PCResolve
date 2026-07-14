@@ -392,3 +392,209 @@ def test_project_field_mismatch_fails():
     blocker_msgs = " ".join(result["blockers"])
     assert "project field mismatch" in blocker_msgs, (
         "blockers must mention project field mismatch, got: %s" % blocker_msgs)
+
+
+# ── Evaluation completeness ─────────────────────────────────────────────
+
+
+def test_evaluator_reports_awaiting_annotation():
+    """evaluate_one counts records awaiting annotation (draft, no expected_kind)."""
+    import tempfile, os, json
+    with tempfile.TemporaryDirectory() as tmp:
+        # Partially-annotated project: one auto_labeled, one draft
+        recs = [
+            {"project": "testproj", "file": "a.py", "lineno": 1, "col_offset": 0,
+             "expression": "np.array()",
+             "expected_kind": "library", "expected_top_library": "numpy",
+             "expected_alternatives": [],
+             "status": "positive", "annotation_status": "auto_labeled",
+             "verification_level": "static_obvious",
+             "verification_notes": "direct import"},
+            {"project": "testproj", "file": "a.py", "lineno": 2, "col_offset": 0,
+             "expression": "foo.bar()",
+             "annotation_status": "draft"},
+        ]
+        jsonl = os.path.join(tmp, "testproj.jsonl")
+        with open(jsonl, "w") as f:
+            for r in recs:
+                f.write(json.dumps(r) + "\n")
+
+        proj = os.path.join(tmp, "projects.json")
+        with open(proj, "w") as f:
+            json.dump({"projects": {
+                "testproj": {"path": tmp, "status": "draft"}
+            }}, f)
+
+        import evaluate_ground_truth as ev
+        old_gt = ev.GT_DIR
+        old_calls = ev.CALLS_DIR
+        old_proj = ev.PROJECTS_FILE
+        ev.GT_DIR = tmp
+        ev.CALLS_DIR = tmp
+        ev.PROJECTS_FILE = proj
+        try:
+            m = ev.evaluate_one("testproj",
+                                {"path": tmp, "status": "draft"}, view="all")
+        finally:
+            ev.GT_DIR = old_gt
+            ev.CALLS_DIR = old_calls
+            ev.PROJECTS_FILE = old_proj
+
+    assert m is not None
+    assert m["records_total"] == 2, f"records_total: {m['records_total']}"
+    assert m["records_scored"] == 0, f"records_scored: {m['records_scored']} (default excludes auto_labeled)"
+    assert m["awaiting_annotation"] == 1, f"awaiting: {m['awaiting_annotation']}"
+    assert m["gt_positive"] == 0  # auto_labeled excluded by default
+    assert m["auto_labeled"] == 1
+
+
+def test_evaluator_include_auto_labeled_scores_auto():
+    """--include-auto-labeled includes auto_labeled records in scoring."""
+    import tempfile, os, json
+    with tempfile.TemporaryDirectory() as tmp:
+        recs = [
+            {"project": "testproj", "file": "a.py", "lineno": 1, "col_offset": 0,
+             "expression": "np.array()",
+             "expected_kind": "library", "expected_top_library": "numpy",
+             "expected_alternatives": [],
+             "status": "positive", "annotation_status": "auto_labeled",
+             "verification_level": "static_obvious",
+             "verification_notes": "direct import"},
+        ]
+        jsonl = os.path.join(tmp, "testproj.jsonl")
+        with open(jsonl, "w") as f:
+            for r in recs:
+                f.write(json.dumps(r) + "\n")
+        proj = os.path.join(tmp, "projects.json")
+        with open(proj, "w") as f:
+            json.dump({"projects": {"testproj": {"path": tmp, "status": "locked"}}}, f)
+
+        import evaluate_ground_truth as ev
+        old_gt, old_calls, old_proj = ev.GT_DIR, ev.CALLS_DIR, ev.PROJECTS_FILE
+        ev.GT_DIR = tmp; ev.CALLS_DIR = tmp; ev.PROJECTS_FILE = proj
+        try:
+            m = ev.evaluate_one("testproj", {"path": tmp, "status": "locked"},
+                                view="all", include_auto_labeled=True)
+        finally:
+            ev.GT_DIR = old_gt; ev.CALLS_DIR = old_calls; ev.PROJECTS_FILE = old_proj
+
+    assert m is not None
+    assert m["records_scored"] == 1, f"include_auto scores auto_labeled: {m['records_scored']}"
+    assert m["gt_positive"] == 1
+    assert m["auto_labeled"] == 1
+
+
+# ── auto_label_gt idempotency ─────────────────────────────────────────────
+
+
+def test_auto_label_chained_call_stays_draft_on_rerun():
+    """Chained calls with static_context must stay draft on re-run."""
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _auto_label
+
+    rec = {
+        "pcresolve_reason": "TRANSITIVE_IMPORT",
+        "pcresolve_func_name": "scipy.stats.norm().ppf",
+        "pcresolve_top_library": "scipy",
+    }
+    # First run
+    ok = _auto_label(rec)
+    assert ok is True
+    assert rec["verification_level"] == "static_context"
+    assert rec["annotation_status"] == "draft", f"first run: {rec['annotation_status']}"
+    # Second run (idempotent)
+    ok2 = _auto_label(rec)
+    assert ok2 is True
+    assert rec["annotation_status"] == "draft", f"second run overwrote: {rec['annotation_status']}"
+
+
+# ── Evaluator metric mutual exclusivity ───────────────────────────────────
+
+
+def test_awaiting_counts_are_mutually_exclusive():
+    """awaiting_annotation, awaiting_review, auto_labeled must not overlap."""
+    import tempfile, os, json
+    with tempfile.TemporaryDirectory() as tmp:
+        recs = [
+            {"project": "tp", "file": "a.py", "lineno": 1, "col_offset": 0,
+             "expression": "draft_no_label()",
+             "annotation_status": "draft"},  # awaiting_annotation
+            {"project": "tp", "file": "a.py", "lineno": 2, "col_offset": 0,
+             "expression": "draft_labeled()",
+             "expected_kind": "library", "expected_top_library": "x",
+             "expected_alternatives": [],
+             "status": "positive", "annotation_status": "draft"},  # awaiting_review
+            {"project": "tp", "file": "a.py", "lineno": 3, "col_offset": 0,
+             "expression": "auto()",
+             "expected_kind": "library", "expected_top_library": "y",
+             "expected_alternatives": [],
+             "status": "positive", "annotation_status": "auto_labeled",
+             "verification_level": "static_obvious",
+             "verification_notes": "ok"},  # auto_labeled
+        ]
+        jsonl = os.path.join(tmp, "tp.jsonl")
+        with open(jsonl, "w") as f:
+            for r in recs:
+                f.write(json.dumps(r) + "\n")
+        proj = os.path.join(tmp, "projects.json")
+        with open(proj, "w") as f:
+            json.dump({"projects": {"tp": {"path": tmp, "status": "draft"}}}, f)
+
+        import evaluate_ground_truth as ev
+        old_gt, old_calls, old_proj = ev.GT_DIR, ev.CALLS_DIR, ev.PROJECTS_FILE
+        ev.GT_DIR = tmp; ev.CALLS_DIR = tmp; ev.PROJECTS_FILE = proj
+        try:
+            m = ev.evaluate_one("tp", {"path": tmp, "status": "draft"}, view="all")
+        finally:
+            ev.GT_DIR = old_gt; ev.CALLS_DIR = old_calls; ev.PROJECTS_FILE = old_proj
+
+    assert m is not None
+    assert m["awaiting_annotation"] == 1, f"awaiting_annotation: {m['awaiting_annotation']}"
+    assert m["awaiting_review"] == 1, f"awaiting_review: {m['awaiting_review']}"
+    assert m["auto_labeled"] == 1, f"auto_labeled: {m['auto_labeled']}"
+    assert m["awaiting_annotation"] + m["awaiting_review"] + m["auto_labeled"] == 3
+
+
+def test_draft_negative_excluded_from_default_scoring():
+    """Draft negative/unsupported records not scored by default."""
+    import tempfile, os, json
+    with tempfile.TemporaryDirectory() as tmp:
+        recs = [
+            {"project": "tp", "file": "a.py", "lineno": 1, "col_offset": 0,
+             "expression": "bad()", "status": "negative",
+             "expected_kind": "library", "expected_top_library": "x",
+             "expected_alternatives": [],
+             "annotation_status": "draft"},  # draft negative -> excluded
+        ]
+        jsonl = os.path.join(tmp, "tp.jsonl")
+        with open(jsonl, "w") as f:
+            for r in recs:
+                f.write(json.dumps(r) + "\n")
+        proj = os.path.join(tmp, "projects.json")
+        with open(proj, "w") as f:
+            json.dump({"projects": {"tp": {"path": tmp, "status": "draft"}}}, f)
+
+        import evaluate_ground_truth as ev
+        old_gt, old_calls, old_proj = ev.GT_DIR, ev.CALLS_DIR, ev.PROJECTS_FILE
+        ev.GT_DIR = tmp; ev.CALLS_DIR = tmp; ev.PROJECTS_FILE = proj
+        try:
+            m = ev.evaluate_one("tp", {"path": tmp, "status": "draft"}, view="all")
+        finally:
+            ev.GT_DIR = old_gt; ev.CALLS_DIR = old_calls; ev.PROJECTS_FILE = old_proj
+
+    assert m is not None
+    assert m["gt_negative"] == 0, f"draft negative excluded: {m['gt_negative']}"
+    assert m["records_scored"] == 0
+
+
+def test_help_includes_include_auto_labeled():
+    """--help output mentions --include-auto-labeled."""
+    import subprocess, sys, os
+    r = subprocess.run(
+        [sys.executable, os.path.join(os.path.dirname(__file__), "..",
+         "scripts", "evaluate_ground_truth.py"), "--help"],
+        capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "--include-auto-labeled" in r.stdout, (
+        "--help must mention --include-auto-labeled")

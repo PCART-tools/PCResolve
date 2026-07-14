@@ -80,13 +80,14 @@ def _auto_label(rec):
         if "()" in func_name:
             rec["category"] = "transitive_method"
             rec["verification_level"] = "static_context"
+            rec["annotation_status"] = "draft"  # static_context → needs human review
         else:
             rec["category"] = "direct_import"
             rec["verification_level"] = "static_obvious"
+            rec["annotation_status"] = ANNOTATION_AUTO
         rec["verification_notes"] = (
             "import-backed dotted module call: %s" % func_name)
         rec["status"] = "positive"
-        rec["annotation_status"] = ANNOTATION_AUTO
         return True
 
     # -- Rule 1b: DIRECT_IMPORT ----------------------------------------------
@@ -124,7 +125,7 @@ def _auto_label(rec):
             "decorated local callable; primary identity is local, "
             "decorator evidence in decorated_by")
         rec["status"] = "positive"
-        rec["annotation_status"] = ANNOTATION_AUTO
+        rec["annotation_status"] = "draft"  # static_context → needs human review
         return True
 
     # -- Rule 4: LOCAL_DEFINITION + top=local, bare-name call ---------------

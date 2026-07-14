@@ -57,12 +57,26 @@ class Scope:
 
     ## Look up a name through lexical parents.
     #  @param name Symbol name.
+    #  @param skip_parent_classes If True, skip parent class-scope
+    #         bindings (Python does not resolve bare names through
+    #         enclosing class namespace — only self/attr).  The
+    #         starting scope's own bindings are always searched.
     #  @return Binding object or None.
-    def lookup(self, name):
-        if name in self.bindings:
-            return self.bindings[name]
-        if self.parent is not None:
-            return self.parent.lookup(name)
+    def lookup(self, name, skip_parent_classes=False):
+        scope = self
+        is_origin = True
+        while scope is not None:
+            should_search = (
+                is_origin
+                or not (
+                    skip_parent_classes
+                    and scope.kind == SCOPE_CLASS
+                )
+            )
+            if should_search and name in scope.bindings:
+                return scope.bindings[name]
+            is_origin = False
+            scope = scope.parent
         return None
 
     ## Return a shallow copy of current bindings (for branch snapshots).

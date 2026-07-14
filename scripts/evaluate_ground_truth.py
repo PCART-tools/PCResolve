@@ -10,6 +10,7 @@
 #    python scripts/evaluate_ground_truth.py                                    # locked pilots only
 #    python scripts/evaluate_ground_truth.py --include-draft                    # locked + reviewed/draft
 #    python scripts/evaluate_ground_truth.py --include-unlocked                 # same as --include-draft
+#    python scripts/evaluate_ground_truth.py --include-auto-labeled             # + auto_labeled in scoring
 #    python scripts/evaluate_ground_truth.py --all                              # all projects
 #    python scripts/evaluate_ground_truth.py --project click1
 
@@ -125,7 +126,7 @@ def match_position(gt_entries, pc_candidates):
     return matches, remaining
 
 
-def evaluate_one(name, info, view="all"):
+def evaluate_one(name, info, view="all", include_auto_labeled=False):
     proj_root = project_root(info["path"])
 
     gt_records = load_gt(name)
@@ -165,15 +166,28 @@ def evaluate_one(name, info, view="all"):
         if remaining:
             unmatched_pc[pos] = remaining
 
+    # By default only records that have been human-reviewed (reviewed/locked)
+    # enter scoring.  auto_labeled and draft records are excluded to avoid
+    # circular validation risk (auto-label copies pcresolve output).
+    scorable_statuses = {"reviewed", "locked"}
+    if include_auto_labeled:
+        scorable_statuses.add("auto_labeled")
+
     included = []
     for r in gt_records:
         status = r.get("status", "")
         ek = r.get("expected_kind", "")
-        # Negatives and unsupported always enter scoring; their view
-        # relevance is decided by _kind_in_view on the pc side.
+        ann = r.get("annotation_status", "")
+        # Annotation gate: only reviewed/locked records enter scoring
+        # by default (plus auto_labeled if --include-auto-labeled).
+        # Negatives and unsupported also gate on annotation_status.
         if status in ("negative", "unsupported"):
-            included.append(r)
-        elif view == "all" and ek in ("library", "python", "local", "unknown"):
+            if ann in scorable_statuses:
+                included.append(r)
+            continue
+        if ann not in scorable_statuses:
+            continue
+        if view == "all" and ek in ("library", "python", "local", "unknown"):
             included.append(r)
         elif view == "unknown" and ek == "unknown":
             included.append(r)
@@ -187,6 +201,22 @@ def evaluate_one(name, info, view="all"):
     metrics = {
         "project": name,
         "view": view,
+        "records_total": len(gt_records),
+        "records_scored": len(included),
+        "auto_labeled": sum(
+            1 for r in gt_records
+            if r.get("annotation_status") == "auto_labeled"
+        ),
+        "awaiting_annotation": sum(
+            1 for r in gt_records
+            if r.get("annotation_status") == "draft"
+            and not (r.get("expected_kind") and r.get("status"))
+        ),
+        "awaiting_review": sum(
+            1 for r in gt_records
+            if r.get("annotation_status") == "draft"
+            and r.get("expected_kind") and r.get("status")
+        ),
         "gt_total": len(included),
         "gt_positive": 0,
         "gt_negative": 0,
@@ -311,13 +341,24 @@ def evaluate_one(name, info, view="all"):
 def print_project(m):
     if m is None:
         return
-    print("%-25s view=%-7s gt=%3d pos=%3d neg=%2d  P=%.3f R=%.3f F1=%.3f  hit=%3d miss=%2d fp=%2d wrong=%2d deco=%d cand=%d ident=%d deco_m=%d uncov=%d" % (
-        m["project"], m["view"], m["gt_total"], m["gt_positive"], m["gt_negative"],
-        m["precision"], m["recall"], m["f1"],
-        m["primary_hit"], m["primary_miss"], m["false_positive"],
-        m["wrong_owner"], m["decorated_hit"],
-        m["candidate_hit"], m["primary_identity_miss"], m["decorated_miss"],
-        m["uncovered_prediction"]))  # annotation coverage risk only
+    if m["awaiting_annotation"] > 0 or m.get("awaiting_review", 0) > 0 or m.get("auto_labeled", 0) > 0:
+        print("%-25s view=%-7s calls=%d scored=%d awaiting=%d review=%d auto=%d  gt=%3d pos=%3d neg=%2d  P=%.3f R=%.3f F1=%.3f  hit=%3d miss=%2d fp=%2d wrong=%2d deco=%d cand=%d ident=%d deco_m=%d uncov=%d" % (
+            m["project"], m["view"], m["records_total"], m["records_scored"],
+            m["awaiting_annotation"], m.get("awaiting_review", 0), m.get("auto_labeled", 0),
+            m["gt_total"], m["gt_positive"], m["gt_negative"],
+            m["precision"], m["recall"], m["f1"],
+            m["primary_hit"], m["primary_miss"], m["false_positive"],
+            m["wrong_owner"], m["decorated_hit"],
+            m["candidate_hit"], m["primary_identity_miss"], m["decorated_miss"],
+            m["uncovered_prediction"]))
+    else:
+        print("%-25s view=%-7s gt=%3d pos=%3d neg=%2d  P=%.3f R=%.3f F1=%.3f  hit=%3d miss=%2d fp=%2d wrong=%2d deco=%d cand=%d ident=%d deco_m=%d uncov=%d" % (
+            m["project"], m["view"], m["gt_total"], m["gt_positive"], m["gt_negative"],
+            m["precision"], m["recall"], m["f1"],
+            m["primary_hit"], m["primary_miss"], m["false_positive"],
+            m["wrong_owner"], m["decorated_hit"],
+            m["candidate_hit"], m["primary_identity_miss"], m["decorated_miss"],
+            m["uncovered_prediction"]))
 
 
 def main():
@@ -329,6 +370,7 @@ def main():
     all_projects = "--all" in args
     include_draft = ("--include-draft" in args
                      or "--include-unlocked" in args)
+    include_auto_labeled = "--include-auto-labeled" in args
     i = 0
     while i < len(args):
         a = args[i]
@@ -342,7 +384,7 @@ def main():
             view = args[i]
         elif a == "--all":
             pass
-        elif a in ("--include-draft", "--include-unlocked"):
+        elif a in ("--include-draft", "--include-unlocked", "--include-auto-labeled"):
             pass
         elif a.startswith("--project="):
             selected.add(a.split("=", 1)[1])
@@ -353,7 +395,7 @@ def main():
             i += 1
             selected.add(args[i])
         elif a in ("-h", "--help"):
-            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--include-draft|--include-unlocked] [--project NAME] [--view all|library|python|local|unknown]")
+            print("Usage: python scripts/evaluate_ground_truth.py [--all] [--include-draft|--include-unlocked] [--include-auto-labeled] [--project NAME] [--view all|library|python|local|unknown]")
             return
         i += 1
 
@@ -364,6 +406,11 @@ def main():
     total_gt = 0
     total_hit = 0
     total_miss = 0
+    total_awaiting = 0
+    total_awaiting_review = 0
+    total_auto = 0
+    total_records = 0
+    total_scored = 0
 
     for name, info in sorted(manifest.items()):
         if not all_projects and not selected and info.get("tier") != "pilot":
@@ -378,15 +425,35 @@ def main():
         proj_root = project_root(info["path"])
         if not os.path.isdir(proj_root):
             continue
-        m = evaluate_one(name, info, view=view)
+        m = evaluate_one(name, info, view=view,
+                         include_auto_labeled=include_auto_labeled)
         print_project(m)
         if m:
             total_gt += m["gt_positive"]
             total_hit += m["primary_hit"]
             total_miss += m["primary_miss"]
+            total_awaiting += m.get("awaiting_annotation", 0)
+            total_awaiting_review += m.get("awaiting_review", 0)
+            total_auto += m.get("auto_labeled", 0)
+            total_records += m.get("records_total", 0)
+            total_scored += m.get("records_scored", 0)
 
+    print("\nEvaluation coverage: records=%d scored=%d awaiting_annotation=%d"
+          " awaiting_review=%d auto_labeled=%d"
+          % (total_records, total_scored, total_awaiting,
+             total_awaiting_review, total_auto))
+    if total_awaiting > 0 or total_auto > 0 or total_awaiting_review > 0:
+        if not include_auto_labeled and total_auto > 0:
+            print("NOTE: %d auto_labeled records excluded (use --include-auto-labeled to score)"
+                  % total_auto)
+        if total_awaiting > 0:
+            print("PROVISIONAL: %d records awaiting annotation" % total_awaiting)
+        if total_awaiting_review > 0:
+            print("PROVISIONAL: %d records have labels but await review" % total_awaiting_review)
+        if include_auto_labeled and total_auto > 0:
+            print("SELF-LABELED: auto_labeled records may reflect pcresolve output, not independent GT")
     if total_gt > 0:
-        print("\nAggregate: gt_positive=%d primary_hit=%d primary_miss=%d recall=%.3f" % (
+        print("Aggregate: gt_positive=%d primary_hit=%d primary_miss=%d recall=%.3f" % (
             total_gt, total_hit, total_miss,
             total_hit / total_gt if total_gt > 0 else 0.0))
 

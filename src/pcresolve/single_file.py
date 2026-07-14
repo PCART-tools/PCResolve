@@ -226,7 +226,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return Scope binding source in v2, or the name itself in v1 / not found.
     def _lookup_name_source(self, name):
         if self.scope_model == "v2":
-            binding = self.current_scope().lookup(name)
+            binding = self.current_scope().lookup(name, skip_parent_classes=True)
             if binding is not None:
                 if binding.source == "local":
                     return binding.source
@@ -1783,7 +1783,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _visit_function_def(self, node):
         """Common handler for FunctionDef and AsyncFunctionDef."""
         self.local.add(node.name)
-        self.defined_functions.add(node.name)
+        ## Only module-level functions shadow builtins through bare-name
+        ## calls.  Class methods are reachable only via self.<name>().
+        if not self._class_stack:
+            self.defined_functions.add(node.name)
         self._bind_target_name(node.name, "local", node)
         params = []
         self.push_scope(SCOPE_FUNCTION, node.name)

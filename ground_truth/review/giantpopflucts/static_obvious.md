@@ -1,0 +1,287 @@
+# giantpopflucts — static_obvious (283 records)
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| plot_rawdisplacements.py:14:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:16:3 | `pd.read_csv('frequencies.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:23:0 | `sns.set_palette('Set1')` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:25:20 | `np.median(np.abs(col - np.median(col)))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:25:30 | `np.abs(col - np.median(col))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:25:43 | `np.median(col)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:30:13 | `'Batch_{}_t_1'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:30:64 | `'Batch_{}_t_1'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:31:7 | `pd.read_csv('zeta_batch{}_{}_to_{}.csv'.format(batch, freqcutoff_lr...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:31:19 | `'zeta_batch{}_{}_to_{}.csv'.format(batch, freqcutoff_lr, freqcutoff...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:34:14 | `'Batch_{}_t_1'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:34:43 | `'Batch_{}_t_2_Rep_{}'.format(batch, rep)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:34:84 | `'Batch_{}_t_3_Rep_{}'.format(batch, rep)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:34:125 | `'Batch_{}_t_4_Rep_{}'.format(batch, rep)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:35:12 | `np.diff(np.array(np.log(d1)), axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:35:20 | `np.array(np.log(d1))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:35:29 | `np.log(d1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:40:7 | `np.hstack((logdiff[:, 0], logdiff[:, 1], logdiff[:, 2]))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:42:4 | `print('vars:', batch, rep, varrob(logdiff[:, 0]), varrob(logdiff[:,...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:42:28 | `varrob(logdiff[:, 0])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:42:49 | `varrob(logdiff[:, 1])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:42:70 | `varrob(logdiff[:, 2])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:43:7 | `len(logdiff[:, 0])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:45:8 | `list(range(ll))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:45:13 | `range(ll)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:48:9 | `np.sum(zeta0[(zeta0['time point'] == 1) \| (zeta0['time point'] == ...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:49:9 | `np.sum(zeta0[(zeta0['time point'] == 2) \| (zeta0['time point'] == ...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:50:9 | `np.sum(zeta0[(zeta0['time point'] == 3) \| (zeta0['time point'] == ...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:53:4 | `dps.append(pd.DataFrame({'t': ts, 'logdiff': cc, 'rep': [rep] * len...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:53:15 | `pd.DataFrame({'t': ts, 'logdiff': cc, 'rep': [rep] * len(cc), 'bc':...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:53:61 | `len(cc)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:55:5 | `pd.concat(dps)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:56:12 | `'raw_displacement_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:57:5 | `sns.stripplot(data=dp, x='t', y='logdiff', hue='rep', alpha=0.5, do...` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:58:2 | `sns.boxplot(data=dp, x='t', y='logdiff', hue='rep', dodge=True, sho...` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:65:12 | `'Batch {}'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_rawdisplacements.py:66:2 | `sns.despine()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_rawdisplacements.py:69:14 | `'raw_displacement_batch{}.pdf'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_msd.py:15:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:21:2 | `dfs.append(pd.read_csv('msd_batch{}_{}_to_{}.csv'.format(batch, l, ...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_msd.py:21:13 | `pd.read_csv('msd_batch{}_{}_to_{}.csv'.format(batch, l, u))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:21:25 | `'msd_batch{}_{}_to_{}.csv'.format(batch, l, u)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| plot_msd.py:22:3 | `pd.concat(dfs)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:24:7 | `sns.color_palette('colorblind')` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:28:6 | `np.array(group['msd'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:39:0 | `sns.despine()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| plot_msd.py:40:12 | `'msd_plot_{}_{}.pdf'.format(l, u)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:15:0 | `sns.set(style='ticks', font_scale=1.8)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:17:5 | `pd.read_csv('frequencies.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:18:7 | `np.array(df00[['Batch_3_t_2_Rep_1', 'Batch_3_t_2_Rep_2', 'Batch_3_t...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:19:7 | `np.array(df00[['Batch_1_t_2_Rep_1', 'Batch_1_t_2_Rep_2', 'Batch_1_t...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:21:6 | `np.array(list(df00['Adaptive']) * 2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:21:15 | `list(df00['Adaptive'])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:23:4 | `np.mean(mat1, axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:24:4 | `np.var(np.log(mat1), axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:24:11 | `np.log(mat1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:25:4 | `np.mean(mat2, axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:26:4 | `np.var(np.log(mat2), axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:26:11 | `np.log(mat2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:28:3 | `np.concatenate((msa, msb))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:29:3 | `np.concatenate((vsa, vsb))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:31:0 | `print(len(ms), len(adapt))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:31:6 | `len(ms)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:31:14 | `len(adapt)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:33:6 | `pd.notnull(vs)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:34:6 | `pd.notnull(vs)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:42:4 | `list(zip(list(t), list(x)))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:42:9 | `zip(list(t), list(x))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:42:13 | `list(t)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:42:21 | `list(x)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:44:11 | `range(nboot)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:45:7 | `random.choices(y, k=len(y))` | library / random | library / random | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:45:26 | `len(y)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:46:10 | `zip(*yi)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:47:7 | `np.polyfit(np.log(ti), np.log(xi), 1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:47:18 | `np.log(ti)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:47:29 | `np.log(xi)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:49:9 | `np.std(ps)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:55:3 | `np.polyfit(np.log(ms1), np.log(vs1), 1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:55:14 | `np.log(ms1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:55:26 | `np.log(vs1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:56:0 | `print(p1, boot_powerlaw(ms1, vs1))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:56:9 | `boot_powerlaw(ms1, vs1)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| scaling_var.py:60:3 | `np.polyfit(np.log(ms2), np.log(vs2), 1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:60:14 | `np.log(ms2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:60:26 | `np.log(vs2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:61:0 | `print(p2, boot_powerlaw(ms2, vs2))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:61:9 | `boot_powerlaw(ms2, vs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| scaling_var.py:63:0 | `print(p1, p2)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:68:14 | `np.mean(x[(t >= ti * (1 - window)) & (t <= ti * (1 + window))])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:69:9 | `np.array(xs)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:72:4 | `list(zip(list(t), list(x)))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:72:9 | `zip(list(t), list(x))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:72:13 | `list(t)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:72:21 | `list(x)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:74:11 | `range(nboot)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:75:7 | `random.choices(y, k=len(y))` | library / random | library / random | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:75:26 | `len(y)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:76:10 | `zip(*yi)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| scaling_var.py:78:7 | `convolve(np.array(ti), np.array(xi), tdiv)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| scaling_var.py:78:16 | `np.array(ti)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:78:29 | `np.array(xi)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:80:6 | `np.stack(xis)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:81:6 | `np.quantile(xis, 0.025, axis=0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:82:6 | `np.quantile(xis, 0.975, axis=0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:86:3 | `np.linspace(4e-06, 0.003, 10 ** 4)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:87:3 | `convolve(ms, vs, tc)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| scaling_var.py:88:8 | `convolve_boot(ms, vs, tc)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| scaling_var.py:114:3 | `np.mean(xc[tc < 6e-05] / tc[tc < 6e-05] ** (-1))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:115:3 | `np.mean(xc[tc > 0.0003] / tc[tc > 0.0003] ** 0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| scaling_var.py:127:0 | `sns.despine()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:15:0 | `sns.set(style='ticks', font_scale=1.8)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:17:5 | `pd.read_csv('frequencies.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:21:16 | `np.log(x)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:22:22 | `np.exp(x)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:26:13 | `trafo(freqcutoff_lr)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:27:13 | `trafo(freqcutoff_ur)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:47:11 | `trafo(np.array(df00[['Batch_{}_t_{}'.format(1, ti)]]))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:47:17 | `np.array(df00[['Batch_{}_t_{}'.format(1, ti)]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:47:32 | `'Batch_{}_t_{}'.format(1, ti)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:48:6 | `mu.append(logf.flatten())` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:49:6 | `logf_l.append(np.hstack([logf] * 3))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:49:20 | `np.hstack([logf] * 3)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:51:11 | `trafo(np.array(df00[['Batch_{}_t_{}_Rep_1'.format(batch, ti), 'Batc...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:51:17 | `np.array(df00[['Batch_{}_t_{}_Rep_1'.format(batch, ti), 'Batch_{}_t...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:51:32 | `'Batch_{}_t_{}_Rep_1'.format(batch, ti)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:51:72 | `'Batch_{}_t_{}_Rep_2'.format(batch, ti)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:51:112 | `'Batch_{}_t_{}_Rep_3'.format(batch, ti)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:52:6 | `mu.append(np.mean(logf, axis=1))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:52:16 | `np.mean(logf, axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:53:6 | `logf_l.append(logf)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:54:6 | `np.hstack([np.vstack(mu[1] - mu[0])] * 3)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:54:17 | `np.vstack(mu[1] - mu[0])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:60:61 | `pd.notnull(col)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:61:10 | `np.median(np.abs(col - np.median(col)))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:61:20 | `np.abs(col - np.median(col))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:61:33 | `np.median(col)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:62:4 | `kappa_mean.append(vv)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:64:9 | `list(col)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:66:13 | `range(200)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:67:10 | `random.choices(coll, k=len(coll))` | library / random | library / random | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:67:32 | `len(coll)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:68:12 | `np.median(np.abs(coi - np.median(coi)))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:68:22 | `np.abs(coi - np.median(coi))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:68:35 | `np.median(coi)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:69:6 | `boot.append(vi)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:70:4 | `kappa_std.append(np.std(boot))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:70:21 | `np.std(boot)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:74:0 | `print(kappas_emp)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:95:30 | `np.float(ntransfers)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:96:23 | `np.float(kappa)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:96:40 | `np.float(kappa_std)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:103:12 | `np.exp(theta[indexmap[t1, rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:104:12 | `np.exp(theta[indexmap[t2, rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:105:12 | `np.exp(theta[-1])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:106:11 | `obj_single(kappas_emp[t1, t2]['kappa'][rep - 1], kappas_emp[t1, t2]...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| msd_log_calc.py:111:9 | `np.log(0.0001)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:111:22 | `np.log(0.05)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:113:4 | `sp.optimize.dual_annealing(lambda theta: add_obj(theta), bounds, lo...` | library / scipy | library / scipy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:113:45 | `add_obj(theta)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
+| msd_log_calc.py:114:0 | `print(res)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:124:12 | `np.array(kappas_emp[tp]['kappa'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:126:15 | `np.exp(res.x[indexmap[tp[0], rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:126:53 | `np.exp(res.x[indexmap[tp[1], rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:131:2 | `msdl.append(np.mean(msd[t]))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:131:14 | `np.mean(msd[t])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:132:0 | `print('point estimate:', msdl)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:138:9 | `range(50)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:146:14 | `np.array(kappas_emp[tp]['kappa'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:147:18 | `np.array(kappas_emp[tp]['kappa std'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:149:9 | `np.random.normal(loc=kappa, scale=kappa_std)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:149:55 | `np.exp(res.x[indexmap[tp[0], rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:149:93 | `np.exp(res.x[indexmap[tp[1], rep]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:152:2 | `e1.append(np.mean(msd[1]))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:152:12 | `np.mean(msd[1])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:153:2 | `e2.append(np.mean(msd[2]))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:153:12 | `np.mean(msd[2])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:155:6 | `np.std(e1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:155:17 | `np.std(e2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:156:0 | `print('stds:', stds)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:160:0 | `pd.DataFrame({'Batch': [batch] * 2, 'dt': dts, 'msd': msdl, 'msd st...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:160:0 | `pd.DataFrame({'Batch': [batch] * 2, 'dt': dts, 'msd': msdl, 'msd st...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:160:79 | `'msd_batch{}_{}_to_{}.csv'.format(batch, freqcutoff_lr, freqcutoff_ur)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:166:2 | `merr.append(np.exp(res.x[index]))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:166:14 | `np.exp(res.x[index])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:167:2 | `tps.append(tp)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:168:2 | `reps.append(rep)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| msd_log_calc.py:170:0 | `pd.DataFrame({'time point': tps, 'rep': reps, 'zeta': merr})` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:170:0 | `pd.DataFrame({'time point': tps, 'rep': reps, 'zeta': merr}).to_csv...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| msd_log_calc.py:170:63 | `'zeta_batch{}_{}_to_{}.csv'.format(batch, freqcutoff_lr, freqcutoff...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:16:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| get_frequencies.py:19:5 | `pd.read_csv('TableS3.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| get_frequencies.py:20:13 | `pd.read_csv('TableS2.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| get_frequencies.py:22:12 | `pd.read_csv('TableS1.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| get_frequencies.py:24:0 | `print()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:33:10 | `list(df.columns)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:42:22 | `scipy.stats.norm()` | library / scipy | library / scipy | direct_import | static_obvious | v: import-backed dotted module call: scipy.stats.norm |
+| get_frequencies.py:42:52 | `len(df_freq)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:43:0 | `print(bonferroni_correction)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:50:4 | `adaptiveornot.append(1)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| get_frequencies.py:52:4 | `adaptiveornot.append(0)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:14:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:17:0 | `sns.set_palette('Set1')` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:23:5 | `pd.read_csv('../raw_displacement_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:23:17 | `'../raw_displacement_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:24:5 | `sns.swarmplot(data=dp, x='t', y='logdiff', hue='rep', alpha=0.5, do...` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:25:2 | `sns.boxplot(data=dp, x='t', y='logdiff', hue='rep', dodge=True, sho...` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:31:9 | `pd.read_csv('posterior_alphas_{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:31:21 | `'posterior_alphas_{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:32:5 | `pd.read_csv('posterior_alpha_var_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:32:17 | `'posterior_alpha_var_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:37:6 | `np.array(alphas[str(t)] * np.sqrt(de['alpha_var']))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:37:22 | `str(t)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:37:30 | `np.sqrt(de['alpha_var'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:38:7 | `np.mean(v)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:39:4 | `means.append(mm)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:40:4 | `lci.append(mm - np.quantile(v, 0.025))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:40:19 | `np.quantile(v, 0.025)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:41:4 | `uci.append(np.quantile(v, 0.975) - mm)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:41:15 | `np.quantile(v, 0.975)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:43:34 | `np.vstack((lci, uci))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_rawdisplacements.py:46:12 | `'Batch {}'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_rawdisplacements.py:47:2 | `sns.despine()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:42:3 | `pd.read_csv('../raw_displacement_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:42:15 | `'../raw_displacement_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:44:4 | `np.max(df['bc'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:47:6 | `len(df)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:49:7 | `list(np.array(df['bc'] + 1))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:49:12 | `np.array(df['bc'] + 1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:50:6 | `list(df['logdiff'])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:51:6 | `list(df['t'])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:52:7 | `list(df['totalvar'])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:56:5 | `pystan.StanModel(model_code=stancode)` | library / pystan | library / pystan | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:57:61 | `dict(max_treedepth=20, adapt_delta=0.8)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:61:2 | `pd.DataFrame(fit.extract([pp])[pp], columns=[pp])` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:61:2 | `pd.DataFrame(fit.extract([pp])[pp], columns=[pp]).to_csv('posterior...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:61:58 | `'posterior_{}_batch{}.csv'.format(pp, batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:63:0 | `pd.DataFrame(fit.extract(['alpha'])['alpha'], columns=list(range(1,...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:63:0 | `pd.DataFrame(fit.extract(['alpha'])['alpha'], columns=list(range(1,...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:63:53 | `list(range(1, 4))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:63:58 | `range(1, 4)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:63:78 | `'posterior_alphas_{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:64:0 | `pd.DataFrame(fit.extract(['s_mean'])['s_mean'], columns=list(range(...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:64:0 | `pd.DataFrame(fit.extract(['s_mean'])['s_mean'], columns=list(range(...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/linear_model_noncentered.py:64:55 | `list(range(1, nbc + 1))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:64:60 | `range(1, nbc + 1)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/linear_model_noncentered.py:64:84 | `'posterior_smean_{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_alphas.py:9:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_alphas.py:15:7 | `pd.read_csv('posterior_alphas_{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_alphas.py:15:19 | `'posterior_alphas_{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_alphas.py:16:3 | `pd.read_csv('posterior_alpha_var_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_alphas.py:16:15 | `'posterior_alpha_var_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_alphas.py:19:1 | `print(np.mean(alphas[i] * np.sqrt(de['alpha_var'])))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_alphas.py:19:7 | `np.mean(alphas[i] * np.sqrt(de['alpha_var']))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_alphas.py:19:25 | `np.sqrt(de['alpha_var'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:7:0 | `sns.set(style='ticks', font_scale=1.5)` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:14:11 | `list(pd.read_csv('posterior_alpha_var_batch{}.csv'.format(batch))['...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:14:16 | `pd.read_csv('posterior_alpha_var_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:14:28 | `'posterior_alpha_var_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:15:13 | `list(pd.read_csv('posterior_delta_batch{}.csv'.format(batch))['delt...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:15:18 | `pd.read_csv('posterior_delta_batch{}.csv'.format(batch))` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:15:30 | `'posterior_delta_batch{}.csv'.format(batch)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:18:40 | `len(delta_var)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:18:89 | `len(day_var)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:19:18 | `len(vari)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:22:3 | `pd.DataFrame({'variance': varl, 'name': names, 'Batch': batches})` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:24:2 | `sns.barplot(data=df, x='name', y='variance', hue='Batch', ci=None, ...` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:24:84 | `np.median(x)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:28:0 | `print(x_coords, y_coords)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:34:4 | `np.median(group['variance'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:35:1 | `mms.append(mi)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:36:1 | `ll.append(mi - np.quantile(group['variance'], 0.025))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:36:14 | `np.quantile(group['variance'], 0.025)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:37:1 | `uu.append(np.quantile(group['variance'], 0.975) - mi)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:37:11 | `np.quantile(group['variance'], 0.975)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:38:4 | `pd.DataFrame({'med': mms, 'l': ll, 'u': uu})` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:40:9 | `pd.DataFrame({'x': x_coords, 'med': y_coords})` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:40:9 | `pd.DataFrame({'x': x_coords, 'med': y_coords}).merge(dfm, on='med',...` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:41:0 | `print(errors)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| stan_model/plot_variance_components.py:47:46 | `np.vstack((np.array(errors['l']), np.array(errors['u'])))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:47:57 | `np.array(errors['l'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:47:79 | `np.array(errors['u'])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| stan_model/plot_variance_components.py:51:0 | `sns.despine()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |

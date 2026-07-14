@@ -10,8 +10,11 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
+| [AIBO](AIBO/README.md) | 660 | draft | 172 | 488 | 0 | 0 | 0 | 0 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
+| [allnews](allnews/README.md) | 1013 | draft | 553 | 460 | 0 | 0 | 0 | 0 |
+| [giantpopflucts](giantpopflucts/README.md) | 358 | draft | 74 | 283 | 1 | 0 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
 | [click3](click3/README.md) | 4 | locked | 0 | 4 | 0 | 0 | 0 | 0 |
@@ -29,10 +32,13 @@ machine source of truth.
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 8 | 0 | 2 | 0 | 0 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | draft | 229 | 260 | 0 | 0 | 0 | 0 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 377 | 39 | 28 | 0 | 31 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
+| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | draft | 139 | 341 | 0 | 0 | 0 | 0 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
+| [polire](polire/README.md) | 421 | draft | 165 | 256 | 0 | 0 | 0 | 0 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 58 | 12 | 0 | 0 | 0 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 4 |
@@ -46,13 +52,21 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 2 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **2367** | | **0** | **1718** | **477** | **170** | **2** | **120** |
+| **TOTAL** | **5788** | | **1332** | **3806** | **478** | **170** | **2** | **120** |
 
 ## Directory Layout
 
 ```
 ground_truth/review/
   README.md
+  AIBO/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
+    suspicious.md
   aiofiles1/
     README.md
     static_obvious.md
@@ -66,6 +80,22 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
+    suspicious.md
+  allnews/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
+    suspicious.md
+  giantpopflucts/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
     suspicious.md
   click1/
     README.md
@@ -186,6 +216,14 @@ ground_truth/review/
     dynamic_probe.md
     manual_reasoned.md
     suspicious.md
+  greenbenchmark/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
+    suspicious.md
   hfhd/
     README.md
     static_obvious.md
@@ -200,6 +238,14 @@ ground_truth/review/
     dynamic_probe.md
     manual_reasoned.md
     suspicious.md
+  MAHE_OD_DATASET/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
+    suspicious.md
   mysql/
     README.md
     static_obvious.md
@@ -213,6 +259,14 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
+    suspicious.md
+  polire/
+    README.md
+    static_obvious.md
+    static_context.md
+    dynamic_probe.md
+    manual_reasoned.md
+    needs_annotation.md
     suspicious.md
   political-polarisation/
     README.md

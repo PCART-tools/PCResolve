@@ -2,8 +2,8 @@
   "projects": {
     "AIBO": {
       "path": "tests/fixtures/tested_projects/AIBO",
-      "tier": "expansion_candidate",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Large project stress test; SciPy/NumPy/matplotlib"
     },
     "aiofiles1": {
@@ -20,14 +20,14 @@
     },
     "allnews": {
       "path": "tests/fixtures/tested_projects/allnews",
-      "tier": "expansion_candidate",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Alternative large-project pilot; NLP, NER, WikiExtractor"
     },
     "giantpopflucts": {
       "path": "tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Nested fixture; SciPy/statsmodels"
     },
     "click1": {
@@ -136,8 +136,8 @@
     },
     "greenbenchmark": {
       "path": "tests/fixtures/tested_projects/greenbenchmark",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Energy benchmarking; pandas/matplotlib"
     },
     "hfhd": {
@@ -155,8 +155,8 @@
     },
     "MAHE_OD_DATASET": {
       "path": "tests/fixtures/tested_projects/MAHE_OD_DATASET",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "Outlier detection; NumPy/pandas"
     },
     "mysql": {
@@ -173,8 +173,8 @@
     },
     "polire": {
       "path": "tests/fixtures/tested_projects/polire",
-      "tier": "pending",
-      "status": "pending",
+      "tier": "pilot",
+      "status": "draft",
       "notes": "ML; NumPy/SciPy/sklearn/multiprocessing"
     },
     "political-polarisation": {
