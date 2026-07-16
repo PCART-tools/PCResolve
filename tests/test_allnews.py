@@ -41,6 +41,11 @@ def test_all_files_analyzed(result):
     )
 
 
+def test_v1_analysis_does_not_recurse_on_builtin_self_rebinding():
+    legacy_result = analyze_project(FIXTURE, scope_model="v1")
+    assert len(legacy_result.files) == 9
+
+
 def test_all_files_have_module_name(result):
     for f in result.files:
         assert f.module_name, (

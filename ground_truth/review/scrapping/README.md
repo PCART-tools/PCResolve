@@ -12,26 +12,30 @@
 
 ## Expected Kind
 
-- library: 58
-- python: 20
-- local: 32
+- library: 54
+- python: 38
+- local: 18
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 104
-- [static_context](static_context.md): 6
+- [static_obvious](static_obvious.md): 74
+- [static_context](static_context.md): 28
+- [dynamic_probe](dynamic_probe.md): 8
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 8
 
 ## Category Breakdown
 
 - builtin: 20
-- direct_import: 52
-- local_call: 32
+- builtin_container_method: 10
+- direct_import: 36
+- library_result_boundary: 8
+- local_call: 18
+- return_propagation: 12
 - transitive_method: 6
 
 ## Top Libraries
 
-- bs4: 50
+- bs4: 46
 - pandas: 6
 - requests: 2

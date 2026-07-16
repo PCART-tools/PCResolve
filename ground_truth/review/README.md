@@ -10,49 +10,49 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | draft | 172 | 488 | 0 | 0 | 0 | 0 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 485 | 174 | 0 | 1 | 47 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | draft | 553 | 460 | 0 | 0 | 0 | 0 |
-| [giantpopflucts](giantpopflucts/README.md) | 358 | draft | 74 | 283 | 1 | 0 | 0 | 0 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 175 |
+| [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
 | [click3](click3/README.md) | 4 | locked | 0 | 4 | 0 | 0 | 0 | 0 |
-| [Contrucao](Contrucao/README.md) | 52 | locked | 0 | 49 | 3 | 0 | 0 | 0 |
+| [Contrucao](Contrucao/README.md) | 52 | locked | 0 | 43 | 9 | 0 | 0 | 6 |
 | [covid19](covid19/README.md) | 89 | locked | 0 | 67 | 22 | 0 | 0 | 0 |
 | [CustomSamplers](CustomSamplers/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
-| [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 43 | 13 | 0 | 0 | 0 |
-| [simulation](simulation/README.md) | 208 | locked | 0 | 149 | 44 | 15 | 0 | 15 |
+| [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 40 | 14 | 0 | 2 | 2 |
+| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 13 |
 | [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 43 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
-| [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
+| [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 19 |
 | [fuel_forecast_explorer](fuel_forecast_explorer/README.md) | 25 | locked | 0 | 5 | 20 | 0 | 0 | 0 |
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 8 | 0 | 2 | 0 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | draft | 229 | 260 | 0 | 0 | 0 | 0 |
-| [hfhd](hfhd/README.md) | 444 | locked | 0 | 377 | 39 | 28 | 0 | 31 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 260 | 229 | 0 | 0 | 181 |
+| [hfhd](hfhd/README.md) | 444 | locked | 0 | 375 | 41 | 28 | 0 | 31 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
-| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | draft | 139 | 341 | 0 | 0 | 0 | 0 |
+| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 47 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | draft | 165 | 256 | 0 | 0 | 0 | 0 |
-| [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 58 | 12 | 0 | 0 | 0 |
+| [polire](polire/README.md) | 421 | locked | 0 | 256 | 157 | 0 | 8 | 62 |
+| [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 40 | 30 | 0 | 0 | 19 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
-| [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 4 |
+| [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
 | [qho](qho/README.md) | 71 | locked | 0 | 61 | 10 | 0 | 0 | 0 |
 | [recommendation](recommendation/README.md) | 60 | locked | 0 | 40 | 20 | 0 | 0 | 0 |
 | [redis](redis/README.md) | 33 | locked | 0 | 13 | 0 | 20 | 0 | 0 |
-| [scrapping](scrapping/README.md) | 110 | locked | 0 | 104 | 6 | 0 | 0 | 0 |
-| [SDOML](SDOML/README.md) | 94 | locked | 0 | 75 | 16 | 3 | 0 | 6 |
+| [scrapping](scrapping/README.md) | 110 | locked | 0 | 74 | 28 | 8 | 0 | 8 |
+| [SDOML](SDOML/README.md) | 94 | locked | 0 | 73 | 18 | 3 | 0 | 6 |
 | [sg-restart-regridder](sg-restart-regridder/README.md) | 10 | locked | 0 | 6 | 4 | 0 | 0 | 0 |
-| [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 9 | 1 | 5 | 0 | 0 |
+| [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 6 | 4 | 5 | 0 | 1 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
-| [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 2 |
+| [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **5788** | | **1332** | **3806** | **478** | **170** | **2** | **120** |
+| **TOTAL** | **5788** | | **0** | **3762** | **1802** | **185** | **39** | **677** |
 
 ## Directory Layout
 
@@ -65,7 +65,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   aiofiles1/
     README.md
@@ -87,7 +86,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   giantpopflucts/
     README.md
@@ -95,7 +93,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   click1/
     README.md
@@ -222,7 +219,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   hfhd/
     README.md
@@ -244,7 +240,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   mysql/
     README.md
@@ -266,7 +261,6 @@ ground_truth/review/
     static_context.md
     dynamic_probe.md
     manual_reasoned.md
-    needs_annotation.md
     suspicious.md
   political-polarisation/
     README.md

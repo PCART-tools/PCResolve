@@ -3,7 +3,7 @@
     "AIBO": {
       "path": "tests/fixtures/tested_projects/AIBO",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Large project stress test; SciPy/NumPy/matplotlib"
     },
     "aiofiles1": {
@@ -21,13 +21,13 @@
     "allnews": {
       "path": "tests/fixtures/tested_projects/allnews",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Alternative large-project pilot; NLP, NER, WikiExtractor"
     },
     "giantpopflucts": {
       "path": "tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Nested fixture; SciPy/statsmodels"
     },
     "click1": {
@@ -137,7 +137,7 @@
     "greenbenchmark": {
       "path": "tests/fixtures/tested_projects/greenbenchmark",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Energy benchmarking; pandas/matplotlib"
     },
     "hfhd": {
@@ -156,7 +156,7 @@
     "MAHE_OD_DATASET": {
       "path": "tests/fixtures/tested_projects/MAHE_OD_DATASET",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "Outlier detection; NumPy/pandas"
     },
     "mysql": {
@@ -174,7 +174,7 @@
     "polire": {
       "path": "tests/fixtures/tested_projects/polire",
       "tier": "pilot",
-      "status": "draft",
+      "status": "locked",
       "notes": "ML; NumPy/SciPy/sklearn/multiprocessing"
     },
     "political-polarisation": {

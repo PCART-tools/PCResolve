@@ -13,23 +13,23 @@
 ## Expected Kind
 
 - library: 38
-- python: 23
-- local: 12
+- python: 25
+- local: 10
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 48
 - [static_context](static_context.md): 25
 
-## [Suspicious Records](suspicious.md): 4
+## [Suspicious Records](suspicious.md): 19
 
 ## Category Breakdown
 
 - builtin: 19
+- builtin_container_method: 2
 - decorator_expression: 8
 - direct_import: 11
 - local_call: 10
-- local_container_scaffolding: 2
 - mapping_protocol_method: 4
 - transitive_method: 19
 

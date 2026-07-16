@@ -66,7 +66,7 @@
 | polire/natural_neighbors/natural_neighbors.py:50:15 | `atan2(x[0] - mean_x, x[1] - mean_y)` | library / math | library / math | direct_import | static_obvious | v: direct import-backed API call |
 | polire/natural_neighbors/natural_neighbors.py:52:11 | `sorted(vertices, key=condition)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/natural_neighbors/natural_neighbors.py:91:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/natural_neighbors/natural_neighbors.py:91:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/natural_neighbors/natural_neighbors.py:91:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/natural_neighbors/natural_neighbors.py:101:12 | `dict()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/natural_neighbors/natural_neighbors.py:114:46 | `range(len(X))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/natural_neighbors/natural_neighbors.py:114:52 | `len(X)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
@@ -108,13 +108,13 @@
 | polire/utils/gridding.py:69:13 | `spatial.KDTree(points)` | library / scipy | library / scipy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/utils/gridding.py:72:20 | `range(X.shape[0])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/spline/bspline.py:35:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/spline/bspline.py:35:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/spline/bspline.py:35:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/spline/bspline.py:63:12 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spline/bspline.py:64:12 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spline/bspline.py:73:18 | `range(X.shape[0])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/spline/bspline.py:79:15 | `np.array(results)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/gp/gp.py:28:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/gp/gp.py:28:8 | `super().__init__()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/gp/gp.py:28:8 | `super().__init__()` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/gp/gp.py:35:8 | `np.random.seed(random_state)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/gp/gp.py:36:11 | `len(y.shape)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/gp/gp.py:47:13 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
@@ -138,20 +138,20 @@
 | polire/preprocessing/sptial_features.py:123:26 | `np.concatenate([X_local[:, 3:], f1, f2, f3], axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/preprocessing/sptial_features.py:125:26 | `np.concatenate([X_local[:, 3:], f1, f2], axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spatial/spatial.py:22:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/spatial/spatial.py:22:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/spatial/spatial.py:22:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/spatial/spatial.py:29:18 | `NotImplementedError('Only Geographic and Euclidean Coordinates are ...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/spatial/spatial.py:50:13 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spatial/spatial.py:51:13 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spatial/spatial.py:52:17 | `np.meshgrid(x1, x2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/spatial/spatial.py:53:29 | `np.asarray([X1.ravel(), X2.ravel()])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/custom/custom.py:31:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/custom/custom.py:31:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/custom/custom.py:31:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/custom/custom.py:50:13 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/custom/custom.py:51:13 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/custom/custom.py:52:17 | `np.meshgrid(x1, x2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/custom/custom.py:53:32 | `np.asarray([X1.ravel(), X2.ravel()])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/idw/idw.py:42:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/idw/idw.py:42:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/idw/idw.py:42:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/idw/idw.py:53:18 | `NotImplementedError('Only Geographic and Euclidean Coordinates are ...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/idw/idw.py:71:13 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/idw/idw.py:72:13 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
@@ -162,7 +162,7 @@
 | polire/idw/idw.py:87:19 | `np.equal(X[i], self.X)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/idw/idw.py:87:19 | `np.equal(X[i], self.X).all(axis=1)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/kriging/kriging.py:53:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/kriging/kriging.py:53:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/kriging/kriging.py:53:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/kriging/kriging.py:94:18 | `ValueError('Choose either Universal or Ordinary - Given argument is...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/kriging/kriging.py:105:13 | `np.linspace(x1min, x1max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/kriging/kriging.py:106:13 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
@@ -178,7 +178,7 @@
 | polire/base/base.py:71:72 | `str(X.shape)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/trend/polynomials.py:35:14 | `NotImplementedError(f'{order} order polynomial needs to be defined ...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/trend/trend.py:38:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/trend/trend.py:38:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/trend/trend.py:38:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/trend/trend.py:41:11 | `_create_polynomial(order)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | polire/trend/trend.py:42:24 | `_create_polynomial(order)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | polire/trend/trend.py:47:22 | `ValueError('Arguments passed are not valid')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
@@ -186,13 +186,13 @@
 | polire/trend/trend.py:67:13 | `np.linspace(x2min, x2max, self.resolution)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/trend/trend.py:68:17 | `np.meshgrid(x1, x2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/random/random.py:16:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/random/random.py:16:8 | `super().__init__(resolution, coordinate_type)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/random/random.py:16:8 | `super().__init__(resolution, coordinate_type)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/random/random.py:22:20 | `max(y)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/random/random.py:23:20 | `min(y)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/random/random.py:30:15 | `np.random.uniform(low=self.ymin, high=self.ymax, size=(self.resolut...` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/random/random.py:40:15 | `np.random.uniform(low=self.ymin, high=self.ymax, size=X.shape[0])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/nsgp/nsgp.py:27:8 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| polire/nsgp/nsgp.py:27:8 | `super().__init__()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| polire/nsgp/nsgp.py:27:8 | `super().__init__()` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | polire/nsgp/nsgp.py:51:22 | `np.zeros((self._X.shape[0], self._X.shape[0]))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | polire/nsgp/nsgp.py:52:17 | `range(self._X.shape[0])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | polire/nsgp/nsgp.py:53:21 | `range(i, self._X.shape[0])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |

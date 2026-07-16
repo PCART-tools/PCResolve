@@ -1,30 +1,24 @@
-# Contrucao — static_obvious (49 records)
+# Contrucao — static_obvious (43 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
 | main.py:9:16 | `soup(['style', 'script', 'head', 'header', 'meta', '[document]', 't...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:10:8 | `data.decompose()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:13:11 | `' '.join(soup.stripped_strings)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| main.py:18:9 | `letra.isalpha()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| main.py:19:18 | `palavra.replace(letra, '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:23:9 | `spacy.load('en_core_web_sm')` | library / spacy | library / spacy | direct_import | static_obvious | v: direct import-backed API call |
 | main.py:38:9 | `requests.get(url)` | library / requests | library / requests | direct_import | static_obvious | v: direct import-backed API call |
 | main.py:39:9 | `BeautifulSoup(html, 'html.parser')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | main.py:40:10 | `removerTags(soup)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:45:4 | `texto.append(sentence.text)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:48:14 | `set()` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| main.py:50:17 | `sentence.split()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:51:21 | `filtrar(palavra.strip())` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| main.py:51:29 | `palavra.strip()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:53:8 | `vocabulario.add(palavraFinal)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:54:14 | `sorted(vocabulario)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:61:0 | `bagOfWords.append(vocabulario)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:62:0 | `tfidf.append(vocabulario)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:71:20 | `len(sentence)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:72:16 | `len(vocabulario)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| main.py:73:17 | `sentence.split()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:74:19 | `filtrar(palavra.strip())` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| main.py:74:27 | `palavra.strip()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:76:12 | `vocabulario.index(palavraFinal)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:77:2 | `bagOfWords.append(vetor)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:87:9 | `range(len(bagOfWords[0]))` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |

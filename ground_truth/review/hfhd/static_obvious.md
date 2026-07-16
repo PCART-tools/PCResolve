@@ -1,4 +1,4 @@
-# hfhd — static_obvious (377 records)
+# hfhd — static_obvious (375 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -337,7 +337,6 @@
 | hfhd/hd.py:664:13 | `datetime.timedelta(minutes=np.ceil(6.5 / L * 60))` | library / datetime | library / datetime | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:664:40 | `np.ceil(6.5 / L * 60)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:665:20 | `range(L)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| hfhd/hd.py:666:4 | `stp.append(datetime.time(16, 0))` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:666:15 | `datetime.time(16, 0)` | library / datetime | library / datetime | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:748:15 | `series.index[0].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:748:41 | `series.index[-1].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -351,7 +350,6 @@
 | hfhd/hd.py:771:22 | `estimator(ticks_j, **kwargs)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:772:12 | `np.diag(np.diag(P_not_j.T @ Sigma_tilde @ P_not_j))` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:772:20 | `np.diag(P_not_j.T @ Sigma_tilde @ P_not_j)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
-| hfhd/hd.py:774:8 | `Sigma_hat_list.append(Sigma_hat)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:776:11 | `np.mean(Sigma_hat_list, axis=0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:915:18 | `int(2 * n ** 0.5)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | hfhd/hd.py:915:37 | `int(0.2 * n)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |

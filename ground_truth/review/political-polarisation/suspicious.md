@@ -1,3 +1,26 @@
-# political-polarisation — Suspicious Records
+# political-polarisation — Suspicious Records (19)
 
-*No suspicious records.*
+Each record appears once.  The **Reasons** column lists all
+matching suspicious criteria.
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
+|---------------|------------|----|-----------|----------|-------|---------|
+| analyze_hashtag.py:25:20 | `df['hashtag'].astype('string')` | library / pandas | local / local | pandas_receiver_chain | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=pandas pcresolve=local<br>expected library, pcresolve=local |
+| analyze_hashtag.py:27:14 | `df_name.str.split(',', expand=True)` | library / pandas | unknown / unknown | pandas_receiver_chain | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
+| analyze_hashtag.py:28:14 | `df_name.stack()` | library / pandas | local / local | pandas_receiver_chain | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=pandas pcresolve=local<br>expected library, pcresolve=local |
+| analyze_hashtag.py:30:14 | `df_name.reset_index(level=1, drop=True)` | library / pandas | local / local | pandas_receiver_chain | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=pandas pcresolve=local<br>expected library, pcresolve=local |
+| analyze_hashtag.py:30:14 | `df_name.reset_index(level=1, drop=True).to_numpy()` | library / pandas | local / local | pandas_receiver_chain | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=pandas pcresolve=local<br>expected library, pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').r...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').r...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').r...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').repl...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').repl...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').repl...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').repl...` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| analyze_hashtag.py:63:34 | `mention.strip()` | python / python | unknown / unknown | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |

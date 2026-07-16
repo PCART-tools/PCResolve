@@ -96,7 +96,7 @@ def use_dict_get():
 
 
 # ---------------------------------------------------------------------------
-# P1: Function-local containers → local (internal data structure building)
+# P1: Function-local builtin containers retain Python method ownership
 # ---------------------------------------------------------------------------
 
 # Parameter-sourced container (function-local)
@@ -139,7 +139,7 @@ def use_set_literal():
 # Re-binding: container then local class — should clear container kind
 def use_rebind():
     x = []
-    x.append(0)   # local (function-scoped container → local)
+    x.append(0)   # python (list.append)
 
     x = Bag()
     x.append(1)   # local (not python!)
@@ -191,7 +191,7 @@ def use_defaultdict_bag():
 # Re-binding: defaultdict then local class — should clear item kind
 def use_defaultdict_rebind():
     d_rebind = defaultdict(list)
-    d_rebind["a"].append(1)  # local (function-scoped, not in module symbols)
+    d_rebind["a"].append(1)  # python (defaultdict produces list values)
 
     d_rebind = Bag()
     d_rebind.append(2)       # local (not python!)

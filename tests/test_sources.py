@@ -6,8 +6,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve.sources import (
-    ContainerItem, ContainerIter, InstanceMethod, CallResult,
-    NameSource, UnknownSource,
+    ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
+    DerivedResult, NameSource, SourceSet, UnknownSource,
     normalize_source, source_to_legacy, source_display, is_structured_source,
 )
 
@@ -80,6 +80,34 @@ def test_source_to_legacy_roundtrip():
     original = ("container_item", "lst", 0)
     result = source_to_legacy(normalize_source(original))
     assert result == original
+
+
+def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
+    original = CallResult(
+        SuperMethod("Child", "pkg.Child", "build"),
+        result_source=DerivedResult(
+            "element",
+            (SourceSet(("json", "os"), origin="builtin_element"),),
+        ),
+    )
+    legacy = source_to_legacy(original)
+
+    source_ir_types = (
+        ContainerItem, ContainerIter, InstanceMethod, SuperMethod,
+        CallResult, DerivedResult, SourceSet, UnknownSource, NameSource,
+    )
+
+    def contains_ir(value):
+        if isinstance(value, source_ir_types):
+            return True
+        if isinstance(value, (tuple, list)):
+            return any(contains_ir(item) for item in value)
+        if isinstance(value, dict):
+            return any(contains_ir(item) for item in value.values())
+        return False
+
+    assert contains_ir(legacy) is False
+    assert normalize_source(legacy) == original
 
 
 # ── source_display ──────────────────────────────────────────────────────

@@ -21,10 +21,10 @@ from pcresolve.sources import (normalize_source, CallResult,
 #
 #  Callbacks are injected so this module does not import ProjectAnalyzer.
 class SourceSetResolver:
-    ## @param top_source_cb fn(module, symbol, tracers) -> str|None
+    ## @param top_source_cb fn(module, symbol, tracers, _seen=None) -> str|None
     ## @param cg_return_cb  fn(module, callee) -> str|None
     ## @param known_local_cb fn(tracer, symbol) -> bool
-    ## @param resolve_structured_cb fn(module, source, tracers) -> tuple|None
+    ## @param resolve_structured_cb fn(module, source, tracers, _seen=None) -> tuple|None
     ## @param dedupe_cb fn(items) -> list
     def __init__(self, top_source_cb, cg_return_cb, known_local_cb,
                  resolve_structured_cb, dedupe_cb):
@@ -102,29 +102,41 @@ class SourceSetResolver:
             _seen.add(key)
             cg = self._lookup_cg_return_source(module, source)
             if cg:
-                return self._top_source(module, cg, tracers) or cg
-            return self._top_source(module, source, tracers)
+                return self._top_source(
+                    module, cg, tracers, _seen=_seen) or cg
+            return self._top_source(
+                module, source, tracers, _seen=_seen)
         if isinstance(source, CallResult) and isinstance(source.callee, str):
             key = (module, "cr", source.callee)
             if key in _seen:
                 return None
             _seen.add(key)
+            if source.result_source is not None:
+                resolved = self._resolve_structured_source(
+                    module, source, tracers, _seen=_seen)
+                if resolved:
+                    _, src_module, src_symbol = resolved
+                    return self._top_source(
+                        src_module, src_symbol, tracers, _seen=_seen)
             cg = self._lookup_cg_return_source(module, source.callee)
             if cg:
-                return self._top_source(module, cg, tracers) or cg
+                return self._top_source(
+                    module, cg, tracers, _seen=_seen) or cg
             tracer = tracers.get(module)
             if tracer:
                 first = source.callee.split(".")[0]
                 if (first in getattr(tracer, "import_aliases", set()) or
                         first in getattr(tracer, "import_from_symbols", {})):
-                    return self._top_source(module, source.callee, tracers)
+                    return self._top_source(
+                        module, source.callee, tracers, _seen=_seen)
                 if self._is_known_local(tracer, source.callee):
                     return "local"
             return None
         if is_structured_source(source):
             resolved = self._resolve_structured_source(
-                module, source, tracers)
+                module, source, tracers, _seen=_seen)
             if resolved:
                 _, src_module, src_symbol = resolved
-                return self._top_source(src_module, src_symbol, tracers)
+                return self._top_source(
+                    src_module, src_symbol, tracers, _seen=_seen)
         return None

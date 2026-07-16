@@ -269,60 +269,22 @@ Excluded from precision and recall; counted in coverage metrics.
 
 ## Locked Evaluation Set
 
-All 11 evaluated projects are **locked** (2026-07-12). The set contains
-815 calls with 0 missing and 0 stale GT records. PCResolve has 757 primary
-hits and 58 primary misses, for aggregate recall 0.929.
+All 42 fixture projects are **locked** (2026-07-20). The set contains
+5,788 call records with 0 missing and 0 stale records. The current analyzer
+snapshot has 5,111 primary hits and 677 primary misses, for aggregate recall
+0.883. AST call coverage is 5,788/5,788.
 
-The earlier four-project baseline remains useful historical context. It had
-626 calls and recall 0.931 after the first 1.0.5 repair round.
-
-### Locked Results (2026-07-12)
-
-| Project | Calls | all P | all R | all F1 | library R | python R | local R |
-|---------|-------|-------|-------|--------|-----------|----------|---------|
-| `click1` | 5 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `click2` | 8 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `django` | 44 | 1.000 | 0.705 | 0.827 | 0.783 | 0.636 | 0.600 |
-| `flask1` | 7 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | n/a |
-| `flask2` | 73 | 1.000 | 0.945 | 0.972 | 1.000 | 0.826 | 1.000 |
-| `hfhd` | 444 | 0.998 | 0.930 | 0.963 | 0.894 | 1.000 | 1.000 |
-| `machine-learning` | 43 | 0.954 | 0.954 | 0.954 | 0.935 | 1.000 | 1.000 |
-| `psycopg2` | 39 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `redis` | 33 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `tensorflow1` | 15 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `Youtube` | 104 | 1.000 | 0.923 | 0.960 | 0.800 | 1.000 | 1.000 |
-
-### Verification Level Breakdown
-
-| Project | static_obvious | static_context | dynamic_probe | manual_reasoned |
-|---------|---------------|----------------|---------------|-----------------|
-| `click1` | 4 | 1 | 0 | 0 |
-| `click2` | 7 | 1 | 0 | 0 |
-| `django` | 27 | 2 | 15 | 0 |
-| `flask1` | 3 | 4 | 0 | 0 |
-| `flask2` | 48 | 25 | 0 | 0 |
-| `hfhd` | 377 | 39 | 28 | 0 |
-| `machine-learning` | 39 | 0 | 4 | 0 |
-| `psycopg2` | 20 | 4 | 15 | 0 |
-| `redis` | 13 | 0 | 20 | 0 |
-| `tensorflow1` | 9 | 1 | 5 | 0 |
-| `Youtube` | 82 | 13 | 9 | 0 |
-| **TOTAL** | **629** | **90** | **96** | **0** |
+Evidence is distributed across 3,762 `static_obvious`, 1,802
+`static_context`, 185 `dynamic_probe`, and 39 `manual_reasoned` records.
+The generated [review index](review/README.md) is the authoritative current
+per-project breakdown.
 
 ### Repair Priority
 
-Only the four `request.json.get(...)` records are an accepted 1.0.5
-boundary. The other 54 misses remain release repair candidates unless they
-are explicitly reclassified with a documented contract rationale.
-
-| Priority | Root cause | Projects | Misses | Examples | Direction |
-|----------|------------|----------|--------|----------|-----------|
-| P0 | Local method identity contaminated by member state | `django` | 4 | `self.set_expire()`, `scope.add_request()` | Resolve project-local methods before receiver attribute propagation |
-| P0 | Python builtin receiver method or literal call not recognized | `django` | 4 | `line.split()`, `msg.format()`, literal `str.format()` | Track builtin receiver type and collect literal receiver calls |
-| P1 | Imported or inherited receiver ownership lost | `django` | 5 | `stream.read_until()`, `socket.setsockopt()`, `server.listen()` | Propagate parameter and base-class receiver ownership |
-| P1 | Library return object owner differs from producer | `machine-learning` | 2 | `uarr.dot(...)` after `scipy.linalg.svd()` | Model tuple return ownership without inheriting the producer owner |
-| P1 | Parameter and local-return receiver ownership | `hfhd`, `Youtube` | 39 | `x.dropna()`, `centres.todense()`, `D.argmin()` | Add conservative inter-procedural receiver propagation |
-| P2 | Mapping-style framework payload boundary | `flask2` | 4 | `request.json.get(...)` | Keep as documented boundary for 1.0.5 |
+The 677 records in generated `suspicious.md` views form the current repair
+queue. They include known inter-procedural boundaries as well as statically
+actionable ownership gaps. Release triage must use the current views instead
+of the earlier pilot-only miss counts.
 
 ### Labeling Conventions (1.0.5 Pilot)
 
@@ -350,27 +312,15 @@ does not expand framework internals to werkzeug/logging.
 judges the call expression's callable owner — `.to_numpy()` is a
 pandas method — not the return type.
 
-**Module-level container method on known receiver.**
-`module_list.append(...)`, `allseeds.index(...)`,
-`defaultdict(list)[k].append(...)`: `expected_kind="python"`,
-`expected_top_library="python"`.  The receiver must be declared at
-module level so the container kind is recorded in the module symbol
-table.  This is the canonical label for protocol/container-style
-usage of Python builtin types.
-
-**Function-local scaffolding container.** `stp.append(...)`,
-`local_list.append(...)` (container created and consumed inside
-a function for internal data-structure building):
-`expected_kind="local"`, `expected_top_library="local"`.  The
-callable IS Python's list.append but the usage context is internal
-scaffolding, not protocol-style API surface.
-
-### Expansion Candidates
-
-| Project | Rationale | Labeling Focus |
-|---------|-----------|----------------|
-| `AIBO` | Large project stress test | Scale, FP/FN classification |
-| `allnews` | Large NLP/ML project | NER, WikiExtractor, performance at scale |
+**Known builtin container method.** `module_list.append(...)`,
+`local_list.append(...)`, `allseeds.index(...)`, and
+`defaultdict(list)[k].append(...)` use `expected_kind="python"` and
+`expected_top_library="python"`. The lexical scope and application
+purpose do not change the callable owner. An explicit list binding in
+a function still exposes Python's `list.append`. Scope-aware container
+metadata prevents a same-name project-local object from inheriting this
+classification. An unresolved receiver is not promoted by method name
+alone.
 
 ## Verification Tooling (1.0.5)
 
@@ -388,60 +338,20 @@ duplicate positions like `x.dropna()` / `x.dropna().to_numpy()`).
 Expression text differences are reported separately.  They do not affect
 coverage counts once records are successfully paired.
 
-**Locked baseline coverage (2026-07-12):**
-
-| Project | AST Calls | GT Records | Missing | Stale | ExprDiff | Status |
-|---------|-----------|------------|---------|-------|----------|--------|
-| click1 | 5 | 5 | 0 | 0 | 1 | locked |
-| click2 | 8 | 8 | 0 | 0 | 3 | locked |
-| django | 44 | 44 | 0 | 0 | 7 | locked |
-| flask1 | 7 | 7 | 0 | 0 | 4 | locked |
-| flask2 | 73 | 73 | 0 | 0 | 31 | locked |
-| hfhd | 444 | 444 | 0 | 0 | 65 | locked |
-| machine-learning | 43 | 43 | 0 | 0 | 6 | locked |
-| psycopg2 | 39 | 39 | 0 | 0 | 21 | locked |
-| redis | 33 | 33 | 0 | 0 | 17 | locked |
-| tensorflow1 | 15 | 15 | 0 | 0 | 5 | locked |
-| Youtube | 104 | 104 | 0 | 0 | 32 | locked |
-| **TOTAL** | **815** | **815** | **0** | **0** | **192** | |
-
-All 815 AST calls are covered by GT records (multiset matching).
-192 expression mismatches are benign (quote style differences between
-source code and manual annotation).
+**Locked baseline coverage (2026-07-20):** all 5,788 AST calls are covered by
+5,788 GT records. There are 0 missing and 0 stale records. Expression text
+differences are reported separately and do not affect position-based
+multiset matching.
 
 ### Suspicious GT Selector
 
 The same script auto-flags GT records that need manual/dynamic verification.
 It does NOT auto-change labels; review each flagged record.
 
-**Selectors:**
-
-| Selector | What it catches |
-|----------|----------------|
-| `transitive_method` | category contains "transitive_method" |
-| `conversion_boundary` | category contains "conversion_boundary" |
-| `expected_library_but_pcresolve_not_library` | expected_kind=library but pcresolve_kind!=library |
-| `pcresolve_top_library_mismatch_expected` | pcresolve_top_library != expected_top_library |
-| `manual_gt_library_call_missed_by_pcresolve` | manual_gt entries with expected_kind=library |
-
-**GT mismatch counts at lock time (2026-07-12):**
-
-| Project | Total | Suspicious | Key Reasons |
-|---------|-------|------------|-------------|
-| click1 | 5 | 0 | none |
-| click2 | 8 | 0 | none |
-| django | 44 | 13 | local identity, builtin receiver, inherited/imported receiver |
-| flask1 | 7 | 0 | none |
-| flask2 | 73 | 4 | mapping-style framework payload boundary |
-| hfhd | 444 | 31 | parameter and local-return receiver ownership |
-| machine-learning | 43 | 2 | SciPy producer returning NumPy receiver objects |
-| psycopg2 | 39 | 0 | none |
-| redis | 33 | 0 | none |
-| tensorflow1 | 15 | 0 | none |
-| Youtube | 104 | 8 | SciPy/NumPy receiver ownership through local flow |
-| **TOTAL** | **815** | **58** | 54 repair candidates, 4 accepted boundary records |
-
-JSON output: `verification/suspicious_selector.json`
+`suspicious.md` contains only GT versus PCResolve mismatches, including kind,
+primary owner, alternatives, decorated evidence, and missing candidates.
+Records are not included merely because they use contextual or dynamic
+evidence. The current locked set contains 677 suspicious records.
 
 ### Dynamic Probes
 
@@ -471,6 +381,14 @@ NumPy ufunc preservation matrix validates log/exp/sqrt/abs on pandas Series/Data
 | 4 | `nda.mean()` | `ndarray.mean()` is numpy method. GT label `library/numpy` correct. |
 
 Probe outputs: `verification/hfhd_probe_output.txt`, `verification/youtube_probe_output.txt`
+
+**scrapping probe** (`probes/scrapping_probe.py`):
+
+The probe separates callable ownership from result ownership for
+`Tag.get("href")`.  `Tag.get` belongs to `bs4`, while a normal `href` value is
+a builtin `str`, so the following `link.find(...)` call belongs to `python`.
+
+Probe output: `verification/scrapping_probe_output.txt`
 
 **Round 6 probes** (`probes/round6_probe.py`):
 

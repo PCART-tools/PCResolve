@@ -12,30 +12,33 @@
 
 ## Expected Kind
 
-- library: 42
-- python: 9
-- local: 4
+- library: 44
+- python: 10
+- local: 1
 - unknown: 1
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 43
-- [static_context](static_context.md): 13
+- [static_obvious](static_obvious.md): 40
+- [static_context](static_context.md): 14
+- [manual_reasoned](manual_reasoned.md): 2
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 2
 
 ## Category Breakdown
 
 - builtin: 9
+- builtin_container_method: 1
 - direct_import: 30
-- local_call: 4
+- framework_tensor_receiver: 2
+- local_call: 1
 - transitive_method: 13
 
 ## Top Libraries
 
 - polars: 13
+- torch: 10
 - matplotlib: 8
-- torch: 8
 - pandas: 4
 - seaborn: 3
 - datasets: 3

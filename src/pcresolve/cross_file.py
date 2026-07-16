@@ -60,7 +60,8 @@ from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERR
 from .ir import (SymbolProvenance, ClassificationResult,
                     REASON_DIRECT_IMPORT)
 from .single_file import SingleFileAnalyzer
-from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
+from .sources import (ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
+                       DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display)
 from .call_graph import ProjectCallGraph
@@ -323,7 +324,16 @@ class ProjectAnalyzer:
                 top = self.extract_final_source(chain) if chain else ""
                 if top and top not in ("local", "python", "unknown", ""):
                     if '.' not in top and not self._is_prov_import_backed(top, module_tracers):
-                        top = "local"
+                        ## 1.0.5 P2: explicit result_source confirms library
+                        #  identity even without import statement evidence.
+                        rs = getattr(ref.source, 'result_source', None)
+                        if (isinstance(ref.source, CallResult)
+                                and isinstance(rs, str)
+                                and rs not in ("local", "python", "unknown", "")
+                                and rs.split(".")[0] == top):
+                            pass
+                        else:
+                            top = "local"
                 tops = [top] if top else []
                 cr = self.classify_source(
                     ref.source, top, module, tracer, module_tracers,
@@ -416,8 +426,7 @@ class ProjectAnalyzer:
                 # 1.0.5 P1: preserve python top from single-file phase
                 # for calls with call-site recorded container kind.
                 call_kind = call_detail.get("receiver_container_kind")
-                if (isinstance(base, InstanceMethod)
-                        and call_kind is not None
+                if (call_kind is not None
                         and call_detail.get("top") == "python"):
                     record = dict(call_detail)
                     record['top'] = "python"
@@ -448,14 +457,21 @@ class ProjectAnalyzer:
         if is_structured_source(base):
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
+                ## 1.0.5 P2: explicit result_source module name
+                #  (from __import__("literal")) carries the library
+                #  name directly — skip _top_source resolution.
+                if isinstance(base, CallResult):
+                    rs = getattr(base, 'result_source', None)
+                    if (isinstance(rs, str)
+                            and rs not in ("local", "python", "unknown", "")):
+                        return rs
                 _, src_module, src_symbol = structured
                 top = self._top_source(src_module, src_symbol, module_tracers)
                 # 1.0.5 P1: builtin container method on a receiver
                 # whose container kind is known from tracer-final state.
-                # Only apply to module-level receivers (names in
-                # tracer.symbols.direct); function-local containers
-                # doing internal data-structure building should
-                # stay local.
+                # This fallback only sees module-level legacy maps.
+                # Function-local receiver kinds are captured at the call
+                # site and preserved before this path is reached.
                 if (top == "local"
                         and isinstance(base, InstanceMethod)
                         and base.receiver not in tracer.class_methods
@@ -550,21 +566,54 @@ class ProjectAnalyzer:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param include_local Whether to include "local" in results.
     #  @return List of candidate top strings.
-    def _origin_candidates(self, module, source, tracers, include_local=True):
+    def _origin_candidates(self, module, source, tracers, include_local=True,
+                           _seen=None):
+        if _seen is None:
+            _seen = set()
         source = normalize_source(source)
+        key = (module, type(source).__name__, source_display(source))
+        if key in _seen:
+            return ["unknown"]
+        seen = set(_seen)
+        seen.add(key)
+
         if isinstance(source, SourceSet):
             out = []
             for item in source.sources:
                 out.extend(self._origin_candidates(
-                    module, item, tracers, include_local))
+                    module, item, tracers, include_local,
+                    _seen=set(seen)))
             return self._dedupe_list(out)
+        if isinstance(source, DerivedResult):
+            if source.kind == "iterator":
+                return ["unknown"]
+            out = []
+            for item in source.sources:
+                out.extend(self._origin_candidates(
+                    module, item, tracers, include_local,
+                    _seen=set(seen)))
+            return self._dedupe_list(out) or ["unknown"]
+        if isinstance(source, UnknownSource):
+            return ["unknown"]
+        if isinstance(source, ContainerIter):
+            resolved = self._resolve_container_iter(
+                module, source.container, tracers)
+            if resolved is None:
+                return ["unknown"]
+            _, candidates = resolved
+            return self._dedupe_list(candidates) or ["unknown"]
         if isinstance(source, CallResult):
+            if source.result_source is not None:
+                return self._origin_candidates(
+                    module, source.result_source, tracers, include_local,
+                    _seen=set(seen))
             callee = source.callee
             tracer = tracers.get(module)
             rs = tracer.return_sources.get(callee) if tracer else None
             if rs is not None:
                 candidates = self._origin_candidates(
-                    module, rs, tracers, include_local)
+                    module, rs, tracers, include_local,
+                    _seen=set(seen))
                 clean = [c for c in candidates
                          if c not in ("", None, "unknown")]
                 if clean:
@@ -581,7 +630,8 @@ class ProjectAnalyzer:
                                     call_lineno=cr_lineno, call_col_offset=cr_col)
                                 if arg is not None:
                                     more = self._origin_candidates(
-                                        module, arg, tracers, include_local)
+                                        module, arg, tracers, include_local,
+                                        _seen=set(seen))
                                     for m in more:
                                         if m not in candidates:
                                             candidates.append(m)
@@ -591,22 +641,27 @@ class ProjectAnalyzer:
                             call_lineno=cr_lineno, call_col_offset=cr_col)
                         if arg is not None:
                             more = self._origin_candidates(
-                                module, arg, tracers, include_local)
+                                module, arg, tracers, include_local,
+                                _seen=set(seen))
                             for m in more:
                                 if m not in candidates:
                                     candidates.append(m)
                 return candidates
-            top = self._top_source(module, callee, tracers)
+            top = self._top_source(
+                module, callee, tracers, _seen=set(seen))
             return [top] if top else []
         if is_structured_source(source):
-            resolved = self._resolve_structured_source(module, source, tracers)
+            resolved = self._resolve_structured_source(
+                module, source, tracers, _seen=set(seen))
             if resolved is not None:
                 _, src_module, src_symbol = resolved
                 return self._origin_candidates(
-                    src_module, src_symbol, tracers, include_local)
+                    src_module, src_symbol, tracers, include_local,
+                    _seen=set(seen))
             return ["unknown"]
         if isinstance(source, str):
-            top = self._top_source(module, source, tracers)
+            top = self._top_source(
+                module, source, tracers, _seen=set(seen))
             return [top] if top else []
         return ["unknown"]
 
@@ -848,7 +903,9 @@ class ProjectAnalyzer:
         for (cont_name, idx), src in tracer.container_items.items():
             if cont_name == container_name:
                 self._container_candidate(module, src, tracers, candidates, visited)
-        for src in sorted(tracer.container_set_sources.get(container_name, set())):
+        for src in sorted(
+                tracer.container_set_sources.get(container_name, set()),
+                key=source_display):
             self._container_candidate(module, src, tracers, candidates, visited)
         return candidates
 
@@ -866,8 +923,16 @@ class ProjectAnalyzer:
             if isinstance(cn, CallResult) and isinstance(cn.callee, str):
                 top = self._top_source(module, cn.callee, tracers)
                 if top and top not in ("local", "python", "unknown", ""):
-                    return (module, [top])
-            return None
+                    ## 1.0.5 P2: only propagate callee top as element type
+                    #  when the callee has explicit return-type evidence.
+                    #  Without return_sources, an import-backed call result
+                    #  has no yield contract — element type is unknowable.
+                    if tracer.return_sources.get(cn.callee) is not None:
+                        return (module, [top])
+                ## No yield contract or builtin callee:
+                #  element type cannot be determined statically.
+                return (module, ["unknown"])
+            return (module, ["unknown"])
         local_candidates = self._collect_container_candidates(module, tracer, container_name, tracers)
         if local_candidates:
             return (module, local_candidates)
@@ -1012,17 +1077,27 @@ class ProjectAnalyzer:
 
     # ── structured source resolution ─────────────────────────────────────
 
-    def _resolve_structured_source(self, module, direct_source, tracers):
+    def _resolve_structured_source(self, module, direct_source, tracers,
+                                   _seen=None):
+        if _seen is None:
+            _seen = set()
         direct_source = normalize_source(direct_source)
         if isinstance(direct_source, SourceSet):
             ## 7B-full PR7-final: converge-check all candidates.
-            primary = self._resolve_sourceset_primary(module, direct_source, tracers)
+            primary = self._resolve_sourceset_primary(
+                module, direct_source, tracers, _seen=set(_seen))
             if primary:
                 return (source_display(direct_source), module, primary)
+            ## Element-derived builtins select one runtime value.  When the
+            # candidates do not converge, choosing the first source would
+            # manufacture an owner; retain every origin as alternatives.
+            if direct_source.origin == "builtin_element":
+                return (source_display(direct_source), module, "unknown")
             ## No convergence: fall back to str pick-first (branch imports).
             for src in direct_source.sources:
                 if isinstance(src, str):
-                    top = self._top_source(module, src, tracers)
+                    top = self._top_source(
+                        module, src, tracers, _seen=set(_seen))
                     if top and top not in ("local", "python", "unknown", ""):
                         return (source_display(direct_source), module, src)
             for src in direct_source.sources:
@@ -1036,6 +1111,8 @@ class ProjectAnalyzer:
             kind, a, b = "container_iter", direct_source.container, "*"
         elif isinstance(direct_source, InstanceMethod):
             kind, a, b = "instance_method", direct_source.receiver, direct_source.method
+        elif isinstance(direct_source, SuperMethod):
+            kind, a, b = "super_method", direct_source.class_key, direct_source.method
         elif isinstance(direct_source, CallResult):
             kind, a, b = "call_result", direct_source.callee, None
             callee_display = direct_source.display_name or direct_source.callee
@@ -1050,10 +1127,12 @@ class ProjectAnalyzer:
                 src_module, src_symbol = resolved
                 return (f"{a}[{b}]", src_module, src_symbol)
             if is_structured_source(a):
-                structured = self._resolve_structured_source(module, a, tracers)
+                structured = self._resolve_structured_source(
+                    module, a, tracers, _seen=set(_seen))
                 if structured is not None:
                     _, src_module, src_symbol = structured
-                    top = self._top_source(src_module, src_symbol, tracers)
+                    top = self._top_source(
+                        src_module, src_symbol, tracers, _seen=set(_seen))
                     if top and top not in ("local", "unknown", ""):
                         return (f"{a}[{b}]", src_module, top)
             return (f"{a}[{b}]", module, a)
@@ -1062,6 +1141,19 @@ class ProjectAnalyzer:
             tracer = tracers.get(module)
             if not tracer:
                 return None
+            if is_structured_source(a):
+                receiver = self._resolve_structured_source(
+                    module, a, tracers, _seen=set(_seen))
+                if receiver is None:
+                    return (f"{source_display(a)}.{b}", module, "unknown")
+                _, receiver_module, receiver_symbol = receiver
+                receiver_top = self._top_source(
+                    receiver_module, receiver_symbol, tracers,
+                    _seen=set(_seen))
+                if not receiver_top:
+                    receiver_top = "unknown"
+                return (f"{source_display(a)}.{b}",
+                        receiver_module, receiver_top)
             if a in tracer.import_from_symbols:
                 class_symbol = a
             else:
@@ -1128,16 +1220,15 @@ class ProjectAnalyzer:
                             return (f"{a}.{b}", cg_mod, cg_top)
                         return (f"{a}.{b}", module, "local")
                     if isinstance(class_symbol, str) and '.' in class_symbol:
-                        top = self._top_source(module, class_symbol, tracers)
+                        top = self._top_source(
+                            module, class_symbol, tracers, _seen=set(_seen))
                         if top and top not in ("local", "python", "unknown", ""):
                             return (f"{a}.{b}", module, top)
                     # 1.0.5 P1: builtin container method on receiver
                     # whose container kind is known from the tracer.
-                    # Only apply to module-level receivers (names in
-                    # tracer.symbols.direct); function-local containers
-                    # doing internal data-structure building should
-                    # stay local.  (Path 1 in single_file visit_Call
-                    # applies the same gate.)
+                    # This fallback only sees module-level legacy maps.
+                    # Function-local receiver kinds are carried by the
+                    # call-site snapshot from single_file.
                     kind = _receiver_container_kind(tracer, a)
                     if (kind is not None
                             and b in _BUILTIN_CONTAINER_METHODS.get(kind, frozenset())
@@ -1146,7 +1237,8 @@ class ProjectAnalyzer:
                     return None
             src_module, src_symbol = resolved
             ## 7B-full PR3: if the resolved method is local, try constructor attrs.
-            top = self._top_source(src_module, src_symbol, tracers)
+            top = self._top_source(
+                src_module, src_symbol, tracers, _seen=set(_seen))
             if top in ("local", "unknown", ""):
                 cg_attr = self._lookup_cg_class_attr_source(
                     module, class_symbol, b)
@@ -1155,10 +1247,46 @@ class ProjectAnalyzer:
                     return (f"{a}.{b}", cg_mod, cg_top)
             return (f"{a}.{b}", src_module, src_symbol)
 
+        if kind == "super_method":
+            ## 1.0.5 P2: resolve super().method() owner from base classes.
+            class_key, method = a, b
+            tracer = tracers.get(module)
+            if not tracer:
+                return None
+            bases = tracer.class_bases.get(class_key, [])
+            resolved_owners = []
+            for base_symbol in bases:
+                if base_symbol in tracer.class_methods:
+                    if method in tracer.class_methods[base_symbol]:
+                        resolved_owners.append("local")
+                        continue
+                base_direct = normalize_source(tracer.symbols.direct.get(base_symbol))
+                if isinstance(base_direct, CallResult):
+                    base_direct = base_direct.callee
+                if isinstance(base_direct, str) and base_direct not in ("local", "python", "unknown", ""):
+                    top = self._top_source(
+                        module, base_direct, tracers, _seen=set(_seen))
+                    if top and top not in ("local", "python", "unknown", ""):
+                        resolved_owners.append(top)
+                        continue
+                if isinstance(base_symbol, str) and '.' in base_symbol:
+                    top = self._top_source(
+                        module, base_symbol, tracers, _seen=set(_seen))
+                    if top and top not in ("local", "python", "unknown", ""):
+                        resolved_owners.append(top)
+                        continue
+            unique = list(dict.fromkeys(resolved_owners))  # preserve order
+            if len(unique) == 1:
+                return (f"super().{method}", module, unique[0])
+            if len(unique) > 1:
+                return (f"super().{method}", module, "unknown")
+            return (f"super().{method}", module, "local")
+
         if kind == "container_iter":
             resolved = self._resolve_container_iter(module, a, tracers)
             if not resolved:
-                return None
+                ## Cannot determine element type — conservative fallback.
+                return (f"{a}[*]", module, "unknown")
             src_module, candidates = resolved
             if len(candidates) == 1:
                 src_symbol = candidates[0]
@@ -1168,6 +1296,33 @@ class ProjectAnalyzer:
 
         if kind == "call_result":
             callee = a
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            rs_explicit = getattr(direct_source, 'result_source', None)
+            if rs_explicit is not None:
+                if isinstance(rs_explicit, UnknownSource):
+                    return (f"{callee_display or callee}()", module, "unknown")
+                if rs_explicit == "python":
+                    return (f"{callee_display or callee}()", module, "python")
+                if isinstance(rs_explicit, DerivedResult):
+                    ## 1.0.5 P2: resolve derived result from operands.
+                    if rs_explicit.kind == "iterator":
+                        return (f"{callee_display or callee}()",
+                                module, "unknown")
+                    candidates = self._origin_candidates(
+                        module, rs_explicit, tracers,
+                        _seen=set(_seen))
+                    unique = self._dedupe_list([
+                        candidate for candidate in candidates
+                        if candidate not in ("", None)
+                    ])
+                    if len(unique) == 1 and unique[0] != "unknown":
+                        return (f"{callee_display or callee}()",
+                                module, unique[0])
+                    return (f"{callee_display or callee}()", module, "unknown")
+                elif isinstance(rs_explicit, str) and rs_explicit not in ("local", "unknown", ""):
+                    # Module name string (from __import__("literal")) or
+                    # other explicit library name.  This IS the top_library.
+                    return (f"{callee_display or callee}()", module, rs_explicit)
             cr_lineno = getattr(direct_source, 'call_lineno', 0) or 0
             cr_col = getattr(direct_source, 'call_col_offset', 0) or 0
             if isinstance(callee, SourceSet):
@@ -1181,9 +1336,11 @@ class ProjectAnalyzer:
                     callee_chain = [callee]
                 else:
                     gs.add((module, callee))
-                    callee_chain = self.trace_symbol(module, callee, tracers, set())
+                    callee_chain = self.trace_symbol(
+                        module, callee, tracers, set(_seen))
             else:
-                callee_chain = self.trace_symbol(module, callee, tracers, set())
+                callee_chain = self.trace_symbol(
+                    module, callee, tracers, set(_seen))
             def_module = module
             for item in reversed(callee_chain):
                 if isinstance(item, str) and self.is_local(item):
@@ -1745,7 +1902,8 @@ class ProjectAnalyzer:
             if param_chain:
                 return param_chain
 
-        structured = self._resolve_structured_source(module, direct_source, tracers)
+        structured = self._resolve_structured_source(
+            module, direct_source, tracers, _seen=set(visited))
         if structured is not None:
             display_name, src_module, src_symbol = structured
             sub_chain = self.trace_symbol(src_module, src_symbol, tracers, visited)
@@ -1759,12 +1917,18 @@ class ProjectAnalyzer:
                 and _is_import_origin(src_tracer, src_symbol)
             ):
                 return [symbol, display_name, src_symbol]
-            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or _is_builtin(src_symbol)):
+            if isinstance(src_symbol, str) and ('.' in src_symbol or '[' in src_symbol or src_symbol == 'local' or _is_builtin(src_symbol) or src_symbol in ("unknown", "python")):
                 if '.' in src_symbol:
                     first = src_symbol.split('.')[0]
                     full_first = self.module_mapper.resolve_module_name(first, src_module)
                     if self.is_local(full_first):
                         return [symbol, display_name, src_module]
+                return [symbol, display_name, src_symbol]
+            ## 1.0.5 P2: explicit result_source (__import__("os") → "os")
+            #  is already a terminal library name — use directly.
+            if (isinstance(direct_source, CallResult)
+                    and isinstance(getattr(direct_source, 'result_source', None), str)
+                    and src_symbol == getattr(direct_source, 'result_source', None)):
                 return [symbol, display_name, src_symbol]
             return [symbol, display_name, src_module]
 
@@ -1807,7 +1971,7 @@ class ProjectAnalyzer:
     #  @param symbol The symbol to resolve.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return Top-level library name (e.g. "requests", "python").
-    def _top_source(self, src_module, symbol, tracers):
+    def _top_source(self, src_module, symbol, tracers, _seen=None):
         if not symbol:
             return None
         if isinstance(symbol, str) and _is_builtin(symbol):
@@ -1815,7 +1979,8 @@ class ProjectAnalyzer:
         src_tracer = tracers.get(src_module)
         if src_tracer and self._is_known_local_symbol(src_tracer, symbol):
             return "local"
-        chain = self.trace_symbol(src_module, symbol, tracers, set())
+        visited = set(_seen) if _seen is not None else set()
+        chain = self.trace_symbol(src_module, symbol, tracers, visited)
         if chain:
             top = self.extract_final_source(chain)
             if top in ("local", "python", "unknown", ""):

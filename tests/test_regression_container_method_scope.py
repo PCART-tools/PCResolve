@@ -1,8 +1,6 @@
-# 1.0.5: container method classification must distinguish module-level
-# containers (python) from function-local containers (local).
-# Regression test for hfhd container fix over-reach:
-# stp.append(...) and Sigma_hat_list.append(...) should be local,
-# while module-level list.append() and dict.get() should stay python.
+# 1.0.5: builtin container ownership follows the receiver's concrete
+# Python type in every lexical scope. Scope-aware metadata prevents a
+# same-name local object in another function from inheriting that type.
 
 from pcresolve import analyze_project
 import os
@@ -48,19 +46,19 @@ def test_module_level_listcomp_append_is_python():
         f"Expected python, got {call.top_library} for {call.expression}"
 
 
-def test_function_local_list_append_is_local():
-    """local_list.append(1) inside helper_build_list() should be local."""
+def test_function_local_list_append_is_python():
+    """A function-local list still exposes Python's list.append."""
     result = analyze_project(FIXTURE_DIR)
     call = _find_call(result.all_api_calls, "local_list.append(1)")
     assert call is not None, "local_list.append(1) not found"
-    assert call.top_library == "local", \
-        f"Expected local, got {call.top_library} for {call.expression}"
+    assert call.top_library == "python", \
+        f"Expected python, got {call.top_library} for {call.expression}"
 
 
-def test_function_local_listcomp_append_is_local():
-    """local_listcomp.append(4) inside helper_build_listcomp() should be local."""
+def test_function_local_listcomp_append_is_python():
+    """A function-local list comprehension produces a Python list."""
     result = analyze_project(FIXTURE_DIR)
     call = _find_call(result.all_api_calls, "local_listcomp.append(4)")
     assert call is not None, "local_listcomp.append(4) not found"
-    assert call.top_library == "local", \
-        f"Expected local, got {call.top_library} for {call.expression}"
+    assert call.top_library == "python", \
+        f"Expected python, got {call.top_library} for {call.expression}"

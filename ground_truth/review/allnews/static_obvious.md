@@ -1,4 +1,4 @@
-# allnews — static_obvious (460 records)
+# allnews — static_obvious (459 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -215,7 +215,7 @@
 | allnews_am/wikiextractor/WikiExtractor.py:1810:7 | `re.match('<(?:strong\|span\|p\|div)\\s(?:[^\\s>]*\\s+)*?class="(?:[...` | library / re | library / re | direct_import | static_obvious | v: direct import-backed API call |
 | allnews_am/wikiextractor/WikiExtractor.py:1840:11 | `len(pair)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:1864:16 | `modules.get(module)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| allnews_am/wikiextractor/WikiExtractor.py:1866:16 | `functions.get(function)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| allnews_am/wikiextractor/WikiExtractor.py:1866:16 | `functions.get(function)` | python / python | local / local | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:1868:19 | `text_type(funct(args))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:1868:29 | `funct(args)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | allnews_am/wikiextractor/WikiExtractor.py:1904:43 | `lcfirst(string)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -279,7 +279,6 @@
 | allnews_am/wikiextractor/WikiExtractor.py:2751:17 | `codecs.open(output_file, 'wb', 'utf-8')` | library / codecs | library / codecs | direct_import | static_obvious | v: direct import-backed API call |
 | allnews_am/wikiextractor/WikiExtractor.py:2752:33 | `enumerate(pages_from(file))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:2752:43 | `pages_from(file)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| allnews_am/wikiextractor/WikiExtractor.py:2758:24 | `title.find(':')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:2767:19 | `''.join(page)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:2768:12 | `define_template(title, text)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | allnews_am/wikiextractor/WikiExtractor.py:2781:12 | `logging.info('Preprocessed %d pages', page_count)` | library / logging | library / logging | direct_import | static_obvious | v: direct import-backed API call |

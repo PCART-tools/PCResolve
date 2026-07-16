@@ -1,4 +1,4 @@
-# EJPLab — static_obvious (43 records)
+# EJPLab — static_obvious (40 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -13,8 +13,6 @@
 | extract_model_embeddings.py:30:0 | `plt.rc('font', size=13)` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:33:34 | `plt.cycler(color=sns.color_palette())` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:33:51 | `sns.color_palette()` | library / seaborn | library / seaborn | direct_import | static_obvious | v: direct import-backed API call |
-| extract_model_embeddings.py:39:20 | `input_ids.to(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| extract_model_embeddings.py:40:25 | `attention_mask.to(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | extract_model_embeddings.py:41:17 | `model(input_ids, attention_mask=attention_mask, output_hidden_state...` | library / sys | library / sys | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:43:24 | `torch.stack(output.hidden_states)` | library / torch | library / torch | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:43:24 | `torch.stack(output.hidden_states).transpose(0, 1)` | library / torch | library / torch | direct_import | static_obvious | v: direct import-backed API call |
@@ -26,7 +24,6 @@
 | extract_model_embeddings.py:56:9 | `torch.no_grad()` | library / torch | library / torch | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:57:26 | `enumerate(dataloader)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | extract_model_embeddings.py:58:28 | `process_batch(batch)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| extract_model_embeddings.py:59:12 | `all_hidden_states.append(hidden_states)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | extract_model_embeddings.py:61:24 | `np.concatenate(all_hidden_states, axis=0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:69:14 | `pd.read_csv('TestingDataset.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
 | extract_model_embeddings.py:70:15 | `pd.read_csv('TrainingDataset.csv')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |

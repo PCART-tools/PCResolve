@@ -10,9 +10,11 @@
 #
 #  High-confidence rules (priority order):
 #
-#    DIRECT_IMPORT        -> expected=pcresolve, category=direct_import,
+#    DIRECT_IMPORT + source import binding
+#                         -> expected=pcresolve, category=direct_import,
 #                            verification_level=static_obvious
-#    BUILTIN              -> expected=python/python, category=builtin,
+#    BUILTIN + literal receiver
+#                         -> expected=python/python, category=builtin,
 #                            verification_level=static_obvious
 #    decorated_by non-empty
 #       + top=local       -> expected=local/local,
@@ -23,6 +25,8 @@
 #                            verification_level=static_obvious
 #
 #  NOT auto-labeled (stay draft for human review):
+#    - DIRECT_IMPORT reason without a matching source import binding
+#    - Bare or dotted builtin names without independent scope evidence
 #    - TRANSITIVE_IMPORT
 #    - RETURN_PROPAGATION / PARAMETER_PROPAGATION
 #    - LOCAL_DEFINITION + top!=local
@@ -37,6 +41,7 @@
 #    python scripts/auto_label_gt.py --project django        # single project
 #    python scripts/auto_label_gt.py --dry-run               # preview only
 
+import ast
 import json
 import os
 import sys
@@ -54,8 +59,86 @@ def _kind_from_top(top):
     return "library"
 
 
-def _auto_label(rec):
+## Collect unambiguous, file-wide import bindings from a Python source file.
+#
+#  Any non-import binding of the same name removes the alias from the result.
+#  This deliberately under-labels when scope or assignment order would require
+#  deeper reasoning; such records belong in the grouped review queue.
+#  @param source_path Python source path.
+#  @return Dict mapping source alias to imported top-level module.
+def _collect_import_bindings(source_path):
+    try:
+        with open(source_path, encoding="utf-8") as stream:
+            tree = ast.parse(stream.read(), filename=source_path)
+    except (OSError, SyntaxError, UnicodeError):
+        return {}
+
+    candidates = {}
+    shadowed = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".")[0]
+                top = alias.name.split(".")[0]
+                candidates.setdefault(bound, set()).add(top)
+        elif isinstance(node, ast.ImportFrom):
+            top = (node.module or "").split(".")[0]
+            if not top:
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                bound = alias.asname or alias.name
+                candidates.setdefault(bound, set()).add(top)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            shadowed.add(node.id)
+        elif isinstance(node, ast.arg):
+            shadowed.add(node.arg)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                               ast.ClassDef)):
+            shadowed.add(node.name)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            shadowed.add(node.name)
+
+    return {
+        name: next(iter(tops))
+        for name, tops in candidates.items()
+        if name not in shadowed and len(tops) == 1
+    }
+
+
+## Check that a callable root is independently bound by an import statement.
+#  @param func_name Resolved callable display name.
+#  @param top Expected import-backed top-level module.
+#  @param import_bindings Dict returned by _collect_import_bindings().
+#  @return True when the source import independently supports the owner.
+def _has_import_binding(func_name, top, import_bindings):
+    if not import_bindings or not func_name or not top:
+        return False
+    root = func_name.split(".")[0].split("(")[0]
+    return import_bindings.get(root) == top
+
+
+## Clear fields produced by an earlier auto-label pass.
+#  @param rec Ground-truth record to reset to draft state.
+def _clear_previous_auto_label(rec):
+    if rec.get("annotation_status") != ANNOTATION_AUTO:
+        return
+    rec["expected_kind"] = ""
+    rec["expected_top_library"] = ""
+    rec["expected_alternatives"] = []
+    rec["expected_decorated_by"] = []
+    rec["status"] = ""
+    rec["annotation_status"] = "draft"
+    rec["category"] = ""
+    rec["verification_level"] = ""
+    rec["verification_notes"] = ""
+
+
+def _auto_label(rec, import_bindings=None):
     """Apply high-confidence auto-label rules. Returns True if labeled."""
+    _clear_previous_auto_label(rec)
     reason = rec.get("pcresolve_reason", "") or ""
     top = rec.get("pcresolve_top_library", "") or ""
     decorated_by = rec.get("pcresolve_decorated_by", []) or []
@@ -71,7 +154,8 @@ def _auto_label(rec):
     func_name = rec.get("pcresolve_func_name", "") or ""
     if (reason == "TRANSITIVE_IMPORT"
             and _kind_from_top(top) == "library"
-            and func_name.startswith(top + ".")):
+            and func_name.startswith(top + ".")
+            and _has_import_binding(func_name, top, import_bindings)):
         rec["expected_kind"] = "library"
         rec["expected_top_library"] = top
         # Chained calls through method results (e.g.
@@ -91,8 +175,10 @@ def _auto_label(rec):
         return True
 
     # -- Rule 1b: DIRECT_IMPORT ----------------------------------------------
-    if reason == "DIRECT_IMPORT":
-        rec["expected_kind"] = _kind_from_top(top)
+    if (reason == "DIRECT_IMPORT"
+            and _kind_from_top(top) == "library"
+            and _has_import_binding(func_name, top, import_bindings)):
+        rec["expected_kind"] = "library"
         rec["expected_top_library"] = top
         rec["category"] = "direct_import"
         rec["verification_level"] = "static_obvious"
@@ -101,16 +187,26 @@ def _auto_label(rec):
         rec["annotation_status"] = ANNOTATION_AUTO
         return True
 
-    # -- Rule 2: BUILTIN -----------------------------------------------------
+    # -- Rule 2: BUILTIN — independent evidence required --------------------
+    #  Only a literal receiver is independent of PCResolve's own scope and
+    #  reason output.  Bare names such as open() and dotted names such as
+    #  object.__new__ may be shadowed, so they remain draft until a separate
+    #  scope-evidence verifier confirms the binding.
     if reason == "BUILTIN":
-        rec["expected_kind"] = "python"
-        rec["expected_top_library"] = "python"
-        rec["category"] = "builtin"
-        rec["verification_level"] = "static_obvious"
-        rec["verification_notes"] = "Python builtin function or method call"
-        rec["status"] = "positive"
-        rec["annotation_status"] = ANNOTATION_AUTO
-        return True
+        func_name = rec.get("pcresolve_func_name", "") or ""
+        first_token = func_name.split(".")[0] if func_name else ""
+
+        # Literal string receiver, e.g. "{}".format(...).
+        if first_token and (first_token.startswith("'") or first_token.startswith('"')):
+            rec["expected_kind"] = "python"
+            rec["expected_top_library"] = "python"
+            rec["category"] = "builtin"
+            rec["verification_level"] = "static_obvious"
+            rec["verification_notes"] = "Python string literal method call"
+            rec["status"] = "positive"
+            rec["annotation_status"] = ANNOTATION_AUTO
+            return True
+        return False
 
     # -- Rule 3: decorated_by non-empty, top=local ---------------------------
     # Must precede LOCAL_DEFINITION — a decorated local callable needs
@@ -206,6 +302,9 @@ def main():
                 if line.strip():
                     records.append(json.loads(line))
 
+        project_root = os.path.abspath(os.path.join(
+            GT_DIR, "..", manifest.get(name, {}).get("path", "")))
+        import_cache = {}
         labeled = 0
         kept = 0
         for rec in records:
@@ -213,7 +312,11 @@ def main():
                 continue  # Don't touch already-reviewed records
             if rec.get("source") == "manual_gt":
                 continue  # Manual entries need human review
-            if _auto_label(rec):
+            rel_path = rec.get("file", "")
+            if rel_path not in import_cache:
+                import_cache[rel_path] = _collect_import_bindings(
+                    os.path.join(project_root, rel_path))
+            if _auto_label(rec, import_cache[rel_path]):
                 labeled += 1
             else:
                 kept += 1

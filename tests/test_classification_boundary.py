@@ -945,6 +945,45 @@ def test_local_function_return_propagates_library_to_caller():
             f"x.sum() should be numpy, got {c.top_library}"
 
 
+def test_local_method_return_owns_direct_chained_call():
+    """self.make().find() follows the local method's explicit return."""
+    code = (
+        "from bs4 import BeautifulSoup\n"
+        "class Parser:\n"
+        "    def make(self):\n"
+        "        return BeautifulSoup('<div></div>', 'html.parser')\n"
+        "    def run(self):\n"
+        "        return self.make().find('div')\n"
+        "Parser().run()\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.make().find('div')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "bs4"
+
+
+def test_parameter_return_does_not_guess_direct_chain_owner():
+    """A local identity method does not promote its parameter's owner."""
+    code = (
+        "class Wrapper:\n"
+        "    def identity(self, value):\n"
+        "        return value\n"
+        "    def run(self, value):\n"
+        "        return self.identity(value).find('x')\n"
+        "Wrapper().run(object())\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.identity(value).find('x')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library in ("local", "unknown")
+
+
 def test_same_name_function_across_modules_not_polluted():
     """a.py: make_arr -> numpy; b.py: make_arr -> local list; b calls own, must not become numpy."""
     from pcresolve.cross_file import ProjectAnalyzer

@@ -132,12 +132,12 @@ def test_comprehension_list_append_is_python(result):
 
 # --- P1: Parameter-sourced containers ---
 
-def test_append_from_param_is_local(result):
-    """buf.append(x) where buf=[] is function-local → local (1.0.5 over-reach fix)."""
+def test_append_from_param_is_python(result):
+    """buf.append(x) belongs to Python after buf is bound to a list."""
     c = _find_call(result.all_api_calls, "buf.append(")
     assert c is not None, "buf.append call not found"
-    assert c.top_library == "local", \
-        f"buf.append(function-local container) should be local, got {c.top_library}"
+    assert c.top_library == "python", \
+        f"buf.append on list should be python, got {c.top_library}"
 
 
 # --- P1: String methods ---
@@ -234,12 +234,12 @@ def test_bag_pop_is_local(result):
 
 # --- Re-binding test ---
 
-def test_rebind_first_append_is_local(result):
-    """x = []; x.append(0) inside function → local (1.0.5 over-reach fix)."""
+def test_rebind_first_append_is_python(result):
+    """x.append(0) belongs to Python before x is rebound to Bag."""
     c = _find_call(result.all_api_calls, "x.append(0)")
     assert c is not None, "x.append(0) not found"
-    assert c.top_library == "local", \
-        f"x.append(0) function-local container should be local, got {c.top_library}"
+    assert c.top_library == "python", \
+        f"x.append(0) on list should be python, got {c.top_library}"
 
 
 def test_rebind_second_append_is_local(result):
@@ -313,12 +313,12 @@ def test_defaultdict_bag_append_is_local(result):
 
 # --- Re-binding with defaultdict ---
 
-def test_defaultdict_rebind_subscript_is_local(result):
-    """d_rebind=defaultdict(list) inside function → local (1.0.5 over-reach fix)."""
+def test_defaultdict_rebind_subscript_is_python(result):
+    """defaultdict(list) items expose Python list methods before rebinding."""
     c = _find_call(result.all_api_calls, "d_rebind['a'].append(")
     assert c is not None, "d_rebind['a'].append(1) not found"
-    assert c.top_library == "local", \
-        f"defaultdict(list)[k].append(function-local) should be local, got {c.top_library}"
+    assert c.top_library == "python", \
+        f"defaultdict(list)[k].append should be python, got {c.top_library}"
 
 
 def test_defaultdict_rebind_method_is_local(result):

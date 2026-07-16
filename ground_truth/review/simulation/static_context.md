@@ -1,4 +1,4 @@
-# simulation — static_context (44 records)
+# simulation — static_context (45 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -39,6 +39,7 @@
 | main.py:65:6 | `solve.solve_mandel(gb, d, kw_f, kw_m, v_f, v_m, assembler, bc_dict)` | local / local | local / local | local_call | static_context | v: solve.solve_mandel is a function defined in local project module |
 | main.py:71:0 | `export_results.generate_csv(gb, d, kw_f, kw_m, v_f, v_m, plot_times...` | local / local | local / local | local_call | static_context | v: export_results.generate_csv is a function defined in local project module |
 | create_grid.py:37:9 | `network_2d.mesh(mesh_args)` | library / porepy | library / porepy | transitive_method | static_context | v: import porepy as pp; network_2d.mesh is porepy method |
+| discretization.py:48:19 | `super().assemble_matrix_rhs(g, d)` | library / porepy | library / porepy | transitive_method | static_context | v: ImplicitMpfa inherits pp.Mpfa; super().assemble_matrix_rhs resolves to the impor |
 | discretization.py:64:4 | `biot_discretizer._discretize_mech(g, d)` | library / porepy | library / porepy | transitive_method | static_context | v: biot_discretizer is a porepy Biot discretization object; ._discretize_mech is po |
 | discretization.py:65:4 | `biot_discretizer._discretize_flow(g, d)` | library / porepy | library / porepy | transitive_method | static_context | v: biot_discretizer is a porepy Biot discretization object; ._discretize_flow is po |
 | discretization.py:81:23 | `ImplicitMassMatrix(kw_f, v_1)` | library / porepy | library / porepy | direct_import | static_context | v: from porepy imports; ImplicitMassMatrix is a porepy class |

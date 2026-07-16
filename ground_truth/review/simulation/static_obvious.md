@@ -1,4 +1,4 @@
-# simulation — static_obvious (149 records)
+# simulation — static_obvious (148 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -129,7 +129,6 @@
 | main.py:36:4 | `pp.initialize_default_data(g, d, kw_m)` | library / porepy | library / porepy | direct_import | static_obvious | v: direct import-backed API call |
 | create_grid.py:28:17 | `pp.FractureNetwork2d(None, None, domain)` | library / porepy | library / porepy | direct_import | static_obvious | v: direct import-backed API call |
 | discretization.py:48:19 | `super()` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| discretization.py:48:19 | `super().assemble_matrix_rhs(g, d)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | discretization.py:63:23 | `pp.Biot(kw_m, kw_f, v_0, v_1)` | library / porepy | library / porepy | direct_import | static_obvious | v: direct import-backed API call |
 | discretization.py:79:23 | `pp.Mpsa(kw_m)` | library / porepy | library / porepy | direct_import | static_obvious | v: direct import-backed API call |
 | discretization.py:82:23 | `ImplicitMpfa(kw_f)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

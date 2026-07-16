@@ -11,8 +11,10 @@ from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
 from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
-from .sources import (ContainerItem, ContainerIter, InstanceMethod, CallResult,
-                       SourceSet, normalize_source, source_display, make_source_set)
+from .sources import (ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
+                       DerivedResult, UnknownSource,
+                       SourceSet, is_structured_source, normalize_source,
+                       source_display, make_source_set)
 from .call_graph import (FunctionId, FunctionSummary, ClassSummary, CallEdge,
                          ModuleCallGraph)
 
@@ -63,6 +65,200 @@ def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 
 
+## 1.0.5 P2: builtin return-object ownership semantics.
+#
+#  Maps builtin callable names to their result_source:
+#  - "python": result object is a Python-provided type (open, list, str, …).
+#  - None: use legacy return_sources / call-graph resolution.
+#  - "unknown": result is statically unresolvable (eval, dynamic __import__).
+_BUILTIN_PYTHON_OWNED_RESULT = frozenset({
+    "open", "super",
+    "str", "int", "float", "bool", "list", "dict", "set", "tuple",
+    "bytes", "bytearray", "complex", "frozenset", "object",
+    "range", "slice", "memoryview",
+    "staticmethod", "classmethod", "property",
+    "enumerate", "filter", "map", "zip", "sorted",
+    "len", "print", "exec",
+    "Exception", "ValueError", "TypeError", "KeyError", "IndexError",
+    "RuntimeError", "StopIteration", "OSError", "NotImplementedError",
+    "AttributeError", "ImportError", "NameError", "SyntaxError",
+    "ZeroDivisionError", "OverflowError", "EOFError", "IOError",
+    "FileNotFoundError", "StopAsyncIteration",
+})
+
+_BUILTIN_ARBITRARY_RESULT = frozenset({
+    "eval", "exec",
+})
+
+_BUILTIN_ELEMENT_DERIVED = frozenset({"next", "min", "max"})
+_BUILTIN_PROTOCOL_DERIVED = frozenset({"abs"})
+
+
+## Check whether a builtin name is not shadowed by a local definition.
+#
+#  @param self SingleFileAnalyzer instance.
+#  @param node The ast.Call node.
+#  @return True if the call is to an unshadowed builtin.
+def _is_unshadowed_builtin_call(tracer, node):
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Name):
+        return False
+    name = node.func.id
+    if not _is_builtin(name):
+        return False
+    if name in tracer.defined_functions:
+        return False
+    if name in tracer.import_from_symbols:
+        return False
+    if name in tracer.local:
+        return False
+    # Check scope binding for shadowing
+    if tracer.scope_model == "v2":
+        binding = tracer.current_scope().lookup(name)
+        if binding is not None:
+            return False
+    return True
+
+
+## Trace an expression used as a builtin result candidate.
+#
+#  Literal values are Python-owned.  Other expressions retain their full
+#  source IR so cross-file resolution can preserve every possible owner.
+#  @param node Candidate AST expression.
+#  @param trace_fn Callable to trace an AST expression.
+#  @return Source value or UnknownSource.
+def _builtin_value_source(node, trace_fn):
+    if isinstance(node, ast.Constant):
+        return "python"
+    source = trace_fn(node)
+    if source is not None:
+        return source
+    return UnknownSource("builtin value")
+
+
+## Resolve the element source carried by an iterable expression.
+#
+#  Named containers use ContainerIter so their tracked item bindings remain
+#  available cross-file.  iter()/reversed() results expose their element
+#  evidence without claiming that the iterator object's owner is the owner of
+#  each yielded value.
+#  @param node Iterable AST expression.
+#  @param trace_fn Callable to trace an AST expression.
+#  @return Source value describing the iterable's possible elements.
+def _iterable_element_source(node, trace_fn):
+    if isinstance(node, ast.Name):
+        traced = normalize_source(trace_fn(node))
+        if isinstance(traced, CallResult):
+            result_source = normalize_source(traced.result_source)
+            if (isinstance(result_source, DerivedResult)
+                    and result_source.kind == "iterator"
+                    and result_source.sources):
+                return result_source.sources[0]
+        return ContainerIter(node.id)
+
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        sources = [_builtin_value_source(elt, trace_fn) for elt in node.elts]
+        if sources:
+            return make_source_set(sources, origin="builtin_element")
+        return UnknownSource("empty iterable")
+
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id in ("iter", "reversed") and node.args:
+            return _iterable_element_source(node.args[0], trace_fn)
+        if node.func.id == "enumerate" and node.args:
+            # enumerate yields Python tuples regardless of the item owner.
+            return "python"
+
+    traced = normalize_source(trace_fn(node))
+    if isinstance(traced, CallResult):
+        result_source = normalize_source(traced.result_source)
+        if (isinstance(result_source, DerivedResult)
+                and result_source.kind == "iterator"
+                and result_source.sources):
+            return result_source.sources[0]
+    if traced is not None:
+        return ContainerIter(traced)
+    return UnknownSource("iterable element")
+
+
+## Resolve element source for min/max/next arguments.
+#
+#  min/max with multiple values select from those values.  Their one-argument
+#  forms and next() select an iterable element.  A default value is a separate
+#  possible result and therefore participates in the same SourceSet.
+#  @param name Bare builtin name.
+#  @param call_node The ast.Call node.
+#  @param trace_fn Callable to trace an AST expression.
+#  @return DerivedResult("element", ...) or UnknownSource.
+def _element_source(name, call_node, trace_fn):
+    sources = []
+    if name in ("min", "max") and len(call_node.args) > 1:
+        sources.extend(_builtin_value_source(arg, trace_fn)
+                       for arg in call_node.args)
+    elif call_node.args:
+        sources.append(_iterable_element_source(call_node.args[0], trace_fn))
+
+    if name in ("min", "max"):
+        for keyword in call_node.keywords:
+            if keyword.arg == "default":
+                sources.append(_builtin_value_source(keyword.value, trace_fn))
+    elif name == "next" and len(call_node.args) > 1:
+        sources.append(_builtin_value_source(call_node.args[1], trace_fn))
+
+    if not sources:
+        return UnknownSource("element")
+    return DerivedResult(
+        "element", (make_source_set(sources, origin="builtin_element"),))
+
+
+## Return the result_source for a known builtin callable.
+#
+#  @param name Bare builtin name.
+#  @param call_node The ast.Call node (for argument tracing).
+#  @param trace_fn Callable to trace an AST expression to its source.
+#  @return "python", UnknownSource, DerivedResult, module name string, or None.
+def _resolve_builtin_result(name, call_node, trace_fn):
+    if not isinstance(name, str):
+        return None
+    if name in _BUILTIN_PYTHON_OWNED_RESULT:
+        return "python"
+    if name in _BUILTIN_ARBITRARY_RESULT:
+        return UnknownSource(name)
+    if name in _BUILTIN_ELEMENT_DERIVED and call_node and call_node.args:
+        return _element_source(name, call_node, trace_fn)
+    if name == "type" and call_node and call_node.args:
+        arg_node = call_node.args[0]
+        arg_source = trace_fn(arg_node)
+        if isinstance(arg_node, ast.Call):
+            # type(A()) — resolve the constructor's callee identity
+            from .sources import normalize_source as _ns
+            callee_id = None
+            if isinstance(arg_node.func, ast.Name):
+                callee_id = arg_node.func.id
+            elif isinstance(arg_node.func, ast.Attribute):
+                callee_id = trace_fn(arg_node)
+            if callee_id is not None:
+                callee_norm = _ns(callee_id)
+                if isinstance(callee_norm, CallResult) and isinstance(callee_norm.callee, str):
+                    callee_id = callee_norm.callee
+                return DerivedResult("type_of", (callee_id,))
+        if arg_source is not None:
+            return DerivedResult("type_of", (arg_source,))
+        return UnknownSource("type")
+    if name == "__import__" and call_node and call_node.args:
+        first_arg = call_node.args[0]
+        if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+            return first_arg.value.split(".")[0]
+        return UnknownSource("__import__")
+    if name in ("iter", "reversed") and call_node and call_node.args:
+        element = _iterable_element_source(call_node.args[0], trace_fn)
+        return DerivedResult("iterator", (element,))
+    if name in _BUILTIN_PROTOCOL_DERIVED:
+        return UnknownSource(name)
+    return None
+
+
 ## Check if a Call node is a defaultdict(list) call with a statically
 #  known default factory (list/dict/set/tuple/str).
 def _is_defaultdict_itemkind(node):
@@ -74,6 +270,42 @@ def _is_defaultdict_itemkind(node):
         return False
     factory = node.args[0]
     return isinstance(factory, ast.Name) and factory.id in ("list", "dict", "set", "tuple", "str")
+
+
+## Return the concrete Python container kind produced by an expression.
+#  @param node Assignment right-hand side AST node.
+#  @return Container kind string or None.
+def _container_kind(node):
+    if isinstance(node, (ast.List, ast.ListComp)):
+        return "list"
+    if isinstance(node, (ast.Dict, ast.DictComp)):
+        return "dict"
+    if isinstance(node, (ast.Set, ast.SetComp)):
+        return "set"
+    if isinstance(node, ast.Tuple):
+        return "tuple"
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return "str"
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id in ("list", "dict", "set", "tuple", "str"):
+            return node.func.id
+        if node.func.id == "defaultdict":
+            return "dict"
+    return None
+
+
+## Return the concrete kind produced by subscripting a container expression.
+#  Dict literals qualify only when every value has the same known kind.
+#  @param node Assignment right-hand side AST node.
+#  @return Item kind string or None.
+def _container_item_kind(node):
+    if isinstance(node, ast.Dict) and node.values:
+        kinds = [_container_kind(value) for value in node.values]
+        if kinds[0] is not None and all(kind == kinds[0] for kind in kinds):
+            return kinds[0]
+    if _is_defaultdict_itemkind(node):
+        return node.args[0].id
+    return None
 from .types import FileAnalysis, ApiCall
 
 # 1.0.5 P1: known conversion targets.  Method calls (to_numpy())
@@ -95,6 +327,18 @@ _RETURN_TYPE_MAP = {
     ("scipy", "cdist"): "numpy",
     ("scipy", "svd"): "numpy",
     ("numpy", "dot"): "numpy",
+    ("seaborn", "barplot"): "matplotlib",
+    ("seaborn", "stripplot"): "matplotlib",
+    ("seaborn", "swarmplot"): "matplotlib",
+}
+
+# Item kind produced by indexing selected builtin-method results.  Keep this
+# table limited to contracts guaranteed by Python itself; arbitrary local
+# methods with the same name do not enter this path unless their receiver kind
+# is independently known.
+_BUILTIN_METHOD_RESULT_ITEM_KINDS = {
+    ("str", "split"): "str",
+    ("str", "rsplit"): "str",
 }
 
 def _match_return_type(top, func_name):
@@ -159,6 +403,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.class_methods = {}
         self.class_bases = {}
         self.instance_attrs = {}
+        self.instance_attr_kinds = {}
+        self.instance_attr_item_kinds = {}
         self.import_from_symbols = {}
         self.wildcard_modules = []
         self.import_aliases = set()
@@ -206,15 +452,30 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param source Source value.
     #  @param node Optional AST node for position info.
     #  @param kind Optional symbol kind for provenance ("variable", "parameter", "attribute").
-    def _bind_target_name(self, name, source, node=None, kind="variable"):
+    def _bind_target_name(self, name, source, node=None, kind="variable",
+                          container_kind="", container_item_kind="",
+                          callable_key=""):
         self._assignment_counter += 1
         lineno = getattr(node, "lineno", 0) if node is not None else 0
         col = getattr(node, "col_offset", 0) if node is not None else 0
-        self.current_scope().bind(name, source, lineno, col, self._assignment_counter)
+        self.current_scope().bind(
+            name, source, lineno, col, self._assignment_counter,
+            container_kind=container_kind,
+            container_item_kind=container_item_kind,
+            callable_key=callable_key)
         if name in self._global_names or self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
             self.symbols.add(name, source)
         if name.startswith("self.") and self._class_stack:
-            self.instance_attrs[(self._class_stack[-1], name)] = source
+            attr_key = (self._class_stack[-1], name)
+            self.instance_attrs[attr_key] = source
+            if container_kind:
+                self.instance_attr_kinds[attr_key] = container_kind
+            else:
+                self.instance_attr_kinds.pop(attr_key, None)
+            if container_item_kind:
+                self.instance_attr_item_kinds[attr_key] = container_item_kind
+            else:
+                self.instance_attr_item_kinds.pop(attr_key, None)
         if kind:
             self._add_symbol_ref(name, source, kind, node)
 
@@ -234,6 +495,72 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return name
                 return binding.source
         return name
+
+    ## Return assignment metadata for a name in the active lexical scope.
+    #  A found binding with no metadata is authoritative and prevents a
+    #  same-name binding from another scope leaking through legacy maps.
+    #  @param name Receiver variable name.
+    #  @param item Whether to request the subscript item kind.
+    #  @return Container kind string or None.
+    def _lookup_container_kind(self, name, item=False):
+        binding = self.current_scope().lookup(
+            name, skip_parent_classes=True)
+        if binding is not None:
+            attr = "container_item_kind" if item else "container_kind"
+            return getattr(binding, attr, "") or None
+        if item:
+            return self.container_item_kinds.get(name)
+        return self.container_kinds.get(name)
+
+    ## Return the container kind relevant to a method call receiver.
+    #  @param node The ast.Call node.
+    #  @return Container or subscript-item kind string, or None.
+    def _call_receiver_container_kind(self, node):
+        if not isinstance(node, ast.Call):
+            return None
+        if not isinstance(node.func, ast.Attribute):
+            return None
+        receiver = node.func.value
+        if isinstance(receiver, ast.Name):
+            return self._lookup_container_kind(receiver.id)
+        if isinstance(receiver, ast.Attribute) and self._class_stack:
+            name = self._attribute_name(receiver)
+            if name and name.startswith("self."):
+                return self.instance_attr_kinds.get(
+                    (self._class_stack[-1], name))
+        if (isinstance(receiver, ast.Subscript)
+                and isinstance(receiver.value, ast.Name)):
+            return self._lookup_container_kind(receiver.value.id, item=True)
+        if (isinstance(receiver, ast.Subscript)
+                and isinstance(receiver.value, ast.Attribute)
+                and self._class_stack):
+            name = self._attribute_name(receiver.value)
+            if name and name.startswith("self."):
+                return self.instance_attr_item_kinds.get(
+                    (self._class_stack[-1], name))
+        if (isinstance(receiver, ast.Subscript)
+                and isinstance(receiver.value, ast.Call)):
+            producer = receiver.value
+            producer_kind = self._call_receiver_container_kind(producer)
+            producer_method = (
+                producer.func.attr
+                if isinstance(producer.func, ast.Attribute) else "")
+            item_kind = _BUILTIN_METHOD_RESULT_ITEM_KINDS.get(
+                (producer_kind, producer_method))
+            if item_kind is not None:
+                return item_kind
+            producer_owner = self.get_base(producer, call_lookup=True)
+            if producer_owner == "python":
+                return _BUILTIN_METHOD_RESULT_ITEM_KINDS.get(
+                    ("str", producer_method))
+        return None
+
+    ## Build a scope-qualified key for a locally assigned callable.
+    #  @param name Assignment target name.
+    #  @return Stable key used in return_sources.
+    def _local_callable_key(self, name):
+        parts = list(self._class_stack) + list(self._func_stack) + [name]
+        return ".".join(parts)
 
     ## Record a SymbolRef for provenance tracking.
     #  @param symbol Display name.
@@ -380,6 +707,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                         return CallResult(src.receiver)
                                 if isinstance(src, str) and src != "local":
                                     return src
+                ## 1.0.5 P2: SuperMethod identifies the call target;
+                #  wrap in CallResult so the return value does not inherit
+                #  the base-class owner.  result_source=UnknownSource:
+                #  without return-type evidence, result is unknowable.
+                if isinstance(me, SuperMethod):
+                    return CallResult(me,
+                                      display_name="super().%s" % me.method,
+                                      call_lineno=node.lineno,
+                                      call_col_offset=node.col_offset,
+                                      result_source=UnknownSource("super()"))
                 return me
             ## For chained calls (A().B()), resolve via the inner call's
             ## return source so the outer call traces to the correct library.
@@ -405,10 +742,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return inner_source
                 if inner_source:
                     return inner_source
-            if isinstance(node.func, ast.Name) and (
-                node.func.id in self.defined_functions or node.func.id in self.class_methods
-            ):
-                call_key = node.func.id
+            if isinstance(node.func, ast.Name):
+                binding = self.current_scope().lookup(
+                    node.func.id, skip_parent_classes=True)
+                if binding is not None and binding.callable_key:
+                    call_key = binding.callable_key
+                elif (node.func.id in self.defined_functions
+                      or node.func.id in self.class_methods):
+                    call_key = node.func.id
+                else:
+                    call_key = self.get_base(node, call_lookup=True)
             else:
                 call_key = self.get_base(node, call_lookup=True)
             if call_key:
@@ -433,9 +776,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     pass
                 if isinstance(call_key, str) and '.' not in display:
                     display = ""
+                ## 1.0.5 P2: determine result-object ownership for builtin callees.
+                rs = None
+                if isinstance(call_key, str) and _is_unshadowed_builtin_call(self, node):
+                    rs = _resolve_builtin_result(call_key, node, self.trace_source)
                 return CallResult(call_key, display_name=display,
                                   call_lineno=node.lineno,
-                                  call_col_offset=node.col_offset)
+                                  call_col_offset=node.col_offset,
+                                  result_source=rs)
             return self.get_base(node.func)
         elif isinstance(node, ast.Attribute):
             name = self._attribute_name(node)
@@ -631,6 +979,46 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         re = func.value
         method_name = func.attr
 
+        ## 1.0.5 P2: super().method() — capture enclosing class context
+        #  while _class_stack is still available during AST visit.
+        if isinstance(re, ast.Call):
+            if isinstance(re.func, ast.Name) and re.func.id == "super":
+                if self._class_stack:
+                    class_key = self._class_stack[-1]
+                    class_qualname = ".".join(self._class_stack)
+                    return SuperMethod(class_key, class_qualname, method_name)
+                return InstanceMethod("super", method_name)
+
+            # A direct chained method belongs to the object explicitly
+            # returned by a project-local method.  Gate this path on local
+            # method identity so direct library calls such as np.log(...)
+            # continue through receiver-preserving return rules below.
+            inner_method = self._resolve_methods(re)
+            local_method = False
+            if (isinstance(inner_method, InstanceMethod)
+                    and isinstance(inner_method.receiver, str)):
+                local_method = inner_method.receiver in self.class_methods
+                if not local_method and self.scope_model == "v2":
+                    binding = self.current_scope().lookup(
+                        inner_method.receiver)
+                    if binding is not None:
+                        binding_source = normalize_source(binding.source)
+                        if (isinstance(binding_source, CallResult)
+                                and isinstance(binding_source.callee, str)):
+                            local_method = (
+                                binding_source.callee in self.class_methods)
+            if local_method:
+                result_source = normalize_source(self.trace_source(re))
+                if isinstance(result_source, CallResult):
+                    candidate = result_source.result_source
+                    if not isinstance(candidate, str):
+                        candidate = result_source.callee
+                    if isinstance(candidate, str):
+                        candidate_top = self.symbols.get_top(candidate)
+                        if candidate_top not in (
+                                None, "", "local", "python", "unknown"):
+                            return InstanceMethod(candidate, method_name)
+
         def _lookup_instance_attr(attr_name):
             if self._class_stack:
                 class_name = self._class_stack[-1]
@@ -666,6 +1054,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         if binding.source == "local":
                             return InstanceMethod(re.id, method_name)
                         src_norm = normalize_source(binding.source)
+                        if is_structured_source(src_norm):
+                            return InstanceMethod(src_norm, method_name)
                         if isinstance(src_norm, CallResult):
                             cn = src_norm.callee
                             if isinstance(cn, str) and cn in self.class_methods:
@@ -915,11 +1305,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  Handles simple names, self.attr, and tuple/list unpacking.
     #  @param target The assignment target AST node.
     #  @param source The source symbol or structured tuple.
-    def _target_to_source(self, target, source, kind="variable"):
+    def _target_to_source(self, target, source, kind="variable",
+                          container_kind="", container_item_kind=""):
         if not source:
             return
         if isinstance(target, ast.Name):
-            self._bind_target_name(target.id, source, target, kind)
+            self._bind_target_name(
+                target.id, source, target, kind,
+                container_kind=container_kind,
+                container_item_kind=container_item_kind)
             return
         if isinstance(target, ast.Attribute):
             name = self._attribute_name(target)
@@ -928,7 +1322,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
         if isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
-                self._target_to_source(elt, source, kind)
+                self._target_to_source(
+                    elt, source, kind,
+                    container_kind=container_kind,
+                    container_item_kind=container_item_kind)
 
     ## Trace the source of a for-loop iterator.
     #  @param iter_node The iterator AST node.
@@ -1013,6 +1410,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  right-hand side to bind target symbols.
     #  @param node The Assign AST node.
     def visit_Assign(self, node):
+        assignment_container_kind = _container_kind(node.value)
+        assignment_item_kind = _container_item_kind(node.value)
+
         ## Track literal assignments for static key resolution (PR7).
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, (str, int)):
             for target in node.targets:
@@ -1027,7 +1427,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     for key_node, value_node in zip(node.value.keys, node.value.values):
                         if isinstance(key_node, ast.Constant):
                             key_value = key_node.value
-                            value_source = self.trace_source(value_node) or self.get_base(value_node)
+                            if isinstance(value_node, ast.Constant):
+                                value_source = "python"
+                            else:
+                                value_source = (
+                                    self.trace_source(value_node)
+                                    or self.get_base(value_node))
                             if value_source:
                                 self.container_items[(container_name, key_value)] = value_source
 
@@ -1040,7 +1445,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     self.container_kinds[container_name] = (
                         "list" if isinstance(node.value, ast.List) else "tuple")
                     for i, elt in enumerate(node.value.elts):
-                        value_source = self.get_base(elt)
+                        value_source = _builtin_value_source(
+                            elt, self.get_base)
                         if value_source:
                             self.container_items[(container_name, i)] = value_source
 
@@ -1051,7 +1457,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     self.container_kinds[container_name] = "set"
                     bases = set()
                     for elt in node.value.elts:
-                        base = self.get_base(elt)
+                        base = _builtin_value_source(elt, self.get_base)
                         if base:
                             bases.add(base)
                     if bases:
@@ -1118,6 +1524,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if isinstance(elt, ast.Name):
                         targets.append(elt.id)
         right = self._visit_assignment(node, targets)
+        callable_keys = {}
+        if isinstance(node.value, ast.Lambda):
+            lambda_result = right or UnknownSource("lambda result")
+            for name in targets:
+                callable_key = self._local_callable_key(name)
+                callable_keys[name] = callable_key
+                self.return_sources[callable_key] = lambda_result
+            # The lambda expression defines a project-local callable. Its
+            # body source describes only the object returned by that call.
+            right = "local"
         if right:
             right_norm = normalize_source(right)
             for target in node.targets:
@@ -1135,7 +1551,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     ## skip self-assign: df = df[...] where right resolves to "df"
                     if isinstance(right, str) and right == target.id:
                         continue
-                    self._bind_target_name(target.id, right, target)
+                    self._bind_target_name(
+                        target.id, right, target,
+                        container_kind=assignment_container_kind or "",
+                        container_item_kind=assignment_item_kind or "",
+                        callable_key=callable_keys.get(target.id, ""))
                 elif isinstance(target, ast.Attribute):
                     name = self._attribute_name(target)
                     if name and name.startswith("self."):
@@ -1148,10 +1568,24 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             and right == "local"
                         ):
                             attr_source = node.value.id
-                        self._bind_target_name(name, attr_source, target)
+                        self._bind_target_name(
+                            name, attr_source, target,
+                            container_kind=assignment_container_kind or "",
+                            container_item_kind=assignment_item_kind or "")
                 elif isinstance(target, (ast.Tuple, ast.List)):
-                    for elt in target.elts:
+                    for index, elt in enumerate(target.elts):
                         if isinstance(elt, ast.Name):
+                            # Preserve positional provenance when unpacking a
+                            # named value.  Flattening every element to the
+                            # traced top (often "local" for a parameter)
+                            # allows a module-level symbol with the same name
+                            # to leak back in during cross-file resolution.
+                            if isinstance(node.value, ast.Name):
+                                self._bind_target_name(
+                                    elt.id,
+                                    ContainerItem(node.value.id, index),
+                                    elt)
+                                continue
                             if isinstance(right_norm, InstanceMethod):
                                 if isinstance(right_norm.receiver, str):
                                     # 1.0.5 P1: consult return-type map
@@ -1174,11 +1608,22 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         else:
             for target in node.targets:
                 if isinstance(target, ast.Name):
-                    self._bind_target_name(target.id, 'local', target)
+                    self._bind_target_name(
+                        target.id, 'local', target,
+                        container_kind=assignment_container_kind or "",
+                        container_item_kind=assignment_item_kind or "",
+                        callable_key=callable_keys.get(target.id, ""))
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
                             self._bind_target_name(elt.id, 'local', elt)
+                elif isinstance(target, ast.Attribute):
+                    name = self._attribute_name(target)
+                    if name and name.startswith("self."):
+                        self._bind_target_name(
+                            name, 'local', target,
+                            container_kind=assignment_container_kind or "",
+                            container_item_kind=assignment_item_kind or "")
         # 1.0.5 P0: generic_visit already called above, before target binding.
 
     ## Check whether a call expression is a known library→library conversion.
@@ -1337,14 +1782,28 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_AnnAssign(self, node):
         if node.value is None:
             return
+        assignment_container_kind = _container_kind(node.value)
+        assignment_item_kind = _container_item_kind(node.value)
         targets = []
         if isinstance(node.target, ast.Name):
             targets.append(node.target.id)
+        elif isinstance(node.target, ast.Attribute):
+            name = self._attribute_name(node.target)
+            if name and name.startswith("self."):
+                targets.append(name)
         elif isinstance(node.target, (ast.Tuple, ast.List)):
             for elt in node.target.elts:
                 if isinstance(elt, ast.Name):
                     targets.append(elt.id)
         right = self._visit_assignment(node, targets)
+        callable_keys = {}
+        if isinstance(node.value, ast.Lambda):
+            lambda_result = right or UnknownSource("lambda result")
+            for name in targets:
+                callable_key = self._local_callable_key(name)
+                callable_keys[name] = callable_key
+                self.return_sources[callable_key] = lambda_result
+            right = "local"
 
         if right:
             right_norm = normalize_source(right)
@@ -1352,14 +1811,36 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if isinstance(right, str) and right == node.target.id:
                     pass  # skip self-assign
                 else:
-                    self._bind_target_name(node.target.id, right, node.target)
+                    self._bind_target_name(
+                        node.target.id, right, node.target,
+                        container_kind=assignment_container_kind or "",
+                        container_item_kind=assignment_item_kind or "",
+                        callable_key=callable_keys.get(node.target.id, ""))
+            elif isinstance(node.target, ast.Attribute):
+                name = self._attribute_name(node.target)
+                if name and name.startswith("self."):
+                    self._bind_target_name(
+                        name, right, node.target,
+                        container_kind=assignment_container_kind or "",
+                        container_item_kind=assignment_item_kind or "")
             elif isinstance(node.target, (ast.Tuple, ast.List)):
                 for elt in node.target.elts:
                     if isinstance(elt, ast.Name):
                         self._bind_target_name(elt.id, right, elt)
         else:
             if isinstance(node.target, ast.Name):
-                self._bind_target_name(node.target.id, 'local', node.target)
+                self._bind_target_name(
+                    node.target.id, 'local', node.target,
+                    container_kind=assignment_container_kind or "",
+                    container_item_kind=assignment_item_kind or "",
+                    callable_key=callable_keys.get(node.target.id, ""))
+            elif isinstance(node.target, ast.Attribute):
+                name = self._attribute_name(node.target)
+                if name and name.startswith("self."):
+                    self._bind_target_name(
+                        name, 'local', node.target,
+                        container_kind=assignment_container_kind or "",
+                        container_item_kind=assignment_item_kind or "")
             elif isinstance(node.target, (ast.Tuple, ast.List)):
                 for elt in node.target.elts:
                     if isinstance(elt, ast.Name):
@@ -1397,7 +1878,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if isinstance(node.func.value, ast.Subscript):
                 sub = node.func.value
                 if isinstance(sub.value, ast.Name):
-                    item_kind = self.container_item_kinds.get(sub.value.id)
+                    item_kind = self._lookup_container_kind(
+                        sub.value.id, item=True)
                     if item_kind is not None:
                         return InstanceMethod(sub.value.id, node.func.attr)
         ## For chained calls (A().B()), resolve via the inner call's
@@ -1520,11 +2002,51 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             first = func_name.split('.')[0]
             loc['call_assign_func'] = self.call_assign_funcs.get(first)
 
+        # A concrete receiver kind determines the callable owner even when
+        # legacy base resolution represents the receiver as a plain string.
+        # This covers names, self attributes, and homogeneous subscript items.
+        receiver_kind = self._call_receiver_container_kind(node)
+        method_name = (
+            node.func.attr if isinstance(node.func, ast.Attribute) else "")
+        if (receiver_kind is not None
+                and method_name in _BUILTIN_CONTAINER_METHODS.get(
+                    receiver_kind, frozenset())):
+            loc["receiver_container_kind"] = receiver_kind
+            record = {
+                'api': api_string,
+                'top': 'python',
+                'chain': ['python'] if self.scope_model == "v2" else [],
+                'base': base,
+                'direct_name_callee': direct_name,
+            }
+            record.update(loc)
+            self.api_calls.append(record)
+            self._collect_call_site(api_string, func_name, parameters,
+                                    base, loc)
+            return
+
         if isinstance(base, CallResult):
             # Resolve top through the callee so s.get() shows 'requests'
             # instead of 'requests()' when s = Session().
             callee = base.callee
-            if isinstance(callee, str):
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            #  When set, it overrides callee-based tracing — the callable's
+            #  identity is determined by what the called function returns,
+            #  not who was called.
+            rs_explicit = getattr(base, 'result_source', None)
+            if rs_explicit is not None:
+                if isinstance(rs_explicit, UnknownSource):
+                    top = "unknown"
+                elif rs_explicit == "python":
+                    top = "python"
+                elif isinstance(rs_explicit, DerivedResult):
+                    # Structured: defer to cross_file for resolution.
+                    # In single-file, use source_display as placeholder.
+                    top = source_display(base)
+                else:
+                    # String source — direct ownership.
+                    top = str(rs_explicit)
+            elif isinstance(callee, str):
                 rs = self.return_sources.get(callee)
                 if rs is not None:
                     resolved = normalize_source(rs)
@@ -1564,7 +2086,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     base, loc)
             return
 
-        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, SourceSet)):
+        if isinstance(base, tuple) or isinstance(base, (ContainerItem, ContainerIter, InstanceMethod, SuperMethod, SourceSet)):
             # Unresolved compare receiver: owner cannot be determined.
             # Emit as unknown so the call is collected but not
             # misattributed to local.
@@ -1595,33 +2117,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 # (defaultdict(list) — receiver traces to collections
                 # but item kind is list).
                 #
-                # 1.0.5 P1 fix: container-kind→python only applies to
-                # module-level containers (names in symbol table).
-                # Function-local containers doing internal
-                # data-structure building (e.g. stp.append(),
-                # Sigma_hat_list.append()) should stay local — the
-                # callable IS Python's list.append but the usage
-                # context is internal scaffolding, not
-                # protocol-style API surface.
-                receiver_in_module_symbols = (
-                    base.receiver in self.symbols.direct)
                 rec_local = (top_from_receiver == "local")
                 if (not rec_local and self.scope_model == "v2"):
                     binding = self.current_scope().lookup(base.receiver)
                     if (binding is not None
                             and binding.source == "local"):
                         rec_local = True
-                # Check container/item kind.  Item kind takes
-                # precedence over container kind (defaultdict(list)
-                # sets item_kind=list even when a previous scope
-                # left container_kinds[receiver]=dict).
-                kind = self.container_item_kinds.get(base.receiver)
-                if kind is None:
-                    kind = self.container_kinds.get(base.receiver)
+                # Use the exact call receiver shape to distinguish
+                # d[k].append() item metadata from d.append(). Lexical
+                # binding metadata prevents same-name scope leakage.
+                kind = self._call_receiver_container_kind(node)
                 if rec_local or kind is not None:
                     if (kind is not None
-                            and base.method in _BUILTIN_CONTAINER_METHODS.get(kind, frozenset())
-                            and receiver_in_module_symbols):
+                            and base.method in _BUILTIN_CONTAINER_METHODS.get(
+                                kind, frozenset())):
                         display = "python"
                         # Record kind at call-site time so cross-file
                         # phase doesn't see later invalidation.
@@ -1919,9 +2428,129 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     ## Visit a For node and bind the loop variable to the iterator source.
     #  @param node The For AST node.
     def visit_For(self, node):
-        source = self._iter_source(node.iter)
-        self._target_to_source(node.target, source, "iteration")
+        yields = self._resolve_iterator_yields(node.iter, node.target)
+        if yields is not None:
+            for item in yields:
+                target_elt, source = item[:2]
+                container_kind = item[2] if len(item) > 2 else ""
+                container_item_kind = item[3] if len(item) > 3 else ""
+                self._target_to_source(
+                    target_elt, source, "iteration",
+                    container_kind=container_kind,
+                    container_item_kind=container_item_kind)
+        else:
+            source = self._iter_source(node.iter)
+            item_kind = ""
+            if isinstance(node.iter, ast.Name):
+                item_kind = (
+                    self._lookup_container_kind(node.iter.id, item=True)
+                    or "")
+            self._target_to_source(
+                node.target, source, "iteration",
+                container_kind=item_kind)
         self.generic_visit(node)
+
+    ## Resolve per-element ownership for for-loop iterator expressions.
+    #
+    #  For enumerate(X), zip(A, B) etc., decomposes the target tuple
+    #  and binds each element to the appropriate ownership source.
+    #  @param iter_node The iterator AST node.
+    #  @param target The loop target AST node.
+    #  @return List of (target_elt, source) pairs, or None to fall back.
+    def _resolve_iterator_yields(self, iter_node, target):
+        if not isinstance(iter_node, ast.Call):
+            return None
+        func_name = (
+            iter_node.func.id if isinstance(iter_node.func, ast.Name)
+            else None)
+
+        # os.walk() and os.fwalk() have a stable stdlib yield contract.
+        # Every yielded field is a Python-provided value; binding each tuple
+        # position to python also lets nested loops preserve filename-string
+        # method ownership without treating os itself as the item owner.
+        if isinstance(iter_node.func, ast.Attribute):
+            func_top, dotted_name = self._resolve_func_top(iter_node.func)
+            if (func_top is None
+                    and isinstance(iter_node.func.value, ast.Name)):
+                root = iter_node.func.value.id
+                candidate_top = self.symbols.get_top(root)
+                if root in self.import_aliases:
+                    func_top = candidate_top
+                    dotted_name = iter_node.func.attr
+            expected_arity = 3 if dotted_name == "walk" else 4
+            if (func_top == "os"
+                    and dotted_name in ("walk", "fwalk")
+                    and isinstance(target, (ast.Tuple, ast.List))
+                    and len(target.elts) == expected_arity):
+                result = [
+                    (target.elts[0], "python", "str", ""),
+                    (target.elts[1], "python", "list", "str"),
+                    (target.elts[2], "python", "list", "str"),
+                ]
+                if expected_arity == 4:
+                    result.append((target.elts[3], "python", "", ""))
+                return result
+
+        if func_name in self.import_from_symbols:
+            imported = self.import_from_symbols[func_name]
+            expected_arity = 3 if imported == "os.walk" else 4
+            if (imported in ("os.walk", "os.fwalk")
+                    and isinstance(target, (ast.Tuple, ast.List))
+                    and len(target.elts) == expected_arity):
+                result = [
+                    (target.elts[0], "python", "str", ""),
+                    (target.elts[1], "python", "list", "str"),
+                    (target.elts[2], "python", "list", "str"),
+                ]
+                if expected_arity == 4:
+                    result.append((target.elts[3], "python", "", ""))
+                return result
+
+        if func_name is None:
+            return None
+
+        ## enumerate(X): for i, x in ... → i=python, x from container elements
+        if func_name == "enumerate" and iter_node.args:
+            container = iter_node.args[0]
+            container_source = self._iterator_container_source(container)
+            if isinstance(target, ast.Tuple):
+                elts = target.elts
+                if len(elts) == 2:
+                    item_kind = ""
+                    if isinstance(container, ast.Name):
+                        item_kind = (
+                            self._lookup_container_kind(
+                                container.id, item=True) or "")
+                    if item_kind:
+                        return [(elts[0], "python"),
+                                (elts[1], "python", item_kind, "")]
+                    return [(elts[0], "python"),
+                            (elts[1], ContainerIter(container_source) if container_source else None)]
+            return [(target, "python")]
+
+        ## zip(A, B, ...): positional propagation from each input container
+        if func_name == "zip" and iter_node.args:
+            if isinstance(target, ast.Tuple):
+                elts = target.elts
+                if len(elts) == len(iter_node.args):
+                    result = []
+                    for elt, arg in zip(elts, iter_node.args):
+                        arg_source = self._iterator_container_source(arg)
+                        result.append((elt, ContainerIter(arg_source) if arg_source else None))
+                    return result
+
+        return None
+
+    ## Return the container identity for iterator yield resolution.
+    #
+    #  Preserves AST Name identity for container_items lookup;
+    #  falls back to trace_source for complex expressions.
+    #  @param node The container AST node.
+    #  @return Name string or traced source.
+    def _iterator_container_source(self, node):
+        if isinstance(node, ast.Name):
+            return node.id
+        return self.trace_source(node)
 
     ## Visit an AsyncFor node and bind the loop variable to the iterator source.
     #  @param node The AsyncFor AST node.

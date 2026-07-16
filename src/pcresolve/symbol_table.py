@@ -37,6 +37,19 @@ class SymbolTable:
             if symbol in visited:
                 return []
             visited.add(symbol)
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            #  Use it for the chain when set; otherwise fall back to callee tracing.
+            rs = getattr(symbol, 'result_source', None)
+            if rs is not None:
+                from .sources import UnknownSource
+                if isinstance(rs, UnknownSource):
+                    return [source_display(symbol), "unknown"]
+                if rs == "python":
+                    return [source_display(symbol), "python"]
+                if isinstance(rs, str):
+                    return [source_display(symbol), rs]
+                # Structured result (DerivedResult, etc.): display only.
+                return [source_display(symbol)]
             callee = symbol.callee
             rs = self.return_sources.get(callee)
             if rs:
@@ -60,6 +73,19 @@ class SymbolTable:
             return [symbol]
         source = normalize_source(self.direct[symbol])
         if isinstance(source, CallResult):
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            rs = getattr(source, 'result_source', None)
+            if rs is not None:
+                from .sources import UnknownSource
+                if isinstance(rs, UnknownSource):
+                    sub = self.trace("unknown", visited)
+                elif rs == "python":
+                    sub = ["python"]
+                elif isinstance(rs, str):
+                    sub = self.trace(rs, visited)
+                else:
+                    sub = [source_display(source)]
+                return [symbol] + [source_display(source)] + sub
             callee = source.callee
             rs = self.return_sources.get(callee)
             if rs:

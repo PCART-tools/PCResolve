@@ -1,43 +1,43 @@
 # giantpopflucts — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 358
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 358
 
 ## Annotation Status
 
-- auto_labeled: 283
-- draft: 75
+- locked: 358
 
 ## Call Status
 
-- positive: 284
+- positive: 358
 
 ## Expected Kind
 
-- library: 167
-- python: 110
-- local: 7
+- library: 229
+- python: 115
+- local: 14
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 283
-- [static_context](static_context.md): 1
-- [needs_annotation](needs_annotation.md): 74
+- [static_obvious](static_obvious.md): 308
+- [static_context](static_context.md): 43
+- [dynamic_probe](dynamic_probe.md): 7
 
 ## [Suspicious Records](suspicious.md): 0
 
 ## Category Breakdown
 
-- (none): 74
 - builtin: 110
-- direct_import: 166
-- local_call: 7
-- transitive_method: 1
+- builtin_method_local_receiver: 5
+- direct_import: 207
+- local_call: 14
+- transitive_method: 22
 
 ## Top Libraries
 
-- numpy: 103
-- pandas: 36
+- numpy: 97
+- matplotlib: 53
+- pandas: 47
 - seaborn: 21
+- pystan: 5
 - random: 3
 - scipy: 3
-- pystan: 1

@@ -1,4 +1,4 @@
-# EJPLab — static_context (13 records)
+# EJPLab — static_context (14 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -7,6 +7,7 @@
 | extract_model_embeddings.py:49:24 | `dataset.map(lambda batch: tokenizer(batch['Sequence']), batched=True)` | library / datasets | library / datasets | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | extract_model_embeddings.py:49:50 | `tokenizer(batch['Sequence'])` | unknown / unknown | unknown / unknown | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | extract_model_embeddings.py:50:4 | `tokenized_dataset.set_format('torch', columns=['input_ids', 'attent...` | library / datasets | library / datasets | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:59:12 | `all_hidden_states.append(hidden_states)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
 | extract_model_embeddings.py:74:21 | `test_df['Sequence'].to_list()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | extract_model_embeddings.py:78:22 | `train_df['Sequence'].to_list()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | extract_model_embeddings.py:82:20 | `big_df['Sequence'].to_list()` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |

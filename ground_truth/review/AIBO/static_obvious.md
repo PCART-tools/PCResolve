@@ -1,10 +1,9 @@
-# AIBO — static_obvious (488 records)
+# AIBO — static_obvious (485 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
 | run.py:23:9 | `argparse.ArgumentParser()` | library / argparse | library / argparse | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:40:14 | `eval(f'synthetic.{args.func}')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| run.py:41:8 | `f_class(dim=args.dim, foldername=f'{args.method}-{args.batch_size}'...` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:65:10 | `Exception('function not defined')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:71:55 | `re.split('_\|-', args.method)` | library / re | library / re | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:83:15 | `float(acqf_mode[3:])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
@@ -71,12 +70,10 @@
 | run.py:278:12 | `ng.p.Array(init=init).set_bounds(lower=f.lb, upper=f.ub)` | library / nevergrad | library / nevergrad | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:279:10 | `ng.optimizers.NGOpt(parametrization=param, budget=args.iters, num_w...` | library / nevergrad | library / nevergrad | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:282:4 | `print('best y:', f(x))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| run.py:282:20 | `f(x)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | run.py:286:12 | `ng.p.Array(init=0.5 * (f.lb + f.ub))` | library / nevergrad | library / nevergrad | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:286:12 | `ng.p.Array(init=0.5 * (f.lb + f.ub)).set_bounds(lower=f.lb, upper=f...` | library / nevergrad | library / nevergrad | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:287:9 | `ng.optimizers.GeneticDE(parametrization=param, budget=args.iters, n...` | library / nevergrad | library / nevergrad | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:290:4 | `print('best y:', f(x))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| run.py:290:20 | `f(x)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | run.py:296:15 | `range(0, len(f.lb))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:296:24 | `len(f.lb)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:297:8 | `bounds.append((float(f.lb[idx]), float(f.ub[idx])))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |

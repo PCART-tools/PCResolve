@@ -1,46 +1,66 @@
 # polire — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 421
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 421
 
 ## Annotation Status
 
-- auto_labeled: 256
-- draft: 165
+- locked: 421
 
 ## Call Status
 
-- positive: 256
+- positive: 421
 
 ## Expected Kind
 
-- library: 120
-- python: 103
-- local: 33
+- library: 233
+- python: 108
+- local: 72
+- unknown: 8
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 256
-- [needs_annotation](needs_annotation.md): 165
+- [static_context](static_context.md): 157
+- [manual_reasoned](manual_reasoned.md): 8
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 62
 
 ## Category Breakdown
 
-- (none): 165
 - builtin: 103
+- builtin_container_method: 5
 - direct_import: 120
+- gpy_receiver: 11
+- imported_callable: 26
+- imported_constructor: 6
 - local_call: 33
+- local_callable: 2
+- local_interpolator_method: 15
+- local_method: 22
+- multiprocessing_receiver: 3
+- numpy_array_receiver: 53
+- numpy_result_receiver: 2
+- numpy_scalar_receiver: 1
+- polymorphic_library_receiver: 3
+- pykrige_receiver: 6
+- scipy_receiver: 3
+- shapely_receiver: 2
+- unreachable_unresolved_receiver: 5
 
 ## Top Libraries
 
-- numpy: 98
-- matplotlib: 4
+- numpy: 154
+- GPy: 16
+- matplotlib: 14
+- scipy: 12
+- sklearn: 6
+- pykrige: 6
+- shapely: 5
 - seaborn: 4
+- multiprocessing: 4
 - time: 4
 - pandas: 2
 - setuptools: 2
 - pytest: 2
 - xgboost: 1
 - math: 1
-- scipy: 1
-- multiprocessing: 1

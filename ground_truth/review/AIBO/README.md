@@ -1,50 +1,71 @@
 # AIBO — Ground Truth Overview
 
-**Status:** draft  |  **Tier:** pilot  |  **Calls:** 660
+**Status:** locked  |  **Tier:** pilot  |  **Calls:** 660
 
 ## Annotation Status
 
-- auto_labeled: 488
-- draft: 172
+- locked: 660
 
 ## Call Status
 
-- positive: 488
+- positive: 660
 
 ## Expected Kind
 
-- library: 267
-- python: 156
-- local: 65
+- library: 370
+- python: 173
+- local: 117
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 488
-- [needs_annotation](needs_annotation.md): 172
+- [static_obvious](static_obvious.md): 485
+- [static_context](static_context.md): 174
+- [manual_reasoned](manual_reasoned.md): 1
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 47
 
 ## Category Breakdown
 
-- (none): 172
-- builtin: 156
-- direct_import: 267
-- local_call: 65
+- argparse_receiver: 12
+- box2d_receiver: 29
+- builtin: 155
+- builtin_container_method: 16
+- builtin_string_method: 2
+- cma_receiver: 3
+- datetime_receiver: 1
+- direct_import: 269
+- dynamic_local_callable: 3
+- gym_receiver: 10
+- lassobench_receiver: 1
+- local_baseline_callable: 3
+- local_call: 63
+- local_callable: 5
+- local_constructor: 3
+- local_method: 39
+- matplotlib_receiver: 19
+- monkey_patched_local_method: 1
+- nevergrad_receiver: 4
+- numpy_array_receiver: 10
+- pygame_receiver: 2
+- pymoo_receiver: 10
 
 ## Top Libraries
 
-- numpy: 221
-- nevergrad: 12
+- numpy: 231
+- Box2D: 29
+- matplotlib: 19
+- nevergrad: 16
+- argparse: 13
+- gym: 13
+- pymoo: 10
 - time: 9
-- pygame: 6
+- pygame: 8
+- cma: 4
+- scipy: 4
 - os: 3
 - json: 3
-- gym: 3
 - AIBO: 2
-- scipy: 2
-- argparse: 1
+- LassoBench: 2
+- datetime: 2
 - re: 1
-- cma: 1
 - pybobyqa: 1
-- LassoBench: 1
-- datetime: 1

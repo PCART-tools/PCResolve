@@ -499,14 +499,88 @@ def test_auto_label_chained_call_stays_draft_on_rerun():
         "pcresolve_top_library": "scipy",
     }
     # First run
-    ok = _auto_label(rec)
+    ok = _auto_label(rec, {"scipy": "scipy"})
     assert ok is True
     assert rec["verification_level"] == "static_context"
     assert rec["annotation_status"] == "draft", f"first run: {rec['annotation_status']}"
     # Second run (idempotent)
-    ok2 = _auto_label(rec)
+    ok2 = _auto_label(rec, {"scipy": "scipy"})
     assert ok2 is True
     assert rec["annotation_status"] == "draft", f"second run overwrote: {rec['annotation_status']}"
+
+
+def test_auto_label_builtin_name_requires_independent_scope_evidence():
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _auto_label
+
+    rec = {
+        "pcresolve_reason": "BUILTIN",
+        "pcresolve_func_name": "open",
+        "pcresolve_top_library": "python",
+    }
+    assert _auto_label(rec) is False
+    assert "expected_kind" not in rec
+
+
+def test_auto_label_literal_builtin_receiver_remains_static_obvious():
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _auto_label
+
+    rec = {
+        "pcresolve_reason": "BUILTIN",
+        "pcresolve_func_name": "'{}'.format",
+        "pcresolve_top_library": "python",
+    }
+    assert _auto_label(rec) is True
+    assert rec["expected_kind"] == "python"
+    assert rec["annotation_status"] == "auto_labeled"
+
+
+def test_auto_label_direct_import_requires_source_import_binding():
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _auto_label
+
+    rec = {
+        "pcresolve_reason": "DIRECT_IMPORT",
+        "pcresolve_func_name": "trafo",
+        "pcresolve_top_library": "numpy",
+    }
+    assert _auto_label(rec) is False
+    assert _auto_label(rec, {}) is False
+    assert "expected_kind" not in rec
+
+
+def test_auto_label_direct_import_accepts_matching_source_alias():
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _auto_label
+
+    rec = {
+        "pcresolve_reason": "DIRECT_IMPORT",
+        "pcresolve_func_name": "np.array",
+        "pcresolve_top_library": "numpy",
+    }
+    assert _auto_label(rec, {"np": "numpy"}) is True
+    assert rec["expected_kind"] == "library"
+    assert rec["expected_top_library"] == "numpy"
+
+
+def test_collect_import_bindings_rejects_file_wide_shadowing(tmp_path):
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from auto_label_gt import _collect_import_bindings
+
+    source = tmp_path / "sample.py"
+    source.write_text(
+        "import numpy as np\n"
+        "import pandas as pd\n"
+        "np = make_local()\n",
+        encoding="utf-8",
+    )
+    assert _collect_import_bindings(str(source)) == {"pd": "pandas"}
 
 
 # ── Evaluator metric mutual exclusivity ───────────────────────────────────

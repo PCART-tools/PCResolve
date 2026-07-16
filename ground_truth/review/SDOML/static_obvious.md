@@ -1,4 +1,4 @@
-# SDOML — static_obvious (75 records)
+# SDOML — static_obvious (73 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -14,9 +14,7 @@
 | aia_fits_to_np.py:51:22 | `getDegrad('%s/degrad_%d.csv' % (path, wl))` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | aia_fits_to_np.py:60:8 | `print('FILE CORRUPTED: %s' % remote)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | aia_fits_to_np.py:66:6 | `np.where(X <= 0.0)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
-| aia_fits_to_np.py:68:10 | `fn.split('_')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | aia_fits_to_np.py:70:17 | `int(fn.split('_')[-1].replace('.fits', ''))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| aia_fits_to_np.py:70:21 | `fn.split('_')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | aia_fits_to_np.py:72:14 | `max(Xd.meta['EXPTIME'], 0.01)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | aia_fits_to_np.py:88:16 | `skimage.transform.SimilarityTransform(scale=scale_factor, translati...` | library / skimage | library / skimage | direct_import | static_obvious | v: import-backed dotted module call: skimage.transform.SimilarityTransform |
 | aia_fits_to_np.py:89:13 | `skimage.transform.warp(X, XForm.inverse, preserve_range=True, mode=...` | library / skimage | library / skimage | direct_import | static_obvious | v: import-backed dotted module call: skimage.transform.warp |

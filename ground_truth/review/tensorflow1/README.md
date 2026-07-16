@@ -12,25 +12,25 @@
 
 ## Expected Kind
 
-- library: 8
-- python: 6
+- library: 10
+- python: 4
 - local: 1
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 9
-- [static_context](static_context.md): 1
+- [static_obvious](static_obvious.md): 6
+- [static_context](static_context.md): 4
 - [dynamic_probe](dynamic_probe.md): 5
 
-## [Suspicious Records](suspicious.md): 0
+## [Suspicious Records](suspicious.md): 1
 
 ## Category Breakdown
 
-- builtin: 6
+- builtin: 4
 - decorated_callable_receiver: 1
 - direct_import: 4
-- transitive_method: 4
+- transitive_method: 6
 
 ## Top Libraries
 
-- tensorflow: 8
+- tensorflow: 10

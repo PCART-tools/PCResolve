@@ -27,6 +27,12 @@ class Binding:
     assignment_index: int = 0
     ## Binding version for future flow-sensitive analysis.
     version: int = 0
+    ## Concrete Python container kind carried by this binding, if known.
+    container_kind: str = ""
+    ## Concrete kind produced by subscripting this container, if known.
+    container_item_kind: str = ""
+    ## Qualified return_sources key when this binding is a local callable.
+    callable_key: str = ""
 
 
 ## A lexical scope with parent lookup.
@@ -47,12 +53,17 @@ class Scope:
     #  @param lineno Source line.
     #  @param col_offset Source column.
     #  @param assignment_index Monotonic assignment counter.
-    def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0):
+    #  @param container_kind Concrete receiver container kind, if known.
+    #  @param container_item_kind Concrete subscript result kind, if known.
+    #  @param callable_key Qualified return_sources key for local callables.
+    def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0,
+             container_kind="", container_item_kind="", callable_key=""):
         old = self.bindings.get(name)
         version = old.version + 1 if old is not None else 1
         self.bindings[name] = Binding(
             name, source, self.kind, lineno, col_offset,
-            assignment_index, version,
+            assignment_index, version, container_kind,
+            container_item_kind, callable_key,
         )
 
     ## Look up a name through lexical parents.

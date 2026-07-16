@@ -1,23 +1,12 @@
-# political-polarisation — static_obvious (58 records)
+# political-polarisation — static_obvious (40 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
 | analyze_hashtag.py:8:0 | `pd.set_option('display.max_rows', 10)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:9:0 | `pd.set_option('display.max_columns', 10)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:10:0 | `pd.set_option('expand_frame_repr', False)` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
-| analyze_hashtag.py:25:20 | `df['hashtag'].astype('string')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:28:14 | `df_name.stack()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:30:14 | `df_name.reset_index(level=1, drop=True)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:30:14 | `df_name.reset_index(level=1, drop=True).to_numpy()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').replace('se...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').replace('se...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:33:15 | `item.replace("'", '').replace('{', '').replace('}', '').replace('se...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | analyze_hashtag.py:39:4 | `print({k: v for (k, v) in sorted(word_count.items(), key=lambda ite...` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | analyze_hashtag.py:39:28 | `sorted(word_count.items(), key=lambda item: item[1], reverse=True)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
-| analyze_hashtag.py:39:35 | `word_count.items()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | analyze_hashtag.py:40:16 | `WordCloud(width=800, height=800, background_color='white', stopword...` | library / wordcloud | library / wordcloud | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:40:16 | `WordCloud(width=800, height=800, background_color='white', stopword...` | library / wordcloud | library / wordcloud | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:42:36 | `set(STOPWORDS)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
@@ -27,13 +16,6 @@
 | analyze_hashtag.py:47:4 | `plt.axis('off')` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:48:4 | `plt.tight_layout(pad=0)` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:49:4 | `plt.show()` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').replace('set()...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').replace('set()...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').replace('set()...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| analyze_hashtag.py:53:11 | `x.replace("'", '').replace('{', '').replace('}', '').replace('set()...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | analyze_hashtag.py:58:9 | `nx.Graph()` | library / networkx | library / networkx | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:59:18 | `df.iterrows()` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:61:23 | `row['mentions'].strip()` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |

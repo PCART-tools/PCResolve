@@ -1,13 +1,13 @@
 # Ground Truth Evaluation (1.0.5)
 
-PCResolve 1.0.5 is building a ground-truth evaluation set drawn from a
-42-project fixture corpus. The current locked evaluation set contains 11
-projects and 815 annotated calls. Remaining projects are pending expansion.
+PCResolve 1.0.5 evaluates call ownership against a ground-truth set drawn
+from a 42-project fixture corpus. All 42 projects are locked. The set contains
+5,788 annotated calls with complete evidence and complete AST call coverage.
 
 **Target corpus:** 42 real Python projects (`tests/fixtures/tested_projects/`)
-**Locked projects:** `click1`, `click2`, `django`, `flask1`, `flask2`,
-`hfhd`, `machine-learning`, `psycopg2`, `redis`, `tensorflow1`, `Youtube`
-**Expansion candidates:** `AIBO`, `allnews`, and others (see `ground_truth/projects.json`)
+**Locked projects:** 42/42 (see `ground_truth/projects.json`)
+**Coverage:** 5,788/5,788 AST calls, 0 missing, 0 stale
+**Current result:** 5,111 primary hits, 677 primary misses, recall 0.883
 
 The core question: given a call expression, does PCResolve correctly
 identify its primary owner (`top_library`) as an import-backed library,
@@ -47,22 +47,13 @@ python scripts/evaluate_ground_truth.py
 python scripts/evaluate_ground_truth.py --project hfhd --view library
 ```
 
-## Locked Pilots (1.0.5)
+## Locked Evaluation Set (1.0.5)
 
-| Project | Calls | all P | all R | all F1 | library R | python R | local R |
-|---------|-------|-------|-------|--------|-----------|----------|---------|
-| `click1` | 5 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `click2` | 8 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `django` | 44 | 1.000 | 0.705 | 0.827 | 0.783 | 0.636 | 0.600 |
-| `flask1` | 7 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | n/a |
-| `flask2` | 73 | 1.000 | 0.945 | 0.972 | 1.000 | 0.826 | 1.000 |
-| `hfhd` | 444 | 0.998 | 0.930 | 0.963 | 0.894 | 1.000 | 1.000 |
-| `machine-learning` | 43 | 0.954 | 0.954 | 0.954 | 0.935 | 1.000 | 1.000 |
-| `psycopg2` | 39 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `redis` | 33 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `tensorflow1` | 15 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
-| `Youtube` | 104 | 1.000 | 0.923 | 0.960 | 0.800 | 1.000 | 1.000 |
+The generated [review index](../ground_truth/review/README.md) contains the
+current per-project call counts, evidence-level breakdown, and suspicious
+record counts. Canonical labels remain in `ground_truth/calls/*.jsonl`.
 
-Aggregate: 815 calls, 757 primary hits, 58 primary misses, recall 0.929.
-All 11 projects are locked with complete verification evidence and 815/815
-AST call coverage.
+The aggregate result is 5,111 primary hits from 5,788 calls, for recall
+0.883. The 677 misses are the evidence-backed repair queue. Known static
+analysis boundaries remain visible in that queue rather than being removed
+from scoring.

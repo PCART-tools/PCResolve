@@ -90,9 +90,15 @@ class ClassificationPipeline:
                 confidence=1.0, alternatives=[], is_usage_library=False)
 
         if top == "unknown" or not top:
+            alternatives = []
+            if expand_origins:
+                alternatives = self._extract_alternatives(
+                    base, module, tracers)
+            reason = REASON_FLOW_MERGE if alternatives else REASON_UNRESOLVED
             return ClassificationResult(
-                library="unknown", reason=REASON_UNRESOLVED,
-                confidence=0.0, alternatives=[], is_usage_library=False)
+                library="unknown", reason=reason,
+                confidence=classify_confidence(reason, alternatives),
+                alternatives=alternatives, is_usage_library=False)
 
         # Rules 4-7: import-backed library owner categories.
         reason = self._determine_reason(
