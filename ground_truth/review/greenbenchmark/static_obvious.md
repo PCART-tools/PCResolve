@@ -1,4 +1,4 @@
-# greenbenchmark — static_obvious (260 records)
+# greenbenchmark — static_obvious (254 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -103,7 +103,6 @@
 | report_all_results.py:262:4 | `plt.close()` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | report_all_results.py:266:4 | `report_experiment(args.results_directory)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | report_all_results.py:268:4 | `report_set_of_experiments(args.results_directory)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| tests/writely-pro-view_holder.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/writely-pro-view_holder.py:22:4 | `print('creating folder %s' % name)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/writely-pro-view_holder.py:25:4 | `touch(expand_menu_button)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/writely-pro-view_holder.py:27:4 | `touch(vc.findViewById('me.writeily:id/create_folder') or vc.views[-2])` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -156,7 +155,6 @@
 | tests/hold.py:4:0 | `print(sys.argv)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/hold.py:6:9 | `int(sys.argv[2])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/hold.py:6:26 | `int(sys.argv[3])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
-| tests/simplegallery.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/simplegallery.py:21:4 | `touch(allow)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/simplegallery.py:24:9 | `range(100)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/simplegallery.py:28:4 | `touch(dir)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -166,7 +164,6 @@
 | tests/simplegallery.py:35:8 | `swipeUp(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/simplegallery.py:36:4 | `back(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/simplegallery.py:38:0 | `save_interaction(serialno, 'simplegallery_cache.json')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| tests/gnucash.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/gnucash.py:20:0 | `touch(next)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/gnucash.py:21:0 | `touch(next)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/gnucash.py:22:0 | `touch(next)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -187,7 +184,6 @@
 | tests/gnucash.py:48:8 | `back(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/gnucash.py:49:4 | `back(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/gnucash.py:55:0 | `save_interaction(serialno, 'gnucash_cache.json')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| tests/acrylicpaint.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/acrylicpaint.py:19:0 | `touch(vc.findViewWithTextOrRaise(u'Continue'))` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/acrylicpaint.py:23:9 | `range(20)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/acrylicpaint.py:24:13 | `range(10)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
@@ -197,7 +193,6 @@
 | tests/acrylicpaint.py:32:8 | `touch(color_menu)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/acrylicpaint.py:33:4 | `back(device)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/acrylicpaint.py:35:0 | `save_interaction(serialno, 'acrylicpaint_cache.json')` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| tests/talalarmo.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/talalarmo.py:20:0 | `touch(init_view)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/talalarmo.py:21:0 | `sleep(65)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/talalarmo.py:22:0 | `touch(init_view)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
@@ -231,7 +226,6 @@
 | tests/test_helper.py:55:24 | `json.load(data_file)` | library / json | library / json | direct_import | static_obvious | v: direct import-backed API call |
 | tests/test_helper.py:57:9 | `open(filename, 'w')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/test_helper.py:58:8 | `json.dump(json_data, outfile)` | library / json | library / json | direct_import | static_obvious | v: direct import-backed API call |
-| tests/uhabits.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/uhabits.py:19:4 | `print('Creating habit %s' % habit_name)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | tests/uhabits.py:21:4 | `sleep(1)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | tests/uhabits.py:22:4 | `touch(vc.findViewWithContentDescription(u'Add habit'))` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

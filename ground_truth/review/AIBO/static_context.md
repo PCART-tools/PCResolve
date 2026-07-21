@@ -57,42 +57,42 @@
 | functions/push_utils.py:74:29 | `guiWorld(self.TARGET_FPS)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:85:12 | `self.bodies.append(new_bodies)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
 | functions/push_utils.py:88:8 | `self.world.Step(self.TIME_STEP, self.VEL_ITERS, self.POS_ITERS)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:90:12 | `self.gui_world.draw(self.bodies)` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:96:20 | `world.CreateDynamicBody(position=init_pos, angle=init_angle)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:90:12 | `self.gui_world.draw(self.bodies)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:96:20 | `world.CreateDynamicBody(position=init_pos, angle=init_angle)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:101:21 | `b2PolygonShape(box=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:104:21 | `b2CircleShape(radius=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:107:21 | `b2PolygonShape(vertices=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:111:8 | `self.hand.CreateFixture(shape=rshape, density=0.1, friction=0.1)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:118:25 | `world.CreateFrictionJoint(bodyA=base, bodyB=self.hand, maxForce=2, ...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:124:8 | `b2world_interface.add_bodies(self.hand)` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:118:25 | `world.CreateFrictionJoint(bodyA=base, bodyB=self.hand, maxForce=2, ...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:124:8 | `b2world_interface.add_bodies(self.hand)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
 | functions/push_utils.py:135:8 | `self.hand.ApplyTorque(torque, wake=True)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:138:21 | `b2Vec2(rlvel)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:138:37 | `b2Vec2(lvel)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:140:8 | `self.hand.ApplyForce(force, self.hand.position, wake=True)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:149:13 | `', '.join(print_state[:3])` | python / python | library / Box2D | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:149:43 | `', '.join(print_state[3:])` | python / python | library / Box2D | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:157:11 | `world.CreateDynamicBody(position=obj_loc)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:149:13 | `', '.join(print_state[:3])` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
+| functions/push_utils.py:149:43 | `', '.join(print_state[3:])` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
+| functions/push_utils.py:157:11 | `world.CreateDynamicBody(position=obj_loc)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:159:20 | `b2PolygonShape(box=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:161:20 | `b2CircleShape(radius=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:163:20 | `b2PolygonShape(vertices=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:167:4 | `link.CreateFixture(shape=linkshape, density=body_density, friction=...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:172:21 | `world.CreateFrictionJoint(bodyA=base, bodyB=link, maxForce=5, maxTo...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:179:4 | `b2world_interface.add_bodies([link])` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:185:11 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(box=(...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:172:21 | `world.CreateFrictionJoint(bodyA=base, bodyB=link, maxForce=5, maxTo...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:179:4 | `b2world_interface.add_bodies([link])` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:185:11 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(box=(...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:187:15 | `b2PolygonShape(box=(table_length, table_width))` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:190:4 | `b2world_interface.add_bodies([base])` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:198:14 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(verti...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:190:4 | `b2world_interface.add_bodies([base])` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:198:14 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(verti...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:200:19 | `b2PolygonShape(vertices=verts)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:203:8 | `obs.append(tmp)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:211:14 | `world.CreateStaticBody(position=pos, shapes=b2PolygonShape(box=blen))` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:211:14 | `world.CreateStaticBody(position=pos, shapes=b2PolygonShape(box=blen))` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:213:19 | `b2PolygonShape(box=blen)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:215:8 | `obs.append(tmp)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:216:4 | `b2world_interface.add_bodies(obs)` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:216:4 | `b2world_interface.add_bodies(obs)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
 | functions/push_utils.py:224:11 | `b2Vec2(desired_vel[0] + np.random.normal(0, 1e-06), desired_vel[1] ...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:227:12 | `b2Vec2(desired_vel2[0] + np.random.normal(0, 1e-06), desired_vel2[1...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:232:12 | `robot.apply_wrench(rvel, rtor)` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:234:12 | `robot2.apply_wrench(rvel2, rtor2)` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:235:8 | `world.step()` | local / local | library / Box2D | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:232:12 | `robot.apply_wrench(rvel, rtor)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:234:12 | `robot2.apply_wrench(rvel2, rtor2)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
+| functions/push_utils.py:235:8 | `world.step()` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
 | functions/rover.py:234:15 | `self.fn_instance(self.project_input(x))` | local / local | local / local | local_callable | static_context | v: receiver or callable is a project-local rover wrapper or tracker |
 | functions/rover.py:234:32 | `self.project_input(x)` | local / local | local / local | local_callable | static_context | v: receiver or callable is a project-local rover wrapper or tracker |
 | functions/rover.py:252:15 | `self.fn_instance(x)` | local / local | local / local | local_callable | static_context | v: receiver or callable is a project-local rover wrapper or tracker |

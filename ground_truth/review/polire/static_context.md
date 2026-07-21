@@ -1,4 +1,4 @@
-# polire — static_context (157 records)
+# polire — static_context (167 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -31,6 +31,7 @@
 | usage.py:104:4 | `plt.show()` | library / matplotlib | library / matplotlib | imported_callable | static_context | v: callable is imported from GPy or matplotlib |
 | usage.py:105:4 | `plt.close()` | library / matplotlib | library / matplotlib | imported_callable | static_context | v: callable is imported from GPy or matplotlib |
 | polire/natural_neighbors/natural_neighbors.py:16:24 | `arr.tolist()` | library / numpy | local / local | numpy_array_receiver | static_context | v: arr is the array argument of is_row_in_array |
+| polire/natural_neighbors/natural_neighbors.py:91:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/natural_neighbors/natural_neighbors.py:111:23 | `Voronoi(X, incremental=True)` | library / scipy | library / scipy | imported_callable | static_context | v: callable is directly imported from scipy, shapely, or matplotlib |
 | polire/natural_neighbors/natural_neighbors.py:118:20 | `Point(self.X[index])` | library / shapely | library / shapely | imported_callable | static_context | v: callable is directly imported from scipy, shapely, or matplotlib |
 | polire/natural_neighbors/natural_neighbors.py:124:20 | `Polygon(order_poly(self.vertices[region]))` | library / shapely | library / shapely | imported_callable | static_context | v: callable is directly imported from scipy, shapely, or matplotlib |
@@ -57,12 +58,14 @@
 | polire/utils/gridding.py:67:26 | `grid[1].ravel()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
 | polire/utils/gridding.py:74:16 | `kdtree.query(point)` | library / scipy | library / scipy | scipy_receiver | static_context | v: kdtree is created by scipy.spatial.KDTree |
 | polire/utils/gridding.py:75:8 | `ixs.append(ix)` | python / python | python / python | builtin_container_method | static_context | v: ixs is an explicit Python list |
+| polire/spline/bspline.py:35:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/spline/bspline.py:47:19 | `bisplrep(X[:, 0], X[:, 1], y, kx=self.kx, ky=self.ky, s=self.s)` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
 | polire/spline/bspline.py:62:15 | `bisplev(np.linspace(x1min, x1max, self.resolution), np.linspace(x2m...` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
 | polire/spline/bspline.py:74:29 | `bisplev(X[ix, 0], X[ix, 1], self.tck)` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
 | polire/spline/bspline.py:74:29 | `bisplev(X[ix, 0], X[ix, 1], self.tck).item()` | library / numpy | library / scipy | numpy_scalar_receiver | static_context | v: scipy.interpolate.bisplev returns a numpy scalar for scalar coordinates |
 | polire/spline/bspline.py:77:12 | `results.append(interpolated_y)` | python / python | python / python | builtin_container_method | static_context | v: results is an explicit Python list |
 | polire/gp/gp.py:26:15 | `RBF(2, ARD=True)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
+| polire/gp/gp.py:28:8 | `super().__init__()` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/gp/gp.py:37:16 | `y.reshape(-1, 1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/gp/gp.py:38:21 | `GPRegression(X, y, self.kernel)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:39:8 | `self.model.optimize_restarts(n_restarts, verbose=verbose)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
@@ -82,6 +85,7 @@
 | polire/preprocessing/sptial_features.py:115:27 | `model.predict(lonlat[i][None, :])` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:130:8 | `self.fit(X, y)` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:131:15 | `self.transform(X)` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
+| polire/spatial/spatial.py:22:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/spatial/spatial.py:53:15 | `self._predict(np.asarray([X1.ravel(), X2.ravel()]).T)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/spatial/spatial.py:53:41 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/spatial/spatial.py:53:53 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
@@ -89,8 +93,10 @@
 | polire/spatial/spatial.py:62:15 | `self.distance(X, self.X)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/spatial/spatial.py:64:15 | `(self.y * mask).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/spatial/spatial.py:64:45 | `mask.sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
+| polire/custom/custom.py:31:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/custom/custom.py:53:44 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: X1 and X2 are returned by numpy.meshgrid |
 | polire/custom/custom.py:53:56 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: X1 and X2 are returned by numpy.meshgrid |
+| polire/idw/idw.py:42:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/idw/idw.py:74:15 | `self._predict(np.array([X1.ravel(), X2.ravel()]).T)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/idw/idw.py:74:39 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/idw/idw.py:74:51 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
@@ -99,6 +105,7 @@
 | polire/idw/idw.py:83:59 | `weights.sum(axis=0)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/idw/idw.py:88:15 | `mask.any()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/idw/idw.py:89:28 | `(self.y * mask).sum()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
+| polire/kriging/kriging.py:53:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/kriging/kriging.py:74:22 | `OrdinaryKriging(X[:, 0], X[:, 1], y, variogram_model=self.variogram...` | library / pykrige | library / pykrige | pykrige_receiver | static_context | v: constructor or receiver belongs to pykrige |
 | polire/kriging/kriging.py:85:22 | `UniversalKriging(X[:, 0], X[:, 1], y, variogram_model=self.variogra...` | library / pykrige | library / pykrige | pykrige_receiver | static_context | v: constructor or receiver belongs to pykrige |
 | polire/kriging/kriging.py:109:41 | `self.ok.execute(style='grid', xpoints=x1, ypoints=x2)` | library / pykrige | library / pykrige | pykrige_receiver | static_context | v: constructor or receiver belongs to pykrige |
@@ -109,9 +116,12 @@
 | polire/base/base.py:80:15 | `self._predict(X, **kwargs)` | local / local | local / local | local_method | static_context | v: method is implemented by project-local subclasses |
 | polire/base/base.py:117:17 | `self._predict_grid(x1lim, x2lim)` | local / local | local / local | local_method | static_context | v: method is implemented by project-local subclasses |
 | polire/base/base.py:118:15 | `pred_y.reshape(self.resolution, self.resolution)` | library / numpy | local / local | numpy_result_receiver | static_context | v: project interpolator implementations return NumPy arrays |
+| polire/trend/trend.py:38:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/trend/trend.py:54:31 | `curve_fit(self.func, (X[:, 0], X[:, 1]), y)` | library / scipy | library / scipy | imported_callable | static_context | v: curve_fit is imported from scipy |
 | polire/trend/trend.py:69:15 | `self.func((X1, X2), *self.popt)` | local / local | local / local | local_callable | static_context | v: self.func is selected from project-local polynomial functions for project usages |
 | polire/trend/trend.py:76:15 | `self.func((x1, x2), *self.popt)` | local / local | local / local | local_callable | static_context | v: self.func is selected from project-local polynomial functions for project usages |
+| polire/random/random.py:16:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
+| polire/nsgp/nsgp.py:27:8 | `super().__init__()` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/nsgp/nsgp.py:58:8 | `self.__calculate_dmat()` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:60:12 | `self.__dmat[i].argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:65:42 | `((S - self._X) ** 2).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |

@@ -466,6 +466,8 @@ class ProjectAnalyzer:
                             and rs not in ("local", "python", "unknown", "")):
                         return rs
                 _, src_module, src_symbol = structured
+                if src_symbol in ("local", "python", "unknown"):
+                    return src_symbol
                 top = self._top_source(src_module, src_symbol, module_tracers)
                 # 1.0.5 P1: builtin container method on a receiver
                 # whose container kind is known from tracer-final state.
@@ -1848,6 +1850,15 @@ class ProjectAnalyzer:
                     sub_chain = self.trace_symbol(module, prefix, tracers, visited)
                     if sub_chain:
                         return [symbol] + sub_chain
+            # A local wildcard import is only a fallback for unresolved names.
+            # Preserve explicit external import evidence before considering it.
+            if (isinstance(symbol, str)
+                    and '.' in symbol
+                    and _is_import_origin(tracer, symbol)):
+                full_symbol = self.module_mapper.resolve_module_name(
+                    symbol, module)
+                if not self.is_local(full_symbol):
+                    return [symbol]
             if tracer.wildcard_modules:
                 tops = []
                 local_found = False

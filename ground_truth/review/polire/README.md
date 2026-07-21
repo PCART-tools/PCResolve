@@ -13,21 +13,21 @@
 ## Expected Kind
 
 - library: 233
-- python: 108
-- local: 72
+- python: 98
+- local: 82
 - unknown: 8
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 256
-- [static_context](static_context.md): 157
+- [static_obvious](static_obvious.md): 246
+- [static_context](static_context.md): 167
 - [manual_reasoned](manual_reasoned.md): 8
 
-## [Suspicious Records](suspicious.md): 62
+## [Suspicious Records](suspicious.md): 52
 
 ## Category Breakdown
 
-- builtin: 103
+- builtin: 93
 - builtin_container_method: 5
 - direct_import: 120
 - gpy_receiver: 11
@@ -36,7 +36,7 @@
 - local_call: 33
 - local_callable: 2
 - local_interpolator_method: 15
-- local_method: 22
+- local_method: 32
 - multiprocessing_receiver: 3
 - numpy_array_receiver: 53
 - numpy_result_receiver: 2

@@ -10,7 +10,7 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | locked | 0 | 485 | 174 | 0 | 1 | 47 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 485 | 174 | 0 | 1 | 44 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
 | [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 175 |
@@ -32,13 +32,13 @@ machine source of truth.
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 8 | 0 | 2 | 0 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 260 | 229 | 0 | 0 | 181 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 254 | 235 | 0 | 0 | 51 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 375 | 41 | 28 | 0 | 31 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 47 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 256 | 157 | 0 | 8 | 62 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 52 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 40 | 30 | 0 | 0 | 19 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **5788** | | **0** | **3762** | **1802** | **185** | **39** | **677** |
+| **TOTAL** | **5788** | | **0** | **3746** | **1818** | **185** | **39** | **534** |
 
 ## Directory Layout
 

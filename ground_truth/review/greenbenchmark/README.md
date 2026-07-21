@@ -12,31 +12,31 @@
 
 ## Expected Kind
 
-- library: 280
+- library: 286
 - python: 70
-- local: 139
+- local: 133
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 260
-- [static_context](static_context.md): 229
+- [static_obvious](static_obvious.md): 254
+- [static_context](static_context.md): 235
 
-## [Suspicious Records](suspicious.md): 181
+## [Suspicious Records](suspicious.md): 51
 
 ## Category Breakdown
 
-- android_viewclient_receiver: 151
+- android_viewclient_receiver: 157
 - argparse_receiver: 6
 - builtin: 58
 - builtin_container_method: 12
 - direct_import: 64
-- local_call: 139
+- local_call: 133
 - matplotlib_receiver: 15
 - pandas_receiver: 44
 
 ## Top Libraries
 
-- com: 151
+- com: 157
 - matplotlib: 49
 - pandas: 49
 - argparse: 8
