@@ -1,19 +1,19 @@
 # PCResolve 1.0.5 Ground Truth Failure Analysis
 
-Snapshot: 2026-07-22, after bounded parameter receiver ownership repair
+Snapshot: 2026-07-22, after bounded parameter and iterator ownership repairs
 
 ## Executive Summary
 
 The locked evaluation set contains 5,788 call records across 42 projects.
-PCResolve currently produces 5,354 primary hits and 434 primary mismatches,
-for recall 0.925. AST coverage is complete at 5,788/5,788, with no missing,
+PCResolve currently produces 5,357 primary hits and 431 primary mismatches,
+for recall 0.926. AST coverage is complete at 5,788/5,788, with no missing,
 stale, or uncovered call predictions. The remaining failures are ownership
 classification failures, not call collection failures.
 
 The previous tracked snapshot contained 5,320 hits and 468 mismatches, for
 recall 0.919. Under the corrected current contract, the cross-snapshot audit
-finds 37 improved records and zero regressions. The tracked hit count rises by
-34 because three AIBO dead-code calls remained hits while their labels were
+finds 40 improved records and zero regressions. The tracked hit count rises by
+37 because three AIBO dead-code calls remained hits while their labels were
 corrected from `local` to `unknown`.
 
 Five dead-code labels were corrected in total. Three AIBO parameter receivers
@@ -23,7 +23,7 @@ the rule that names, annotations, and surrounding framework context are not
 sufficient ownership evidence.
 
 Four remaining records are the documented `request.json.get(...)` framework
-payload boundary. The required 1.0.5 repair queue therefore contains 430
+payload boundary. The required 1.0.5 repair queue therefore contains 427
 records.
 
 ## Parameter Receiver Repair
@@ -39,9 +39,10 @@ call graph or type system.
 | Parameter-derived expressions | Subscripts, arithmetic, conflicting call sites, and uncalled parameters remain `unknown`. |
 | Explicit method-result ownership | Small reviewed contracts cover result objects such as selected Box2D body constructors without promoting every method result. |
 | Local callable protection | Qualified project class constructors resolve to `local` before their module prefix can be mistaken for a library. |
+| Homogeneous comprehension elements | Module-level list comprehensions preserve a single proven element owner; `re.finditer()` separately records the owner of yielded match objects. |
 
 The repair improves records in AIBO, allnews, EJPLab, greenbenchmark,
-simulation, and Youtube. The regression comparison reports 37 improvements
+simulation, and Youtube. The regression comparison reports 40 improvements
 and zero prior current-contract hits lost.
 
 Nine existing v1/v2 hard baselines were re-recorded after this audit. The
@@ -52,12 +53,12 @@ library results becoming `unknown`; it does not waive any locked GT hit.
 
 | Current reason | Records | Share | Failure mechanism |
 |---|---:|---:|---|
-| `LOCAL_DEFINITION` | 219 | 50.5% | A local binding is still treated as proof that the callable implementation is project-local. |
-| `UNRESOLVED` | 173 | 39.9% | Receiver ownership is lost through parameters, returns, branches, attributes, subscripts, or chains. |
-| `TRANSITIVE_IMPORT` | 33 | 7.6% | Import provenance of a producer or enclosing object leaks into the callable owner. |
+| `LOCAL_DEFINITION` | 216 | 50.1% | A local binding is still treated as proof that the callable implementation is project-local. |
+| `UNRESOLVED` | 173 | 40.1% | Receiver ownership is lost through parameters, returns, branches, attributes, subscripts, or chains. |
+| `TRANSITIVE_IMPORT` | 33 | 7.7% | Import provenance of a producer or enclosing object leaks into the callable owner. |
 | `RETURN_PROPAGATION` | 7 | 1.6% | A function owner is propagated to a result object with a different callable surface. |
 | `FLOW_MERGE` | 2 | 0.5% | Multiple static paths do not converge to the reviewed owner. |
-| **Total** | **434** | **100.0%** | |
+| **Total** | **431** | **100.0%** | |
 
 ### Local Definition Overreach
 
@@ -84,11 +85,11 @@ do not yet have a reviewed static contract.
 
 | Expected kind | Records | Share | Typical missing evidence |
 |---|---:|---:|---|
-| `library` | 267 | 61.5% | Receiver identity through parameters, returns, attributes, conversions, and chains |
-| `python` | 145 | 33.4% | String, container, mapping, and Python protocol object identity |
+| `library` | 264 | 61.3% | Receiver identity through parameters, returns, attributes, conversions, and chains |
+| `python` | 145 | 33.6% | String, container, mapping, and Python protocol object identity |
 | `unknown` | 16 | 3.7% | Branch-dependent, dead, or unconstrained polymorphic receivers |
 | `local` | 6 | 1.4% | Project-local callable identity overwritten by library evidence |
-| **Total** | **434** | **100.0%** | |
+| **Total** | **431** | **100.0%** | |
 
 ## Highest Impact Families
 
@@ -104,16 +105,16 @@ do not yet have a reviewed static contract.
 | Python container methods | 15 |
 | Conversion boundaries | 14 |
 | Branch-dependent IO receivers | 13 |
-| Regular-expression receivers | 13 |
+| Regular-expression receivers | 10 |
 
 ## Release Disposition
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| Required 1.0.5 repair queue | 430 | Evidence-backed owner is available and must be resolved before release. |
+| Required 1.0.5 repair queue | 427 | Evidence-backed owner is available and must be resolved before release. |
 | Documented framework payload boundary | 4 | `request.json.get(...)`, retained until general protocol inference is available. |
 | Ground truth correction | 0 | No current record requires a label change. |
-| **Total** | **434** | |
+| **Total** | **431** | |
 
 The generated
 [`failure-dispositions.md`](failure-dispositions.md) report is the
@@ -124,7 +125,7 @@ owner.
 
 ## Recommended Repair Order
 
-1. Resolve the 177 same-scope result and Python protocol records using
+1. Resolve the 174 same-scope result and Python protocol records using
    receiver-shape and result contracts, without method-name-only promotion.
 2. Reduce the 231 bounded receiver-flow records through convergent parameters,
    local returns, attributes, and homogeneous container items.

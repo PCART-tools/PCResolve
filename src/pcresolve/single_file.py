@@ -351,6 +351,13 @@ _CALL_RESULT_OWNER_MAP = {
     ("re", "group"): "python",
 }
 
+# Owners of elements yielded by selected import-backed iterator calls. This is
+# deliberately separate from _CALL_RESULT_OWNER_MAP: the iterator object and
+# each yielded object do not necessarily have the same ownership semantics.
+_ITERATOR_ELEMENT_OWNER_MAP = {
+    ("re", "finditer"): "re",
+}
+
 # Owners of items produced by destructuring selected call results.  Keep this
 # separate from _CALL_RESULT_OWNER_MAP because a Python tuple may contain
 # import-backed objects.
@@ -384,6 +391,18 @@ def _match_unpacked_result_owner(top, func_name):
     if top is None:
         return None
     for (lib_prefix, fn), owner in _UNPACKED_RESULT_OWNER_MAP.items():
+        if (fn == func_name
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return owner
+    return None
+
+
+def _match_iterator_element_owner(top, func_name):
+    """Return the owner of elements from a known import-backed iterator."""
+    if top is None:
+        return None
+    for (lib_prefix, fn), owner in _ITERATOR_ELEMENT_OWNER_MAP.items():
         if (fn == func_name
                 and (top == lib_prefix
                      or top.startswith(lib_prefix + "."))):
@@ -467,6 +486,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.parameter_sources = {}
         self._assigned_call_sources = {}
         self.container_items = {}
+        self.homogeneous_container_items = {}
         self.container_lengths = {}
         self.container_kinds = {}  # 1.0.5 P1: name -> "list"|"dict"|"set"|"tuple"|"str"
         self.container_item_kinds = {}  # 1.0.5 P1+: name -> "list"|"dict"|... for defaultdict(list) etc.
@@ -1666,6 +1686,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _iter_source(self, iter_node):
         if isinstance(iter_node, ast.Name):
             container_name = iter_node.id
+            item_source = self.homogeneous_container_items.get(
+                container_name)
+            if item_source is not None:
+                binding = self.current_scope().lookup(
+                    container_name, skip_parent_classes=True)
+                if binding is None or binding.scope_kind == SCOPE_MODULE:
+                    return item_source
             has_items = False
             for k in self.container_items.keys():
                 if k[0] == container_name:
@@ -1746,6 +1773,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         assignment_container_kind = _container_kind(node.value)
         assignment_item_kind = _container_item_kind(node.value)
 
+        # Homogeneous comprehension evidence is flow-sensitive at module
+        # scope. Any real rebind invalidates the previous element source.
+        if self.current_scope().kind == SCOPE_MODULE:
+            for target in node.targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                is_self_assignment = (
+                    isinstance(node.value, ast.Name)
+                    and node.value.id == target.id
+                )
+                if not is_self_assignment:
+                    self.homogeneous_container_items.pop(
+                        target.id, None)
+
         ## Track literal assignments for static key resolution (PR7).
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, (str, int)):
             for target in node.targets:
@@ -1799,6 +1840,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     self.container_kinds[target.id] = "list"
+                    if self.current_scope().kind == SCOPE_MODULE:
+                        item_source = self.trace_source(node.value.elt)
+                        if item_source is not None:
+                            self.homogeneous_container_items[
+                                target.id] = item_source
         if isinstance(node.value, ast.SetComp):
             for target in node.targets:
                 if isinstance(target, ast.Name):
@@ -1977,12 +2023,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             container_item_kind=assignment_item_kind or "")
         # 1.0.5 P0: generic_visit already called above, before target binding.
 
-    ## Check whether a call expression is a known library→library conversion.
-    #
-    #  Unwraps trailing attribute chains (e.g. data.to_numpy().T) to find
-    #  the inner conversion call, then looks up (source_library, method).
-    #  @param value_node The RHS expression node.
-    #  @return The conversion target library name, or None.
     ## Resolve a receiver name to its top library (v2 scope-aware).
     def _receiver_top(self, name):
         if self.scope_model == "v2":
@@ -2145,6 +2185,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return owner
         return UnknownSource("receiver-preserving ufunc result")
 
+    ## Check whether a call expression is a known library-to-library conversion.
+    #
+    #  Unwraps trailing attribute chains (e.g. data.to_numpy().T) to find
+    #  the inner conversion call, then looks up (source_library, method).
+    #  @param value_node The RHS expression node.
+    #  @return The conversion target library name, or None.
     def _resolve_conversion_target(self, value_node):
         # Unwrap trailing attribute chain: data.to_numpy().T → data.to_numpy()
         call_node = value_node
@@ -3047,6 +3093,28 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if expected_arity == 4:
                     result.append((target.elts[3], "python", "", ""))
                 return result
+
+        # Explicit iterator result contracts keep the iterator object's owner
+        # separate from the ownership of each yielded element.
+        if isinstance(target, ast.Name):
+            func_top, resolved_name = self._resolve_func_top(iter_node.func)
+            element_owner = _match_iterator_element_owner(
+                func_top, resolved_name)
+            if element_owner is not None:
+                element_source = CallResult(
+                    InstanceMethod(func_top, resolved_name),
+                    call_lineno=iter_node.lineno,
+                    call_col_offset=iter_node.col_offset,
+                    result_source=element_owner,
+                )
+                return [(target, element_source)]
+            traced = normalize_source(self.trace_source(iter_node))
+            if isinstance(traced, CallResult):
+                result_source = normalize_source(traced.result_source)
+                if (isinstance(result_source, DerivedResult)
+                        and result_source.kind == "iterator"
+                        and result_source.sources):
+                    return [(target, result_source.sources[0])]
 
         if func_name is None:
             return None

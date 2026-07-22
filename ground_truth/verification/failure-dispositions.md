@@ -6,28 +6,28 @@ This report classifies every current locked primary ownership mismatch. The cano
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 430 | Must be closed in 1.0.5 |
+| `fix_1_0_5` | 427 | Must be closed in 1.0.5 |
 | `accepted_boundary` | 4 | Documented static-analysis boundary |
 | `ground_truth_correction` | 0 | Canonical GT label must be corrected |
-| **Total** | **434** | |
+| **Total** | **431** | |
 
 ## Repair Scope
 
 | Repair scope | Records |
 |---|---:|
-| `same_scope_result_protocol` | 177 |
+| `same_scope_result_protocol` | 174 |
 | `bounded_receiver_flow` | 231 |
 | `conservative_identity` | 16 |
 | `local_identity` | 6 |
 | `documented_boundary` | 4 |
 | `label_correction` | 0 |
-| **Total** | **434** |
+| **Total** | **431** |
 
 ## Project Queue
 
 | Project | Records |
 |---|---:|
-| `allnews` | 122 |
+| `allnews` | 119 |
 | `polire` | 54 |
 | `MAHE_OD_DATASET` | 47 |
 | `final` | 43 |
@@ -59,7 +59,7 @@ This report classifies every current locked primary ownership mismatch. The cano
 | `builtin_container_method` | 15 |
 | `conversion_boundary` | 14 |
 | `branch_dependent_io_receiver` | 13 |
-| `regex_receiver` | 13 |
+| `regex_receiver` | 10 |
 | `library_result_boundary` | 8 |
 | `builtin_method_local_receiver` | 6 |
 | `gpy_receiver` | 6 |

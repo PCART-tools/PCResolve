@@ -67,6 +67,37 @@ match = re.match("(x)", "x")
 group_text = match.group(1)
 group_text.strip()
 
+compiled_patterns = [re.compile(value) for value in ("x", "y")]
+for compiled_pattern in compiled_patterns:
+    for iterated_match in compiled_pattern.finditer("xy"):
+        iterated_match.start()
+
+
+class LocalPattern:
+    def finditer(self, text):
+        return []
+
+
+local_patterns = [LocalPattern() for value in ("x", "y")]
+for local_pattern in local_patterns:
+    local_pattern.finditer("xy")
+
+rebound_patterns = [re.compile(value) for value in ("x", "y")]
+rebound_patterns = [LocalPattern()]
+for rebound_pattern in rebound_patterns:
+    rebound_pattern.finditer("xy")
+
+shadowed_patterns = [re.compile(value) for value in ("x", "y")]
+
+
+def use_local_shadowed_patterns():
+    shadowed_patterns = [LocalPattern()]
+    for shadowed_pattern in shadowed_patterns:
+        shadowed_pattern.finditer("xy")
+
+
+use_local_shadowed_patterns()
+
 
 def maybe_match(text):
     possible_match = re.match("(x)", text)

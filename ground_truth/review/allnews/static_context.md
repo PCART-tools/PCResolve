@@ -127,10 +127,10 @@
 | allnews_am/wikiextractor/WikiExtractor.py:758:12 | `spans.append((m.start(), m.end()))` | python / python | python / python | builtin_container_method | static_context | v: the outer receiver is an explicit Python list or set; nested regex calls are sep |
 | allnews_am/wikiextractor/WikiExtractor.py:758:26 | `m.start()` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
 | allnews_am/wikiextractor/WikiExtractor.py:758:37 | `m.end()` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
-| allnews_am/wikiextractor/WikiExtractor.py:762:21 | `pattern.finditer(text)` | library / re | local / local | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
+| allnews_am/wikiextractor/WikiExtractor.py:762:21 | `pattern.finditer(text)` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
 | allnews_am/wikiextractor/WikiExtractor.py:763:16 | `spans.append((m.start(), m.end()))` | python / python | python / python | builtin_container_method | static_context | v: the outer receiver is an explicit Python list or set; nested regex calls are sep |
-| allnews_am/wikiextractor/WikiExtractor.py:763:30 | `m.start()` | library / re | local / local | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
-| allnews_am/wikiextractor/WikiExtractor.py:763:41 | `m.end()` | library / re | local / local | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
+| allnews_am/wikiextractor/WikiExtractor.py:763:30 | `m.start()` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
+| allnews_am/wikiextractor/WikiExtractor.py:763:41 | `m.end()` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
 | allnews_am/wikiextractor/WikiExtractor.py:767:21 | `left.finditer(text)` | library / re | local / local | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
 | allnews_am/wikiextractor/WikiExtractor.py:768:16 | `spans.append((m.start(), m.end()))` | python / python | python / python | builtin_container_method | static_context | v: the outer receiver is an explicit Python list or set; nested regex calls are sep |
 | allnews_am/wikiextractor/WikiExtractor.py:768:30 | `m.start()` | library / re | unknown / unknown | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |

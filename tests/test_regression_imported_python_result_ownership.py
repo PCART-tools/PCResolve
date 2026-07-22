@@ -120,6 +120,35 @@ def test_re_match_group_result_is_python_owned():
     assert _call(result, "group_text.strip()").top_library == "python"
 
 
+def test_re_finditer_elements_keep_re_owner_through_list_comprehension():
+    result = _analyze()
+
+    assert _call(
+        result, "compiled_pattern.finditer('xy')").top_library == "re"
+    assert _call(result, "iterated_match.start()").top_library == "re"
+
+
+def test_local_finditer_name_does_not_claim_re_owner():
+    result = _analyze()
+
+    call = _call(result, "local_pattern.finditer('xy')")
+    assert call.top_library == "local"
+
+
+def test_rebound_comprehension_does_not_reuse_stale_element_owner():
+    result = _analyze()
+
+    call = _call(result, "rebound_pattern.finditer('xy')")
+    assert call.top_library == "local"
+
+
+def test_function_local_container_does_not_inherit_module_element_owner():
+    result = _analyze()
+
+    call = _call(result, "shadowed_pattern.finditer('xy')")
+    assert call.top_library == "local"
+
+
 def test_false_sentinel_does_not_replace_imported_return_owner():
     result = _analyze()
 
