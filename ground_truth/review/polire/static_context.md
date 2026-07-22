@@ -135,9 +135,9 @@
 | polire/nsgp/nsgp.py:117:23 | `job.map(self._c_inv, self.__kernels)` | library / multiprocessing | library / multiprocessing | multiprocessing_receiver | static_context | v: job is a multiprocessing.Pool instance |
 | polire/nsgp/nsgp.py:118:8 | `job.close()` | library / multiprocessing | library / multiprocessing | multiprocessing_receiver | static_context | v: job is a multiprocessing.Pool instance |
 | polire/nsgp/nsgp.py:149:20 | `self.__weight_func(s1)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
-| polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:153:24 | `self.__weight_func(s2)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
-| polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:156:43 | `self.__kernels[i](S1, self._X)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:157:43 | `self.__kernels[i](self._X, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:158:45 | `self.__kernels[i](S1, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |

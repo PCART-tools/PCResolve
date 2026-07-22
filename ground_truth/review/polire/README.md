@@ -23,7 +23,7 @@
 - [static_context](static_context.md): 167
 - [manual_reasoned](manual_reasoned.md): 8
 
-## [Suspicious Records](suspicious.md): 52
+## [Suspicious Records](suspicious.md): 54
 
 ## Category Breakdown
 

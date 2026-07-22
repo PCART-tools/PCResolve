@@ -1,4 +1,4 @@
-# greenbenchmark — Suspicious Records (51)
+# greenbenchmark — Suspicious Records (45)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -40,11 +40,6 @@ matching suspicious criteria.
 | report_all_results.py:239:8 | `ax.set_ylim([0, ymax])` | library / matplotlib | local / local | matplotlib_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=matplotlib pcresolve=local<br>expected library, pcresolve=local |
 | report_all_results.py:245:4 | `ax.fill_between(df_energy_to_fill.index, 0, df_energy_to_...` | library / matplotlib | local / local | matplotlib_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=matplotlib pcresolve=local<br>expected library, pcresolve=local |
 | report_all_results.py:258:9 | `df[consumption_feature].plot()` | library / pandas | local / local | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=pandas pcresolve=local<br>expected library, pcresolve=local |
-| run_cached_script.py:46:16 | `action.get('type')` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |
-| run_cached_script.py:48:16 | `action.get('position')` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |
-| run_cached_script.py:51:20 | `action.get('text')` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |
-| run_cached_script.py:53:14 | `action.get('duration')` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |
-| run_cached_script.py:59:16 | `action.get('position')` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |
 | tests/test_helper.py:11:4 | `view.touch()` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
 | tests/test_helper.py:13:16 | `view.getXY()` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
 | tests/test_helper.py:14:25 | `view.getWidth()` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
@@ -55,4 +50,3 @@ matching suspicious criteria.
 | tests/test_helper.py:34:15 | `view.getWidth()` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
 | tests/test_helper.py:34:36 | `view.getHeight()` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
 | tests/test_helper.py:45:4 | `device.drag(s, e, 500, 20, -1)` | library / com | local / local | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=com pcresolve=local<br>expected library, pcresolve=local |
-| tests/test_helper.py:56:4 | `json_data.update({serialno: interaction})` | python / python | library / json | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=json |

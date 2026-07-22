@@ -457,11 +457,15 @@ class ProjectAnalyzer:
         if is_structured_source(base):
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
-                ## 1.0.5 P2: explicit result_source module name
-                #  (from __import__("literal")) carries the library
-                #  name directly — skip _top_source resolution.
-                if isinstance(base, CallResult):
-                    rs = getattr(base, 'result_source', None)
+                ## Explicit result_source carries an owner, not a symbol to
+                # resolve again in module scope.  InstanceMethod receivers
+                # cover assignments from function-local import chains.
+                result = base
+                if (isinstance(base, InstanceMethod)
+                        and isinstance(base.receiver, CallResult)):
+                    result = base.receiver
+                if isinstance(result, CallResult):
+                    rs = getattr(result, 'result_source', None)
                     if (isinstance(rs, str)
                             and rs not in ("local", "python", "unknown", "")):
                         return rs
@@ -1149,9 +1153,16 @@ class ProjectAnalyzer:
                 if receiver is None:
                     return (f"{source_display(a)}.{b}", module, "unknown")
                 _, receiver_module, receiver_symbol = receiver
-                receiver_top = self._top_source(
-                    receiver_module, receiver_symbol, tracers,
-                    _seen=set(_seen))
+                explicit_owner = (
+                    a.result_source if isinstance(a, CallResult) else None)
+                if (isinstance(explicit_owner, str)
+                        and explicit_owner not in (
+                            "", "local", "python", "unknown")):
+                    receiver_top = explicit_owner
+                else:
+                    receiver_top = self._top_source(
+                        receiver_module, receiver_symbol, tracers,
+                        _seen=set(_seen))
                 if not receiver_top:
                     receiver_top = "unknown"
                 return (f"{source_display(a)}.{b}",

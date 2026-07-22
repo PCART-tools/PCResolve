@@ -319,17 +319,40 @@ _CONVERSION_ATTRIBUTE_TARGETS = {
     ("pandas", "values"): "numpy",
 }
 
-# 1.0.5 P1: library function return types for chained-call and
-# assignment-boundary inference.  Keyed by (library_prefix, function_name)
-# where library_prefix matches the start of the resolved import top.
-# Probe-backed: cdist() returns ndarray.
-_RETURN_TYPE_MAP = {
+# 1.0.5 P1: result-object owners for import-backed calls.  The callable keeps
+# its own library owner; this map applies only to the object returned across an
+# assignment or chained-call boundary.  Keys are
+# (library_prefix, function_name), where the prefix matches the resolved top.
+_CALL_RESULT_OWNER_MAP = {
     ("scipy", "cdist"): "numpy",
-    ("scipy", "svd"): "numpy",
+    # svd() returns a Python tuple whose unpacked items are NumPy arrays.
+    ("scipy", "svd"): "python",
     ("numpy", "dot"): "numpy",
     ("seaborn", "barplot"): "matplotlib",
     ("seaborn", "stripplot"): "matplotlib",
     ("seaborn", "swarmplot"): "matplotlib",
+    ("matplotlib", "figure"): "matplotlib",
+    ("matplotlib", "gca"): "matplotlib",
+    ("matplotlib", "gcf"): "matplotlib",
+    ("matplotlib", "subplot"): "matplotlib",
+    # subplots() returns a Python tuple.  Its second unpacked item may be a
+    # Matplotlib Axes or a NumPy array, so no uniform item owner is claimed.
+    ("matplotlib", "subplots"): "python",
+    ("matplotlib", "add_subplot"): "matplotlib",
+    # Stable standard-library contracts.  Both functions return a
+    # Python-provided str/bytes object, not an object owned by the module.
+    ("json", "dumps"): "python",
+    ("json", "load"): "python",
+    ("json", "loads"): "python",
+    ("re", "sub"): "python",
+    ("re", "group"): "python",
+}
+
+# Owners of items produced by destructuring selected call results.  Keep this
+# separate from _CALL_RESULT_OWNER_MAP because a Python tuple may contain
+# import-backed objects.
+_UNPACKED_RESULT_OWNER_MAP = {
+    ("scipy", "svd"): "numpy",
 }
 
 # Item kind produced by indexing selected builtin-method results.  Keep this
@@ -341,14 +364,57 @@ _BUILTIN_METHOD_RESULT_ITEM_KINDS = {
     ("str", "rsplit"): "str",
 }
 
-def _match_return_type(top, func_name):
-    """Check if a (top_library, function_name) pair has a known return type."""
+def _match_result_owner(top, func_name):
+    """Return the known owner of an import-backed call's result object."""
     if top is None:
         return None
-    for (lib_prefix, fn), ret in _RETURN_TYPE_MAP.items():
-        if fn == func_name and (top == lib_prefix or top.startswith(lib_prefix + ".")):
-            return ret
+    for (lib_prefix, fn), owner in _CALL_RESULT_OWNER_MAP.items():
+        if (fn == func_name
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return owner
     return None
+
+
+def _match_unpacked_result_owner(top, func_name):
+    """Return a uniform owner for destructured items of a known call."""
+    if top is None:
+        return None
+    for (lib_prefix, fn), owner in _UNPACKED_RESULT_OWNER_MAP.items():
+        if (fn == func_name
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return owner
+    return None
+
+
+## Check whether every possible return source is Python-owned.
+#
+#  SourceSet values represent branch-dependent returns.  A local call may use
+#  the Python result contract only when every branch independently proves the
+#  same owner; mixed or unresolved branches remain conservative.
+#  @param source Return source or SourceSet.
+#  @return True when all possible sources are exactly "python".
+def _is_uniform_python_result(source):
+    source = normalize_source(source)
+    if source == "python":
+        return True
+    if isinstance(source, SourceSet) and source.sources:
+        return all(_is_uniform_python_result(item)
+                   for item in source.sources)
+    return False
+
+
+## Check whether any possible return source is Python-owned.
+#  @param source Return source or SourceSet.
+#  @return True when at least one branch is exactly "python".
+def _has_python_result(source):
+    source = normalize_source(source)
+    if source == "python":
+        return True
+    if isinstance(source, SourceSet):
+        return any(_has_python_result(item) for item in source.sources)
+    return False
 
 # 1.0.5 P1: numpy ufuncs that preserve the receiver's type when
 # applied to pandas objects.  Probe-backed: np.log(pd.Series)
@@ -731,6 +797,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         else:
                             return rs
                 if isinstance(inner_source, CallResult):
+                    if inner_source.result_source is not None:
+                        result_owner = inner_source.result_source
+                        if (isinstance(result_owner, str)
+                                and isinstance(node.func, ast.Attribute)):
+                            mapped_owner = _match_result_owner(
+                                result_owner, node.func.attr)
+                            if mapped_owner is not None:
+                                return CallResult(
+                                    InstanceMethod(
+                                        result_owner, node.func.attr),
+                                    display_name=ast.unparse(node.func),
+                                    call_lineno=node.lineno,
+                                    call_col_offset=node.col_offset,
+                                    result_source=mapped_owner)
+                        return result_owner
                     rs = self.return_sources.get(inner_source.callee)
                     if rs is not None:
                         rs = normalize_source(rs)
@@ -778,8 +859,24 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     display = ""
                 ## 1.0.5 P2: determine result-object ownership for builtin callees.
                 rs = None
-                if isinstance(call_key, str) and _is_unshadowed_builtin_call(self, node):
-                    rs = _resolve_builtin_result(call_key, node, self.trace_source)
+                if isinstance(call_key, str):
+                    local_returns = self.return_sources.get(call_key)
+                    if _is_uniform_python_result(local_returns):
+                        rs = "python"
+                    elif _has_python_result(local_returns):
+                        rs = UnknownSource("mixed local return")
+                    func_top, func_name = self._resolve_func_top(node.func)
+                    mapped_owner = _match_result_owner(func_top, func_name)
+                    if mapped_owner is not None:
+                        rs = mapped_owner
+                    else:
+                        preserved = self._receiver_preserving_result_owner(
+                            node, func_top, func_name)
+                        if preserved is not None:
+                            rs = preserved
+                    if _is_unshadowed_builtin_call(self, node):
+                        rs = _resolve_builtin_result(
+                            call_key, node, self.trace_source)
                 return CallResult(call_key, display_name=display,
                                   call_lineno=node.lineno,
                                   call_col_offset=node.col_offset,
@@ -965,6 +1062,55 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
     ## --- Method resolution ---
 
+    ## Resolve a method inherited from a statically known builtin base class.
+    #
+    #  Follows local base classes in declared MRO order.  A local override wins;
+    #  an external or otherwise unknown base stops inference so a later builtin
+    #  base cannot be claimed speculatively.
+    #  @param class_name Local class whose bases should be inspected.
+    #  @param method_name Method looked up on the instance.
+    #  @param seen Local classes already visited during recursive lookup.
+    #  @return Builtin type name, "local", or None when unresolved.
+    def _inherited_builtin_method_owner(self, class_name, method_name,
+                                        seen=None):
+        if seen is None:
+            seen = set()
+        if class_name in seen:
+            return None
+        seen = set(seen)
+        seen.add(class_name)
+
+        for base in self.class_bases.get(class_name, []):
+            if base in self.class_methods:
+                if method_name in self.class_methods.get(base, []):
+                    return "local"
+                inherited = self._inherited_builtin_method_owner(
+                    base, method_name, seen)
+                if inherited is not None:
+                    return inherited
+                continue
+
+            direct = normalize_source(self.symbols.direct.get(base))
+            if direct == "local":
+                return None
+
+            imported = self.import_from_symbols.get(base, "")
+            resolved_base = imported or base
+            builtin_name = resolved_base.rsplit(".", 1)[-1]
+            builtin_origin = (
+                resolved_base == builtin_name
+                or resolved_base.startswith("builtins."))
+            if (builtin_origin
+                    and method_name in _BUILTIN_CONTAINER_METHODS.get(
+                        builtin_name, frozenset())):
+                return builtin_name
+            if builtin_name == "object" and builtin_origin:
+                continue
+
+            # An earlier unknown/external base may provide the descriptor.
+            return None
+        return None
+
     ## Attempt to resolve an instance method call to a class member.
     #
     #  Handles self.method(), known_object.method(), and chained attribute calls.
@@ -1032,8 +1178,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             methods = self.class_methods.get(class_name, [])
             if methods and method_name in methods:
                 return InstanceMethod(receiver_key, method_name)
-            if class_name in self.class_methods or class_name in self.import_from_symbols:
+            inherited_owner = self._inherited_builtin_method_owner(
+                class_name, method_name)
+            if inherited_owner == "local":
                 return InstanceMethod(receiver_key, method_name)
+            if inherited_owner is not None:
+                return InstanceMethod(inherited_owner, method_name)
+            if class_name in self.class_methods:
+                return InstanceMethod(receiver_key, method_name)
+            if class_name in self.import_from_symbols:
+                return InstanceMethod(class_name, method_name)
             return None
 
         if isinstance(re, ast.Name):
@@ -1054,28 +1208,22 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         if binding.source == "local":
                             return InstanceMethod(re.id, method_name)
                         src_norm = normalize_source(binding.source)
-                        if is_structured_source(src_norm):
-                            return InstanceMethod(src_norm, method_name)
                         if isinstance(src_norm, CallResult):
                             cn = src_norm.callee
                             if isinstance(cn, str) and cn in self.class_methods:
                                 return _resolve_on_class(cn, cn)
                             if isinstance(cn, str) and cn in self.import_from_symbols:
                                 return InstanceMethod(cn, method_name)
+                            return InstanceMethod(src_norm, method_name)
+                        if is_structured_source(src_norm):
+                            return InstanceMethod(src_norm, method_name)
                 # Module-level local bindings — scope lookup
                 # may return None at module scope; fall back
                 # to the direct symbol table.
                 if self.symbols.direct.get(re.id) == "local":
                     return InstanceMethod(re.id, method_name)
                 return None
-            methods = self.class_methods.get(class_name)
-            if methods and method_name in methods:
-                return InstanceMethod(re.id, method_name)
-            if class_name in self.class_methods:
-                return InstanceMethod(re.id, method_name)
-            if class_name in self.import_from_symbols:
-                return InstanceMethod(class_name, method_name)
-            return None
+            return _resolve_on_class(class_name, re.id)
 
         if isinstance(re, ast.Attribute):
             chain = self._attribute_chain_list(re)
@@ -1573,8 +1721,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             container_kind=assignment_container_kind or "",
                             container_item_kind=assignment_item_kind or "")
                 elif isinstance(target, (ast.Tuple, ast.List)):
+                    unpacked_owner = None
+                    if isinstance(node.value, ast.Call):
+                        func_top, func_name = self._resolve_func_top(
+                            node.value.func)
+                        unpacked_owner = _match_unpacked_result_owner(
+                            func_top, func_name)
                     for index, elt in enumerate(target.elts):
                         if isinstance(elt, ast.Name):
+                            if unpacked_owner is not None:
+                                self._bind_target_name(
+                                    elt.id, unpacked_owner, elt)
+                                continue
                             # Preserve positional provenance when unpacking a
                             # named value.  Flattening every element to the
                             # traced top (often "local" for a parameter)
@@ -1588,14 +1746,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 continue
                             if isinstance(right_norm, InstanceMethod):
                                 if isinstance(right_norm.receiver, str):
-                                    # 1.0.5 P1: consult return-type map
+                                    # 1.0.5 P1: consult result-owner map
                                     # before binding.  linalg.svd(arr)
                                     # returns numpy arrays even though
                                     # linalg is scipy.
                                     rcvr_top = self.symbols.get_top(
                                         right_norm.receiver)
                                     if rcvr_top:
-                                        ret = _match_return_type(
+                                        ret = _match_unpacked_result_owner(
                                             rcvr_top, right_norm.method)
                                         if ret:
                                             self._bind_target_name(
@@ -1634,14 +1792,31 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return The conversion target library name, or None.
     ## Resolve a receiver name to its top library (v2 scope-aware).
     def _receiver_top(self, name):
-        top = self.symbols.get_top(name)
-        if top and top not in ("local", "python", "unknown", "", name):
-            return top
         if self.scope_model == "v2":
-            binding = self.current_scope().lookup(name)
+            binding = self.current_scope().lookup(
+                name, skip_parent_classes=True)
             if binding is not None:
                 src = normalize_source(binding.source)
-                if isinstance(src, CallResult) and isinstance(src.callee, str):
+                if isinstance(src, str):
+                    if src in ("local", "python", "unknown", ""):
+                        return src or None
+                    source_top = self.symbols.get_top(src)
+                    return source_top or src
+                if isinstance(src, InstanceMethod):
+                    receiver = normalize_source(src.receiver)
+                    if isinstance(receiver, str):
+                        receiver_top = self.symbols.get_top(receiver)
+                        return receiver_top or receiver
+                    return None
+                if isinstance(src, CallResult):
+                    result_owner = normalize_source(src.result_source)
+                    if isinstance(result_owner, str):
+                        owner_top = self.symbols.get_top(result_owner)
+                        return owner_top or result_owner
+                    if isinstance(result_owner, UnknownSource):
+                        return "unknown"
+                    if not isinstance(src.callee, str):
+                        return None
                     callee_top = self.symbols.get_top(src.callee)
                     if callee_top and callee_top not in ("local", name):
                         return callee_top
@@ -1656,6 +1831,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 callee_top = self.symbols.get_top(s.callee)
                                 if callee_top and callee_top not in ("local", name):
                                     return callee_top
+                    return callee_top
+                # A lexical binding is authoritative.  Do not consult a
+                # same-name module binding when its structured source cannot
+                # be resolved here.
+                return None
+        top = self.symbols.get_top(name)
         return top
 
     ## Resolve the ownership top of an expression node.
@@ -1667,6 +1848,37 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _expr_receiver_top(self, expr):
         if isinstance(expr, ast.Name):
             return self._receiver_top(expr.id)
+        if isinstance(expr, ast.Constant):
+            return "python"
+        if isinstance(expr, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
+            return "python"
+        if isinstance(expr, ast.UnaryOp):
+            return self._expr_receiver_top(expr.operand)
+        if isinstance(expr, ast.BinOp):
+            left_top = self._expr_receiver_top(expr.left)
+            right_top = self._expr_receiver_top(expr.right)
+            if left_top == right_top:
+                return left_top
+            external = [
+                top for top in (left_top, right_top)
+                if top not in (None, "", "local", "python", "unknown")]
+            other = [
+                top for top in (left_top, right_top)
+                if top not in external]
+            if (len(set(external)) == 1
+                    and all(top == "python" for top in other)):
+                return external[0]
+            return None
+        if isinstance(expr, ast.Subscript):
+            return self._expr_receiver_top(expr.value)
+        if isinstance(expr, ast.Attribute):
+            receiver = expr.value
+            if isinstance(receiver, ast.Name):
+                receiver_top = self._receiver_top(receiver.id)
+                if receiver_top:
+                    return _CONVERSION_ATTRIBUTE_TARGETS.get(
+                        (receiver_top, expr.attr))
+            return None
         if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute):
             receiver = expr.func.value
             if isinstance(receiver, ast.Name):
@@ -1685,15 +1897,51 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _resolve_func_top(self, func_node):
         if isinstance(func_node, ast.Name):
             name = func_node.id
-            top = self.symbols.get_top(name)
-            if top and top not in ("local", "python", "unknown", "", name):
-                return (top, name)
+            top = self._receiver_top(name)
+            imported_name = self.import_from_symbols.get(name, "")
+            func_name = (
+                imported_name.rsplit(".", 1)[-1]
+                if imported_name else name)
+            if (top and top not in ("local", "python", "unknown", "")
+                    and (top != name
+                         or name in self.import_aliases
+                         or name in self.import_from_symbols)):
+                return (top, func_name)
         if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Name):
             prefix = func_node.value.id
-            prefix_top = self.symbols.get_top(prefix)
-            if prefix_top and prefix_top not in ("local", "python", "unknown", "", prefix):
+            prefix_top = self._receiver_top(prefix)
+            if (prefix_top
+                    and prefix_top not in ("local", "python", "unknown", "")
+                    and (prefix_top != prefix
+                         or prefix in self.import_aliases
+                         or prefix in self.import_from_symbols)):
                 return (prefix_top, func_node.attr)
         return (None, None)
+
+    ## Resolve the result owner of a receiver-preserving NumPy ufunc.
+    #
+    #  Pandas and NumPy inputs retain their owner.  Python literals and
+    #  containers produce NumPy results.  An unresolved or other import-backed
+    #  receiver remains unknown because array protocols may override dispatch.
+    #  @param call_node Ufunc call expression.
+    #  @param func_top Resolved callable owner.
+    #  @param func_name Resolved function name.
+    #  @return Owner string, UnknownSource, or None when not applicable.
+    def _receiver_preserving_result_owner(self, call_node, func_top,
+                                          func_name):
+        if (func_top != "numpy"
+                or func_name not in _RECEIVER_PRESERVE_UFUNCS
+                or not call_node.args):
+            return None
+        argument = call_node.args[0]
+        arg_top = self._expr_receiver_top(argument)
+        if arg_top in ("pandas", "numpy"):
+            return arg_top
+        if (arg_top == "python"
+                or _container_kind(argument) is not None
+                or isinstance(argument, ast.Constant)):
+            return "numpy"
+        return UnknownSource("receiver-preserving ufunc result")
 
     def _resolve_conversion_target(self, value_node):
         # Unwrap trailing attribute chain: data.to_numpy().T → data.to_numpy()
@@ -1731,15 +1979,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if isinstance(call_node, ast.Call):
             func_top, func_name = self._resolve_func_top(call_node.func)
             if func_top and func_top not in ("local", "python", "unknown", ""):
-                # Check explicit return-type map (cdist → numpy)
-                ret = _match_return_type(func_top, func_name)
+                # Check explicit result-owner map (cdist → numpy).
+                ret = _match_result_owner(func_top, func_name)
                 if ret:
                     return ret
-                # Check receiver-preserving ufuncs (np.log + pandas)
-                if func_name in _RECEIVER_PRESERVE_UFUNCS and len(call_node.args) >= 1:
-                    arg_top = self._expr_receiver_top(call_node.args[0])
-                    if arg_top and arg_top not in ("local", "python", "unknown", ""):
-                        return arg_top
+                preserved = self._receiver_preserving_result_owner(
+                    call_node, func_top, func_name)
+                if preserved is not None:
+                    return preserved
         return None
 
     ## Shared assignment pipeline: pending targets, trace RHS, visit, call_assign_funcs.
@@ -1891,6 +2138,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if rs is not None:
                     return rs
             if isinstance(inner_source, CallResult):
+                if inner_source.result_source is not None:
+                    return inner_source.result_source
                 rs = self.return_sources.get(inner_source.callee)
                 if rs is not None:
                     return rs
@@ -1901,13 +2150,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             inner_call = node.func.value
             func_top, func_name = self._resolve_func_top(inner_call.func)
             if func_top and func_top not in ("local", "python", "unknown", ""):
-                ret = _match_return_type(func_top, func_name)
+                ret = _match_result_owner(func_top, func_name)
                 if ret:
                     return ret
-                if func_name in _RECEIVER_PRESERVE_UFUNCS and len(inner_call.args) >= 1:
-                    arg_top = self._expr_receiver_top(inner_call.args[0])
-                    if arg_top and arg_top not in ("local", "python", "unknown", ""):
-                        return arg_top
+                preserved = self._receiver_preserving_result_owner(
+                    inner_call, func_top, func_name)
+                if preserved is not None:
+                    return preserved
         call_lookup_base = self.get_base(node, call_lookup=True)
         if call_lookup_base is not None:
             return call_lookup_base
@@ -2016,6 +2265,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 'api': api_string,
                 'top': 'python',
                 'chain': ['python'] if self.scope_model == "v2" else [],
+                'base': base,
+                'direct_name_callee': direct_name,
+            }
+            record.update(loc)
+            self.api_calls.append(record)
+            self._collect_call_site(api_string, func_name, parameters,
+                                    base, loc)
+            return
+
+        if isinstance(base, UnknownSource):
+            record = {
+                'api': api_string,
+                'top': 'unknown',
+                'chain': ['unknown'] if self.scope_model == "v2" else [],
                 'base': base,
                 'direct_name_callee': direct_name,
             }
@@ -2734,32 +2997,42 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Return(self, node):
         if self._func_stack and node.value is not None:
             func_name = self._func_stack[-1]
-            if not isinstance(node.value, ast.Constant):
+            source = None
+            result_kind = _container_kind(node.value)
+            # A tuple owns only the aggregate object.  Its unpacked items may
+            # have unrelated owners, so do not promote the function's entire
+            # return contract to Python from a tuple literal alone.
+            if result_kind is not None and result_kind != "tuple":
+                source = "python"
+            elif (isinstance(node.value, ast.Name)
+                  and self._lookup_container_kind(node.value.id) is not None):
+                source = "python"
+            else:
                 source = self.trace_source(node.value)
-                if source:
-                    if isinstance(source, str) and source in self.symbols.direct:
-                        s = self.symbols.direct[source]
-                        new_src = s if s else source
-                    else:
-                        new_src = source
-                    if (source == "local" and isinstance(node.value, ast.Name)
-                            and node.value.id in self.function_params.get(func_name, [])):
-                        new_src = node.value.id
-                    ## Write qualified key for class methods; bare key only
-                    ## for non-class functions to prevent cross-class pollution.
-                    if self._class_stack:
-                        qkey = self._class_stack[-1] + "." + func_name
-                        old_q = self.return_sources.get(qkey)
-                        self.return_sources[qkey] = make_source_set(
-                            [old_q, new_src] if old_q else [new_src],
-                            origin="return")
-                    else:
-                        old = self.return_sources.get(func_name)
-                        self.return_sources[func_name] = make_source_set(
-                            [old, new_src] if old else [new_src],
-                            origin="return")
-                    self._add_symbol_ref(
-                        func_name + ".return", source, "return", node)
+            if source:
+                if isinstance(source, str) and source in self.symbols.direct:
+                    s = self.symbols.direct[source]
+                    new_src = s if s else source
+                else:
+                    new_src = source
+                if (source == "local" and isinstance(node.value, ast.Name)
+                        and node.value.id in self.function_params.get(func_name, [])):
+                    new_src = node.value.id
+                ## Write qualified key for class methods; bare key only
+                ## for non-class functions to prevent cross-class pollution.
+                if self._class_stack:
+                    qkey = self._class_stack[-1] + "." + func_name
+                    old_q = self.return_sources.get(qkey)
+                    self.return_sources[qkey] = make_source_set(
+                        [old_q, new_src] if old_q else [new_src],
+                        origin="return")
+                else:
+                    old = self.return_sources.get(func_name)
+                    self.return_sources[func_name] = make_source_set(
+                        [old, new_src] if old else [new_src],
+                        origin="return")
+                self._add_symbol_ref(
+                    func_name + ".return", source, "return", node)
         self.generic_visit(node)
 
 

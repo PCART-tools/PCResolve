@@ -271,17 +271,17 @@ Excluded from precision and recall; counted in coverage metrics.
 
 All 42 fixture projects are **locked** (2026-07-20). The set contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
-snapshot has 5,111 primary hits and 677 primary misses, for aggregate recall
-0.883. AST call coverage is 5,788/5,788.
+snapshot has 5,320 primary hits and 468 primary misses, for aggregate recall
+0.919. AST call coverage is 5,788/5,788.
 
-Evidence is distributed across 3,762 `static_obvious`, 1,802
+Evidence is distributed across 3,745 `static_obvious`, 1,819
 `static_context`, 185 `dynamic_probe`, and 39 `manual_reasoned` records.
 The generated [review index](review/README.md) is the authoritative current
 per-project breakdown.
 
 ### Repair Priority
 
-The 677 records in generated `suspicious.md` views form the current repair
+The 468 records in generated `suspicious.md` views form the current repair
 queue. They include known inter-procedural boundaries as well as statically
 actionable ownership gaps. Release triage must use the current views instead
 of the earlier pilot-only miss counts.

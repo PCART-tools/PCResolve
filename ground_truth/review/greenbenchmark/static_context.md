@@ -1,4 +1,4 @@
-# greenbenchmark — static_context (235 records)
+# greenbenchmark — static_context (236 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -8,13 +8,14 @@
 | run_cached_script.py:29:4 | `device.drag(s, e, 500, 20, -1)` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
 | run_cached_script.py:37:19 | `ViewClient.connectToDeviceOrExit(**kwargs1)` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
 | run_cached_script.py:39:5 | `ViewClient(device, serialno, **kwargs2)` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
-| run_cached_script.py:46:16 | `action.get('type')` | python / python | library / json | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
-| run_cached_script.py:48:16 | `action.get('position')` | python / python | library / json | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
+| run_cached_script.py:43:18 | `json.load(data_file).get(serialno)` | python / python | python / python | python_protocol_method | static_context | v: json.load() without custom hooks returns Python JSON values; successful .get() d |
+| run_cached_script.py:46:16 | `action.get('type')` | python / python | python / python | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
+| run_cached_script.py:48:16 | `action.get('position')` | python / python | python / python | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
 | run_cached_script.py:49:8 | `vc.touch(x, y)` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
 | run_cached_script.py:51:8 | `device.type(action.get('text'))` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
-| run_cached_script.py:51:20 | `action.get('text')` | python / python | library / json | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
-| run_cached_script.py:53:14 | `action.get('duration')` | python / python | library / json | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
-| run_cached_script.py:59:16 | `action.get('position')` | python / python | library / json | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
+| run_cached_script.py:51:20 | `action.get('text')` | python / python | python / python | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
+| run_cached_script.py:53:14 | `action.get('duration')` | python / python | python / python | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
+| run_cached_script.py:59:16 | `action.get('position')` | python / python | python / python | builtin_container_method | static_context | v: action is a dict item read from decoded JSON |
 | run_cached_script.py:62:8 | `device.shell('input keyevent KEYCODE_BACK')` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
 | report_all_results.py:19:0 | `parser.add_argument('--all_figures', action='store_true')` | library / argparse | library / argparse | argparse_receiver | static_context | v: parser is created by argparse.ArgumentParser() |
 | report_all_results.py:20:0 | `parser.add_argument('--single_experiment', action='store_true')` | library / argparse | library / argparse | argparse_receiver | static_context | v: parser is created by argparse.ArgumentParser() |
@@ -211,7 +212,7 @@
 | tests/test_helper.py:34:15 | `view.getWidth()` | library / com | local / local | android_viewclient_receiver | static_context | v: parameter receives an Android ViewClient view or device at project call sites |
 | tests/test_helper.py:34:36 | `view.getHeight()` | library / com | local / local | android_viewclient_receiver | static_context | v: parameter receives an Android ViewClient view or device at project call sites |
 | tests/test_helper.py:45:4 | `device.drag(s, e, 500, 20, -1)` | library / com | local / local | android_viewclient_receiver | static_context | v: parameter receives an Android ViewClient view or device at project call sites |
-| tests/test_helper.py:56:4 | `json_data.update({serialno: interaction})` | python / python | library / json | builtin_container_method | static_context | v: json_data is a Python dict returned by json.load() |
+| tests/test_helper.py:56:4 | `json_data.update({serialno: interaction})` | python / python | python / python | builtin_container_method | static_context | v: json_data is a Python dict returned by json.load() |
 | tests/uhabits.py:14:19 | `ViewClient.connectToDeviceOrExit(**kwargs1)` | library / com | library / com | android_viewclient_receiver | static_context | v: callable or receiver is imported from the Android ViewClient API |
 | tests/uhabits.py:16:5 | `ViewClient(device, serialno, **kwargs2)` | library / com | library / com | android_viewclient_receiver | static_context | v: receiver comes from the imported Android ViewClient API |
 | tests/uhabits.py:20:4 | `vc.dump(window='-1')` | library / com | library / com | android_viewclient_receiver | static_context | v: callable or receiver is imported from the Android ViewClient API |

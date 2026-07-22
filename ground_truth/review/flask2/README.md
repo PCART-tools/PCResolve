@@ -21,7 +21,7 @@
 - [static_obvious](static_obvious.md): 48
 - [static_context](static_context.md): 25
 
-## [Suspicious Records](suspicious.md): 19
+## [Suspicious Records](suspicious.md): 4
 
 ## Category Breakdown
 

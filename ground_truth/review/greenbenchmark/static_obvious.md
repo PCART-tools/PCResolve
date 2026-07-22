@@ -1,4 +1,4 @@
-# greenbenchmark — static_obvious (254 records)
+# greenbenchmark — static_obvious (253 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -6,7 +6,6 @@
 | run_cached_script.py:32:4 | `os.system('monkeyrunner tests/hold.py "%s" %d %d' % (serialno, x, y))` | library / os | library / os | direct_import | static_obvious | v: direct import-backed API call |
 | run_cached_script.py:42:5 | `open(PERSIST_SCRIPT_FILENAME)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run_cached_script.py:43:18 | `json.load(data_file)` | library / json | library / json | direct_import | static_obvious | v: direct import-backed API call |
-| run_cached_script.py:43:18 | `json.load(data_file).get(serialno)` | library / json | library / json | direct_import | static_obvious | v: direct import-backed API call |
 | run_cached_script.py:53:8 | `sleep(action.get('duration'))` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
 | run_cached_script.py:55:8 | `swipeDown()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | run_cached_script.py:57:8 | `swipeUp()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

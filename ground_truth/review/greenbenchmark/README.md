@@ -12,16 +12,16 @@
 
 ## Expected Kind
 
-- library: 286
-- python: 70
+- library: 285
+- python: 71
 - local: 133
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 254
-- [static_context](static_context.md): 235
+- [static_obvious](static_obvious.md): 253
+- [static_context](static_context.md): 236
 
-## [Suspicious Records](suspicious.md): 51
+## [Suspicious Records](suspicious.md): 45
 
 ## Category Breakdown
 
@@ -29,10 +29,11 @@
 - argparse_receiver: 6
 - builtin: 58
 - builtin_container_method: 12
-- direct_import: 64
+- direct_import: 63
 - local_call: 133
 - matplotlib_receiver: 15
 - pandas_receiver: 44
+- python_protocol_method: 1
 
 ## Top Libraries
 
@@ -42,7 +43,7 @@
 - argparse: 8
 - os: 7
 - numpy: 5
-- json: 4
+- json: 3
 - scipy: 3
 - time: 2
 - tqdm: 1
