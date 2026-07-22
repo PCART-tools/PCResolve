@@ -452,8 +452,8 @@ def test_attribute_chain_receiver_uses_root_binding():
                 f"attribute-chain receiver should trace to ext, got {c.top_library}"
 
 
-def test_local_object_attribute_chain_not_misattributed():
-    """Local object attribute must not be misattributed to a third-party."""
+def test_unconstrained_attribute_chain_is_unknown():
+    """A local root does not prove ownership of an unconstrained attribute."""
     code = ("class Local:\n"
             "    def method(self): pass\n"
             "def f(x):\n"
@@ -462,8 +462,8 @@ def test_local_object_attribute_chain_not_misattributed():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "method" in c.expression:
-            assert c.top_library == "local", \
-                f"local object method must be local, got {c.top_library}"
+            assert c.top_library == "unknown", \
+                f"unconstrained child method must be unknown, got {c.top_library}"
 
 
 # ── Phase 7B hardening (4 categories) ────────────────────────────────────

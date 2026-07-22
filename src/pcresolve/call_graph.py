@@ -58,6 +58,14 @@ class CallEdge:
     caller: FunctionId
     ## What is being called — FunctionId for local, str for external.
     callee: object
+    ## Syntactic callable name at the call site.
+    #
+    #  Preserves names such as create_body or module.create_body even when
+    #  source tracing reduces the callee to local. Used for bounded project
+    #  parameter propagation, not exposed as a public call graph.
+    callee_name: str = ""
+    ## Structured callable source before ownership classification.
+    callee_source: object = None
     ## Source of the receiver (for obj.method() calls).
     receiver_source: object = None
     ## Argument sources keyed by parameter name (best-effort).

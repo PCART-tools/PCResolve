@@ -12,7 +12,7 @@
 | FuunyClusters.py:137:27 | `allseeds.index(tuple(new))` | python / python | python / python | builtin_method_local_receiver | static_context | gt: builtin index() on local container<br>v: builtin list method on local container; receiver is local list literal or variab |
 | FuunyClusters.py:140:8 | `my_prbar.update()` | library / pyprind | library / pyprind | transitive_method | static_context | v: receiver ownership inferred from pyprind.ProgBar() return |
 | FuunyClusters.py:145:23 | `allseeds.index(tuple(n))` | python / python | python / python | builtin_method_local_receiver | static_context | gt: builtin index() on local container<br>v: builtin list method on local container; receiver is local list literal or variab |
-| Kmeans.py:28:13 | `centres.copy()` | library / numpy | local / local | transitive_method | static_context | gt: numpy .copy()<br>v: numpy .copy( method on numpy ndarray |
+| Kmeans.py:28:13 | `centres.copy()` | library / numpy | library / numpy | transitive_method | static_context | gt: numpy .copy()<br>v: numpy .copy( method on numpy ndarray |
 | Kmeans.py:39:15 | `D.argmin(axis=1)` | library / numpy | unknown / unknown | transitive_method | static_context | gt: numpy .argmin() on array<br>v: .argmin() on numpy ndarray |
 | Kmeans.py:41:17 | `distances.mean()` | library / numpy | unknown / unknown | transitive_method | static_context | gt: numpy .mean() on array<br>v: numpy .mean( method on numpy ndarray |
 | Kmeans.py:49:30 | `X[c].mean(axis=0)` | library / numpy | library / numpy | transitive_method | static_context | v: numpy .mean( method on numpy ndarray |

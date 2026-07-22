@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 
+from scripts.diff_v1_v2 import _classify_expr
+
 SCRIPT = os.path.join(os.path.dirname(__file__), "..", "scripts", "diff_v1_v2.py")
 
 
@@ -47,15 +49,7 @@ def test_df_subscript_astype_is_container():
 
 def test_plain_attribute_method_is_not_misclassified():
     """v.mean() → attribute_method, not bare_call."""
-    code = ("import pandas as pd\n"
-            "def f(df):\n"
-            "    v = df\n"
-            "    return v.mean()\n"
-            "f(pd.DataFrame())\n")
-    out, rc = _run_taxonomy(code)
-    assert rc == 0
-    assert "attribute_method" in out, (
-        "v.mean() should be attribute_method\n%s" % out)
+    assert _classify_expr("v.mean()") == "attribute_method"
 
 
 def test_taxonomy_preserves_baseline_gate():

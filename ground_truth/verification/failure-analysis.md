@@ -1,132 +1,138 @@
 # PCResolve 1.0.5 Ground Truth Failure Analysis
 
-Snapshot: 2026-07-22, after the second ownership repair batch
+Snapshot: 2026-07-22, after bounded parameter receiver ownership repair
 
 ## Executive Summary
 
 The locked evaluation set contains 5,788 call records across 42 projects.
-PCResolve currently produces 5,320 primary hits and 468 primary mismatches,
-for recall 0.919. AST coverage is complete at 5,788/5,788, with no missing,
+PCResolve currently produces 5,354 primary hits and 434 primary mismatches,
+for recall 0.925. AST coverage is complete at 5,788/5,788, with no missing,
 stale, or uncovered call predictions. The remaining failures are ownership
 classification failures, not call collection failures.
 
-The second repair batch separates callable ownership from result-object
-ownership across standard-library results, local container returns, selected
-library conversions, Matplotlib objects, and builtin subclasses. It repairs
-68 previously missed records. Two Polire NumPy calls that were correct only by
-an unsupported producer-owner guess now remain `unknown`, for a net reduction
-of 66 mismatches. One JSON GT record was corrected without changing whether
-the call was a hit.
+The previous tracked snapshot contained 5,320 hits and 468 mismatches, for
+recall 0.919. Under the corrected current contract, the cross-snapshot audit
+finds 37 improved records and zero regressions. The tracked hit count rises by
+34 because three AIBO dead-code calls remained hits while their labels were
+corrected from `local` to `unknown`.
+
+Five dead-code labels were corrected in total. Three AIBO parameter receivers
+and two unreachable EJPLab tensor parameters now use `unknown` because no
+executable call site establishes an object owner. These corrections preserve
+the rule that names, annotations, and surrounding framework context are not
+sufficient ownership evidence.
 
 Four remaining records are the documented `request.json.get(...)` framework
-payload boundary. The non-boundary repair queue therefore contains 464
+payload boundary. The required 1.0.5 repair queue therefore contains 430
 records.
 
-## Second Repair Batch
+## Parameter Receiver Repair
 
-| Change | Prior misses repaired | Result |
-|---|---:|---|
-| Python-owned standard-library results | 41 | Regex strings and decoded JSON values no longer retain the producer module as receiver owner |
-| Local Python container returns and builtin subclasses | 6 | Dict/list results and inherited builtin container methods classify as `python` without method-name-only guessing |
-| Flask result-object propagation | 15 | Evidence-backed Flask receivers retain `flask` ownership across local returns |
-| Function-local Matplotlib result chains | 6 | Axes methods retain `matplotlib` after `gcf().add_subplot(...)` assignments |
-| Conservative NumPy ufunc boundary | -2 | Unresolved receiver-preserving ufunc results remain `unknown` instead of inheriting `numpy` from the callable |
-| **Net mismatch reduction** | **66** | Recall improves from 0.908 to 0.919 |
+The current batch adds bounded call-site evidence without claiming a complete
+call graph or type system.
 
-The result-owner contracts distinguish the called function from the object it
-returns. They also distinguish a Python tuple result from its unpacked items.
-For example, `scipy.linalg.svd()` is SciPy-owned, its aggregate return is a
-Python tuple, and its three statically uniform unpacked items are NumPy-owned.
+| Change | Contract |
+|---|---|
+| Same-file and cross-file argument convergence | A parameter receiver gets an owner only when all discovered call sites converge. |
+| Local constructors and constructor attributes | Project-local class instances remain `local`; imported objects stored in their attributes retain their imported owner. |
+| Static callbacks and parameterization | Statically enumerated callback tables and `pytest.mark.parametrize` values can supply bounded argument evidence. |
+| Parameter-derived expressions | Subscripts, arithmetic, conflicting call sites, and uncalled parameters remain `unknown`. |
+| Explicit method-result ownership | Small reviewed contracts cover result objects such as selected Box2D body constructors without promoting every method result. |
+| Local callable protection | Qualified project class constructors resolve to `local` before their module prefix can be mistaken for a library. |
+
+The repair improves records in AIBO, allnews, EJPLab, greenbenchmark,
+simulation, and Youtube. The regression comparison reports 37 improvements
+and zero prior current-contract hits lost.
+
+Nine existing v1/v2 hard baselines were re-recorded after this audit. The
+baseline count remains 21. This records intentional `local` or unsupported
+library results becoming `unknown`; it does not waive any locked GT hit.
 
 ## Classification By Analyzer Outcome
 
 | Current reason | Records | Share | Failure mechanism |
 |---|---:|---:|---|
-| `LOCAL_DEFINITION` | 365 | 78.0% | A parameter, local binding, or attribute is treated as proof that the callable implementation is project-local. |
-| `UNRESOLVED` | 59 | 12.6% | Receiver ownership is lost through parameters, return values, branches, attributes, subscripts, or chains. |
-| `TRANSITIVE_IMPORT` | 37 | 7.9% | Import provenance of a producer or enclosing object leaks into the callable owner. |
-| `RETURN_PROPAGATION` | 7 | 1.5% | A called function's owner is propagated to a result object whose callable surface has a different owner. |
-| **Total** | **468** | **100.0%** | |
+| `LOCAL_DEFINITION` | 219 | 50.5% | A local binding is still treated as proof that the callable implementation is project-local. |
+| `UNRESOLVED` | 173 | 39.9% | Receiver ownership is lost through parameters, returns, branches, attributes, subscripts, or chains. |
+| `TRANSITIVE_IMPORT` | 33 | 7.6% | Import provenance of a producer or enclosing object leaks into the callable owner. |
+| `RETURN_PROPAGATION` | 7 | 1.6% | A function owner is propagated to a result object with a different callable surface. |
+| `FLOW_MERGE` | 2 | 0.5% | Multiple static paths do not converge to the reviewed owner. |
+| **Total** | **434** | **100.0%** | |
 
-### `LOCAL_DEFINITION` Overreach
+### Local Definition Overreach
 
-This remains the dominant failure. A receiver name bound in project code is
-often resolved to `local`, even when its runtime class is owned by an imported
-library or Python itself. Examples include pandas DataFrames, NumPy arrays,
-torch Tensors, regular-expression matches, and Python strings or containers.
+This remains the largest failure group. A receiver name bound in project code
+is often resolved to `local`, even when its callable surface belongs to an
+import-backed library or Python. Common examples are pandas DataFrames, NumPy
+arrays, torch Tensors, regular-expression matches, strings, and containers.
 
-### `UNRESOLVED` Receiver Loss
+### Unresolved Receiver Loss
 
 These records preserve uncertainty instead of guessing. Common loss points
-are function parameters, local function returns, nested attributes, subscript
-results, and chained calls. The two Polire `s_vec.sum()` records are now in
-this group because `s_vec` comes from a local method whose NumPy result depends
-on unresolved parameters.
+are local function results, nested attributes, subscript results, chained
+calls, and parameter paths for which the bounded call-site model has
+insufficient evidence.
 
 ### Producer And Result Leakage
 
 `TRANSITIVE_IMPORT` and `RETURN_PROPAGATION` failures still conflate a
-producer with its returned object. Remaining examples include argparse values,
-XML text, local wrappers, and protocol-bearing library results that do not yet
-have a general static contract.
+producer with its returned object. Remaining examples include argparse
+values, XML text, local wrappers, and protocol-bearing library results that
+do not yet have a reviewed static contract.
 
 ## Classification By Expected Kind
 
 | Expected kind | Records | Share | Typical missing evidence |
 |---|---:|---:|---|
-| `library` | 289 | 61.8% | Receiver type through parameters, returns, attributes, conversions, and chains |
-| `python` | 147 | 31.4% | Builtin string, container, mapping, and protocol object identity |
-| `unknown` | 26 | 5.6% | Branch-dependent or unconstrained polymorphic receivers |
-| `local` | 6 | 1.3% | Project-local callable identity overwritten by library evidence |
-| **Total** | **468** | **100.0%** | |
+| `library` | 267 | 61.5% | Receiver identity through parameters, returns, attributes, conversions, and chains |
+| `python` | 145 | 33.4% | String, container, mapping, and Python protocol object identity |
+| `unknown` | 16 | 3.7% | Branch-dependent, dead, or unconstrained polymorphic receivers |
+| `local` | 6 | 1.4% | Project-local callable identity overwritten by library evidence |
+| **Total** | **434** | **100.0%** | |
 
-## Highest Impact Concentrations
+## Highest Impact Families
 
-| Concentration | Records | Primary cause |
-|---|---:|---|
-| General transitive receiver methods | 87 | Missing parameter, return, attribute, and chain propagation |
-| Python protocol methods | 71 | Receiver protocol identity is not propagated |
-| NumPy array receivers | 51 | Array ownership is lost through parameters, slicing, and local assignments |
-| Python string methods | 36 | String result identity is not preserved through every local path |
-| Torch tensor receivers | 33 | Tensor ownership is lost through parameters and transforms |
-| Matplotlib receivers | 24 | Function-local imports or returned plotting objects remain unresolved |
-| Pandas receivers | 21 | DataFrame and Series ownership is lost across local functions |
-| Branch-dependent IO receivers | 17 | File-like owner depends on runtime branch selection |
-| Python container methods | 15 | Container item and result-kind ownership is not propagated |
+| Failure family | Records |
+|---|---:|
+| General transitive receiver methods | 82 |
+| Python protocol methods | 69 |
+| NumPy array receivers | 51 |
+| Python string methods | 36 |
+| Torch tensor receivers | 33 |
+| Matplotlib receivers | 24 |
+| Pandas receivers | 20 |
+| Python container methods | 15 |
+| Conversion boundaries | 14 |
+| Branch-dependent IO receivers | 13 |
+| Regular-expression receivers | 13 |
 
-## Ground Truth Correction
-
-`json.load(data_file).get(serialno)` is now `python/python`. The `json.load`
-call remains `library/json`, while the successful `.get()` dispatch is owned
-by the Python mapping returned by the default JSON decoder. The record is
-`static_context`, not `static_obvious`, because the receiver identity depends
-on the standard-library return contract.
-
-## Boundary Versus Repair Queue
+## Release Disposition
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| Documented framework payload boundary | 4 | `request.json.get(...)`, retained until protocol inference is generalized |
-| Non-boundary analyzer repair queue | 464 | Evidence-backed owner is available from reviewed source context or dynamic probes |
-| **Total** | **468** | |
+| Required 1.0.5 repair queue | 430 | Evidence-backed owner is available and must be resolved before release. |
+| Documented framework payload boundary | 4 | `request.json.get(...)`, retained until general protocol inference is available. |
+| Ground truth correction | 0 | No current record requires a label change. |
+| **Total** | **434** | |
 
-Inter-procedural receiver cases are architectural limitations, but they are
-not GT ambiguity. They remain in the repair queue because the callable owner
-is established by reviewed source context or a dynamic probe.
+The generated
+[`failure-dispositions.md`](failure-dispositions.md) report is the
+machine-derived queue by project, category, and repair scope. Inter-procedural
+receiver cases are architectural limitations, but they are not GT ambiguity
+when reviewed source context or a dynamic probe establishes the callable
+owner.
 
 ## Recommended Repair Order
 
-1. Propagate receiver ownership through local parameters and return values
-   using call-site evidence, without turning PCResolve into a full call graph.
-2. Carry import-backed and Python protocol identity through attributes,
-   subscripts, and homogeneous container items.
-3. Preserve result-object contracts for standard-library and probe-backed
-   conversions without broad method-name heuristics.
-4. Keep unresolved polymorphic or branch-dependent receivers as `unknown`.
-5. Protect project-local callable identity from receiver member-state or
-   argument provenance.
-6. Revisit the four Flask payload boundary records only after general mapping
-   protocol inference is stable.
+1. Resolve the 177 same-scope result and Python protocol records using
+   receiver-shape and result contracts, without method-name-only promotion.
+2. Reduce the 231 bounded receiver-flow records through convergent parameters,
+   local returns, attributes, and homogeneous container items.
+3. Preserve the 16 conservative `unknown` identities and repair the six local
+   callable identity failures without unsupported guesses.
+4. Keep the four Flask payload records as visible accepted boundaries.
+5. Re-run the failure classifier after every batch and amend fixes belonging
+   to the same repair theme into one commit.
 
 ## Release Validation
 
@@ -136,7 +142,9 @@ Every repair batch must preserve these checks:
 python -m pytest -q
 python scripts/add_verification_levels.py --check
 python scripts/verify_ground_truth_calls.py --coverage-only
-python scripts/evaluate_ground_truth.py --all --view all
+python scripts/refresh_ground_truth_snapshots.py --all --check
+python scripts/evaluate_ground_truth.py --view all
+python scripts/classify_ground_truth_failures.py --check
 python scripts/diff_v1_v2.py tests/fixtures/tested_projects
 ```
 

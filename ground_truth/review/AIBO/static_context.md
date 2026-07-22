@@ -1,4 +1,4 @@
-# AIBO — static_context (174 records)
+# AIBO — static_context (171 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -58,36 +58,35 @@
 | functions/push_utils.py:85:12 | `self.bodies.append(new_bodies)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
 | functions/push_utils.py:88:8 | `self.world.Step(self.TIME_STEP, self.VEL_ITERS, self.POS_ITERS)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:90:12 | `self.gui_world.draw(self.bodies)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:96:20 | `world.CreateDynamicBody(position=init_pos, angle=init_angle)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:96:20 | `world.CreateDynamicBody(position=init_pos, angle=init_angle)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:101:21 | `b2PolygonShape(box=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:104:21 | `b2CircleShape(radius=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:107:21 | `b2PolygonShape(vertices=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:111:8 | `self.hand.CreateFixture(shape=rshape, density=0.1, friction=0.1)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:118:25 | `world.CreateFrictionJoint(bodyA=base, bodyB=self.hand, maxForce=2, ...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:111:8 | `self.hand.CreateFixture(shape=rshape, density=0.1, friction=0.1)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:118:25 | `world.CreateFrictionJoint(bodyA=base, bodyB=self.hand, maxForce=2, ...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:124:8 | `b2world_interface.add_bodies(self.hand)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:135:8 | `self.hand.ApplyTorque(torque, wake=True)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:135:8 | `self.hand.ApplyTorque(torque, wake=True)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:138:21 | `b2Vec2(rlvel)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:138:37 | `b2Vec2(lvel)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:140:8 | `self.hand.ApplyForce(force, self.hand.position, wake=True)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:140:8 | `self.hand.ApplyForce(force, self.hand.position, wake=True)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:149:13 | `', '.join(print_state[:3])` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
 | functions/push_utils.py:149:43 | `', '.join(print_state[3:])` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:157:11 | `world.CreateDynamicBody(position=obj_loc)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:157:11 | `world.CreateDynamicBody(position=obj_loc)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:159:20 | `b2PolygonShape(box=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:161:20 | `b2CircleShape(radius=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:163:20 | `b2PolygonShape(vertices=body_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:167:4 | `link.CreateFixture(shape=linkshape, density=body_density, friction=...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
-| functions/push_utils.py:172:21 | `world.CreateFrictionJoint(bodyA=base, bodyB=link, maxForce=5, maxTo...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:172:21 | `world.CreateFrictionJoint(bodyA=base, bodyB=link, maxForce=5, maxTo...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:179:4 | `b2world_interface.add_bodies([link])` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:185:11 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(box=(...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:185:11 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(box=(...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:187:15 | `b2PolygonShape(box=(table_length, table_width))` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:190:4 | `b2world_interface.add_bodies([base])` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
-| functions/push_utils.py:198:14 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(verti...` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:198:14 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(verti...` | library / Box2D | unknown / unknown | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:200:19 | `b2PolygonShape(vertices=verts)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:203:8 | `obs.append(tmp)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:211:14 | `world.CreateStaticBody(position=pos, shapes=b2PolygonShape(box=blen))` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:211:14 | `world.CreateStaticBody(position=pos, shapes=b2PolygonShape(box=blen))` | library / Box2D | unknown / unknown | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:213:19 | `b2PolygonShape(box=blen)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:215:8 | `obs.append(tmp)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:216:4 | `b2world_interface.add_bodies(obs)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
 | functions/push_utils.py:224:11 | `b2Vec2(desired_vel[0] + np.random.normal(0, 1e-06), desired_vel[1] ...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:227:12 | `b2Vec2(desired_vel2[0] + np.random.normal(0, 1e-06), desired_vel2[1...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:232:12 | `robot.apply_wrench(rvel, rtor)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
@@ -130,13 +129,11 @@
 | functions/rover_utils.py:241:18 | `roverdomain.traj.get_points(np.linspace(0.0, 1.0, ntraj_points, end...` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:244:4 | `plt.title('traj cost: {0}'.format(traj_cost))` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:247:12 | `plt.pcolormesh(grid_points[0], grid_points[1], costs.reshape((ngrid...` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
-| functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
+| functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:249:8 | `plt.gcf()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:249:8 | `plt.gcf().colorbar(cmesh)` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:251:4 | `plt.plot(traj_points[:, 0], traj_points[:, 1], 'g')` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:253:4 | `plt.plot([roverdomain.start[0], roverdomain.goal[0]], (roverdomain....` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
-| functions/rover_utils.py:286:16 | `roverdomain.estimate_cost()` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
-| functions/rover_utils.py:289:18 | `roverdomain.traj.get_points(np.linspace(0.0, 1.0, ntraj_points, end...` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:294:9 | `plt.gcf()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:294:9 | `plt.gcf().add_subplot(111, projection='3d')` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:297:4 | `ax.scatter((roverdomain.start[0], roverdomain.goal[0]), (roverdomai...` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
@@ -152,7 +149,7 @@
 | functions/rover_utils.py:333:4 | `plt.figure()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:335:4 | `plt.plot(p[:, 0], p[:, 1], '*g')` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:336:4 | `plt.show()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
-| functions/mujoco.py:40:12 | `x.reshape(self.policy_shape)` | library / numpy | local / local | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
+| functions/mujoco.py:40:12 | `x.reshape(self.policy_shape)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
 | functions/mujoco.py:47:21 | `self.env.reset()` | library / gym | library / gym | gym_receiver | static_context | v: env is created by gym.make |
 | functions/mujoco.py:55:16 | `observations.append(obs)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |
 | functions/mujoco.py:56:16 | `actions.append(action)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |
@@ -164,11 +161,11 @@
 | functions/mujoco.py:94:17 | `self.env.reset()` | library / gym | library / gym | gym_receiver | static_context | v: env is created by gym.make |
 | functions/mujoco.py:102:30 | `self.env.step(action)` | library / gym | library / gym | gym_receiver | static_context | v: env is created by gym.make |
 | functions/mujoco.py:106:16 | `self.env.render()` | library / gym | library / gym | gym_receiver | static_context | v: env is created by gym.make |
-| functions/mujoco.py:115:12 | `x.reshape(self.policy_shape)` | library / numpy | local / local | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
+| functions/mujoco.py:115:12 | `x.reshape(self.policy_shape)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
 | functions/mujoco.py:120:21 | `self._rollout(M)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local benchmark or tracker |
 | functions/mujoco.py:121:12 | `returns.append(totalr)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |
 | functions/mujoco.py:125:8 | `self.tracker.track(np.mean(returns) * -1, x)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local benchmark or tracker |
-| functions/mujoco.py:207:12 | `x.reshape(self.policy_shape)` | library / numpy | local / local | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
+| functions/mujoco.py:207:12 | `x.reshape(self.policy_shape)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: x is converted to a NumPy array before reshape |
 | functions/mujoco.py:214:21 | `self.env.reset()` | library / gym | library / gym | gym_receiver | static_context | v: env is created by gym.make |
 | functions/mujoco.py:222:16 | `observations.append(obs)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |
 | functions/mujoco.py:223:16 | `actions.append(action)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |

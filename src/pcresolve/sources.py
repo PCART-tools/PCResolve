@@ -38,6 +38,26 @@ class InstanceMethod:
     receiver: "SourceLike"
     ## Method name.
     method: str
+    ## Qualified local function scope when the receiver is a parameter.
+    #
+    #  Empty for ordinary receivers. This is internal analysis metadata and
+    #  is intentionally omitted from the legacy tuple adapter.
+    parameter_scope: str = ""
+    ## Root parameter name for dotted receivers such as stream.socket.
+    parameter_name: str = ""
+
+
+## Source for a value forwarded from a local function parameter.
+@dataclass(frozen=True)
+class ParameterSource:
+    ## Qualified local function or method scope.
+    scope: str
+    ## Parameter name within that scope.
+    name: str
+    ## Whether the value passed through an unsupported derived operation.
+    derived: bool = False
+    ## Statically preserved attribute path from the root parameter.
+    attributes: tuple = ()
 
 
 ## Source for a super().method() call, capturing enclosing class context.
@@ -110,7 +130,9 @@ class SourceSet:
 
 
 ## Union of all Source IR types and plain strings.
-SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult, DerivedResult, SourceSet, UnknownSource]
+SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod,
+                   ParameterSource, SuperMethod, CallResult, DerivedResult,
+                   SourceSet, UnknownSource]
 ## Build a SourceSet from an iterable of source values, deduplicating by display.
 #
 #  @param values Iterable of source values.
@@ -144,7 +166,8 @@ def make_source_set(values, origin=""):
 def is_structured_source(value):
     if isinstance(value, tuple) and len(value) == 3 and isinstance(value[0], str):
         return True
-    if isinstance(value, (ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
+    if isinstance(value, (ContainerItem, ContainerIter, InstanceMethod,
+                          ParameterSource, SuperMethod, CallResult,
                           DerivedResult, SourceSet, UnknownSource, NameSource)):
         return True
     return False
@@ -163,6 +186,12 @@ def normalize_source(value):
             return ContainerIter(normalize_source(a))
         if kind == "instance_method":
             return InstanceMethod(normalize_source(a), b)
+        if kind == "parameter_source":
+            if isinstance(a, tuple) and len(a) >= 2:
+                attributes = tuple(a[2]) if len(a) >= 3 else ()
+                return ParameterSource(
+                    a[0], b, bool(a[1]), attributes=attributes)
+            return ParameterSource(a, b)
         if kind == "call_result":
             rs = normalize_source(b) if b is not None else None
             return CallResult(normalize_source(a), result_source=rs)
@@ -198,6 +227,12 @@ def source_to_legacy(value):
         return ("container_iter", source_to_legacy(value.container), "*")
     if isinstance(value, InstanceMethod):
         return ("instance_method", source_to_legacy(value.receiver), value.method)
+    if isinstance(value, ParameterSource):
+        return (
+            "parameter_source",
+            (value.scope, value.derived, tuple(value.attributes)),
+            value.name,
+        )
     if isinstance(value, CallResult):
         rs = getattr(value, 'result_source', None)
         return ("call_result", source_to_legacy(value.callee),
@@ -232,6 +267,11 @@ def source_display(value):
         return "%s[*]" % source_display(value.container)
     if isinstance(value, InstanceMethod):
         return "%s.%s" % (source_display(value.receiver), value.method)
+    if isinstance(value, ParameterSource):
+        path = "".join(".%s" % part for part in value.attributes)
+        suffix = "*" if value.derived else ""
+        return "%s:%s%s%s" % (
+            value.scope, value.name, path, suffix)
     if isinstance(value, CallResult):
         if value.display_name:
             return "%s()" % value.display_name

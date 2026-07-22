@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve.sources import (
     ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
-    DerivedResult, NameSource, SourceSet, UnknownSource,
+    DerivedResult, NameSource, ParameterSource, SourceSet, UnknownSource,
     normalize_source, source_to_legacy, source_display, is_structured_source,
 )
 
@@ -82,6 +82,14 @@ def test_source_to_legacy_roundtrip():
     assert result == original
 
 
+def test_parameter_source_attribute_path_roundtrip():
+    source = ParameterSource(
+        "create_body", "wrapper", attributes=("world",))
+    legacy = source_to_legacy(source)
+
+    assert normalize_source(legacy) == source
+
+
 def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
     original = CallResult(
         SuperMethod("Child", "pkg.Child", "build"),
@@ -94,7 +102,8 @@ def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
 
     source_ir_types = (
         ContainerItem, ContainerIter, InstanceMethod, SuperMethod,
-        CallResult, DerivedResult, SourceSet, UnknownSource, NameSource,
+        CallResult, DerivedResult, ParameterSource, SourceSet,
+        UnknownSource, NameSource,
     )
 
     def contains_ir(value):
@@ -150,6 +159,12 @@ def test_source_display_name_source():
 def test_source_display_unknown_source():
     us = UnknownSource("???")
     assert source_display(us) == "???"
+
+
+def test_source_display_parameter_attribute_path():
+    source = ParameterSource(
+        "create_body", "wrapper", attributes=("world",))
+    assert source_display(source) == "create_body:wrapper.world"
 
 
 # ── is_structured_source ────────────────────────────────────────────────

@@ -50,10 +50,10 @@
 | polire/natural_neighbors/natural_neighbors.py:199:23 | `new_polygon.intersects(self.vertex_poly_map[i])` | library / shapely | library / shapely | shapely_receiver | static_context | v: new_polygon is constructed by shapely.geometry.Polygon |
 | polire/natural_neighbors/natural_neighbors.py:201:28 | `new_polygon.intersection(self.vertex_poly_map[i])` | library / shapely | library / shapely | shapely_receiver | static_context | v: new_polygon is constructed by shapely.geometry.Polygon |
 | polire/utils/distance.py:51:11 | `cdist(X1, X2)` | library / scipy | library / scipy | imported_callable | static_context | v: cdist is imported from scipy |
-| polire/utils/gridding.py:33:12 | `y.min()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
-| polire/utils/gridding.py:34:12 | `y.max()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
-| polire/utils/gridding.py:35:12 | `x.min()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
-| polire/utils/gridding.py:36:12 | `x.max()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
+| polire/utils/gridding.py:33:12 | `y.min()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
+| polire/utils/gridding.py:34:12 | `y.max()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
+| polire/utils/gridding.py:35:12 | `x.min()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
+| polire/utils/gridding.py:36:12 | `x.max()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
 | polire/utils/gridding.py:67:9 | `grid[0].ravel()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
 | polire/utils/gridding.py:67:26 | `grid[1].ravel()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by the function contract or numpy.meshgrid result |
 | polire/utils/gridding.py:74:16 | `kdtree.query(point)` | library / scipy | library / scipy | scipy_receiver | static_context | v: kdtree is created by scipy.spatial.KDTree |
@@ -66,7 +66,7 @@
 | polire/spline/bspline.py:77:12 | `results.append(interpolated_y)` | python / python | python / python | builtin_container_method | static_context | v: results is an explicit Python list |
 | polire/gp/gp.py:26:15 | `RBF(2, ARD=True)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:28:8 | `super().__init__()` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
-| polire/gp/gp.py:37:16 | `y.reshape(-1, 1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
+| polire/gp/gp.py:37:16 | `y.reshape(-1, 1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/gp/gp.py:38:21 | `GPRegression(X, y, self.kernel)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:39:8 | `self.model.optimize_restarts(n_restarts, verbose=verbose)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:51:45 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |

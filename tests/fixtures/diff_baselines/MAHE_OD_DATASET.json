@@ -1,6 +1,6 @@
 {
-  "regressions": 19,
-  "improvements": 5,
-  "precision": 10,
+  "regressions": 20,
+  "improvements": 2,
+  "precision": 8,
   "illegal_keys": 0
 }

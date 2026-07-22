@@ -81,34 +81,45 @@ def test_create_app_call_is_local():
             f"create_app() must be local, got {c.top_library}"
 
 
-def test_negative_strip_is_local():
-    """s.strip() on parameter receiver must stay local."""
+def test_uncalled_parameter_strip_is_unknown():
+    """s.strip() on an unconstrained parameter must stay unknown."""
     r = analyze_project(_FIXTURE)
     strip_calls = [c for c in r.all_api_calls
                    if "strip" in c.func_name and "main_negative" in c.file_path]
     assert strip_calls, "s.strip() not collected"
     for c in strip_calls:
-        assert c.top_library in ("local", "python"), \
-            f"s.strip() must be local/python, got {c.top_library}"
+        assert c.top_library == "unknown", \
+            f"s.strip() must be unknown, got {c.top_library}"
 
 
-def test_negative_replace_is_local():
-    """experiment.replace() on parameter receiver must stay local."""
+def test_uncalled_parameter_replace_is_unknown():
+    """experiment.replace() on an unconstrained parameter stays unknown."""
     r = analyze_project(_FIXTURE)
     replace_calls = [c for c in r.all_api_calls
-                     if "replace" in c.func_name and "main_negative" in c.file_path]
+                     if c.func_name == "experiment.replace"
+                     and "main_negative" in c.file_path]
     assert replace_calls, "experiment.replace() not collected"
     for c in replace_calls:
-        assert c.top_library in ("local", "python"), \
-            f"experiment.replace() must be local/python, got {c.top_library}"
+        assert c.top_library == "unknown", \
+            f"experiment.replace() must be unknown, got {c.top_library}"
 
 
-def test_negative_astype_is_local():
-    """Xr.astype() after arithmetic must stay local."""
+def test_unresolved_parameter_method_result_stays_unknown():
+    """A chained call on an unresolved method result must stay unknown."""
+    r = analyze_project(_FIXTURE)
+    title_calls = [c for c in r.all_api_calls
+                   if c.func_name.endswith(".title")
+                   and "main_negative" in c.file_path]
+    assert len(title_calls) == 1
+    assert title_calls[0].top_library == "unknown"
+
+
+def test_unresolved_astype_receiver_is_unknown():
+    """Xr.astype() stays unknown without a bounded result-owner contract."""
     r = analyze_project(_FIXTURE)
     astype_calls = [c for c in r.all_api_calls
                     if "astype" in c.func_name and "main_negative" in c.file_path]
     assert astype_calls, "Xr.astype() not collected"
     for c in astype_calls:
-        assert c.top_library in ("local", "python"), \
-            f"Xr.astype() must be local/python, got {c.top_library}"
+        assert c.top_library == "unknown", \
+            f"Xr.astype() must be unknown, got {c.top_library}"

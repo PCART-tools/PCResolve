@@ -10,10 +10,10 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | locked | 0 | 485 | 174 | 0 | 1 | 38 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 485 | 171 | 0 | 4 | 30 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 134 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 122 |
 | [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
@@ -23,8 +23,8 @@ machine source of truth.
 | [CustomSamplers](CustomSamplers/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
-| [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 40 | 14 | 0 | 2 | 2 |
-| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 13 |
+| [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 40 | 14 | 0 | 2 | 0 |
+| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 9 |
 | [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 43 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
@@ -32,7 +32,7 @@ machine source of truth.
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 8 | 0 | 2 | 0 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 45 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 38 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 375 | 41 | 28 | 0 | 31 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 47 |
@@ -51,8 +51,8 @@ machine source of truth.
 | [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 6 | 4 | 5 | 0 | 1 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
-| [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 8 |
-| **TOTAL** | **5788** | | **0** | **3745** | **1819** | **185** | **39** | **468** |
+| [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 7 |
+| **TOTAL** | **5788** | | **0** | **3745** | **1816** | **185** | **42** | **434** |
 
 ## Directory Layout
 

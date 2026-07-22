@@ -14,10 +14,10 @@
 | utils.py:73:19 | `bbox.find('ymin')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:74:19 | `bbox.find('xmax')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:75:19 | `bbox.find('ymax')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| utils.py:166:11 | `tensor.dim()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:167:19 | `tensor.dim()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:169:21 | `tensor.index_select(dim=d, index=torch.arange(start=0, end=tensor.s...` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:170:73 | `tensor.size(d)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:166:11 | `tensor.dim()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:167:19 | `tensor.dim()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:169:21 | `tensor.index_select(dim=d, index=torch.arange(start=0, end=tensor.s...` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:170:73 | `tensor.size(d)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:197:33 | `true_labels[i].size(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:204:11 | `true_images.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:204:34 | `true_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -46,14 +46,14 @@
 | utils.py:380:56 | `set_2[:, :2].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:381:29 | `set_1[:, 2:].unsqueeze(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:381:56 | `set_2[:, 2:].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:404:12 | `areas_set_1.unsqueeze(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:404:39 | `areas_set_2.unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:404:12 | `areas_set_1.unsqueeze(1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:404:39 | `areas_set_2.unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:424:17 | `image.size(1)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:425:17 | `image.size(2)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1).unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:465:17 | `image.size(1)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:466:17 | `image.size(2)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:465:17 | `image.size(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:466:17 | `image.size(2)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:501:43 | `crop.unsqueeze(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:503:22 | `overlap.squeeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:506:15 | `overlap.max()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -66,10 +66,10 @@
 | utils.py:653:20 | `FT.to_pil_image(new_image)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
 | utils.py:663:16 | `FT.to_tensor(new_image)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
 | utils.py:666:16 | `FT.normalize(new_image, mean=mean, std=std)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
-| utils.py:692:17 | `targets.size(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:693:13 | `scores.topk(k, 1, True, True)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:692:17 | `targets.size(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:693:13 | `scores.topk(k, 1, True, True)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:694:14 | `ind.eq(targets.view(-1, 1).expand_as(ind))` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:694:21 | `targets.view(-1, 1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:694:21 | `targets.view(-1, 1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:694:21 | `targets.view(-1, 1).expand_as(ind)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:695:20 | `correct.view(-1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:695:20 | `correct.view(-1).float()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -115,7 +115,7 @@
 | preprocess.py:103:16 | `root.find('size')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | preprocess.py:104:19 | `root.find('size')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | preprocess.py:108:18 | `root.findall('object')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| preprocess.py:146:10 | `image.copy()` | library / numpy | local / local | numpy_array_receiver | static_context | v: image is returned by cv2.imread as a numpy.ndarray |
+| preprocess.py:146:10 | `image.copy()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: image is returned by cv2.imread as a numpy.ndarray |
 | preprocess.py:150:4 | `plt.figure(figsize=(12, 12))` | library / matplotlib | library / matplotlib | direct_import | static_context | v: plt is the matplotlib.pyplot import alias |
 | preprocess.py:151:4 | `plt.axis('off')` | library / matplotlib | library / matplotlib | direct_import | static_context | v: plt is the matplotlib.pyplot import alias |
 | preprocess.py:152:4 | `plt.imshow(img)` | library / matplotlib | library / matplotlib | direct_import | static_context | v: plt is the matplotlib.pyplot import alias |

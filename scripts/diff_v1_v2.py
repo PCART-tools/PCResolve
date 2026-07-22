@@ -26,6 +26,30 @@ BASELINE_DIR = os.path.join(os.path.dirname(__file__), "..",
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "..",
                            "tests", "fixtures", "tested_projects")
 
+
+def _has_subscript(node):
+    """Return whether an expression contains a subscript receiver."""
+    return any(isinstance(child, ast.Subscript) for child in ast.walk(node))
+
+
+def _classify_expr(expr):
+    """Classify a call expression shape for the optional taxonomy report."""
+    try:
+        tree = ast.parse(expr.strip(), mode="eval")
+    except SyntaxError:
+        return "parse_error"
+    node = tree.body
+    if isinstance(node, ast.Call):
+        func = node.func
+        if isinstance(func, ast.Name):
+            return "bare_call"
+        if isinstance(func, ast.Attribute):
+            if _has_subscript(func.value):
+                return "container/subscript"
+            return "attribute_method"
+    return "other"
+
+
 def load_baseline(name):
     path = os.path.join(BASELINE_DIR, name + ".json")
     if os.path.exists(path):
@@ -338,26 +362,6 @@ def main():
     if show_taxonomy and all_regression_details:
         print()
         print("REGRESSION TAXONOMY")
-
-        def _classify_expr(expr):
-            try:
-                tree = ast.parse(expr.strip(), mode="eval")
-            except SyntaxError:
-                return "parse_error"
-            node = tree.body
-            if isinstance(node, ast.Call):
-                func = node.func
-                if isinstance(func, ast.Name):
-                    return "bare_call"
-                if isinstance(func, ast.Attribute):
-                    receiver = func.value
-                    if _has_subscript(receiver):
-                        return "container/subscript"
-                    return "attribute_method"
-            return "other"
-
-        def _has_subscript(node):
-            return any(isinstance(n, ast.Subscript) for n in ast.walk(node))
 
         # Separate by loss type
         tp_loss = {}   # import-backed library -> local/unknown

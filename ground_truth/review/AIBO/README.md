@@ -14,15 +14,16 @@
 
 - library: 370
 - python: 173
-- local: 117
+- local: 114
+- unknown: 3
 
 ## Verification Level Breakdown
 
 - [static_obvious](static_obvious.md): 485
-- [static_context](static_context.md): 174
-- [manual_reasoned](manual_reasoned.md): 1
+- [static_context](static_context.md): 171
+- [manual_reasoned](manual_reasoned.md): 4
 
-## [Suspicious Records](suspicious.md): 38
+## [Suspicious Records](suspicious.md): 30
 
 ## Category Breakdown
 
@@ -41,13 +42,14 @@
 - local_call: 63
 - local_callable: 5
 - local_constructor: 3
-- local_method: 39
+- local_method: 36
 - matplotlib_receiver: 19
 - monkey_patched_local_method: 1
 - nevergrad_receiver: 4
 - numpy_array_receiver: 10
 - pygame_receiver: 2
 - pymoo_receiver: 10
+- unconstrained_dead_code_parameter: 3
 
 ## Top Libraries
 

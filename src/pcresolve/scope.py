@@ -33,6 +33,8 @@ class Binding:
     container_item_kind: str = ""
     ## Qualified return_sources key when this binding is a local callable.
     callable_key: str = ""
+    ## Binding role such as parameter, variable, import, or attribute.
+    binding_kind: str = ""
 
 
 ## A lexical scope with parent lookup.
@@ -56,14 +58,16 @@ class Scope:
     #  @param container_kind Concrete receiver container kind, if known.
     #  @param container_item_kind Concrete subscript result kind, if known.
     #  @param callable_key Qualified return_sources key for local callables.
+    #  @param binding_kind Binding role used for flow-sensitive checks.
     def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0,
-             container_kind="", container_item_kind="", callable_key=""):
+             container_kind="", container_item_kind="", callable_key="",
+             binding_kind=""):
         old = self.bindings.get(name)
         version = old.version + 1 if old is not None else 1
         self.bindings[name] = Binding(
             name, source, self.kind, lineno, col_offset,
             assignment_index, version, container_kind,
-            container_item_kind, callable_key,
+            container_item_kind, callable_key, binding_kind,
         )
 
     ## Look up a name through lexical parents.

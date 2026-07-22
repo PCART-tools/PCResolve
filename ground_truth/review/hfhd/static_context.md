@@ -6,10 +6,10 @@
 | hfhd/hf.py:176:20 | `x.dropna()` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:407:23 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:408:21 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
-| hfhd/hf.py:433:15 | `price.dropna()` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
+| hfhd/hf.py:433:15 | `price.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:434:16 | `y.mean()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: .mean() on pandas Series y<br>v: .mean() on pandas Series |
-| hfhd/hf.py:437:25 | `y_hat.mean()` | library / pandas | local / local | transitive_method | static_context | gt: .mean() on pandas Series y_hat per docstring<br>v: .mean() on pandas Series |
-| hfhd/hf.py:439:11 | `resid.cumsum()` | library / pandas | local / local | transitive_method | static_context | gt: pandas .cumsum() on Series<br>v: pandas cumsum method on Series/DataFrame |
+| hfhd/hf.py:437:25 | `y_hat.mean()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: .mean() on pandas Series y_hat per docstring<br>v: .mean() on pandas Series |
+| hfhd/hf.py:439:11 | `resid.cumsum()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .cumsum() on Series<br>v: pandas cumsum method on Series/DataFrame |
 | hfhd/hf.py:568:15 | `data.to_numpy()` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .to_numpy( method on pandas Series/DataFrame |
 | hfhd/hf.py:843:9 | `(data - data.shift(K)).dropna()` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:843:17 | `data.shift(K)` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .shift() method on Series/DataFrame |

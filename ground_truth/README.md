@@ -12,8 +12,9 @@ Python file, does PCResolve correctly identify:
 2. Which top-level library it belongs to (`top_library`)
 3. Auxiliary evidence (`alternatives`, `decorated_by`)
 
-Symbol provenance, library usage aggregation, and inter-procedural
-propagation are out of scope for 1.0.5 ground truth.
+Standalone symbol provenance and library usage aggregation are out of scope
+for 1.0.5 scoring. Bounded inter-procedural evidence is used when it changes
+call-site ownership.
 
 GT only judges the callable's ownership identity.  `expected_kind`
 captures whether the owner is an import-backed library, a Python
@@ -271,17 +272,17 @@ Excluded from precision and recall; counted in coverage metrics.
 
 All 42 fixture projects are **locked** (2026-07-20). The set contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
-snapshot has 5,320 primary hits and 468 primary misses, for aggregate recall
-0.919. AST call coverage is 5,788/5,788.
+snapshot has 5,354 primary hits and 434 primary misses, for aggregate recall
+0.925. AST call coverage is 5,788/5,788.
 
-Evidence is distributed across 3,745 `static_obvious`, 1,819
-`static_context`, 185 `dynamic_probe`, and 39 `manual_reasoned` records.
+Evidence is distributed across 3,745 `static_obvious`, 1,816
+`static_context`, 185 `dynamic_probe`, and 42 `manual_reasoned` records.
 The generated [review index](review/README.md) is the authoritative current
 per-project breakdown.
 
 ### Repair Priority
 
-The 468 records in generated `suspicious.md` views form the current repair
+The 434 records in generated `suspicious.md` views form the current repair
 queue. They include known inter-procedural boundaries as well as statically
 actionable ownership gaps. Release triage must use the current views instead
 of the earlier pilot-only miss counts.

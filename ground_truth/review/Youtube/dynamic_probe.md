@@ -2,7 +2,7 @@
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
-| Kmeans.py:27:14 | `centres.todense()` | library / scipy | local / local | transitive_method | dynamic_probe | gt: scipy sparse .todense()<br>v: probe confirms .todense() __module__ is scipy.sparse._base; scipy sparse method. |
+| Kmeans.py:27:14 | `centres.todense()` | library / scipy | library / numpy | transitive_method | dynamic_probe | gt: scipy sparse .todense()<br>v: probe confirms .todense() __module__ is scipy.sparse._base; scipy sparse method. |
 | Kmeans.py:67:19 | `cdist(x.todense(), Y, **kwargs)` | library / scipy | library / scipy | transitive_method | dynamic_probe | v: probe confirms .todense() __module__ is scipy.sparse._base; scipy sparse method. |
 | Kmeans.py:67:26 | `x.todense()` | library / scipy | unknown / unknown | transitive_method | dynamic_probe | gt: scipy sparse .todense()<br>v: probe confirms .todense() __module__ is scipy.sparse._base; scipy sparse method. |
 | Kmeans.py:70:21 | `cdist(X, y.todense(), **kwargs)` | library / scipy | library / scipy | transitive_method | dynamic_probe | v: probe confirms .todense() __module__ is scipy.sparse._base; scipy sparse method. |
