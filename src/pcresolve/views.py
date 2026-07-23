@@ -7,6 +7,8 @@
 
 import os
 
+from .sources import source_to_legacy
+
 
 ## Build the summary view (small, stable, for CI/scripts).
 #
@@ -70,8 +72,8 @@ def build_full_view(result):
         file_entry = {
             "file_path": _relpath(f.file_path, root),
             "module_name": f.module_name,
-            "symbols": f.symbols,
-            "chains": f.chains,
+            "symbols": _json_value(f.symbols),
+            "chains": _json_value(f.chains),
             "api_calls": [_full_api_call(c, root) for c in f.api_calls],
             "diagnostics": [_full_diagnostic(d, root) for d in f.diagnostics],
             "symbol_provenance": [_full_provenance(p, root) for p in f.symbol_provenance],
@@ -213,8 +215,8 @@ def _full_api_call(c, root):
     return {
         "expression": c.expression,
         "top_library": c.top_library,
-        "base_symbol": c.base_symbol,
-        "chain": c.chain,
+        "base_symbol": _json_value(c.base_symbol),
+        "chain": _json_value(c.chain),
         "file_path": _relpath(c.file_path, root),
         "lineno": c.lineno,
         "col_offset": c.col_offset,
@@ -223,7 +225,7 @@ def _full_api_call(c, root):
         "func_name": c.func_name,
         "parameters": c.parameters,
         "resolved_func": c.resolved_func,
-        "resolved_chain": c.resolved_chain,
+        "resolved_chain": _json_value(c.resolved_chain),
         "reason": c.reason,
         "confidence": c.confidence,
         "alternatives": c.alternatives,
@@ -237,7 +239,7 @@ def _full_provenance(p, root):
         "kind": p.kind,
         "top_library": p.top_library,
         "top_libraries": p.top_libraries,
-        "chain": p.chain,
+        "chain": _json_value(p.chain),
         "scope_name": p.scope_name,
         "file_path": _relpath(p.file_path, root),
         "lineno": p.lineno,
@@ -275,3 +277,16 @@ def _full_library_usage(u):
         "min_confidence": u.min_confidence,
         "max_confidence": u.max_confidence,
     }
+
+
+def _json_value(value):
+    """Recursively convert Source IR and containers to JSON-safe values."""
+    converted = source_to_legacy(value)
+    if isinstance(converted, dict):
+        return {
+            str(key): _json_value(item)
+            for key, item in converted.items()
+        }
+    if isinstance(converted, (list, tuple)):
+        return [_json_value(item) for item in converted]
+    return converted

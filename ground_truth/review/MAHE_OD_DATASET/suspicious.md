@@ -1,4 +1,4 @@
-# MAHE_OD_DATASET — Suspicious Records (47)
+# MAHE_OD_DATASET — Suspicious Records (45)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -33,8 +33,6 @@ matching suspicious criteria.
 | utils.py:381:56 | `set_2[:, 2:].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=torch pcresolve=local<br>expected library, pcresolve=local |
 | utils.py:404:12 | `areas_set_1.unsqueeze(1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=torch pcresolve=unknown<br>expected library, pcresolve=unknown |
 | utils.py:404:39 | `areas_set_2.unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=torch pcresolve=unknown<br>expected library, pcresolve=unknown |
-| utils.py:424:17 | `image.size(1)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | owner mismatch: expected=torch pcresolve=torchvision |
-| utils.py:425:17 | `image.size(2)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | owner mismatch: expected=torch pcresolve=torchvision |
 | utils.py:465:17 | `image.size(1)` | library / torch | local / local | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=torch pcresolve=local<br>expected library, pcresolve=local |
 | utils.py:466:17 | `image.size(2)` | library / torch | local / local | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=torch pcresolve=local<br>expected library, pcresolve=local |
 | utils.py:503:22 | `overlap.squeeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=torch pcresolve=local<br>expected library, pcresolve=local |

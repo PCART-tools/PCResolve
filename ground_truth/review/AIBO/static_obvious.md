@@ -1,4 +1,4 @@
-# AIBO — static_obvious (485 records)
+# AIBO — static_obvious (487 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -429,7 +429,9 @@
 | functions/rover_utils.py:289:46 | `np.linspace(0.0, 1.0, ntraj_points, endpoint=True)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | functions/rover_utils.py:292:27 | `generate_verts(rectangles)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | functions/rover_utils.py:302:11 | `zip(traj_points[:-1, :], traj_points[1:, :])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| functions/rover_utils.py:303:24 | `Line3DCollection(seg, colors=[(0, 1.0, 0, 1.0)] * len(seg))` | library / mpl_toolkits | library / mpl_toolkits | mpl_toolkits_callable | static_obvious | v: direct import from mpl_toolkits.mplot3d.art3d |
 | functions/rover_utils.py:303:72 | `len(seg)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
+| functions/rover_utils.py:306:24 | `Poly3DCollection(poly3d, facecolors=(0.7, 0.7, 0.7, 1.0), linewidth...` | library / mpl_toolkits | library / mpl_toolkits | mpl_toolkits_callable | static_obvious | v: direct import from mpl_toolkits.mplot3d.art3d |
 | functions/rover_utils.py:317:13 | `np.array([[1.0, 1.0], [1.0, 0.0]])` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | functions/rover_utils.py:318:12 | `np.ones(2)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | functions/rover_utils.py:319:14 | `GMCost(center, sigma)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |

@@ -9,8 +9,33 @@ import os
 import subprocess
 import sys
 
+from pcresolve.sources import UnknownSource
+from pcresolve.types import FileAnalysis, ProjectAnalysis
+from pcresolve.views import build_full_view
+
 PROJECT_DIR = os.path.dirname(os.path.dirname(__file__))
 GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "golden")
+
+
+def test_full_view_serializes_source_ir(tmp_path):
+    file_path = str(tmp_path / "main.py")
+    file_result = FileAnalysis(
+        file_path=file_path,
+        module_name="main",
+        symbols={"value": UnknownSource("unresolved result")},
+        chains={"value": [UnknownSource("unresolved result")]},
+        api_calls=[],
+    )
+    result = ProjectAnalysis(
+        project_root=str(tmp_path),
+        files=[file_result],
+        all_api_calls=[],
+    )
+
+    payload = build_full_view(result)
+    json.dumps(payload)
+    assert payload["files"][0]["symbols"]["value"] == [
+        "unknown_source", "unresolved result", None]
 
 
 def _run(pcresolve_args):

@@ -6,41 +6,41 @@ This report classifies every current locked primary ownership mismatch. The cano
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 427 | Must be closed in 1.0.5 |
+| `fix_1_0_5` | 404 | Must be closed in 1.0.5 |
 | `accepted_boundary` | 4 | Documented static-analysis boundary |
 | `ground_truth_correction` | 0 | Canonical GT label must be corrected |
-| **Total** | **431** | |
+| **Total** | **408** | |
 
 ## Repair Scope
 
 | Repair scope | Records |
 |---|---:|
-| `same_scope_result_protocol` | 174 |
-| `bounded_receiver_flow` | 231 |
+| `same_scope_result_protocol` | 170 |
+| `bounded_receiver_flow` | 212 |
 | `conservative_identity` | 16 |
 | `local_identity` | 6 |
 | `documented_boundary` | 4 |
 | `label_correction` | 0 |
-| **Total** | **431** |
+| **Total** | **408** |
 
 ## Project Queue
 
 | Project | Records |
 |---|---:|
-| `allnews` | 119 |
-| `polire` | 54 |
-| `MAHE_OD_DATASET` | 47 |
+| `allnews` | 117 |
+| `polire` | 49 |
+| `MAHE_OD_DATASET` | 45 |
 | `final` | 43 |
 | `greenbenchmark` | 38 |
 | `hfhd` | 31 |
-| `AIBO` | 30 |
 | `political-polarisation` | 19 |
+| `AIBO` | 18 |
 | `simulation` | 9 |
 | `scrapping` | 8 |
-| `Youtube` | 7 |
 | `django` | 7 |
 | `Contrucao` | 6 |
-| `SDOML` | 6 |
+| `Youtube` | 6 |
+| `SDOML` | 5 |
 | `flask2` | 4 |
 | `Python-Workshop` | 2 |
 | `tensorflow1` | 1 |
@@ -49,16 +49,16 @@ This report classifies every current locked primary ownership mismatch. The cano
 
 | Category | Records |
 |---|---:|
-| `transitive_method` | 82 |
+| `transitive_method` | 81 |
 | `python_protocol_method` | 69 |
-| `numpy_array_receiver` | 51 |
-| `builtin_string_method` | 36 |
-| `torch_tensor_receiver` | 33 |
-| `matplotlib_receiver` | 24 |
+| `numpy_array_receiver` | 47 |
+| `builtin_string_method` | 34 |
+| `torch_tensor_receiver` | 31 |
 | `pandas_receiver` | 20 |
 | `builtin_container_method` | 15 |
-| `conversion_boundary` | 14 |
 | `branch_dependent_io_receiver` | 13 |
+| `conversion_boundary` | 13 |
+| `matplotlib_receiver` | 12 |
 | `regex_receiver` | 10 |
 | `library_result_boundary` | 8 |
 | `builtin_method_local_receiver` | 6 |
@@ -79,7 +79,6 @@ This report classifies every current locked primary ownership mismatch. The cano
 | `keras_receiver` | 1 |
 | `local_method` | 1 |
 | `monkey_patched_local_method` | 1 |
-| `numpy_scalar_receiver` | 1 |
 
 ## Boundary And Label Records
 

@@ -19,11 +19,11 @@
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 485
-- [static_context](static_context.md): 171
+- [static_obvious](static_obvious.md): 487
+- [static_context](static_context.md): 169
 - [manual_reasoned](manual_reasoned.md): 4
 
-## [Suspicious Records](suspicious.md): 30
+## [Suspicious Records](suspicious.md): 18
 
 ## Category Breakdown
 
@@ -43,8 +43,9 @@
 - local_callable: 5
 - local_constructor: 3
 - local_method: 36
-- matplotlib_receiver: 19
+- matplotlib_receiver: 17
 - monkey_patched_local_method: 1
+- mpl_toolkits_callable: 2
 - nevergrad_receiver: 4
 - numpy_array_receiver: 10
 - pygame_receiver: 2
@@ -55,7 +56,7 @@
 
 - numpy: 231
 - Box2D: 29
-- matplotlib: 19
+- matplotlib: 17
 - nevergrad: 16
 - argparse: 13
 - gym: 13
@@ -69,5 +70,6 @@
 - AIBO: 2
 - LassoBench: 2
 - datetime: 2
+- mpl_toolkits: 2
 - re: 1
 - pybobyqa: 1

@@ -516,8 +516,8 @@
 | allnews_am/tokenizer/tokenizer.py:236:24 | `split_part.end()` | library / re | library / re | regex_receiver | static_context | v: receiver is an re Match object |
 | allnews_am/tokenizer/tokenizer.py:248:4 | `self.purification()` | local / local | local / local | local_method | static_context | v: Punct, Dictionary, and Tokenizer are project-local classes |
 | allnews_am/tokenizer/tokenizer.py:253:12 | `self.is_segment(self.text[checkpoint:], l - checkpoint)` | local / local | local / local | local_method | static_context | v: Punct, Dictionary, and Tokenizer are project-local classes |
-| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip()` | python / python | local / local | builtin_string_method | static_context | v: receiver is a Python string slice or regex group result |
-| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip().lstrip()` | python / python | local / local | builtin_string_method | static_context | v: receiver is a Python string slice or regex group result |
+| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip()` | python / python | python / python | builtin_string_method | static_context | v: receiver is a Python string slice or regex group result |
+| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip().lstrip()` | python / python | python / python | builtin_string_method | static_context | v: receiver is a Python string slice or regex group result |
 | allnews_am/tokenizer/tokenizer.py:258:8 | `self.segments.append({'segment': clean_segment, 'id': len(self.segm...` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or dict |
 | allnews_am/tokenizer/tokenizer.py:281:22 | `dict.get_word(s['segment'][l:])` | local / local | local / local | local_method | static_context | v: Punct, Dictionary, and Tokenizer are project-local classes |
 | allnews_am/tokenizer/tokenizer.py:285:10 | `s['tokens'].append((index, dict_word['word']))` | python / python | local / local | builtin_container_method | static_context | v: receiver is an explicit Python list or dict |

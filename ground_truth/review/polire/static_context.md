@@ -62,7 +62,7 @@
 | polire/spline/bspline.py:47:19 | `bisplrep(X[:, 0], X[:, 1], y, kx=self.kx, ky=self.ky, s=self.s)` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
 | polire/spline/bspline.py:62:15 | `bisplev(np.linspace(x1min, x1max, self.resolution), np.linspace(x2m...` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
 | polire/spline/bspline.py:74:29 | `bisplev(X[ix, 0], X[ix, 1], self.tck)` | library / scipy | library / scipy | imported_callable | static_context | v: bisplrep and bisplev are imported from scipy |
-| polire/spline/bspline.py:74:29 | `bisplev(X[ix, 0], X[ix, 1], self.tck).item()` | library / numpy | library / scipy | numpy_scalar_receiver | static_context | v: scipy.interpolate.bisplev returns a numpy scalar for scalar coordinates |
+| polire/spline/bspline.py:74:29 | `bisplev(X[ix, 0], X[ix, 1], self.tck).item()` | library / numpy | library / numpy | numpy_scalar_receiver | static_context | v: scipy.interpolate.bisplev returns a numpy scalar for scalar coordinates |
 | polire/spline/bspline.py:77:12 | `results.append(interpolated_y)` | python / python | python / python | builtin_container_method | static_context | v: results is an explicit Python list |
 | polire/gp/gp.py:26:15 | `RBF(2, ARD=True)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:28:8 | `super().__init__()` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
@@ -71,12 +71,12 @@
 | polire/gp/gp.py:39:8 | `self.model.optimize_restarts(n_restarts, verbose=verbose)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
 | polire/gp/gp.py:51:45 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/gp/gp.py:51:57 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
-| polire/gp/gp.py:53:22 | `self.model.predict(X)[0].reshape(len(x1), len(x2))` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
+| polire/gp/gp.py:53:22 | `self.model.predict(X)[0].reshape(len(x1), len(x2))` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/gp/gp.py:53:22 | `self.model.predict(X)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
-| polire/gp/gp.py:55:15 | `predictions.ravel()` | library / numpy | library / GPy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
+| polire/gp/gp.py:55:15 | `predictions.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/gp/gp.py:61:32 | `self.model.predict(X)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable or receiver is constructed by GPy |
-| polire/gp/gp.py:63:19 | `predictions.ravel()` | library / numpy | library / GPy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
-| polire/gp/gp.py:65:19 | `predictions.ravel()` | library / numpy | library / GPy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
+| polire/gp/gp.py:63:19 | `predictions.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
+| polire/gp/gp.py:65:19 | `predictions.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array from input data, meshgrid, or GPy prediction output |
 | polire/preprocessing/sptial_features.py:93:18 | `self.distance(lonlat, self_lonlat)` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:95:22 | `dst.argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
 | polire/preprocessing/sptial_features.py:97:22 | `dst.argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
@@ -125,7 +125,7 @@
 | polire/nsgp/nsgp.py:58:8 | `self.__calculate_dmat()` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:60:12 | `self.__dmat[i].argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:65:42 | `((S - self._X) ** 2).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:75:24 | `kernel.K(self._X[self.__close_locs[loc]])` | library / GPy | unknown / unknown | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:75:24 | `kernel.K(self._X[self.__close_locs[loc]])` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:81:19 | `Matern32(input_dim=self._X.shape[1], active_dims=list(range(self._X...` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy |
 | polire/nsgp/nsgp.py:86:19 | `Matern52(input_dim=self._X.shape[1], active_dims=list(range(self._X...` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy |
 | polire/nsgp/nsgp.py:91:19 | `RBF(input_dim=self._X.shape[1], active_dims=list(range(self._X.shap...` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy |

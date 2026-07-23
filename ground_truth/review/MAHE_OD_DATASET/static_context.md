@@ -48,8 +48,8 @@
 | utils.py:381:56 | `set_2[:, 2:].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:404:12 | `areas_set_1.unsqueeze(1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:404:39 | `areas_set_2.unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:424:17 | `image.size(1)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:425:17 | `image.size(2)` | library / torch | library / torchvision | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:424:17 | `image.size(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:425:17 | `image.size(2)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1).unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:465:17 | `image.size(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |

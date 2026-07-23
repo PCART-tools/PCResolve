@@ -59,7 +59,8 @@ def _is_builtin(name):
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .ir import (SymbolProvenance, ClassificationResult,
                     REASON_DIRECT_IMPORT)
-from .single_file import SingleFileAnalyzer, _match_result_owner
+from .single_file import (SingleFileAnalyzer, _match_result_owner,
+                          _is_verified_result_owner)
 from .sources import (ContainerItem, ContainerIter, InstanceMethod,
                        ParameterSource, SuperMethod, CallResult,
                        DerivedResult, UnknownSource,
@@ -103,6 +104,12 @@ def _is_import_origin(tracer, symbol):
                 if _matches(src):
                     return True
         elif _matches(value):
+            return True
+    # v2 keeps function-local imports in lexical scopes instead of the
+    # module-level compatibility table. SymbolRef is the durable project
+    # fact available after the visitor has left that scope.
+    for ref in getattr(tracer, "symbol_refs", []):
+        if ref.kind == "import" and _matches(normalize_source(ref.source)):
             return True
     return False
 
@@ -456,6 +463,16 @@ class ProjectAnalyzer:
     #  @return Top-level library name.
     def _base_top_source(self, module, base, tracer, module_tracers):
         if is_structured_source(base):
+            if (isinstance(base, InstanceMethod)
+                    and isinstance(base.receiver, str)
+                    and _is_verified_result_owner(base.receiver)):
+                return base.receiver
+            if (isinstance(base, InstanceMethod)
+                    and isinstance(base.receiver, CallResult)):
+                result_owner = normalize_source(
+                    base.receiver.result_source)
+                if isinstance(result_owner, str) and result_owner:
+                    return result_owner
             structured = self._resolve_structured_source(module, base, module_tracers)
             if structured is not None:
                 ## Explicit result_source carries an owner, not a symbol to
@@ -472,6 +489,13 @@ class ProjectAnalyzer:
                         return rs
                 _, src_module, src_symbol = structured
                 if src_symbol in ("local", "python", "unknown"):
+                    return src_symbol
+                if _is_verified_result_owner(src_symbol):
+                    return src_symbol
+                if (isinstance(base, InstanceMethod)
+                        and base.parameter_scope
+                        and isinstance(src_symbol, str)
+                        and src_symbol):
                     return src_symbol
                 top = self._top_source(src_module, src_symbol, module_tracers)
                 # 1.0.5 P1: builtin container method on a receiver
@@ -628,6 +652,10 @@ class ProjectAnalyzer:
             return self._dedupe_list(candidates) or ["unknown"]
         if isinstance(source, CallResult):
             if source.result_source is not None:
+                if (isinstance(source.result_source, str)
+                        and source.result_source not in (
+                            "", "local", "python", "unknown")):
+                    return [source.result_source]
                 return self._origin_candidates(
                     module, source.result_source, tracers, include_local,
                     _seen=set(seen))
@@ -1175,6 +1203,14 @@ class ProjectAnalyzer:
                     f"{source_display(a)}.{b}",
                     module,
                     parameter_top,
+                )
+            if (isinstance(a, InstanceMethod)
+                    and isinstance(a.receiver, str)
+                    and _is_verified_result_owner(a.receiver)):
+                return (
+                    f"{source_display(a)}.{b}",
+                    module,
+                    a.receiver,
                 )
             if is_structured_source(a):
                 receiver = self._resolve_structured_source(

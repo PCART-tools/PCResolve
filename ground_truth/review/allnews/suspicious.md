@@ -1,4 +1,4 @@
-# allnews — Suspicious Records (119)
+# allnews — Suspicious Records (117)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -12,8 +12,6 @@ matching suspicious criteria.
 | allnews_am/processing.py:84:8 | `s.strip()` | python / python | unknown / unknown | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/tokenizer/tokenizer.py:100:14 | `cls.PUNCTUATION.values()` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/tokenizer/tokenizer.py:100:63 | `cls.LINEAR_PUNCTUATION.values()` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip()` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
-| allnews_am/tokenizer/tokenizer.py:257:24 | `new_segment.rstrip().lstrip()` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
 | allnews_am/tokenizer/tokenizer.py:285:10 | `s['tokens'].append((index, dict_word['word']))` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
 | allnews_am/tokenizer/tokenizer.py:300:14 | `s['tokens'].append(('{s}-{e}'.format(s=start_p, e=end_p),...` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
 | allnews_am/tokenizer/tokenizer.py:302:16 | `s['tokens'].append((index, t))` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |

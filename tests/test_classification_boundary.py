@@ -622,7 +622,7 @@ def test_deep_dotted_import_descendant_is_library():
 
 
 def test_assigned_chained_call_result_inherits_library():
-    """predictions = self.model.predict(X)[0].reshape(...); predictions.ravel() -> GPy."""
+    """A verified GPy prediction item remains NumPy through reshape()."""
     code = (
         "import GPy\n"
         "class Wrapper:\n"
@@ -637,12 +637,12 @@ def test_assigned_chained_call_result_inherits_library():
     calls = [c for c in r.all_api_calls if "ravel" in c.expression]
     assert calls, "predictions.ravel() not collected"
     for c in calls:
-        assert c.top_library == "GPy", \
-            f"predictions.ravel() should be GPy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "numpy", \
+            f"predictions.ravel() should be numpy, got {c.top_library} ({c.chain})"
 
 
 def test_tuple_unpack_assigned_result_inherits_library():
-    """a, b = self.model.predict(X); a.ravel() -> GPy."""
+    """a, b = self.model.predict(X); a.ravel() -> numpy."""
     code = (
         "import GPy\n"
         "class Wrapper:\n"
@@ -657,8 +657,8 @@ def test_tuple_unpack_assigned_result_inherits_library():
     calls = [c for c in r.all_api_calls if "ravel" in c.expression]
     assert calls, "a.ravel() not collected"
     for c in calls:
-        assert c.top_library == "GPy", \
-            f"a.ravel() should be GPy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "numpy", \
+            f"a.ravel() should be numpy, got {c.top_library} ({c.chain})"
 
 
 def test_local_self_attr_not_polluted_to_library():

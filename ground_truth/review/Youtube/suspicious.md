@@ -1,11 +1,10 @@
-# Youtube — Suspicious Records (7)
+# Youtube — Suspicious Records (6)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
 |---------------|------------|----|-----------|----------|-------|---------|
-| Kmeans.py:27:14 | `centres.todense()` | library / scipy | library / numpy | transitive_method | dynamic_probe | owner mismatch: expected=scipy pcresolve=numpy |
 | Kmeans.py:39:15 | `D.argmin(axis=1)` | library / numpy | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | Kmeans.py:41:17 | `distances.mean()` | library / numpy | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | Kmeans.py:67:26 | `x.todense()` | library / scipy | unknown / unknown | transitive_method | dynamic_probe | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=scipy pcresolve=unknown<br>expected library, pcresolve=unknown |

@@ -320,49 +320,89 @@ _CONVERSION_ATTRIBUTE_TARGETS = {
     ("pandas", "values"): "numpy",
 }
 
-# 1.0.5 P1: result-object owners for import-backed calls.  The callable keeps
-# its own library owner; this map applies only to the object returned across an
-# assignment or chained-call boundary.  Keys are
-# (library_prefix, function_name), where the prefix matches the resolved top.
-_CALL_RESULT_OWNER_MAP = {
-    ("Box2D", "CreateDynamicBody"): "Box2D",
-    ("Box2D", "CreateStaticBody"): "Box2D",
-    ("scipy", "cdist"): "numpy",
+# Verified result-object contracts for import-backed calls.  The callable keeps
+# its own library owner; each contract applies only to the object returned
+# across an assignment or chained-call boundary.  Values contain
+# (result_owner, evidence).  Evidence points to a checked Python/stdlib
+# contract, a public API contract, or a committed runtime probe.
+_RESULT_OWNER_CONTRACTS = {
+    ("Box2D", "CreateDynamicBody"): (
+        "Box2D", "probe:parameter_receiver_ownership"),
+    ("Box2D", "CreateStaticBody"): (
+        "Box2D", "probe:parameter_receiver_ownership"),
+    ("scipy", "cdist"): (
+        "numpy", "probe:receiver_ownership"),
     # svd() returns a Python tuple whose unpacked items are NumPy arrays.
-    ("scipy", "svd"): "python",
-    ("numpy", "dot"): "numpy",
-    ("seaborn", "barplot"): "matplotlib",
-    ("seaborn", "stripplot"): "matplotlib",
-    ("seaborn", "swarmplot"): "matplotlib",
-    ("matplotlib", "figure"): "matplotlib",
-    ("matplotlib", "gca"): "matplotlib",
-    ("matplotlib", "gcf"): "matplotlib",
-    ("matplotlib", "subplot"): "matplotlib",
+    ("scipy", "svd"): (
+        "python", "probe:machine_learning_svd"),
+    ("scipy", "bisplev"): (
+        "numpy", "public-api:scipy.interpolate.bisplev"),
+    ("numpy", "dot"): (
+        "numpy", "probe:receiver_ownership"),
+    ("numpy", "reshape"): (
+        "numpy", "public-api:numpy.reshape"),
+    ("seaborn", "barplot"): (
+        "matplotlib", "public-api:seaborn.barplot"),
+    ("seaborn", "stripplot"): (
+        "matplotlib", "public-api:seaborn.stripplot"),
+    ("seaborn", "swarmplot"): (
+        "matplotlib", "public-api:seaborn.swarmplot"),
+    ("matplotlib", "figure"): (
+        "matplotlib", "public-api:matplotlib.pyplot.figure"),
+    ("matplotlib", "gca"): (
+        "matplotlib", "public-api:matplotlib.pyplot.gca"),
+    ("matplotlib", "gcf"): (
+        "matplotlib", "public-api:matplotlib.pyplot.gcf"),
+    ("matplotlib", "subplot"): (
+        "matplotlib", "public-api:matplotlib.pyplot.subplot"),
     # subplots() returns a Python tuple.  Its second unpacked item may be a
     # Matplotlib Axes or a NumPy array, so no uniform item owner is claimed.
-    ("matplotlib", "subplots"): "python",
-    ("matplotlib", "add_subplot"): "matplotlib",
+    ("matplotlib", "subplots"): (
+        "python", "public-api:matplotlib.pyplot.subplots"),
+    ("matplotlib", "add_subplot"): (
+        "matplotlib", "public-api:matplotlib.figure.Figure.add_subplot"),
+    ("skimage", "downscale_local_mean"): (
+        "numpy", "probe:ground_truth/probes/round6_probe.py"),
+    ("torchvision", "to_tensor"): (
+        "torch", "public-api:torchvision.transforms.functional.to_tensor"),
     # Stable standard-library contracts.  Both functions return a
     # Python-provided str/bytes object, not an object owned by the module.
-    ("json", "dumps"): "python",
-    ("json", "load"): "python",
-    ("json", "loads"): "python",
-    ("re", "sub"): "python",
-    ("re", "group"): "python",
+    ("json", "dumps"): (
+        "python", "python-stdlib:json.dumps"),
+    ("json", "load"): (
+        "python", "python-stdlib:json.load"),
+    ("json", "loads"): (
+        "python", "python-stdlib:json.loads"),
+    ("re", "sub"): (
+        "python", "python-stdlib:re.sub"),
+    ("re", "group"): (
+        "python", "python-stdlib:re.Match.group"),
 }
+_VERIFIED_RESULT_OWNERS = frozenset(
+    contract[0] for contract in _RESULT_OWNER_CONTRACTS.values()
+)
 
 # Owners of elements yielded by selected import-backed iterator calls. This is
-# deliberately separate from _CALL_RESULT_OWNER_MAP: the iterator object and
+# deliberately separate from _RESULT_OWNER_CONTRACTS: the iterator object and
 # each yielded object do not necessarily have the same ownership semantics.
 _ITERATOR_ELEMENT_OWNER_MAP = {
     ("re", "finditer"): "re",
 }
 
-# Owners of items produced by destructuring selected call results.  Keep this
-# separate from _CALL_RESULT_OWNER_MAP because a Python tuple may contain
-# import-backed objects.
-_UNPACKED_RESULT_OWNER_MAP = {
+# Owners of items selected from selected call results.  Keep this separate
+# from _RESULT_OWNER_CONTRACTS because the aggregate result may be a Python
+# tuple while its destructured or indexed items are import-backed objects.
+_RESULT_ITEM_OWNER_CONTRACTS = {
     ("scipy", "svd"): "numpy",
+    ("GPy", "predict"): "numpy",
+}
+
+# Verified predicates that narrow a receiver owner in their true branch.
+# The evidence is part of the contract so these rules remain distinguishable
+# from method-name guessing.
+_TYPE_GUARD_OWNER_CONTRACTS = {
+    ("scipy", "issparse"): (
+        "scipy", "public-api:scipy.sparse.issparse"),
 }
 
 # Item kind produced by indexing selected builtin-method results.  Keep this
@@ -375,22 +415,27 @@ _BUILTIN_METHOD_RESULT_ITEM_KINDS = {
 }
 
 def _match_result_owner(top, func_name):
-    """Return the known owner of an import-backed call's result object."""
+    """Return the verified owner of an import-backed call's result object."""
     if top is None:
         return None
-    for (lib_prefix, fn), owner in _CALL_RESULT_OWNER_MAP.items():
+    for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
         if (fn == func_name
                 and (top == lib_prefix
                      or top.startswith(lib_prefix + "."))):
-            return owner
+            return contract[0]
     return None
 
 
-def _match_unpacked_result_owner(top, func_name):
-    """Return a uniform owner for destructured items of a known call."""
+def _is_verified_result_owner(owner):
+    """Return whether owner is produced by a verified result contract."""
+    return owner in _VERIFIED_RESULT_OWNERS
+
+
+def _match_result_item_owner(top, func_name):
+    """Return a uniform owner for destructured or indexed call-result items."""
     if top is None:
         return None
-    for (lib_prefix, fn), owner in _UNPACKED_RESULT_OWNER_MAP.items():
+    for (lib_prefix, fn), owner in _RESULT_ITEM_OWNER_CONTRACTS.items():
         if (fn == func_name
                 and (top == lib_prefix
                      or top.startswith(lib_prefix + "."))):
@@ -481,6 +526,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._func_stack = []
         self._class_stack = []
         self._seen_api_call_ids = set()
+        self._receiver_owner_guards = []
         self.defined_functions = set()
         self.function_params = {}
         self.parameter_sources = {}
@@ -996,6 +1042,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     call_key = self.get_base(node, call_lookup=True)
             else:
                 call_key = self.get_base(node, call_lookup=True)
+            method_source = normalize_source(self._resolve_methods(node))
+            if (isinstance(method_source, InstanceMethod)
+                    and isinstance(method_source.receiver, str)
+                    and _is_verified_result_owner(
+                        method_source.receiver)):
+                call_key = method_source.receiver
             if call_key:
                 if isinstance(call_key, CallResult):
                     return call_key
@@ -1060,6 +1112,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return "local"
             return body_base
         elif isinstance(node, ast.Subscript):
+            if isinstance(node.value, ast.Call):
+                item_owner = self._resolve_call_result_item_owner(node.value)
+                if item_owner is not None:
+                    return item_owner
             container_name = self.trace_source(node.value)
             key_idx = self._get_slice(node.slice)
             if container_name is not None and key_idx is not None:
@@ -1374,12 +1430,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             )
 
         if isinstance(re, ast.Name):
+            for guards in reversed(self._receiver_owner_guards):
+                guarded_owner = guards.get(re.id)
+                if guarded_owner is not None:
+                    return InstanceMethod(guarded_owner, method_name)
             if re.id == "self" and self._class_stack:
                 cn = self._class_stack[-1]
                 return _resolve_on_class(cn, cn)
             class_name = self.symbols.direct.get(re.id)
             class_name = normalize_source(class_name)
             if isinstance(class_name, CallResult):
+                if isinstance(
+                        normalize_source(class_name.result_source),
+                        (str, UnknownSource)):
+                    return InstanceMethod(class_name, method_name)
                 class_name = class_name.callee
             # 1.0.5 P1: treat "local" class_name the same as
             # absent — still create InstanceMethod so the
@@ -1412,6 +1476,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 return InstanceMethod(cn, method_name)
                             return InstanceMethod(src_norm, method_name)
                         if is_structured_source(src_norm):
+                            return InstanceMethod(src_norm, method_name)
+                        if (isinstance(src_norm, str)
+                                and binding.binding_kind != "import"
+                                and src_norm not in (
+                                    "", "local", "python", "unknown")):
                             return InstanceMethod(src_norm, method_name)
                 # Module-level local bindings — scope lookup
                 # may return None at module scope; fall back
@@ -1504,6 +1573,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return InstanceMethod("str", method_name)
             if isinstance(re.value, bytes):
                 return InstanceMethod("bytes", method_name)
+        if (isinstance(re, ast.Subscript)
+                and isinstance(re.value, ast.Call)):
+            item_owner = self._resolve_call_result_item_owner(re.value)
+            if item_owner is not None:
+                return InstanceMethod(item_owner, method_name)
         if isinstance(re, ast.Compare):
             result = self._resolve_compare_result_top(re, method_name)
             if result is not None:
@@ -1956,7 +2030,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     if isinstance(node.value, ast.Call):
                         func_top, func_name = self._resolve_func_top(
                             node.value.func)
-                        unpacked_owner = _match_unpacked_result_owner(
+                        unpacked_owner = _match_result_item_owner(
                             func_top, func_name)
                     for index, elt in enumerate(target.elts):
                         if isinstance(elt, ast.Name):
@@ -1992,7 +2066,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     rcvr_top = self.symbols.get_top(
                                         right_norm.receiver)
                                     if rcvr_top:
-                                        ret = _match_unpacked_result_owner(
+                                        ret = _match_result_item_owner(
                                             rcvr_top, right_norm.method)
                                         if ret:
                                             self._bind_target_name(
@@ -2140,8 +2214,23 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                          or name in self.import_aliases
                          or name in self.import_from_symbols)):
                 return (top, func_name)
-        if isinstance(func_node, ast.Attribute) and isinstance(func_node.value, ast.Name):
-            prefix = func_node.value.id
+        if isinstance(func_node, ast.Attribute):
+            full_name = self._attribute_name(func_node)
+            prefix = ""
+            if full_name:
+                imported_prefixes = sorted(
+                    (
+                        name for name in self.import_aliases
+                        if (full_name == name
+                            or full_name.startswith(name + "."))
+                    ),
+                    key=len,
+                    reverse=True,
+                )
+                if imported_prefixes:
+                    prefix = imported_prefixes[0]
+                else:
+                    prefix = full_name.split(".", 1)[0]
             prefix_top = self._receiver_top(prefix)
             if (prefix_top
                     and prefix_top not in ("local", "python", "unknown", "")
@@ -2150,6 +2239,79 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                          or prefix in self.import_from_symbols)):
                 return (prefix_top, func_node.attr)
         return (None, None)
+
+    ## Resolve a true-branch receiver-owner guard.
+    #
+    #  @param test_node Conditional expression.
+    #  @return (receiver_name, owner) or None.
+    def _resolve_receiver_owner_guard(self, test_node):
+        if (not isinstance(test_node, ast.Call)
+                or len(test_node.args) != 1
+                or not isinstance(test_node.args[0], ast.Name)):
+            return None
+        func_top, func_name = self._resolve_func_top(test_node.func)
+        for (lib_prefix, name), contract in (
+                _TYPE_GUARD_OWNER_CONTRACTS.items()):
+            if (name == func_name
+                    and func_top is not None
+                    and (func_top == lib_prefix
+                         or func_top.startswith(lib_prefix + "."))):
+                return (test_node.args[0].id, contract[0])
+        return None
+
+    ## Visit nodes under an optional receiver-owner guard.
+    #
+    #  @param nodes Iterable of AST nodes.
+    #  @param guard Optional (receiver_name, owner) pair.
+    def _visit_guarded_nodes(self, nodes, guard):
+        if guard is not None:
+            self._receiver_owner_guards.append({guard[0]: guard[1]})
+        try:
+            for child in nodes:
+                self.visit(child)
+        finally:
+            if guard is not None:
+                self._receiver_owner_guards.pop()
+
+    ## Resolve a verified owner for an item selected from a call result.
+    #
+    #  Direct import calls use _resolve_func_top().  Receiver calls additionally
+    #  use _resolve_methods(), which can recover owners stored on instance
+    #  attributes such as self.model = GPRegression(...).
+    #  @param call_node The call whose result is indexed or destructured.
+    #  @return Verified item owner string, or None.
+    def _resolve_call_result_item_owner(self, call_node):
+        func_top, func_name = self._resolve_func_top(call_node.func)
+        owner = _match_result_item_owner(func_top, func_name)
+        if owner is not None:
+            return owner
+        method_source = normalize_source(self._resolve_methods(call_node))
+        if isinstance(method_source, InstanceMethod):
+            receiver = normalize_source(method_source.receiver)
+            if isinstance(receiver, str):
+                receiver_top = self.symbols.get_top(receiver) or receiver
+                if receiver_top not in (
+                        None, "", "local", "python", "unknown"):
+                    return _match_result_item_owner(
+                        receiver_top, method_source.method)
+        if (not isinstance(call_node.func, ast.Attribute)
+                or not isinstance(call_node.func.value, ast.Attribute)
+                or not self._class_stack):
+            return None
+        receiver_name = self._attribute_name(call_node.func.value)
+        if not receiver_name or not receiver_name.startswith("self."):
+            return None
+        attr_source = normalize_source(self.instance_attrs.get(
+            (self._class_stack[-1], receiver_name)))
+        if isinstance(attr_source, CallResult):
+            attr_source = normalize_source(
+                attr_source.result_source or attr_source.callee)
+        if not isinstance(attr_source, str):
+            return None
+        attr_top = self.symbols.get_top(attr_source) or attr_source
+        if attr_top in (None, "", "local", "python", "unknown"):
+            return None
+        return _match_result_item_owner(attr_top, call_node.func.attr)
 
     ## Resolve the result owner of a protocol-dispatched NumPy ufunc.
     #
@@ -2253,7 +2415,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if target_names and isinstance(node.value, ast.Call):
             self._pending_call_targets_by_node[id(node.value)] = target_names
 
-        right = (self._parameter_dependency_source(node.value)
+        result_item_owner = None
+        if (isinstance(node.value, ast.Subscript)
+                and isinstance(node.value.value, ast.Call)):
+            result_item_owner = self._resolve_call_result_item_owner(
+                node.value.value)
+        right = (result_item_owner
+                 or self._parameter_dependency_source(node.value)
                  or self.trace_source(node.value))
         # 1.0.5 P1: if the RHS is a known conversion call
         # (e.g. data.to_numpy()), override the bound source
@@ -2261,7 +2429,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         # library.  Also handles data.to_numpy().T chains.
         conversion = self._resolve_conversion_target(node.value)
         if conversion:
-            right = conversion
+            right_norm = normalize_source(right)
+            if isinstance(right_norm, CallResult):
+                right = CallResult(
+                    right_norm.callee,
+                    display_name=right_norm.display_name,
+                    call_lineno=right_norm.call_lineno,
+                    call_col_offset=right_norm.call_col_offset,
+                    result_source=conversion,
+                )
+            else:
+                right = conversion
         # 1.0.5 P0: visit RHS before binding targets
         self.generic_visit(node)
         # 1.0.5 P0: call_assign_funcs after generic_visit
@@ -3182,6 +3360,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
 
         self.visit(node.test)
+        receiver_guard = self._resolve_receiver_owner_guard(node.test)
 
         if self._is_type_checking_guard(node):
             if node.orelse:
@@ -3190,8 +3369,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
 
         if self.current_scope().kind != SCOPE_MODULE:
-            for stmt in node.body:
-                self.visit(stmt)
+            self._visit_guarded_nodes(node.body, receiver_guard)
             for stmt in node.orelse:
                 self.visit(stmt)
             return
@@ -3199,8 +3377,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         scope_base = self.current_scope().snapshot()
         symbols_base = self.symbols.snapshot()
 
-        for stmt in node.body:
-            self.visit(stmt)
+        self._visit_guarded_nodes(node.body, receiver_guard)
         scope_left = self.current_scope().snapshot()
 
         self.current_scope().restore(scope_base)
@@ -3221,10 +3398,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     scope_kind=self.current_scope().kind,
                 )
         self.current_scope().restore(merged)
-
         for name, binding in merged.items():
             if isinstance(binding, Binding):
                 self.symbols.add(name, binding.source)
+
+    ## Visit a conditional expression with true-branch receiver narrowing.
+    #
+    #  @param node The IfExp AST node.
+    def visit_IfExp(self, node):
+        self.visit(node.test)
+        receiver_guard = self._resolve_receiver_owner_guard(node.test)
+        self._visit_guarded_nodes((node.body,), receiver_guard)
+        self.visit(node.orelse)
 
     ## Check whether an If node guards on TYPE_CHECKING.
     #  @param node The If AST node.
