@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve.sources import (
     ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
-    DerivedResult, NameSource, ParameterSource, SourceSet, UnknownSource,
+    DerivedResult, NameSource, ParameterSource, PythonShape, SourceSet,
+    TupleSource, UnknownSource,
     normalize_source, source_to_legacy, source_display, is_structured_source,
 )
 
@@ -66,6 +67,12 @@ def test_source_to_legacy_container_iter():
     assert source_to_legacy(ci) == ("container_iter", "lst", "*")
 
 
+def test_source_to_legacy_tuple_source_roundtrip():
+    source = TupleSource((PythonShape("str"), PythonShape("int")))
+    legacy = source_to_legacy(source)
+    assert normalize_source(legacy) == source
+
+
 def test_source_to_legacy_call_result():
     cr = CallResult("make")
     assert source_to_legacy(cr) == ("call_result", "make", None)
@@ -90,6 +97,25 @@ def test_parameter_source_attribute_path_roundtrip():
     assert normalize_source(legacy) == source
 
 
+def test_parameter_source_slice_operation_roundtrip():
+    source = ParameterSource(
+        "forward", "value", derived=True, derived_operation="slice")
+    legacy = source_to_legacy(source)
+
+    assert legacy == (
+        "parameter_source", ("forward", True, (), "slice"), "value")
+    assert normalize_source(legacy) == source
+
+
+def test_python_shape_roundtrip_and_display():
+    source = PythonShape("list", "str")
+    legacy = source_to_legacy(source)
+
+    assert legacy == ("python_shape", "list", "str")
+    assert normalize_source(legacy) == source
+    assert source_display(source) == "python:list[str]"
+
+
 def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
     original = CallResult(
         SuperMethod("Child", "pkg.Child", "build"),
@@ -102,7 +128,7 @@ def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
 
     source_ir_types = (
         ContainerItem, ContainerIter, InstanceMethod, SuperMethod,
-        CallResult, DerivedResult, ParameterSource, SourceSet,
+        CallResult, DerivedResult, ParameterSource, PythonShape, SourceSet,
         UnknownSource, NameSource,
     )
 

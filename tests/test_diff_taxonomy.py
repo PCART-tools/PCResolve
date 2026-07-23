@@ -43,8 +43,12 @@ def test_df_subscript_astype_is_container():
             "f(pd.DataFrame())\n")
     out, rc = _run_taxonomy(code)
     assert rc == 0
-    assert "container/subscript" in out, (
-        "df['x'].astype() should be container/subscript\n%s" % out)
+    # Parameter receiver propagation now resolves the unique DataFrame
+    # call-site in both scope models, so the old v1/v2 diff is gone.  Keep
+    # the taxonomy assertion at the classifier boundary and require a clean
+    # gate instead of depending on a regression that should no longer exist.
+    assert _classify_expr("df['x'].astype('str')") == "container/subscript"
+    assert "TOTAL regressions: 0" in out
 
 
 def test_plain_attribute_method_is_not_misclassified():

@@ -1,4 +1,4 @@
-# political-polarisation — static_obvious (40 records)
+# political-polarisation — static_obvious (38 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -18,8 +18,6 @@
 | analyze_hashtag.py:49:4 | `plt.show()` | library / matplotlib | library / matplotlib | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:58:9 | `nx.Graph()` | library / networkx | library / networkx | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:59:18 | `df.iterrows()` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
-| analyze_hashtag.py:61:23 | `row['mentions'].strip()` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
-| analyze_hashtag.py:61:23 | `row['mentions'].strip().split(',')` | library / pandas | library / pandas | direct_import | static_obvious | v: direct import-backed API call |
 | analyze_hashtag.py:68:12 | `print(count)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | analyze_hashtag.py:74:24 | `max(nx.connected_components(dg), key=len)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | analyze_hashtag.py:74:28 | `nx.connected_components(dg)` | library / networkx | library / networkx | direct_import | static_obvious | v: direct import-backed API call |

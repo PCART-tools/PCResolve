@@ -1,4 +1,4 @@
-# AIBO — static_context (169 records)
+# AIBO — static_context (167 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -22,8 +22,7 @@
 | run.py:145:38 | `es.stop()` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
 | run.py:146:13 | `es.ask()` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
 | run.py:148:8 | `es.tell(xs, y)` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
-| run.py:170:13 | `Turbo1(f=f, lb=f.lb, ub=f.ub, n_init=2 * args.batch_size, max_evals...` | local / local | library / baselines | local_baseline_callable | static_context | v: baselines is a project-local package in this fixture |
-| run.py:185:4 | `turbo1.optimize()` | local / local | library / baselines | local_baseline_callable | static_context | v: baselines is a project-local package in this fixture |
+| run.py:185:4 | `turbo1.optimize()` | library / baselines | library / baselines | receiver_return | static_context | v: receiver is returned by the import-backed baselines.TuRBO.turbo_1.Turbo1 constru |
 | run.py:202:14 | `Problem(n_var=f.dim, n_obj=1, n_constr=0, xl=np.zeros(f.dim), xu=np...` | library / pymoo | library / pymoo | pymoo_receiver | static_context | v: callable or receiver is created by pymoo |
 | run.py:203:18 | `NoTermination()` | library / pymoo | library / pymoo | pymoo_receiver | static_context | v: callable or receiver is created by pymoo |
 | run.py:206:16 | `GA(pop_size=pop_size, n_offsprings=n_offsprings)` | library / pymoo | library / pymoo | pymoo_receiver | static_context | v: callable or receiver is created by pymoo |
@@ -40,7 +39,6 @@
 | run.py:282:20 | `f(x)` | local / local | local / local | dynamic_local_callable | static_context | v: callable resolves to a project-local synthetic or benchmark object in the surrou |
 | run.py:288:21 | `de.minimize(f)` | library / nevergrad | library / nevergrad | nevergrad_receiver | static_context | v: optimizer receiver is created by nevergrad |
 | run.py:290:20 | `f(x)` | local / local | local / local | dynamic_local_callable | static_context | v: callable resolves to a project-local synthetic or benchmark object in the surrou |
-| run.py:325:4 | `OpenTuner.main(args)` | local / local | library / baselines | local_baseline_callable | static_context | v: baselines is a project-local package in this fixture |
 | functions/test.py:37:8 | `self.results.append(self.curt_best)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list |
 | functions/test.py:40:12 | `self.dump_trace()` | local / local | local / local | local_method | static_context | v: method is defined on a project-local tracker or benchmark class |
 | functions/test.py:58:8 | `self.tracker.track(result, x)` | local / local | local / local | local_method | static_context | v: method is defined on a project-local tracker or benchmark class |
@@ -51,12 +49,12 @@
 | functions/push_utils.py:18:29 | `b2Vec2(self.SCREEN_WIDTH / (2 * self.PPM), self.SCREEN_HEIGHT / (se...` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:48:8 | `self.screen.fill(bg_color)` | library / pygame | library / pygame | pygame_receiver | static_context | v: receiver is created by pygame |
 | functions/push_utils.py:49:8 | `self.clock.tick(self.TARGET_FPS)` | library / pygame | library / pygame | pygame_receiver | static_context | v: receiver is created by pygame |
-| functions/push_utils.py:52:16 | `fixture.shape.draw(body, fixture)` | local / local | library / Box2D | monkey_patched_local_method | static_context | v: draw is assigned to project-local my_draw_polygon or my_draw_circle |
+| functions/push_utils.py:52:16 | `fixture.shape.draw(body, fixture)` | local / local | unknown / unknown | monkey_patched_local_method | static_context | v: draw is assigned to project-local my_draw_polygon or my_draw_circle |
 | functions/push_utils.py:59:21 | `b2World(gravity=(0.0, 0.0), doSleep=True)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:67:29 | `guiWorld(self.TARGET_FPS)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:74:29 | `guiWorld(self.TARGET_FPS)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:85:12 | `self.bodies.append(new_bodies)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python list or string |
-| functions/push_utils.py:88:8 | `self.world.Step(self.TIME_STEP, self.VEL_ITERS, self.POS_ITERS)` | library / Box2D | local / local | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
+| functions/push_utils.py:88:8 | `self.world.Step(self.TIME_STEP, self.VEL_ITERS, self.POS_ITERS)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:90:12 | `self.gui_world.draw(self.bodies)` | local / local | local / local | local_method | static_context | v: receiver is an instance of a project-local wrapper class |
 | functions/push_utils.py:96:20 | `world.CreateDynamicBody(position=init_pos, angle=init_angle)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
 | functions/push_utils.py:101:21 | `b2PolygonShape(box=hand_size)` | library / Box2D | library / Box2D | box2d_receiver | static_context | v: callable or receiver is created by Box2D |
@@ -107,7 +105,7 @@
 | functions/synthetic.py:157:8 | `self.tracker.track(result, x)` | local / local | local / local | local_method | static_context | v: method is defined on a project-local tracker or benchmark class |
 | functions/synthetic.py:178:8 | `self.tracker.track(result, x)` | local / local | local / local | local_method | static_context | v: method is defined on a project-local tracker or benchmark class |
 | functions/synthetic.py:197:8 | `self.tracker.track(result, x)` | local / local | local / local | local_method | static_context | v: method is defined on a project-local tracker or benchmark class |
-| functions/rover_utils.py:44:17 | `params.reshape((-1, self.d))` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
+| functions/rover_utils.py:44:17 | `params.reshape((-1, self.d))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:52:22 | `si.splprep(points, k=3)` | library / scipy | library / scipy | direct_import | static_context | v: si is the scipy.interpolate import alias |
 | functions/rover_utils.py:64:25 | `si.splev(t, self.tck)` | library / scipy | library / scipy | direct_import | static_context | v: si is the scipy.interpolate import alias |
 | functions/rover_utils.py:120:8 | `self.set_params(params)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
@@ -121,7 +119,7 @@
 | functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:172:16 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
-| functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | python / python | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
+| functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:189:24 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:232:24 | `g.reshape((-1, 1))` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:235:12 | `roverdomain.cost_fn(points)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
@@ -134,7 +132,7 @@
 | functions/rover_utils.py:249:8 | `plt.gcf().colorbar(cmesh)` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:251:4 | `plt.plot(traj_points[:, 0], traj_points[:, 1], 'g')` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:253:4 | `plt.plot([roverdomain.start[0], roverdomain.goal[0]], (roverdomain....` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
-| functions/rover_utils.py:294:9 | `plt.gcf()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
+| functions/rover_utils.py:294:9 | `plt.gcf()` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:294:9 | `plt.gcf().add_subplot(111, projection='3d')` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:297:4 | `ax.scatter((roverdomain.start[0], roverdomain.goal[0]), (roverdomai...` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:303:4 | `ax.add_collection3d(Line3DCollection(seg, colors=[(0, 1.0, 0, 1.0)]...` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |

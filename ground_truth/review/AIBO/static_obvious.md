@@ -1,4 +1,4 @@
-# AIBO — static_obvious (487 records)
+# AIBO — static_obvious (489 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -30,6 +30,7 @@
 | run.py:159:4 | `print('cost time:', time.time() - t0)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:159:23 | `time.time()` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:169:7 | `time.time()` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
+| run.py:170:13 | `Turbo1(f=f, lb=f.lb, ub=f.ub, n_init=2 * args.batch_size, max_evals...` | library / baselines | library / baselines | direct_import | static_obvious | v: no baselines module exists under the analyzed project root; the import-backed ow |
 | run.py:186:4 | `print('cost time:', time.time() - t0)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:186:23 | `time.time()` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:189:15 | `np.argmin(fX)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
@@ -91,6 +92,7 @@
 | run.py:308:9 | `pybobyqa.solve(f, x0, bounds=(f.lb, f.ub), maxfun=args.iters)` | library / pybobyqa | library / pybobyqa | direct_import | static_obvious | v: direct import-backed API call |
 | run.py:309:4 | `print('best y:', soln.f)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | run.py:313:7 | `time.time()` | library / time | library / time | direct_import | static_obvious | v: direct import-backed API call |
+| run.py:325:4 | `OpenTuner.main(args)` | library / baselines | library / baselines | direct_import | static_obvious | v: no baselines module exists under the analyzed project root; the import-backed ow |
 | run.py:327:4 | `print('no such method')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | functions/test.py:13:25 | `float('inf')` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | functions/test.py:18:8 | `os.makedirs('result/' + foldername, exist_ok=True)` | library / os | library / os | direct_import | static_obvious | v: direct import-backed API call |

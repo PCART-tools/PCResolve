@@ -1,4 +1,4 @@
-# hfhd — static_obvious (375 records)
+# hfhd — static_obvious (371 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -338,10 +338,6 @@
 | hfhd/hd.py:664:40 | `np.ceil(6.5 / L * 60)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | hfhd/hd.py:665:20 | `range(L)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | hfhd/hd.py:666:15 | `datetime.time(16, 0)` | library / datetime | library / datetime | direct_import | static_obvious | v: direct import-backed API call |
-| hfhd/hd.py:748:15 | `series.index[0].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| hfhd/hd.py:748:41 | `series.index[-1].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| hfhd/hd.py:752:19 | `series.index[0].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| hfhd/hd.py:754:27 | `series.index[0].date()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:760:14 | `_get_partitions(4)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | hfhd/hd.py:762:8 | `len(stp)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | hfhd/hd.py:765:13 | `range(L)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |

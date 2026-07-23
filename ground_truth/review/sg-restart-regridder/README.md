@@ -13,13 +13,12 @@
 ## Expected Kind
 
 - library: 7
-- python: 2
-- local: 1
+- python: 3
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 6
-- [static_context](static_context.md): 4
+- [static_obvious](static_obvious.md): 5
+- [static_context](static_context.md): 5
 
 ## [Suspicious Records](suspicious.md): 0
 
@@ -27,7 +26,7 @@
 
 - builtin: 2
 - direct_import: 3
-- local_call: 1
+- python_protocol_method: 1
 - transitive_method: 4
 
 ## Top Libraries

@@ -15,3 +15,5 @@ def dispatch(name, worker, value):
 
 
 dispatch("expand", Worker(), "value")
+selected_callback = CALLBACKS.get("expand")
+selected_callback(Worker(), "selected")

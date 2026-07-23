@@ -31,6 +31,8 @@ class Binding:
     container_kind: str = ""
     ## Concrete kind produced by subscripting this container, if known.
     container_item_kind: str = ""
+    ## Field shapes carried by a known container element, if any.
+    container_item_fields: dict = field(default_factory=dict)
     ## Qualified return_sources key when this binding is a local callable.
     callable_key: str = ""
     ## Binding role such as parameter, variable, import, or attribute.
@@ -61,13 +63,14 @@ class Scope:
     #  @param binding_kind Binding role used for flow-sensitive checks.
     def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0,
              container_kind="", container_item_kind="", callable_key="",
-             binding_kind=""):
+             binding_kind="", container_item_fields=None):
         old = self.bindings.get(name)
         version = old.version + 1 if old is not None else 1
         self.bindings[name] = Binding(
             name, source, self.kind, lineno, col_offset,
             assignment_index, version, container_kind,
-            container_item_kind, callable_key, binding_kind,
+            container_item_kind,
+            dict(container_item_fields or {}), callable_key, binding_kind,
         )
 
     ## Look up a name through lexical parents.

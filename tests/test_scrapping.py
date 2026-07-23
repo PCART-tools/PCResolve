@@ -21,3 +21,13 @@ def test_bs4(calls_by_top): assert "bs4" in calls_by_top
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["self", "self()"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
+
+
+def test_unresolved_local_return_chain_is_not_claimed_local(result):
+    calls = [
+        call for file_analysis in result.files
+        for call in file_analysis.api_calls
+        if call.expression == "link.find(':')"
+    ]
+    assert len(calls) == 8
+    assert all(call.top_library == "unknown" for call in calls)

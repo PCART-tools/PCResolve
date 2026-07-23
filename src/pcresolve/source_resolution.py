@@ -8,7 +8,7 @@
 #  The class receives callbacks for the bits that still live
 #  on ProjectAnalyzer so we avoid a circular import.
 
-from pcresolve.sources import (normalize_source, CallResult,
+from pcresolve.sources import (normalize_source, CallResult, PythonShape,
                                is_structured_source)
 
 
@@ -26,13 +26,16 @@ class SourceSetResolver:
     ## @param known_local_cb fn(tracer, symbol) -> bool
     ## @param resolve_structured_cb fn(module, source, tracers, _seen=None) -> tuple|None
     ## @param dedupe_cb fn(items) -> list
+    ## @param is_import_origin_cb fn(tracer, symbol) -> bool
     def __init__(self, top_source_cb, cg_return_cb, known_local_cb,
-                 resolve_structured_cb, dedupe_cb):
+                 resolve_structured_cb, dedupe_cb,
+                 is_import_origin_cb=None):
         self._top_source = top_source_cb
         self._lookup_cg_return_source = cg_return_cb
         self._is_known_local = known_local_cb
         self._resolve_structured_source = resolve_structured_cb
         self._dedupe_list = dedupe_cb
+        self._is_import_origin = is_import_origin_cb
 
     # ── public API ──────────────────────────────────────────────────────
 
@@ -79,8 +82,10 @@ class SourceSetResolver:
             top = self._to_top_candidate(module, src, tracers, _seen=_seen)
             if top in ("", None, "unknown"):
                 has_unknown = True
-            elif top in ("local", "python"):
+            elif top == "local":
                 has_local = True
+            elif top == "python":
+                tops.append("python")
             else:
                 tops.append(top)
         return self._dedupe_list(tops), has_local, has_unknown
@@ -95,6 +100,8 @@ class SourceSetResolver:
         if _seen is None:
             _seen = set()
         source = normalize_source(source)
+        if isinstance(source, PythonShape):
+            return "python"
         if isinstance(source, str):
             key = (module, "str", source)
             if key in _seen:
@@ -107,30 +114,40 @@ class SourceSetResolver:
             return self._top_source(
                 module, source, tracers, _seen=_seen)
         if isinstance(source, CallResult) and isinstance(source.callee, str):
-            key = (module, "cr", source.callee)
+            source_module = source.source_module or module
+            key = (source_module, "cr", source.callee)
             if key in _seen:
                 return None
             _seen.add(key)
             if source.result_source is not None:
                 resolved = self._resolve_structured_source(
-                    module, source, tracers, _seen=_seen)
+                    source_module, source, tracers, _seen=_seen)
                 if resolved:
                     _, src_module, src_symbol = resolved
                     return self._top_source(
                         src_module, src_symbol, tracers, _seen=_seen)
-            cg = self._lookup_cg_return_source(module, source.callee)
+            cg = self._lookup_cg_return_source(source_module, source.callee)
             if cg:
                 return self._top_source(
-                    module, cg, tracers, _seen=_seen) or cg
-            tracer = tracers.get(module)
+                    source_module, cg, tracers, _seen=_seen) or cg
+            tracer = tracers.get(source_module)
             if tracer:
                 first = source.callee.split(".")[0]
                 if (first in getattr(tracer, "import_aliases", set()) or
                         first in getattr(tracer, "import_from_symbols", {})):
                     return self._top_source(
-                        module, source.callee, tracers, _seen=_seen)
+                        source_module, source.callee, tracers, _seen=_seen)
                 if self._is_known_local(tracer, source.callee):
                     return "local"
+                # Dotted call results can retain a qualified import target
+                # even when the first component is not itself an alias.
+                # Accept this only when the tracer independently records
+                # import-backed evidence for the complete symbol.
+                if (self._is_import_origin is not None
+                        and self._is_import_origin(
+                            tracer, source.callee)):
+                    return self._top_source(
+                        source_module, source.callee, tracers, _seen=_seen)
             return None
         if is_structured_source(source):
             resolved = self._resolve_structured_source(

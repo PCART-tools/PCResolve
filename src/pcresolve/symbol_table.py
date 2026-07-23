@@ -6,7 +6,8 @@
 #  to determine its top-level origin library.
 
 import builtins
-from .sources import CallResult, SourceSet, normalize_source, source_display
+from .sources import (CallResult, PythonShape, SourceSet, normalize_source,
+                      source_display)
 
 
 ## Tracks symbol definitions and resolves each to its top-level source.
@@ -44,6 +45,8 @@ class SymbolTable:
                 from .sources import UnknownSource
                 if isinstance(rs, UnknownSource):
                     return [source_display(symbol), "unknown"]
+                if isinstance(rs, PythonShape):
+                    return [source_display(symbol), "python"]
                 if rs == "python":
                     return [source_display(symbol), "python"]
                 if isinstance(rs, str):
@@ -79,6 +82,8 @@ class SymbolTable:
                 from .sources import UnknownSource
                 if isinstance(rs, UnknownSource):
                     sub = self.trace("unknown", visited)
+                elif isinstance(rs, PythonShape):
+                    sub = ["python"]
                 elif rs == "python":
                     sub = ["python"]
                 elif isinstance(rs, str):

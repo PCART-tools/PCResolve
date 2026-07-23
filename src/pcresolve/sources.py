@@ -31,6 +31,17 @@ class ContainerIter:
     container: "SourceLike"
 
 
+## Source for one homogeneous tuple/list element shape.
+#
+#  This is an internal call-graph fact.  It preserves the field sources of a
+#  tuple appended to a local iterable, without claiming that the iterable
+#  object itself owns those fields.
+@dataclass(frozen=True)
+class TupleSource:
+    ## Ordered field sources.
+    items: tuple
+
+
 ## Source for a method resolved through an instance or class.
 @dataclass(frozen=True)
 class InstanceMethod:
@@ -58,6 +69,22 @@ class ParameterSource:
     derived: bool = False
     ## Statically preserved attribute path from the root parameter.
     attributes: tuple = ()
+    ## Derived operation applied to the parameter value, when known.
+    #  Only operations with a statically preserved shape are recorded.
+    derived_operation: str = ""
+
+
+## Concrete Python-provided value shape preserved across local call edges.
+#
+#  This is language-level evidence, not an import-library return contract.
+#  It lets parameter method resolution distinguish, for example, a string
+#  argument from an integer without inferring ownership from the method name.
+@dataclass(frozen=True)
+class PythonShape:
+    ## Concrete builtin type or container kind.
+    kind: str
+    ## Concrete item kind for homogeneous containers, when known.
+    item_kind: str = ""
 
 
 ## Source for a super().method() call, capturing enclosing class context.
@@ -86,6 +113,10 @@ class CallResult:
     call_lineno: int = 0
     ## Column offset of the call site (0 = unknown).
     call_col_offset: int = 0
+    ## Module in which the call expression was analyzed.
+    #  Needed when a declaration-time expression, such as a function default,
+    #  has no runtime call edge but still carries an aliased source symbol.
+    source_module: str = ""
     ## Where the return-object gets its ownership from.
     #
     #  - None (default): unresolved — continue existing return_sources /
@@ -104,7 +135,7 @@ class CallResult:
 @dataclass(frozen=True)
 class DerivedResult:
     ## Semantic kind: "element", "iterator", "attribute", "callback",
-    #  "constant_import", "protocol", "python".
+    #  "constant_import", "protocol", "python", "expression".
     kind: str
     ## SourceLike operands needed to resolve the result owner.
     sources: tuple
@@ -131,8 +162,8 @@ class SourceSet:
 
 ## Union of all Source IR types and plain strings.
 SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod,
-                   ParameterSource, SuperMethod, CallResult, DerivedResult,
-                   SourceSet, UnknownSource]
+                   TupleSource, ParameterSource, PythonShape, SuperMethod, CallResult,
+                   DerivedResult, SourceSet, UnknownSource]
 ## Build a SourceSet from an iterable of source values, deduplicating by display.
 #
 #  @param values Iterable of source values.
@@ -166,8 +197,8 @@ def make_source_set(values, origin=""):
 def is_structured_source(value):
     if isinstance(value, tuple) and len(value) == 3 and isinstance(value[0], str):
         return True
-    if isinstance(value, (ContainerItem, ContainerIter, InstanceMethod,
-                          ParameterSource, SuperMethod, CallResult,
+    if isinstance(value, (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
+                          ParameterSource, PythonShape, SuperMethod, CallResult,
                           DerivedResult, SourceSet, UnknownSource, NameSource)):
         return True
     return False
@@ -184,14 +215,21 @@ def normalize_source(value):
             return ContainerItem(normalize_source(a), b)
         if kind == "container_iter":
             return ContainerIter(normalize_source(a))
+        if kind == "tuple_source":
+            values = a if isinstance(a, (tuple, list)) else ()
+            return TupleSource(tuple(normalize_source(s) for s in values))
         if kind == "instance_method":
             return InstanceMethod(normalize_source(a), b)
         if kind == "parameter_source":
             if isinstance(a, tuple) and len(a) >= 2:
                 attributes = tuple(a[2]) if len(a) >= 3 else ()
+                operation = a[3] if len(a) >= 4 else ""
                 return ParameterSource(
-                    a[0], b, bool(a[1]), attributes=attributes)
+                    a[0], b, bool(a[1]), attributes=attributes,
+                    derived_operation=operation)
             return ParameterSource(a, b)
+        if kind == "python_shape":
+            return PythonShape(a, b or "")
         if kind == "call_result":
             rs = normalize_source(b) if b is not None else None
             return CallResult(normalize_source(a), result_source=rs)
@@ -225,14 +263,22 @@ def source_to_legacy(value):
         return ("container_item", source_to_legacy(value.container), value.index)
     if isinstance(value, ContainerIter):
         return ("container_iter", source_to_legacy(value.container), "*")
+    if isinstance(value, TupleSource):
+        return ("tuple_source",
+                tuple(source_to_legacy(s) for s in value.items), None)
     if isinstance(value, InstanceMethod):
         return ("instance_method", source_to_legacy(value.receiver), value.method)
     if isinstance(value, ParameterSource):
+        metadata = (value.scope, value.derived, tuple(value.attributes))
+        if value.derived_operation:
+            metadata += (value.derived_operation,)
         return (
             "parameter_source",
-            (value.scope, value.derived, tuple(value.attributes)),
+            metadata,
             value.name,
         )
+    if isinstance(value, PythonShape):
+        return ("python_shape", value.kind, value.item_kind)
     if isinstance(value, CallResult):
         rs = getattr(value, 'result_source', None)
         return ("call_result", source_to_legacy(value.callee),
@@ -265,6 +311,8 @@ def source_display(value):
         return "%s[%s]" % (source_display(value.container), value.index)
     if isinstance(value, ContainerIter):
         return "%s[*]" % source_display(value.container)
+    if isinstance(value, TupleSource):
+        return "(" + ", ".join(source_display(s) for s in value.items) + ")"
     if isinstance(value, InstanceMethod):
         return "%s.%s" % (source_display(value.receiver), value.method)
     if isinstance(value, ParameterSource):
@@ -272,6 +320,10 @@ def source_display(value):
         suffix = "*" if value.derived else ""
         return "%s:%s%s%s" % (
             value.scope, value.name, path, suffix)
+    if isinstance(value, PythonShape):
+        if value.item_kind:
+            return "python:%s[%s]" % (value.kind, value.item_kind)
+        return "python:%s" % value.kind
     if isinstance(value, CallResult):
         if value.display_name:
             return "%s()" % value.display_name

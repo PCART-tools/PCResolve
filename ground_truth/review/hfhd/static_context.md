@@ -2,8 +2,8 @@
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
-| hfhd/hf.py:175:30 | `x.dropna()` | library / pandas | library / numpy | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
-| hfhd/hf.py:176:20 | `x.dropna()` | library / pandas | library / numpy | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
+| hfhd/hf.py:175:30 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
+| hfhd/hf.py:176:20 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:407:23 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:408:21 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:433:15 | `price.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
@@ -37,9 +37,9 @@
 | hfhd/sim.py:311:27 | `self.feature.cumsum(axis=0)` | library / numpy | library / numpy | transitive_method | static_context | v: ndarray.cumsum() is numpy method |
 | hfhd/sim.py:318:21 | `self.price.between_time('9:30', '16:00', include_start=True, includ...` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .between_time( method on pandas Series/DataFrame |
 | hfhd/sim.py:321:27 | `self.cum_feature.between_time('9:30', '16:00', include_start=True, ...` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .between_time( method on pandas Series/DataFrame |
-| hfhd/sim.py:403:25 | `(log_rets - var / 2).cumsum(axis=0)` | library / numpy | local / local | transitive_method | static_context | gt: numpy .cumsum() on ndarray<br>v: ndarray.cumsum() is numpy method |
+| hfhd/sim.py:403:25 | `(log_rets - var / 2).cumsum(axis=0)` | library / numpy | unknown / unknown | transitive_method | static_context | gt: numpy .cumsum() on ndarray<br>v: ndarray.cumsum() is numpy method |
 | hfhd/sim.py:411:4 | `ms_noise.ravel()` | library / numpy | library / numpy | transitive_method | static_context | v: ndarray.ravel() is numpy method |
 | hfhd/hd.py:666:4 | `stp.append(datetime.time(16, 0))` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
-| hfhd/hd.py:766:19 | `x.between_time(stp[j], stp[j + 1], True, True)` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .between_time( method on pandas Series/DataFrame |
-| hfhd/hd.py:768:22 | `x.between_time(stp[j + 1], stp[j], False, False)` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .between_time( method on pandas Series/DataFrame |
+| hfhd/hd.py:766:19 | `x.between_time(stp[j], stp[j + 1], True, True)` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .between_time( method on pandas Series/DataFrame |
+| hfhd/hd.py:768:22 | `x.between_time(stp[j + 1], stp[j], False, False)` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .between_time( method on pandas Series/DataFrame |
 | hfhd/hd.py:774:8 | `Sigma_hat_list.append(Sigma_hat)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |

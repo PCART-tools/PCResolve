@@ -11,13 +11,13 @@ from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
 from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
-from .sources import (ContainerItem, ContainerIter, InstanceMethod,
-                       ParameterSource, SuperMethod, CallResult,
+from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
+                       ParameterSource, PythonShape, SuperMethod, CallResult,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
 from .call_graph import (FunctionId, FunctionSummary, ClassSummary, CallEdge,
-                         ModuleCallGraph)
+                         IterationBinding, ModuleCallGraph)
 
 ## Python 2 builtins not present in Python 3's builtins module.
 _PY2_BUILTINS = frozenset({
@@ -36,18 +36,18 @@ _PY2_BUILTINS = frozenset({
 _BUILTIN_CONTAINER_METHODS = {
     "list": frozenset([
         "append", "extend", "insert", "remove", "pop", "clear",
-        "index", "count", "sort", "reverse", "copy",
+        "index", "count", "sort", "reverse", "copy", "__len__",
     ]),
     "dict": frozenset([
         "get", "keys", "values", "items", "update", "pop",
-        "popitem", "clear", "copy",
+        "popitem", "clear", "copy", "__len__",
     ]),
     "set": frozenset([
         "add", "remove", "discard", "pop", "clear", "copy",
         "update", "difference", "intersection", "union",
-        "symmetric_difference", "issubset", "issuperset",
+        "symmetric_difference", "issubset", "issuperset", "__len__",
     ]),
-    "tuple": frozenset(["count", "index"]),
+    "tuple": frozenset(["count", "index", "__len__"]),
     "str": frozenset([
         "strip", "rstrip", "lstrip", "split", "rsplit", "join",
         "replace", "find", "rfind", "rindex", "startswith",
@@ -56,7 +56,7 @@ _BUILTIN_CONTAINER_METHODS = {
         "format", "format_map",
         "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
         "isidentifier", "islower", "isnumeric", "isprintable",
-        "isspace", "istitle", "isupper",
+        "isspace", "istitle", "isupper", "__len__",
     ]),
 }
 
@@ -64,6 +64,27 @@ _BUILTIN_CONTAINER_METHODS = {
 ## Check if a name is a Python builtin (including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
+
+
+## Return the runtime type corresponding to a proven PythonShape kind.
+#  @param kind Concrete builtin type or container kind.
+#  @return Builtin type object, or None for an unsupported shape.
+def _builtin_shape_type(kind):
+    if kind == "NoneType":
+        return type(None)
+    value = getattr(builtins, kind, None)
+    return value if isinstance(value, type) else None
+
+
+## Check whether a proven PythonShape exposes a callable attribute.
+#  This consults the Python builtin type itself instead of maintaining a
+#  method-name allowlist. Unknown receivers never reach this helper.
+#  @param kind Concrete builtin type or container kind.
+#  @param method Attribute name being called.
+#  @return True when the builtin type defines the attribute.
+def _has_builtin_shape_method(kind, method):
+    shape_type = _builtin_shape_type(kind)
+    return shape_type is not None and hasattr(shape_type, method)
 
 
 ## 1.0.5 P2: builtin return-object ownership semantics.
@@ -325,13 +346,15 @@ _CONVERSION_ATTRIBUTE_TARGETS = {
 # import-backed; matching an attribute name alone is never sufficient.
 _ATTRIBUTE_RESULT_OWNER_CONTRACTS = {
     ("bs4", "text"): (
-        "python", "public-api:bs4.PageElement.text"),
+        "python", "public-api:bs4.PageElement.text", PythonShape("str")),
     ("requests", "text"): (
-        "python", "public-api:requests.Response.text"),
+        "python", "public-api:requests.Response.text", PythonShape("str")),
     ("spacy", "text"): (
-        "python", "public-api:spacy Token/Span/Doc.text"),
+        "python", "public-api:spacy Token/Span/Doc.text",
+        PythonShape("str")),
     ("xml", "text"): (
-        "python", "python-stdlib:xml.etree.ElementTree.Element.text"),
+        "python", "python-stdlib:xml.etree.ElementTree.Element.text",
+        PythonShape("str")),
 }
 
 # Verified result-object contracts for import-backed calls.  The callable keeps
@@ -382,17 +405,17 @@ _RESULT_OWNER_CONTRACTS = {
     # Stable standard-library contracts.  Both functions return a
     # Python-provided str/bytes object, not an object owned by the module.
     ("json", "dumps"): (
-        "python", "python-stdlib:json.dumps"),
+        "python", "python-stdlib:json.dumps", PythonShape("str")),
     ("json", "load"): (
         "python", "python-stdlib:json.load"),
     ("json", "loads"): (
         "python", "python-stdlib:json.loads"),
     ("re", "sub"): (
-        "python", "python-stdlib:re.sub"),
+        "python", "python-stdlib:re.sub", PythonShape("str")),
     ("re", "split"): (
-        "python", "python-stdlib:re.split"),
+        "python", "python-stdlib:re.split", PythonShape("list", "str")),
     ("re", "group"): (
-        "python", "python-stdlib:re.Match.group"),
+        "python", "python-stdlib:re.Match.group", PythonShape("str")),
     ("re", "compile"): (
         "re", "python-stdlib:re.compile"),
     ("re", "match"): (
@@ -411,9 +434,9 @@ _VERIFIED_RESULT_OWNERS = frozenset(
 # each yielded object do not necessarily have the same ownership semantics.
 _ITERATOR_ELEMENT_OWNER_MAP = {
     ("re", "finditer"): "re",
-    ("glob", "glob"): "python",
-    ("glob", "iglob"): "python",
-    ("os", "listdir"): "python",
+    ("glob", "glob"): ("python", PythonShape("str")),
+    ("glob", "iglob"): ("python", PythonShape("str")),
+    ("os", "listdir"): ("python", PythonShape("str")),
 }
 
 # Owners of items selected from selected call results.  Keep this separate
@@ -463,6 +486,14 @@ def _match_result_owner(top, func_name):
     return None
 
 
+def _has_result_owner_contract(func_name):
+    """Return whether any verified result contract covers a method name."""
+    return any(
+        contract_name == func_name
+        for _, contract_name in _RESULT_OWNER_CONTRACTS
+    )
+
+
 def _match_attribute_result_owner(top, attribute):
     """Return the verified owner of an import-backed attribute's value."""
     if top is None:
@@ -473,6 +504,33 @@ def _match_attribute_result_owner(top, attribute):
                 and (top == lib_prefix
                      or top.startswith(lib_prefix + "."))):
             return contract[0]
+    return None
+
+
+def _match_attribute_python_shape(top, attribute):
+    """Return the concrete Python shape from a verified attribute contract."""
+    if top is None:
+        return None
+    for (lib_prefix, name), contract in (
+            _ATTRIBUTE_RESULT_OWNER_CONTRACTS.items()):
+        if (name == attribute
+                and len(contract) >= 3
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return contract[2]
+    return None
+
+
+def _match_result_python_shape(top, func_name):
+    """Return the concrete Python shape from a verified result contract."""
+    if top is None:
+        return None
+    for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
+        if (fn == func_name
+                and len(contract) >= 3
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return contract[2]
     return None
 
 
@@ -497,11 +555,24 @@ def _match_iterator_element_owner(top, func_name):
     """Return the owner of elements from a known import-backed iterator."""
     if top is None:
         return None
-    for (lib_prefix, fn), owner in _ITERATOR_ELEMENT_OWNER_MAP.items():
+    for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():
         if (fn == func_name
                 and (top == lib_prefix
                      or top.startswith(lib_prefix + "."))):
-            return owner
+            return contract[0] if isinstance(contract, tuple) else contract
+    return None
+
+
+def _match_iterator_element_shape(top, func_name):
+    """Return the Python shape of elements from a verified iterator."""
+    if top is None:
+        return None
+    for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():
+        if (fn == func_name
+                and isinstance(contract, tuple)
+                and (top == lib_prefix
+                     or top.startswith(lib_prefix + "."))):
+            return contract[1]
     return None
 
 
@@ -514,7 +585,7 @@ def _match_iterator_element_owner(top, func_name):
 #  @return True when all possible sources are exactly "python".
 def _is_uniform_python_result(source):
     source = normalize_source(source)
-    if source == "python":
+    if source == "python" or isinstance(source, PythonShape):
         return True
     if isinstance(source, SourceSet) and source.sources:
         return all(_is_uniform_python_result(item)
@@ -527,11 +598,30 @@ def _is_uniform_python_result(source):
 #  @return True when at least one branch is exactly "python".
 def _has_python_result(source):
     source = normalize_source(source)
-    if source == "python":
+    if source == "python" or isinstance(source, PythonShape):
         return True
     if isinstance(source, SourceSet):
         return any(_has_python_result(item) for item in source.sources)
     return False
+
+
+## Return one concrete Python shape when every return branch agrees.
+#
+#  @param source Return source or SourceSet.
+#  @return PythonShape when all branches have the same shape, otherwise None.
+def _uniform_python_shape(source):
+    source = normalize_source(source)
+    if isinstance(source, PythonShape):
+        return source
+    if isinstance(source, CallResult):
+        result_source = normalize_source(source.result_source)
+        return result_source if isinstance(result_source, PythonShape) else None
+    if isinstance(source, SourceSet) and source.sources:
+        shapes = [_uniform_python_shape(item) for item in source.sources]
+        if (all(shape is not None for shape in shapes)
+                and all(shape == shapes[0] for shape in shapes[1:])):
+            return shapes[0]
+    return None
 
 # 1.0.5 P1: numpy ufuncs that preserve the receiver's type when
 # applied to pandas objects.  Probe-backed: np.log(pd.Series)
@@ -569,8 +659,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.scope_model = scope_model
         self._file_path = file_path
         self.return_sources = {}
+        # Positional tuple return summaries are consumed only by the project
+        # call graph. Keep them out of return_sources, whose legacy resolver
+        # expects one whole-result source.
+        self.call_graph_return_sources = {}
+        self.call_graph_yield_sources = {}
         self.symbols = SymbolTable(self.return_sources)
         self.api_calls = []
+        self.comprehension_targets = set()
         self.attr_accesses = []
         self.local = set()
         self._func_stack = []
@@ -583,6 +679,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._assigned_call_sources = {}
         self.container_items = {}
         self.homogeneous_container_items = {}
+        self.homogeneous_container_value_sources = {}
+        # Positional sources for homogeneous tuple/list-comprehension items.
+        # Keys are module-level container names; values are source tuples.
+        self.homogeneous_container_tuple_items = {}
         self.container_lengths = {}
         self.container_kinds = {}  # 1.0.5 P1: name -> "list"|"dict"|"set"|"tuple"|"str"
         self.container_item_kinds = {}  # 1.0.5 P1+: name -> "list"|"dict"|... for defaultdict(list) etc.
@@ -592,9 +692,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self.instance_attrs = {}
         self.instance_attr_kinds = {}
         self.instance_attr_item_kinds = {}
+        self.instance_attr_item_fields = {}
+        self._constructor_kwargs_contracts = {}
+        self._local_instance_field_sources = {}
+        self._local_instance_field_shapes = {}
+        self._local_instance_field_shadowed = {}
+        self.class_attr_kinds = {}
+        self._class_receiver_stack = []
+        self._container_item_kind_conflicts = set()
         self.import_from_symbols = {}
         self.wildcard_modules = []
         self.import_aliases = set()
+        self._import_binding_sources = {}
         self.call_sites = {}
         self.call_assign_funcs = {}
         self._assignment_counter = 0
@@ -612,6 +721,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._literal_values = {}
         self._pending_call_targets_by_node = {}
         self._argparse_parsers = {}
+        self._argparse_destination_shapes = {}
+        self._iterable_binding_sources = {}
+        self._iterated_append_sources = {}
+        self._iterated_append_tuple_sources = {}
+        self._iterated_append_tuple_conflicts = set()
+        self.external_method_overrides = {}
 
     ## Return the current innermost scope.
     def current_scope(self):
@@ -642,7 +757,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param kind Optional symbol kind for provenance ("variable", "parameter", "attribute").
     def _bind_target_name(self, name, source, node=None, kind="variable",
                           container_kind="", container_item_kind="",
-                          callable_key=""):
+                          callable_key="", container_item_fields=None):
         self._assignment_counter += 1
         lineno = getattr(node, "lineno", 0) if node is not None else 0
         col = getattr(node, "col_offset", 0) if node is not None else 0
@@ -651,7 +766,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             container_kind=container_kind,
             container_item_kind=container_item_kind,
             callable_key=callable_key,
-            binding_kind=kind)
+            binding_kind=kind,
+            container_item_fields=container_item_fields)
         if name in self._global_names or self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
             self.symbols.add(name, source)
         if name.startswith("self.") and self._class_stack:
@@ -665,8 +781,43 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 self.instance_attr_item_kinds[attr_key] = container_item_kind
             else:
                 self.instance_attr_item_kinds.pop(attr_key, None)
+            if container_item_fields:
+                self.instance_attr_item_fields[attr_key] = dict(
+                    container_item_fields)
+            else:
+                self.instance_attr_item_fields.pop(attr_key, None)
+        if (self.current_scope().kind == SCOPE_CLASS
+                and self._class_stack and "." not in name):
+            attr_key = (self._class_stack[-1], name)
+            if container_kind:
+                self.class_attr_kinds[attr_key] = container_kind
+            else:
+                self.class_attr_kinds.pop(attr_key, None)
         if kind:
             self._add_symbol_ref(name, source, kind, node)
+
+    ## Normalize a class-qualified instance field target.
+    #
+    #  A local singleton may initialize an instance field through a class
+    #  holder, for example ``MySQL.__instance.connection = pymysql.connect``.
+    #  The later method body still observes that field as ``self.connection``.
+    #  Preserve only this syntactic binding relationship; do not infer an
+    #  external return type from the field name or method name.
+    #  @param name Dotted assignment target.
+    #  @return ``self.<field>`` or None when the target is unrelated.
+    def _instance_attribute_target_name(self, name):
+        if not self._class_stack or not isinstance(name, str):
+            return None
+        class_name = self._class_stack[-1]
+        prefix = class_name + "."
+        if not name.startswith(prefix):
+            return None
+        parts = name[len(prefix):].split(".")
+        if parts and parts[0] == "__instance":
+            parts = parts[1:]
+        if not parts:
+            return None
+        return "self." + ".".join(parts)
 
     ## Look up a name in the lexical scope chain (v2) or return the name as-is.
     #
@@ -680,7 +831,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if binding is not None:
                 if binding.source == "local":
                     return binding.source
-                if name in self.import_aliases and isinstance(binding.source, str) and '.' not in binding.source:
+                if (binding.binding_kind == "import"
+                        and binding.scope_kind != SCOPE_MODULE):
+                    return binding.source
+                if (name in self.import_aliases
+                        and isinstance(binding.source, str)
+                        and '.' not in binding.source):
                     return name
                 return binding.source
         return name
@@ -701,6 +857,325 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return self.container_item_kinds.get(name)
         return self.container_kinds.get(name)
 
+    ## Return field shapes for elements of a statically known container.
+    #  @param node Container expression or bound name.
+    #  @return Mapping of literal field names to shape tuples.
+    def _expression_container_item_fields(self, node):
+        if isinstance(node, (ast.List, ast.Tuple)):
+            field_sets = []
+            for element in node.elts:
+                fields = self._literal_dict_field_shapes(element)
+                if not fields:
+                    return {}
+                field_sets.append(fields)
+            if field_sets and all(fields == field_sets[0]
+                                  for fields in field_sets):
+                return dict(field_sets[0])
+            return {}
+        if isinstance(node, ast.Name):
+            binding = self.current_scope().lookup(
+                node.id, skip_parent_classes=True)
+            return dict(getattr(binding, "container_item_fields", {}) or {})
+        if isinstance(node, ast.Attribute):
+            name = self._attribute_name(node)
+            if name and name.startswith("self.") and self._class_stack:
+                return dict(self.instance_attr_item_fields.get(
+                    (self._class_stack[-1], name), {}) or {})
+        return {}
+
+    ## Return positional sources for a homogeneous tuple/list comprehension.
+    #
+    #  The fact is intentionally limited to a comprehension whose element is
+    #  a tuple or list and whose every field has an explicit source. It lets
+    #  ``for value, label in pairs`` preserve the source of ``value`` without
+    #  inferring ownership from the loop variable or method name.
+    #  @param node Candidate list comprehension.
+    #  @return Tuple of field sources, or None when incomplete.
+    def _expression_tuple_item_sources(self, node):
+        if not isinstance(node, ast.ListComp):
+            return None
+        element = node.elt
+        if not isinstance(element, (ast.Tuple, ast.List)):
+            return None
+        sources = []
+        for field in element.elts:
+            source = self.trace_source(field)
+            if source is None:
+                source = self.get_base(field)
+            if source is None:
+                return None
+            sources.append(normalize_source(source))
+        return tuple(sources)
+
+    ## Return module-level tuple-field facts for an active container binding.
+    #  @param name Container name.
+    #  @return Tuple of sources, or None when unavailable or shadowed.
+    def _lookup_tuple_item_sources(self, name):
+        binding = self.current_scope().lookup(
+            name, skip_parent_classes=True)
+        if binding is not None and binding.scope_kind != SCOPE_MODULE:
+            return None
+        return self.homogeneous_container_tuple_items.get(name)
+
+    ## Infer field shapes from a literal dictionary element.
+    #  @param node Candidate dictionary AST node.
+    #  @return Mapping of literal string keys to shape tuples.
+    def _literal_dict_field_shapes(self, node):
+        if not isinstance(node, ast.Dict):
+            return {}
+        fields = {}
+        for key_node, value_node in zip(node.keys, node.values):
+            if (not isinstance(key_node, ast.Constant)
+                    or not isinstance(key_node.value, str)):
+                continue
+            kind, item_kind = self._expression_container_shape(value_node)
+            if not kind:
+                continue
+            fields[key_node.value] = (kind, item_kind)
+        return fields
+
+    ## Return the shape of a literal-key field on a known element.
+    #  @param node Subscript AST node.
+    #  @return (container kind, item kind), or empty strings.
+    def _expression_subscript_field_shape(self, node):
+        if not isinstance(node, ast.Subscript):
+            return ("", "")
+        key = self._get_slice(node.slice)
+        if not isinstance(key, str):
+            return ("", "")
+        fields = self._expression_container_item_fields(node.value)
+        shape = fields.get(key)
+        if shape is None:
+            return ("", "")
+        return shape
+
+    ## Resolve a structured source to one uniform owner within the file.
+    #
+    #  This follows existing provenance only. It does not infer ownership from
+    #  an attribute or method name, and mixed SourceSet owners stay unresolved.
+    #  @param source Source value to inspect.
+    #  @param seen Recursion guard for cyclic structured sources.
+    #  @return Uniform owner string or None.
+    def _structured_source_owner_top(self, source, seen=None):
+        source = normalize_source(source)
+        visited = set(seen or set())
+        key = (type(source).__name__, source_display(source))
+        if key in visited:
+            return None
+        visited.add(key)
+
+        if isinstance(source, str):
+            if source in ("local", "python", "unknown", ""):
+                return source or None
+            return self.symbols.get_top(source) or source
+        if isinstance(source, PythonShape):
+            return "python"
+        if isinstance(source, UnknownSource):
+            return "unknown"
+        if isinstance(source, CallResult):
+            if source.result_source is not None:
+                return self._structured_source_owner_top(
+                    source.result_source, visited)
+            return self._structured_source_owner_top(
+                source.callee, visited)
+        if isinstance(source, InstanceMethod):
+            return self._structured_source_owner_top(
+                source.receiver, visited)
+        if isinstance(source, ContainerIter):
+            return self._structured_source_owner_top(
+                source.container, visited)
+        if isinstance(source, ContainerItem):
+            return self._structured_source_owner_top(
+                source.container, visited)
+        if isinstance(source, SourceSet):
+            owners = {
+                self._structured_source_owner_top(item, set(visited))
+                for item in source.sources
+            }
+            owners.discard(None)
+            if len(owners) == 1:
+                return next(iter(owners))
+        return None
+
+    ## Infer a Python-provided container shape from local expression evidence.
+    #
+    #  This follows only language-level facts: literals, lexical bindings,
+    #  slicing, homogeneous items, and builtin methods on an independently
+    #  known receiver kind. It never infers a receiver kind from a method name.
+    #  @param node Value expression.
+    #  @return Tuple of (container_kind, container_item_kind), or ("", "").
+    def _expression_container_shape(self, node):
+        direct_kind = _container_kind(node)
+        if direct_kind is not None:
+            return (direct_kind, _container_item_kind(node) or "")
+
+        if isinstance(node, ast.JoinedStr):
+            return ("str", "")
+
+        if isinstance(node, ast.Name):
+            return (
+                self._lookup_container_kind(node.id) or "",
+                self._lookup_container_kind(node.id, item=True) or "",
+            )
+
+        if isinstance(node, ast.Attribute):
+            name = self._attribute_name(node)
+            if name and name.startswith("self.") and self._class_stack:
+                key = (self._class_stack[-1], name)
+                return (
+                    self.instance_attr_kinds.get(key, ""),
+                    self.instance_attr_item_kinds.get(key, ""),
+                )
+            if name and self.scope_model == "v2":
+                binding = self.current_scope().lookup(
+                    name, skip_parent_classes=True)
+                if binding is not None:
+                    return (
+                        getattr(binding, "container_kind", "") or "",
+                        getattr(binding, "container_item_kind", "") or "",
+                    )
+                parts = name.split(".", 1)
+                if len(parts) == 2:
+                    for scope_key in self._local_instance_field_scope_keys(
+                            parts[0]):
+                        field_shape = self._local_instance_field_shapes.get(
+                            (scope_key, parts[0], parts[1]))
+                        if field_shape is not None:
+                            return field_shape
+            receiver_top = self._expr_receiver_top(node.value)
+            if receiver_top is None:
+                receiver_top = self._structured_source_owner_top(
+                    self.trace_source(node.value))
+            shape = _match_attribute_python_shape(
+                receiver_top, node.attr)
+            if shape is not None:
+                return (shape.kind, shape.item_kind)
+            return ("", "")
+
+        if isinstance(node, ast.Subscript):
+            field_kind = self._expression_subscript_field_shape(node)
+            if field_kind[0]:
+                return field_kind
+            value_kind, item_kind = self._expression_container_shape(
+                node.value)
+            if isinstance(node.slice, ast.Slice):
+                if value_kind in ("list", "tuple", "str"):
+                    return (value_kind, item_kind)
+                return ("", "")
+            if item_kind:
+                return (item_kind, "")
+            if value_kind == "str":
+                return ("str", "")
+            return ("", "")
+
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+            left = self._expression_container_shape(node.left)
+            if left[0] == "str":
+                return ("str", "")
+            return ("", "")
+
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left = self._expression_container_shape(node.left)
+            right = self._expression_container_shape(node.right)
+            if (left[0] in ("list", "tuple", "str")
+                    and left == right):
+                return left
+            return ("", "")
+
+        if isinstance(node, ast.IfExp):
+            body = self._expression_container_shape(node.body)
+            orelse = self._expression_container_shape(node.orelse)
+            return body if body[0] and body == orelse else ("", "")
+
+        if isinstance(node, ast.Call):
+            call_key = self.get_base(node, call_lookup=True)
+            if isinstance(call_key, str):
+                local_shape = _uniform_python_shape(
+                    self.return_sources.get(call_key))
+                if local_shape is not None:
+                    return (local_shape.kind, local_shape.item_kind)
+            func_top, func_name = self._resolve_func_top(node.func)
+            if (func_top is None
+                    and isinstance(node.func, ast.Attribute)):
+                func_top = self._expr_receiver_top(node.func.value)
+                func_name = node.func.attr
+            if (func_top is None
+                    and isinstance(node.func, ast.Attribute)):
+                method_source = normalize_source(
+                    self._resolve_methods(node))
+                if isinstance(method_source, InstanceMethod):
+                    receiver = normalize_source(method_source.receiver)
+                    if isinstance(receiver, str):
+                        func_top = (
+                            self.symbols.get_top(receiver) or receiver)
+                    elif isinstance(receiver, CallResult):
+                        result_source = normalize_source(
+                            receiver.result_source)
+                        if isinstance(result_source, str):
+                            func_top = result_source
+                        elif isinstance(receiver.callee, str):
+                            func_top = (
+                                self.symbols.get_top(receiver.callee)
+                                or receiver.callee)
+                    func_name = method_source.method
+            shape = _match_result_python_shape(func_top, func_name)
+            if shape is not None:
+                return (shape.kind, shape.item_kind)
+
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)):
+            receiver_kind, receiver_item_kind = (
+                self._expression_container_shape(node.func.value))
+            method = node.func.attr
+            if (receiver_kind == "dict"
+                    and method == "get"
+                    and receiver_item_kind):
+                return (receiver_item_kind, "")
+            if receiver_kind == "str":
+                if method in ("split", "rsplit", "splitlines"):
+                    return ("list", "str")
+                if method in (
+                        "strip", "rstrip", "lstrip", "replace",
+                        "upper", "lower", "title", "capitalize",
+                        "swapcase", "center", "ljust", "rjust",
+                        "zfill", "format", "format_map", "join"):
+                    return ("str", "")
+            if method == "copy" and receiver_kind in (
+                    "list", "dict", "set"):
+                return (receiver_kind, receiver_item_kind)
+
+        return ("", "")
+
+    ## Preserve a concrete Python value shape for local call arguments.
+    #
+    #  Container shapes reuse lexical flow facts. Scalar literals are carried
+    #  by their builtin type so downstream method resolution can validate the
+    #  protocol instead of treating every Python value as interchangeable.
+    #  @param node Value expression.
+    #  @return PythonShape or None.
+    def _expression_python_shape(self, node):
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)) and node.elts:
+            item_shapes = [
+                self._expression_python_shape(item) for item in node.elts
+            ]
+            if (any(item is None for item in item_shapes)
+                    or any(item.kind != item_shapes[0].kind
+                           for item in item_shapes[1:])):
+                return None
+            return PythonShape(
+                _container_kind(node) or "", item_shapes[0].kind)
+        kind, item_kind = self._expression_container_shape(node)
+        if kind:
+            return PythonShape(kind, item_kind)
+        if isinstance(node, ast.Constant):
+            value = node.value
+            if value is None:
+                return PythonShape("NoneType")
+            value_type = type(value)
+            if value_type in (bytes, bool, int, float, complex):
+                return PythonShape(value_type.__name__)
+        return None
+
     ## Return the container kind relevant to a method call receiver.
     #  @param node The ast.Call node.
     #  @return Container or subscript-item kind string, or None.
@@ -720,6 +1195,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if name and name.startswith("self."):
                 return self.instance_attr_kinds.get(
                     (self._class_stack[-1], name))
+            if isinstance(receiver.value, ast.Name):
+                root = receiver.value.id
+                class_name = self._class_stack[-1]
+                active_receiver = (
+                    self._class_receiver_stack[-1]
+                    if self._class_receiver_stack else "")
+                if root == class_name or (
+                        active_receiver and root == active_receiver):
+                    return self.class_attr_kinds.get(
+                        (class_name, receiver.attr))
         if (isinstance(receiver, ast.Subscript)
                 and isinstance(receiver.value, ast.Name)):
             return self._lookup_container_kind(receiver.value.id, item=True)
@@ -745,7 +1230,39 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if producer_owner == "python":
                 return _BUILTIN_METHOD_RESULT_ITEM_KINDS.get(
                     ("str", producer_method))
+        receiver_kind, _ = self._expression_container_shape(receiver)
+        if receiver_kind:
+            return receiver_kind
         return None
+
+    ## Record the concrete kind assigned through a dictionary subscript.
+    #
+    #  The evidence is accepted only for a receiver already known to be a
+    #  Python dict. All writes must converge to one concrete item kind.
+    #  Conflicting or unresolved writes invalidate the fact for that binding.
+    #  @param target Assignment target AST node.
+    #  @param value_kind Concrete kind of the assigned value, or None.
+    def _record_subscript_item_kind(self, target, value_kind):
+        if (not isinstance(target, ast.Subscript)
+                or not isinstance(target.value, ast.Name)):
+            return
+        container_name = target.value.id
+        binding = self.current_scope().lookup(
+            container_name, skip_parent_classes=True)
+        if binding is None or binding.container_kind != "dict":
+            return
+
+        conflict_key = id(binding)
+        if conflict_key in self._container_item_kind_conflicts:
+            return
+        current = binding.container_item_kind or ""
+        if not value_kind or (current and current != value_kind):
+            binding.container_item_kind = ""
+            self.container_item_kinds.pop(container_name, None)
+            self._container_item_kind_conflicts.add(conflict_key)
+            return
+        binding.container_item_kind = value_kind
+        self.container_item_kinds[container_name] = value_kind
 
     ## Build a scope-qualified key for a locally assigned callable.
     #  @param name Assignment target name.
@@ -782,6 +1299,20 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             scope = scope.parent
         return None
 
+    ## Return Python shapes tracked for an argparse parser binding.
+    #
+    #  @param parser_name Parser variable name.
+    #  @return Destination-to-PythonShape mapping, or None.
+    def _argparse_destination_shape_map(self, parser_name):
+        scope = self.current_scope()
+        while scope is not None:
+            shapes = self._argparse_destination_shapes.get(
+                (id(scope), parser_name))
+            if shapes is not None:
+                return shapes
+            scope = scope.parent
+        return None
+
     ## Record an argparse add_argument() destination with Python value shape.
     #
     #  Custom type/action callables are intentionally excluded because their
@@ -795,6 +1326,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         destinations = self._argparse_destinations(node.func.value.id)
         if destinations is None:
             return
+        shapes = self._argparse_destination_shape_map(node.func.value.id)
 
         keywords = {
             keyword.arg: keyword.value for keyword in node.keywords
@@ -832,6 +1364,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 destination = option_strings[0].replace("-", "_")
         if destination:
             destinations.add(destination)
+            if shapes is not None:
+                shape = self._expression_python_shape(
+                    keywords.get("default"))
+                if shape is None and isinstance(type_node, ast.Name):
+                    if _is_builtin(type_node.id):
+                        shape = PythonShape(type_node.id)
+                if (shape is None
+                        and isinstance(action_node, ast.Constant)
+                        and action_node.value in (
+                            "store_true", "store_false")):
+                    shape = PythonShape("bool")
+                if shape is None:
+                    shapes.pop(destination, None)
+                else:
+                    existing = shapes.get(destination)
+                    if existing is None or existing == shape:
+                        shapes[destination] = shape
+                    else:
+                        shapes.pop(destination, None)
 
     ## Record ArgumentParser construction or parse_args Namespace attributes.
     #
@@ -847,11 +1398,32 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if not targets:
             return
 
+        # ArgumentGroup.add_argument() populates the same Namespace as its
+        # owning ArgumentParser.  Preserve that destination set when a group
+        # is assigned to a local name, so grouped options receive the same
+        # Python value-shape evidence as parser-level options.
+        if (node.value.func.attr == "add_argument_group"
+                and isinstance(node.value.func.value, ast.Name)):
+            destinations = self._argparse_destinations(
+                node.value.func.value.id)
+            shapes = self._argparse_destination_shape_map(
+                node.value.func.value.id)
+            if destinations is not None:
+                for target in targets:
+                    self._argparse_parsers[
+                        (id(self.current_scope()), target)] = destinations
+                    if shapes is not None:
+                        self._argparse_destination_shapes[
+                            (id(self.current_scope()), target)] = shapes
+                return
+
         func_top, func_name = self._resolve_func_top(node.value.func)
         if func_top == "argparse" and func_name == "ArgumentParser":
             for target in targets:
                 self._argparse_parsers[
                     (id(self.current_scope()), target)] = set()
+                self._argparse_destination_shapes[
+                    (id(self.current_scope()), target)] = {}
             return
 
         if (node.value.func.attr not in ("parse_args",)
@@ -861,13 +1433,22 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             node.value.func.value.id)
         if destinations is None:
             return
+        shapes = self._argparse_destination_shape_map(
+            node.value.func.value.id)
         for target in targets:
             for destination in destinations:
+                shape = shapes.get(destination) if shapes is not None else None
                 self._bind_target_name(
                     target + "." + destination,
                     "python",
                     node,
                     "attribute",
+                    container_kind=(shape.kind if shape is not None
+                                    and shape.kind in (
+                                        "list", "dict", "set", "tuple",
+                                        "str") else ""),
+                    container_item_kind=(shape.item_kind if shape is not None
+                                         else ""),
                 )
 
     ## Preserve a direct import-from callable for argument-flow evidence.
@@ -898,6 +1479,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _call_edge_argument_source(self, node):
         if self.scope_model != "v2":
             return self.get_base(node)
+        if isinstance(node, ast.Subscript):
+            dependency = self._parameter_dependency_source(node)
+            if isinstance(dependency, ParameterSource):
+                return dependency
+        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.List,
+                             ast.Tuple, ast.Set, ast.Dict)):
+            python_shape = self._expression_python_shape(node)
+            if python_shape is not None:
+                return python_shape
         if isinstance(node, ast.Name) and self._caller_stack:
             binding = self.current_scope().lookup(
                 node.id, skip_parent_classes=True)
@@ -914,10 +1504,132 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return imported_call
         return self._value_source(node)
 
+    ## Preserve exact fields of a callback argument tuple.
+    #  @param node Candidate tuple/list expression.
+    #  @return TupleSource with UnknownSource fields when needed, or None for
+    #  a non-tuple expression.
+    def _call_edge_tuple_source(self, node):
+        if not isinstance(node, (ast.Tuple, ast.List)):
+            return None
+        fields = []
+        for field in node.elts:
+            source = normalize_source(self._call_edge_argument_source(field))
+            fields.append(source or UnknownSource("unresolved callback argument"))
+        return TupleSource(tuple(fields))
+
+    ## Attach the defining module to a declaration-time call source.
+    #  Default expressions are evaluated while visiting a function definition,
+    #  outside the function call graph. The module fact keeps alias resolution
+    #  available when that default is later propagated to a receiver.
+    #  @param source Candidate argument source.
+    #  @return Source with module metadata when it is a CallResult.
+    def _default_argument_source(self, source):
+        return self._source_with_module(source)
+
+    ## Attach this analyzer's module to a call result when absent.
+    #  @param source Candidate source value.
+    #  @return Source with module metadata when applicable.
+    def _source_with_module(self, source):
+        source = normalize_source(source)
+        if not isinstance(source, CallResult) or source.source_module:
+            return source
+        return CallResult(
+            source.callee,
+            display_name=source.display_name,
+            call_lineno=source.call_lineno,
+            call_col_offset=source.call_col_offset,
+            source_module=self.module_name or "",
+            result_source=source.result_source,
+        )
+
+    ## Preserve element ownership for a call argument used as an iterable.
+    #
+    #  This fact is separate from ordinary argument ownership. A Python list
+    #  may yield project-local or import-backed objects, so treating the list
+    #  owner as the element owner would contaminate receiver classification.
+    #  @param node Argument expression.
+    #  @return Element source or None when the iterable is not explicit.
+    def _call_edge_iterable_source(self, node):
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            if not node.elts:
+                return UnknownSource("empty iterable")
+            return _iterable_element_source(node, self.trace_source)
+        if isinstance(node, ast.Name):
+            binding = self.current_scope().lookup(
+                node.id, skip_parent_classes=True)
+            if binding is not None:
+                tuple_sources = self._iterated_append_tuple_sources.get(
+                    id(binding))
+                if tuple_sources is not None:
+                    return tuple_sources
+                source = self._iterable_binding_sources.get(id(binding))
+                if source is not None:
+                    return source
+                dependency = self._parameter_dependency_source(node)
+                if dependency is not None:
+                    return ContainerIter(dependency)
+        return None
+
+    ## Attach an explicit iterable's element source to its lexical binding.
+    #
+    #  Binding identity prevents a same-name container in another function
+    #  from changing an already collected call edge.
+    #  @param node Assignment node whose targets have already been bound.
+    def _record_iterable_binding_source(self, node):
+        if not isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
+            return
+        if not node.value.elts:
+            item_source = UnknownSource("empty iterable")
+        else:
+            item_source = _iterable_element_source(
+                node.value, self.trace_source)
+        if item_source is None:
+            return
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            binding = self.current_scope().bindings.get(target.id)
+            if binding is not None:
+                self._iterable_binding_sources[id(binding)] = item_source
+
+    ## Resolve the result object of a builtin container method.
+    #
+    #  The method callable is Python-owned, but selection methods return a
+    #  value from the receiver. Preserve that item source instead of
+    #  contaminating the result object with the callable's owner.
+    #  @param node Method call.
+    #  @param receiver_kind Independently known builtin container kind.
+    #  @param method_name Called method name.
+    #  @return Result source, "python", or None.
+    def _builtin_method_result_source(
+            self, node, receiver_kind, method_name):
+        if (receiver_kind == "dict"
+                and method_name == "get"
+                and node.args):
+            receiver = node.func.value
+            if isinstance(receiver, ast.Name):
+                container = receiver.id
+            else:
+                container = self.trace_source(receiver)
+            key_node = node.args[0]
+            if isinstance(key_node, ast.Constant):
+                key = key_node.value
+            else:
+                key = "*"
+            selected = ContainerItem(container, key)
+            if len(node.args) >= 2:
+                default = _builtin_value_source(
+                    node.args[1], self.trace_source)
+                return make_source_set(
+                    (selected, default), origin="dict_lookup")
+            return selected
+        return "python"
+
     ## Preserve whether an assignment value has unresolved parameter origin.
     #  @param node Assignment value expression.
-    #  @return ParameterSource, UnknownSource, or None.
-    def _parameter_dependency_source(self, node):
+    #  @return ParameterSource, DerivedResult, UnknownSource, "local", or
+    #  None.
+    def _parameter_dependency_source(self, node, expression_context=False):
         if self.scope_model != "v2":
             return None
 
@@ -931,48 +1643,111 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             existing = normalize_source(binding.source)
             if isinstance(existing, (ParameterSource, UnknownSource)):
                 return existing
+            if isinstance(existing, DerivedResult):
+                return existing
+            if (expression_context
+                    and isinstance(existing, CallResult)
+                    and existing.result_source is None):
+                callee = existing.callee
+                callee_root = (
+                    callee.split(".", 1)[0]
+                    if isinstance(callee, str) else "")
+                imported = (
+                    callee_root in self.import_aliases
+                    or callee_root in self.import_from_symbols
+                    or (callee_root in self.symbols.direct
+                        and self.symbols.direct.get(callee_root)
+                        not in (None, "local", "python", "unknown")))
+                if not imported:
+                    return None
+                # A call result without an explicit result-owner contract
+                # cannot be safely used as the operand owner of a later
+                # expression. Preserve uncertainty instead of allowing the
+                # assignment fallback to relabel the value as local.
+                return UnknownSource("unresolved call-result expression")
             if binding.binding_kind != "parameter":
                 return None
             return ParameterSource(
                 self._caller_stack[-1].qualname, node.id)
 
         if isinstance(node, ast.Attribute):
-            dependency = self._parameter_dependency_source(node.value)
+            if (expression_context
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in ("self", "cls")):
+                attr_name = self._attribute_name(node)
+                existing_attr = None
+                if self._class_stack and attr_name:
+                    existing_attr = self.instance_attrs.get(
+                        (self._class_stack[-1], attr_name))
+                existing_attr = normalize_source(existing_attr)
+                if existing_attr is not None:
+                    if isinstance(existing_attr, (ParameterSource,
+                                                   UnknownSource,
+                                                   DerivedResult)):
+                        return existing_attr
+                    return None
+                # A method receiver is project-local callable context. Keep
+                # its attributes as local evidence without inferring their
+                # runtime type.
+                return "local"
+            dependency = self._parameter_dependency_source(
+                node.value, expression_context=expression_context)
             if isinstance(dependency, ParameterSource):
                 return ParameterSource(
                     dependency.scope,
                     dependency.name,
                     derived=dependency.derived,
                     attributes=dependency.attributes + (node.attr,),
+                    derived_operation=dependency.derived_operation,
                 )
             if isinstance(dependency, UnknownSource):
                 return dependency
             return None
 
         if isinstance(node, ast.Subscript):
-            dependency = self._parameter_dependency_source(node.value)
+            dependency = self._parameter_dependency_source(
+                node.value, expression_context=expression_context)
             if isinstance(dependency, ParameterSource):
                 return ParameterSource(
                     dependency.scope,
                     dependency.name,
                     derived=True,
                     attributes=dependency.attributes,
+                    derived_operation=(
+                        "slice" if isinstance(node.slice, ast.Slice)
+                        else "item"),
                 )
             if isinstance(dependency, UnknownSource):
                 return dependency
             return None
 
         if isinstance(node, ast.UnaryOp):
-            dependency = self._parameter_dependency_source(node.operand)
+            dependency = self._parameter_dependency_source(
+                node.operand, expression_context=expression_context)
             if dependency is not None:
                 return UnknownSource("unresolved parameter-derived expression")
             return None
 
         if isinstance(node, ast.BinOp):
-            left = self._parameter_dependency_source(node.left)
-            right = self._parameter_dependency_source(node.right)
+            left = self._parameter_dependency_source(
+                node.left, expression_context=True)
+            right = self._parameter_dependency_source(
+                node.right, expression_context=True)
             if left is not None or right is not None:
-                return UnknownSource("unresolved parameter-derived expression")
+                if left is None:
+                    traced_left = self.trace_source(node.left)
+                    if traced_left != "local":
+                        left = traced_left
+                if right is None:
+                    traced_right = self.trace_source(node.right)
+                    if traced_right != "local":
+                        right = traced_right
+                operands = tuple(
+                    source for source in (left, right)
+                    if source is not None)
+                return DerivedResult(
+                    "expression", operands,
+                    type(node.op).__name__)
             return None
 
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -1025,6 +1800,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             symbol = alias.asname if alias.asname else alias.name
             self.import_aliases.add(symbol)
             self._bind_target_name(symbol, alias.name, node, "import")
+            binding = self.current_scope().bindings.get(symbol)
+            if binding is not None:
+                self._import_binding_sources[id(binding)] = alias.name
         self.generic_visit(node)
 
     ## Visit an ImportFrom node and record alias-to-module mappings.
@@ -1043,11 +1821,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if node.level > 0 and self.module_name:
                 resolved = self._resolve_relative_import(node.module, node.level)
                 self._bind_target_name(symbol, resolved, node, "import")
-                self.import_from_symbols[symbol] = (resolved + '.' + alias.name) if resolved else alias.name
+                qualified = (
+                    (resolved + '.' + alias.name) if resolved else alias.name)
+                self.import_from_symbols[symbol] = qualified
             else:
                 self.import_aliases.add(symbol)
                 self._bind_target_name(symbol, node.module, node, "import")
-                self.import_from_symbols[symbol] = (node.module + '.' + alias.name) if node.module else alias.name
+                qualified = (
+                    (node.module + '.' + alias.name)
+                    if node.module else alias.name)
+                self.import_from_symbols[symbol] = qualified
+            binding = self.current_scope().bindings.get(symbol)
+            if binding is not None:
+                self._import_binding_sources[id(binding)] = qualified
         self.generic_visit(node)
 
     ## Resolve a relative import to its full dotted module name.
@@ -1110,7 +1896,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         display_name=ast.unparse(node.func),
                         call_lineno=node.lineno,
                         call_col_offset=node.col_offset,
-                        result_source="python",
+                        result_source=self._builtin_method_result_source(
+                            node, receiver_kind, me.method),
                     )
                 if (isinstance(me, InstanceMethod)
                         and me.receiver == "python"):
@@ -1185,13 +1972,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             mapped_owner = _match_result_owner(
                                 result_owner, node.func.attr)
                             if mapped_owner is not None:
+                                mapped_shape = _match_result_python_shape(
+                                    result_owner, node.func.attr)
                                 return CallResult(
                                     InstanceMethod(
                                         result_owner, node.func.attr),
                                     display_name=ast.unparse(node.func),
                                     call_lineno=node.lineno,
                                     call_col_offset=node.col_offset,
-                                    result_source=mapped_owner)
+                                    result_source=(
+                                        mapped_shape or mapped_owner))
                         return result_owner
                     rs = self.return_sources.get(inner_source.callee)
                     if rs is not None:
@@ -1248,14 +2038,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 rs = None
                 if isinstance(call_key, str):
                     local_returns = self.return_sources.get(call_key)
-                    if _is_uniform_python_result(local_returns):
+                    local_shape = _uniform_python_shape(local_returns)
+                    if local_shape is not None:
+                        rs = local_shape
+                    elif _is_uniform_python_result(local_returns):
                         rs = "python"
                     elif _has_python_result(local_returns):
                         rs = UnknownSource("mixed local return")
                     func_top, func_name = self._resolve_func_top(node.func)
                     mapped_owner = _match_result_owner(func_top, func_name)
                     if mapped_owner is not None:
-                        rs = mapped_owner
+                        rs = (
+                            _match_result_python_shape(func_top, func_name)
+                            or mapped_owner)
                     else:
                         preserved = self._receiver_preserving_result_owner(
                             node, func_top, func_name)
@@ -1311,6 +2106,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     lookup = self.container_items.get((var_name, resolved_key))
                     if lookup is not None:
                         return lookup
+            if isinstance(node.value, ast.Name):
+                homogeneous = self.homogeneous_container_value_sources.get(
+                    node.value.id)
+                if homogeneous is not None:
+                    return homogeneous
             ## Fallback: collect item sources; only create SourceSet if
             ## all candidates are consistent (single-source or same library).
             if container_name is not None and isinstance(node.value, ast.Name):
@@ -1515,6 +2315,35 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return None
         re = func.value
         method_name = func.attr
+        # Preserve a parameter-derived expression as the receiver source.
+        # Cross-file resolution may prove a single owner from all operands;
+        # without this structured source, get_base() falls back to the first
+        # operand and can incorrectly classify the call as local.
+        if isinstance(re, (ast.BinOp, ast.UnaryOp)):
+            parameter_dependency = self._parameter_dependency_source(re)
+            def contains_parameter(source):
+                source = normalize_source(source)
+                if isinstance(source, ParameterSource):
+                    return True
+                if isinstance(source, DerivedResult):
+                    return any(contains_parameter(item)
+                               for item in source.sources)
+                if isinstance(source, CallResult):
+                    return contains_parameter(source.result_source)
+                return False
+
+            if (isinstance(parameter_dependency, DerivedResult)
+                    and contains_parameter(parameter_dependency)):
+                return InstanceMethod(parameter_dependency, method_name)
+        receiver_kind, _ = self._expression_container_shape(re)
+        if receiver_kind:
+            if _has_builtin_shape_method(receiver_kind, method_name):
+                return InstanceMethod("python", method_name)
+            return InstanceMethod(
+                UnknownSource(
+                    "unsupported %s protocol" % receiver_kind),
+                method_name,
+            )
 
         ## 1.0.5 P2: super().method() — capture enclosing class context
         #  while _class_stack is still available during AST visit.
@@ -1531,6 +2360,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 inner_owner = normalize_source(inner_result.result_source)
                 if isinstance(inner_owner, str):
                     return InstanceMethod(inner_owner, method_name)
+
+            explicit_owner = self._explicit_external_receiver_top(re)
+            if explicit_owner not in (None, "", "local", "python", "unknown"):
+                return InstanceMethod(explicit_owner, method_name)
 
             # A direct chained method belongs to the object explicitly
             # returned by a project-local method.  Gate this path on local
@@ -1616,6 +2449,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             for guards in reversed(self._receiver_owner_guards):
                 guarded_owner = guards.get(re.id)
                 if guarded_owner is not None:
+                    if isinstance(guarded_owner, PythonShape):
+                        if _has_builtin_shape_method(
+                                guarded_owner.kind, method_name):
+                            return InstanceMethod("python", method_name)
+                        return InstanceMethod(
+                            UnknownSource(
+                                "unsupported %s protocol"
+                                % guarded_owner.kind),
+                            method_name,
+                        )
                     return InstanceMethod(guarded_owner, method_name)
             if re.id == "self" and self._class_stack:
                 cn = self._class_stack[-1]
@@ -1646,6 +2489,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 receiver, method_name,
                                 parameter_scope=src_norm.scope,
                                 parameter_name=src_norm.name)
+                        if (isinstance(src_norm, str)
+                                and src_norm in
+                                self.homogeneous_container_value_sources):
+                            return InstanceMethod(
+                                self.homogeneous_container_value_sources[
+                                    src_norm], method_name)
                         if binding.source == "local":
                             parameter = _parameter_method(re.id, re.id)
                             if parameter is not None:
@@ -1672,6 +2521,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     return InstanceMethod(re.id, method_name)
                 return None
             return _resolve_on_class(class_name, re.id)
+
+        # Preserve a parameter receiver when an item is selected before the
+        # method call, e.g. values[0].reshape(...).  The item may have a
+        # different runtime type from the container, so retain the parameter
+        # edge and let cross_file resolve its unique call-site owner.
+        if isinstance(re, ast.Subscript):
+            dependency = self._parameter_dependency_source(re)
+            if isinstance(dependency, ParameterSource):
+                return InstanceMethod(
+                    dependency.name,
+                    method_name,
+                    parameter_scope=dependency.scope,
+                    parameter_name=dependency.name,
+                )
+            receiver_top = None
+            if self._is_instance_field_expression(re.value):
+                receiver_top = self._explicit_external_receiver_top(re.value)
+            if receiver_top not in (None, "", "local", "python", "unknown"):
+                return InstanceMethod(receiver_top, method_name)
 
         if isinstance(re, ast.Attribute):
             attribute_receiver_top = self._expr_receiver_top(re.value)
@@ -1720,7 +2588,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 return InstanceMethod(
                                     attr_source, method_name)
                             if ('.' not in callee
-                                    and callee in self.symbols.direct):
+                                    and (callee in self.symbols.direct
+                                         or callee in self.import_from_symbols
+                                         or any(
+                                             alias == callee
+                                             or alias.startswith(callee + ".")
+                                             for alias in self.import_aliases))):
                                 return InstanceMethod(callee, method_name)
                             if '.' in callee:
                                 prefix = callee.split('.')[0]
@@ -1734,6 +2607,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 if prefix in self.symbols.direct:
                                     return InstanceMethod(prefix, method_name)
                                 return InstanceMethod(callee, method_name)
+                            wildcard_owner = (
+                                self._unique_wildcard_import_owner())
+                            if wildcard_owner is not None:
+                                return InstanceMethod(
+                                    wildcard_owner, method_name)
                         if isinstance(attr_source, str) and '.' not in attr_source and attr_source in self.symbols.direct:
                             return InstanceMethod(attr_source, method_name)
                         if isinstance(attr_source, str) and attr_source != "local":
@@ -1748,6 +2626,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     root_src = root_src.callee
                 if root_src in self.import_from_symbols:
                     return InstanceMethod(root_src, method_name)
+                field_source = None
+                for scope_key in self._local_instance_field_scope_keys(root):
+                    field_source = self._local_instance_field_sources.get(
+                        (scope_key, root, ".".join(chain[1:])))
+                    if field_source is not None:
+                        break
+                if field_source is not None:
+                    field_top = self._structured_source_owner_top(field_source)
+                    if field_top not in (
+                            None, "", "local", "python", "unknown"):
+                        return InstanceMethod(field_top, method_name)
                 # P0: resolve instance attributes for non-self receivers
                 # whose root traces to a local class instance.
                 # e.g. client.backend.loads() where client=Client()
@@ -1867,6 +2756,79 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return ".".join(chain)
         return None
 
+    ## Check whether an expression is rooted at an imported module symbol.
+    #
+    #  This is deliberately syntactic.  A variable whose value came from an
+    #  external call is not treated as the module that produced that value.
+    #  @param node Receiver expression below an Attribute node.
+    #  @return True only for an import alias or import-from root.
+    def _is_import_backed_receiver_expression(self, node):
+        if isinstance(node, ast.Name):
+            root = node.id
+        elif isinstance(node, ast.Attribute):
+            chain = self._attribute_chain_list(node)
+            root = chain[0] if chain else None
+        else:
+            root = None
+        if not root:
+            return False
+        if (root not in self.import_aliases
+                and root not in self.import_from_symbols):
+            return False
+        top = self._receiver_top(root)
+        return top not in (None, "", "local", "python", "unknown")
+
+    ## Resolve an explicitly evidenced external receiver expression.
+    #
+    #  Accepted roots are import symbols and instance fields already bound to
+    #  an external source. A local variable is intentionally excluded even
+    #  when its current source came from an external call, because that call's
+    #  return object has no generic static owner contract.
+    #  @param node Receiver expression.
+    #  @return External owner top or None.
+    def _explicit_external_receiver_top(self, node):
+        if self._is_import_backed_receiver_expression(node):
+            if isinstance(node, ast.Name):
+                root = node.id
+            else:
+                chain = self._attribute_chain_list(node)
+                root = chain[0] if chain else None
+            return self._receiver_top(root) if root else None
+
+        if isinstance(node, ast.Attribute) and self._class_stack:
+            chain = self._attribute_chain_list(node) or []
+            if chain and chain[0] == "self":
+                class_name = self._class_stack[-1]
+                for end in range(len(chain), 1, -1):
+                    field_name = ".".join(chain[:end])
+                    source = normalize_source(self.instance_attrs.get(
+                        (class_name, field_name)))
+                    owner = self._structured_source_owner_top(source)
+                    if owner not in (None, "", "local", "python", "unknown"):
+                        return owner
+
+        if isinstance(node, ast.Subscript):
+            return self._explicit_external_receiver_top(node.value)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            receiver = node.func.value
+            if self._is_import_backed_receiver_expression(receiver):
+                return None
+            return self._explicit_external_receiver_top(receiver)
+        if isinstance(node, ast.Attribute):
+            return self._explicit_external_receiver_top(node.value)
+        return None
+
+    ## Check whether an expression is rooted at a local instance field.
+    #  @param node Receiver expression.
+    #  @return True for self.field and its subscripted forms.
+    def _is_instance_field_expression(self, node):
+        if isinstance(node, ast.Attribute):
+            chain = self._attribute_chain_list(node)
+            return bool(chain and chain[0] == "self")
+        if isinstance(node, ast.Subscript):
+            return self._is_instance_field_expression(node.value)
+        return False
+
     ## Find the root receiver of a call expression.
     #
     #  Unwinds chained calls and attributes to find the base object.
@@ -1941,32 +2903,91 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
     ## --- Assignment helpers ---
 
+    ## Record a project-local callable assigned onto an imported class.
+    #
+    #  The fact identifies a possible monkey patch. It does not prove that an
+    #  arbitrary receiver from the same library has the patched runtime class;
+    #  cross-file classification therefore uses it only to remove false
+    #  certainty from a library owner.
+    #  @param node Assignment node.
+    def _record_external_method_override(self, node):
+        local_callable = False
+        if isinstance(node.value, ast.Lambda):
+            local_callable = True
+        elif isinstance(node.value, ast.Name):
+            binding = self.current_scope().lookup(
+                node.value.id, skip_parent_classes=True)
+            local_callable = (
+                binding is not None
+                and (
+                    bool(binding.callable_key)
+                    or binding.source == "local"
+                )
+            )
+        if not local_callable:
+            return
+
+        wildcard_tops = {
+            module.split(".")[0] for module in self.wildcard_modules
+            if isinstance(module, str) and module
+        }
+        scope_name = (
+            self.current_scope().name
+            if self.current_scope().kind != SCOPE_MODULE else "")
+        for target in node.targets:
+            if (not isinstance(target, ast.Attribute)
+                    or not isinstance(target.value, ast.Name)):
+                continue
+            class_symbol = target.value.id
+            qualified = self.import_from_symbols.get(class_symbol)
+            if qualified:
+                owner = qualified.split(".")[0]
+            else:
+                direct = normalize_source(
+                    self.symbols.direct.get(class_symbol))
+                if (isinstance(direct, str)
+                        and direct not in (
+                            "", "local", "python", "unknown")):
+                    owner = direct.split(".")[0]
+                elif len(wildcard_tops) == 1:
+                    owner = next(iter(wildcard_tops))
+                else:
+                    continue
+            key = (owner, target.attr)
+            self.external_method_overrides.setdefault(key, []).append(
+                (scope_name, node.lineno, class_symbol))
+
     ## Bind assignment targets to a source value.
     #
     #  Handles simple names, self.attr, and tuple/list unpacking.
     #  @param target The assignment target AST node.
     #  @param source The source symbol or structured tuple.
     def _target_to_source(self, target, source, kind="variable",
-                          container_kind="", container_item_kind=""):
+                          container_kind="", container_item_kind="",
+                          container_item_fields=None):
         if not source:
             return
         if isinstance(target, ast.Name):
             self._bind_target_name(
                 target.id, source, target, kind,
                 container_kind=container_kind,
-                container_item_kind=container_item_kind)
+                container_item_kind=container_item_kind,
+                container_item_fields=container_item_fields)
             return
         if isinstance(target, ast.Attribute):
             name = self._attribute_name(target)
-            if name and name.startswith("self."):
-                self._bind_target_name(name, source, target, "attribute")
+            attr_name = name if name and name.startswith("self.") else (
+                self._instance_attribute_target_name(name))
+            if attr_name:
+                self._bind_target_name(attr_name, source, target, "attribute")
             return
         if isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
                 self._target_to_source(
                     elt, source, kind,
                     container_kind=container_kind,
-                    container_item_kind=container_item_kind)
+                    container_item_kind=container_item_kind,
+                    container_item_fields=container_item_fields)
 
     ## Trace the source of a for-loop iterator.
     #  @param iter_node The iterator AST node.
@@ -1974,11 +2995,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _iter_source(self, iter_node):
         if isinstance(iter_node, ast.Name):
             container_name = iter_node.id
+            binding = self.current_scope().lookup(
+                container_name, skip_parent_classes=True)
+            item_source = (
+                self._iterated_append_sources.get(id(binding))
+                if binding is not None else None)
+            if item_source is not None:
+                return item_source
             item_source = self.homogeneous_container_items.get(
                 container_name)
             if item_source is not None:
-                binding = self.current_scope().lookup(
-                    container_name, skip_parent_classes=True)
                 if binding is None or binding.scope_kind == SCOPE_MODULE:
                     return item_source
             has_items = False
@@ -1989,7 +3015,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             has_set = container_name in self.container_set_sources
             if has_items or has_set:
                 return ContainerIter(container_name)
+        parameter_source = self._parameter_dependency_source(iter_node)
+        if parameter_source is not None:
+            return ContainerIter(parameter_source)
         source = self.trace_source(iter_node)
+        source_norm = normalize_source(source)
+        if (isinstance(source_norm, CallResult)
+                and isinstance(
+                    normalize_source(source_norm.callee), ContainerIter)
+                and source_norm.result_source is None):
+            return UnknownSource("unresolved iterator element")
+        if isinstance(normalize_source(source), ParameterSource):
+            return ContainerIter(source)
         if source:
             return source
         return self.get_base(iter_node)
@@ -2058,8 +3095,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  right-hand side to bind target symbols.
     #  @param node The Assign AST node.
     def visit_Assign(self, node):
-        assignment_container_kind = _container_kind(node.value)
-        assignment_item_kind = _container_item_kind(node.value)
+        assignment_container_kind, assignment_item_kind = (
+            self._expression_container_shape(node.value))
+        assignment_item_fields = self._expression_container_item_fields(
+            node.value)
+        assignment_container_kind = assignment_container_kind or None
+        assignment_item_kind = assignment_item_kind or None
 
         # Homogeneous comprehension evidence is flow-sensitive at module
         # scope. Any real rebind invalidates the previous element source.
@@ -2074,6 +3115,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if not is_self_assignment:
                     self.homogeneous_container_items.pop(
                         target.id, None)
+                    self.homogeneous_container_tuple_items.pop(
+                        target.id, None)
+                    binding = self.current_scope().lookup(
+                        target.id, skip_parent_classes=True)
+                    if binding is not None:
+                        binding_key = id(binding)
+                        self._iterated_append_tuple_sources.pop(
+                            binding_key, None)
+                        self._iterated_append_tuple_conflicts.discard(
+                            binding_key)
 
         ## Track literal assignments for static key resolution (PR7).
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, (str, int)):
@@ -2086,6 +3137,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if isinstance(target, ast.Name):
                     container_name = target.id
                     self.container_kinds[container_name] = "dict"
+                    value_sources = []
                     for key_node, value_node in zip(node.value.keys, node.value.values):
                         if isinstance(key_node, ast.Constant):
                             key_value = key_node.value
@@ -2095,6 +3147,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 value_source = self._value_source(value_node)
                             if value_source:
                                 self.container_items[(container_name, key_value)] = value_source
+                                value_sources.append(normalize_source(value_source))
+                    owners = {
+                        self._structured_source_owner_top(source)
+                        for source in value_sources
+                    }
+                    owners.discard(None)
+                    if (value_sources
+                            and len(value_sources) == len(node.value.values)
+                            and len(owners) == 1):
+                        self.homogeneous_container_value_sources[
+                            container_name] = make_source_set(
+                                value_sources, origin="dict_values")
+                    else:
+                        self.homogeneous_container_value_sources.pop(
+                            container_name, None)
 
         if isinstance(node.value, (ast.List, ast.Tuple)):
             for target in node.targets:
@@ -2129,6 +3196,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if isinstance(target, ast.Name):
                     self.container_kinds[target.id] = "list"
                     if self.current_scope().kind == SCOPE_MODULE:
+                        tuple_sources = self._expression_tuple_item_sources(
+                            node.value)
+                        if tuple_sources is not None:
+                            self.homogeneous_container_tuple_items[
+                                target.id] = tuple_sources
+                        else:
+                            self.homogeneous_container_tuple_items.pop(
+                                target.id, None)
+                    else:
+                        self.homogeneous_container_tuple_items.pop(
+                            target.id, None)
+                    if self.current_scope().kind == SCOPE_MODULE:
                         item_source = self.trace_source(node.value.elt)
                         if item_source is not None:
                             self.homogeneous_container_items[
@@ -2162,22 +3241,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             if isinstance(target, ast.Name):
                                 self.container_item_kinds[target.id] = factory_name
 
-        # 1.0.5 P1: invalidate container kind for non-container RHS so
-        # re-binding (e.g. x=[] then x=Bag()) does not leak the old kind.
-        _container_rhs_types = (ast.Dict, ast.List, ast.Tuple, ast.Set,
-                                ast.ListComp, ast.SetComp, ast.DictComp)
-        _container_funcs = {"list", "dict", "set", "tuple", "str"}
-        if not isinstance(node.value, _container_rhs_types):
-            if not (isinstance(node.value, ast.Constant)
-                    and isinstance(node.value.value, str)):
-                if not (isinstance(node.value, ast.Call)
-                        and isinstance(node.value.func, ast.Name)
-                        and (node.value.func.id in _container_funcs
-                             or _is_defaultdict_itemkind(node.value))):
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            self.container_kinds.pop(target.id, None)
-                            self.container_item_kinds.pop(target.id, None)
+        # Keep compatibility maps flow-sensitive. Lexical Binding metadata is
+        # authoritative, while these maps support older module-level paths.
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            if assignment_container_kind:
+                self.container_kinds[
+                    target.id] = assignment_container_kind
+            else:
+                self.container_kinds.pop(target.id, None)
+            if assignment_item_kind:
+                self.container_item_kinds[
+                    target.id] = assignment_item_kind
+            else:
+                self.container_item_kinds.pop(target.id, None)
 
         ## Collect assignment target names and delegate to shared pipeline.
         targets = []
@@ -2188,7 +3266,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 for elt in target.elts:
                     if isinstance(elt, ast.Name):
                         targets.append(elt.id)
-        right = self._visit_assignment(node, targets)
+        field_targets = []
+        for target in node.targets:
+            if isinstance(target, ast.Attribute):
+                name = self._attribute_name(target)
+                if name and name.startswith("self."):
+                    field_targets.append(name)
+        right = self._visit_assignment(node, targets, field_targets)
+        self._record_local_constructor_fields(node, targets)
+        self._record_external_method_override(node)
         callable_keys = {}
         if isinstance(node.value, ast.Lambda):
             lambda_result = right or UnknownSource("lambda result")
@@ -2220,12 +3306,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         target.id, right, target,
                         container_kind=assignment_container_kind or "",
                         container_item_kind=assignment_item_kind or "",
-                        callable_key=callable_keys.get(target.id, ""))
+                        callable_key=callable_keys.get(target.id, ""),
+                        container_item_fields=assignment_item_fields)
                 elif isinstance(target, ast.Attribute):
                     name = self._attribute_name(target)
-                    if name and name.startswith("self."):
+                    attr_name = name if name and name.startswith("self.") else (
+                        self._instance_attribute_target_name(name))
+                    if attr_name:
                         if isinstance(right_norm, InstanceMethod):
-                            continue
+                            preserve_imported_result = (
+                                isinstance(node.value, ast.Call)
+                                and isinstance(node.value.func, ast.Attribute)
+                                and self._is_import_backed_receiver_expression(
+                                    node.value.func.value)
+                                and self._resolve_func_top(
+                                    node.value.func)[0]
+                                == self._structured_source_owner_top(
+                                    right_norm.receiver))
+                            if not preserve_imported_result:
+                                continue
                         attr_source = right
                         if (
                             self.scope_model == "v2"
@@ -2234,9 +3333,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         ):
                             attr_source = node.value.id
                         self._bind_target_name(
-                            name, attr_source, target,
+                            attr_name, attr_source, target,
                             container_kind=assignment_container_kind or "",
-                            container_item_kind=assignment_item_kind or "")
+                            container_item_kind=assignment_item_kind or "",
+                            container_item_fields=assignment_item_fields)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     unpacked_owner = None
                     if isinstance(node.value, ast.Call):
@@ -2258,15 +3358,31 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                 self._bind_target_name(
                                     elt.id, unpacked_owner, elt)
                                 continue
+                            if (isinstance(node.value, ast.Call)
+                                    and isinstance(right_norm, CallResult)):
+                                # Keep the selected position when a local
+                                # tuple-return call is forwarded as an
+                                # argument before project summaries exist.
+                                selected_source = ContainerItem(
+                                    right_norm, index)
+                                self._bind_target_name(
+                                    elt.id, right, elt)
+                                self._assigned_call_sources[
+                                    (id(self.current_scope()), elt.id)
+                                ] = selected_source
+                                continue
                             # Preserve positional provenance when unpacking a
                             # named value.  Flattening every element to the
                             # traced top (often "local" for a parameter)
                             # allows a module-level symbol with the same name
                             # to leak back in during cross-file resolution.
                             if isinstance(node.value, ast.Name):
+                                dependency = self._parameter_dependency_source(
+                                    node.value)
                                 self._bind_target_name(
                                     elt.id,
-                                    ContainerItem(node.value.id, index),
+                                    ContainerItem(
+                                        dependency or node.value.id, index),
                                     elt)
                                 continue
                             if isinstance(right_norm, InstanceMethod):
@@ -2295,7 +3411,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         target.id, 'local', target,
                         container_kind=assignment_container_kind or "",
                         container_item_kind=assignment_item_kind or "",
-                        callable_key=callable_keys.get(target.id, ""))
+                        callable_key=callable_keys.get(target.id, ""),
+                        container_item_fields=assignment_item_fields)
                 elif isinstance(target, (ast.Tuple, ast.List)):
                     for elt in target.elts:
                         if isinstance(elt, ast.Name):
@@ -2306,7 +3423,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         self._bind_target_name(
                             name, 'local', target,
                             container_kind=assignment_container_kind or "",
-                            container_item_kind=assignment_item_kind or "")
+                            container_item_kind=assignment_item_kind or "",
+                            container_item_fields=assignment_item_fields)
+        subscript_value_kind = assignment_container_kind
+        if (subscript_value_kind is None
+                and isinstance(node.value, ast.Name)):
+            subscript_value_kind = self._lookup_container_kind(
+                node.value.id)
+        for target in node.targets:
+            self._record_subscript_item_kind(
+                target, subscript_value_kind)
+        self._record_iterable_binding_source(node)
         # 1.0.5 P0: generic_visit already called above, before target binding.
         self._collect_argparse_assignment(node)
 
@@ -2393,6 +3520,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return self._expr_receiver_top(expr.value)
         if isinstance(expr, ast.Attribute):
             receiver = expr.value
+            name = self._attribute_name(expr)
+            if (name and name.startswith("self.")
+                    and self._class_stack):
+                field_source = normalize_source(self.instance_attrs.get(
+                    (self._class_stack[-1], name)))
+                field_top = self._structured_source_owner_top(field_source)
+                if field_top not in (None, "", "local", "python", "unknown"):
+                    return field_top
             if isinstance(receiver, ast.Name):
                 receiver_top = self._receiver_top(receiver.id)
                 if receiver_top:
@@ -2400,17 +3535,53 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         (receiver_top, expr.attr))
             return None
         if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute):
-            receiver = expr.func.value
-            if isinstance(receiver, ast.Name):
-                receiver_top = self._receiver_top(receiver.id)
-                if receiver_top and receiver_top not in ("local", "python", "unknown", ""):
-                    # Check conversion boundary first:
-                    # data.to_numpy() return is numpy, not pandas.
-                    conv = _CONVERSION_METHOD_TARGETS.get((receiver_top, expr.func.attr))
-                    if conv:
-                        return conv
-                    return receiver_top
+            receiver_top = self._expr_receiver_top(expr.func.value)
+            if (receiver_top
+                    and receiver_top not in (
+                        "local", "python", "unknown", "")):
+                # Check conversion boundary first:
+                # data.to_numpy() return is numpy, not pandas.
+                conv = _CONVERSION_METHOD_TARGETS.get(
+                    (receiver_top, expr.func.attr))
+                if conv:
+                    return conv
+                return receiver_top
         return None
+
+    ## Check whether a structured source still depends on a parameter.
+    #
+    #  Parameter expressions must be resolved from project call edges.  A
+    #  same-scope expression owner must not overwrite that richer evidence.
+    #  @param source Source value to inspect.
+    #  @return True when any nested source is parameter-backed.
+    def _source_contains_parameter(self, source):
+        source = normalize_source(source)
+        if isinstance(source, ParameterSource):
+            return True
+        if isinstance(source, (DerivedResult, SourceSet)):
+            return any(self._source_contains_parameter(item)
+                       for item in source.sources)
+        if isinstance(source, CallResult):
+            return self._source_contains_parameter(source.result_source)
+        if isinstance(source, InstanceMethod):
+            return self._source_contains_parameter(source.receiver)
+        return False
+
+    ## Collect immediate ownership evidence from an operator expression.
+    #
+    #  The caller uses these candidates only to distinguish strict
+    #  same-owner convergence from conflicting import-backed operands.
+    #  @param expr BinOp or UnaryOp expression.
+    #  @return List of operand owner strings.
+    def _operator_operand_tops(self, expr):
+        if isinstance(expr, ast.BinOp):
+            return [
+                self._expr_receiver_top(expr.left),
+                self._expr_receiver_top(expr.right),
+            ]
+        if isinstance(expr, ast.UnaryOp):
+            return [self._expr_receiver_top(expr.operand)]
+        return []
 
     ## Resolve (top_library, function_name) for a function expression.
     #  Handles both bare names (cdist) and dotted names (np.log).
@@ -2459,8 +3630,21 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return (receiver_name, owner) or None.
     def _resolve_receiver_owner_guard(self, test_node):
         if (not isinstance(test_node, ast.Call)
-                or len(test_node.args) != 1
+                or not test_node.args
                 or not isinstance(test_node.args[0], ast.Name)):
+            return None
+        if (_is_unshadowed_builtin_call(self, test_node)
+                and isinstance(test_node.func, ast.Name)
+                and test_node.func.id == "isinstance"
+                and len(test_node.args) == 2
+                and isinstance(test_node.args[1], ast.Name)
+                and test_node.args[1].id in (
+                    "list", "dict", "set", "tuple", "str")):
+            return (
+                test_node.args[0].id,
+                PythonShape(test_node.args[1].id),
+            )
+        if len(test_node.args) != 1:
             return None
         func_top, func_name = self._resolve_func_top(test_node.func)
         for (lib_prefix, name), contract in (
@@ -2616,15 +3800,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #
     #  @param node The Assign or AnnAssign AST node.
     #  @param target_names Flat list of target name strings.
+    #  @param field_target_names Instance-field targets used for bounded
+    #  expression-owner propagation.
     #  @return The traced RHS source (right-hand value).
-    def _visit_assignment(self, node, target_names):
+    def _visit_assignment(self, node, target_names,
+                          field_target_names=None):
         imported_call = self._imported_call_result_source(node.value)
-        for name in target_names:
-            key = (id(self.current_scope()), name)
-            if imported_call is None:
-                self._assigned_call_sources.pop(key, None)
-            else:
-                self._assigned_call_sources[key] = imported_call
         if target_names and isinstance(node.value, ast.Call):
             self._pending_call_targets_by_node[id(node.value)] = target_names
 
@@ -2636,6 +3817,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         right = (result_item_owner
                  or self._parameter_dependency_source(node.value)
                  or self.trace_source(node.value))
+        right_norm = normalize_source(right)
+        if (isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Attribute)
+                and isinstance(right_norm, InstanceMethod)
+                and isinstance(
+                    normalize_source(right_norm.receiver), CallResult)
+                and right_norm.receiver.result_source is None
+                and _has_result_owner_contract(right_norm.method)):
+            right = CallResult(
+                right_norm,
+                display_name=ast.unparse(node.value.func),
+                call_lineno=node.value.lineno,
+                call_col_offset=node.value.col_offset,
+                result_source=DerivedResult(
+                    "method_result",
+                    (right_norm,),
+                    node.value.func.attr,
+                ),
+            )
         # 1.0.5 P1: if the RHS is a known conversion call
         # (e.g. data.to_numpy()), override the bound source
         # so subsequent calls on the target use the post-conversion
@@ -2653,8 +3853,42 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 )
             else:
                 right = conversion
+        # Preserve an owner proven by same-scope operator operands.  This
+        # covers both instance fields and ordinary locals, but never replaces
+        # parameter-backed dataflow: parameters are resolved from exact
+        # project call edges in the cross-file pass.
+        if isinstance(node.value, (ast.BinOp, ast.UnaryOp)):
+            expression_top = self._expr_receiver_top(node.value)
+            right_norm = normalize_source(right)
+            has_parameter = self._source_contains_parameter(right_norm)
+            if (not has_parameter
+                    and expression_top not in (
+                        None, "", "local", "python", "unknown")):
+                if (right_norm in (
+                        None, "", "local", "unknown")
+                        or isinstance(
+                            right_norm, (UnknownSource, DerivedResult))):
+                    right = expression_top
+            elif not has_parameter:
+                external_tops = {
+                    top for top in self._operator_operand_tops(node.value)
+                    if top not in (
+                        None, "", "local", "python", "unknown")
+                }
+                if len(external_tops) > 1:
+                    right = UnknownSource(
+                        "conflicting operator result owners")
         # 1.0.5 P0: visit RHS before binding targets
         self.generic_visit(node)
+        # Assignment-call metadata is flow-sensitive too.  Keep the previous
+        # binding visible while nested RHS calls collect their argument
+        # sources, then invalidate or replace it before binding the LHS.
+        for name in target_names:
+            key = (id(self.current_scope()), name)
+            if imported_call is None:
+                self._assigned_call_sources.pop(key, None)
+            else:
+                self._assigned_call_sources[key] = imported_call
         # 1.0.5 P0: call_assign_funcs after generic_visit
         value_node = node.value
         # Unwrap trailing attributes for call_assign_funcs:
@@ -2676,8 +3910,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_AnnAssign(self, node):
         if node.value is None:
             return
-        assignment_container_kind = _container_kind(node.value)
-        assignment_item_kind = _container_item_kind(node.value)
+        assignment_container_kind, assignment_item_kind = (
+            self._expression_container_shape(node.value))
+        assignment_item_fields = self._expression_container_item_fields(
+            node.value)
+        assignment_container_kind = assignment_container_kind or None
+        assignment_item_kind = assignment_item_kind or None
         targets = []
         if isinstance(node.target, ast.Name):
             targets.append(node.target.id)
@@ -2689,7 +3927,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             for elt in node.target.elts:
                 if isinstance(elt, ast.Name):
                     targets.append(elt.id)
-        right = self._visit_assignment(node, targets)
+        field_targets = [
+            name for name in targets if name.startswith("self.")]
+        right = self._visit_assignment(node, targets, field_targets)
+        self._record_local_constructor_fields(node, targets)
         callable_keys = {}
         if isinstance(node.value, ast.Lambda):
             lambda_result = right or UnknownSource("lambda result")
@@ -2709,14 +3950,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         node.target.id, right, node.target,
                         container_kind=assignment_container_kind or "",
                         container_item_kind=assignment_item_kind or "",
-                        callable_key=callable_keys.get(node.target.id, ""))
+                        callable_key=callable_keys.get(node.target.id, ""),
+                        container_item_fields=assignment_item_fields)
             elif isinstance(node.target, ast.Attribute):
                 name = self._attribute_name(node.target)
-                if name and name.startswith("self."):
+                attr_name = name if name and name.startswith("self.") else (
+                    self._instance_attribute_target_name(name))
+                if attr_name:
                     self._bind_target_name(
-                        name, right, node.target,
+                        attr_name, right, node.target,
                         container_kind=assignment_container_kind or "",
-                        container_item_kind=assignment_item_kind or "")
+                        container_item_kind=assignment_item_kind or "",
+                        container_item_fields=assignment_item_fields)
             elif isinstance(node.target, (ast.Tuple, ast.List)):
                 for elt in node.target.elts:
                     if isinstance(elt, ast.Name):
@@ -2727,14 +3972,16 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     node.target.id, 'local', node.target,
                     container_kind=assignment_container_kind or "",
                     container_item_kind=assignment_item_kind or "",
-                    callable_key=callable_keys.get(node.target.id, ""))
+                    callable_key=callable_keys.get(node.target.id, ""),
+                    container_item_fields=assignment_item_fields)
             elif isinstance(node.target, ast.Attribute):
                 name = self._attribute_name(node.target)
                 if name and name.startswith("self."):
                     self._bind_target_name(
                         name, 'local', node.target,
                         container_kind=assignment_container_kind or "",
-                        container_item_kind=assignment_item_kind or "")
+                        container_item_kind=assignment_item_kind or "",
+                        container_item_fields=assignment_item_fields)
             elif isinstance(node.target, (ast.Tuple, ast.List)):
                 for elt in node.target.elts:
                     if isinstance(elt, ast.Name):
@@ -2790,6 +4037,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 rs = self.return_sources.get(inner_source.callee)
                 if rs is not None:
                     return rs
+            if isinstance(inner_source, InstanceMethod):
+                if inner_source.parameter_scope:
+                    return InstanceMethod(
+                        inner_source,
+                        node.func.attr,
+                        parameter_scope=inner_source.parameter_scope,
+                        parameter_name=inner_source.parameter_name,
+                    )
             if isinstance(inner_source, SourceSet):
                 return inner_source
             # 1.0.5 P1: library-function return types for chained
@@ -2854,20 +4109,74 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 else:
                     receiver_source = self._call_edge_argument_source(
                         receiver)
-            ## Collect arg sources — positional indexed, keyword by name.
+            ## Collect arg sources.  Ordinary positional and keyword
+            #  arguments stay in the existing maps; starred expansions are
+            #  retained separately so cross-file binding can respect the
+            #  callee signature instead of treating a pack as one value.
             arg_sources = {"pos": {}, "kw": {}}
-            for i, arg in enumerate(node.args):
+            protocol_arg_sources = {"pos": {}, "kw": {}}
+            iterable_arg_sources = {"pos": {}, "kw": {}}
+            star_arg_sources = {}
+            positional_index = 0
+            for arg in node.args:
+                if isinstance(arg, ast.Starred):
+                    star_src = self._call_edge_argument_source(arg.value)
+                    if star_src is not None:
+                        star_arg_sources[positional_index] = star_src
+                    positional_index = None
+                    continue
                 arg_src = self._call_edge_argument_source(arg)
                 if arg_src is not None:
-                    arg_sources["pos"][i] = arg_src
+                    if positional_index is not None:
+                        arg_sources["pos"][positional_index] = arg_src
+                protocol_src = self._expression_python_shape(arg)
+                if protocol_src is not None:
+                    if positional_index is not None:
+                        protocol_arg_sources["pos"][positional_index] = protocol_src
+                iterable_src = self._call_edge_iterable_source(arg)
+                if iterable_src is not None:
+                    if positional_index is not None:
+                        iterable_arg_sources["pos"][positional_index] = iterable_src
+                if positional_index is not None:
+                    positional_index += 1
+            star_kwarg_sources = []
             for kw in getattr(node, "keywords", []) or []:
+                if kw.arg is None:
+                    star_src = self._call_edge_argument_source(kw.value)
+                    if star_src is not None:
+                        star_kwarg_sources.append(star_src)
+                    continue
                 arg_src = (
                     self._call_edge_argument_source(kw.value)
                     if kw.arg else None)
                 if arg_src is not None and kw.arg:
                     arg_sources["kw"][kw.arg] = arg_src
+                protocol_src = (
+                    self._expression_python_shape(kw.value)
+                    if kw.arg else None)
+                if protocol_src is not None and kw.arg:
+                    protocol_arg_sources["kw"][kw.arg] = protocol_src
+                iterable_src = (
+                    self._call_edge_iterable_source(kw.value)
+                    if kw.arg else None)
+                if iterable_src is not None and kw.arg:
+                    iterable_arg_sources["kw"][kw.arg] = iterable_src
             ## Consume assigned_to only for the top-level RHS call.
             assigned = self._pending_call_targets_by_node.pop(id(node), [])
+            callback_bindings = []
+            target_names = {
+                kw.value.id for kw in getattr(node, "keywords", []) or []
+                if kw.arg == "target" and isinstance(kw.value, ast.Name)
+            }
+            args_keyword = next(
+                (kw.value for kw in getattr(node, "keywords", []) or []
+                 if kw.arg == "args"), None)
+            callback_source = self._call_edge_tuple_source(args_keyword)
+            if callback_source is not None:
+                callback_bindings = [
+                    {"callback": target, "args": callback_source}
+                    for target in sorted(target_names)
+                ]
             edge = CallEdge(
                 caller=caller,
                 callee=base,
@@ -2875,6 +4184,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 callee_source=self.trace_source(node.func),
                 receiver_source=receiver_source,
                 arg_sources=arg_sources,
+                star_arg_sources=star_arg_sources,
+                star_kwarg_sources=star_kwarg_sources,
+                callback_args={
+                    index: arg.id
+                    for index, arg in enumerate(node.args)
+                    if isinstance(arg, ast.Name)
+                    and (arg.id in self.defined_functions
+                         or arg.id in self.class_methods)
+                },
+                callback_bindings=callback_bindings,
+                protocol_arg_sources=protocol_arg_sources,
+                iterable_arg_sources=iterable_arg_sources,
                 assigned_to=assigned,
                 call_lineno=node.lineno,
                 call_col_offset=node.col_offset,
@@ -2907,6 +4228,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if func_name and '.' in func_name:
             first = func_name.split('.')[0]
             loc['call_assign_func'] = self.call_assign_funcs.get(first)
+            binding = self.current_scope().lookup(
+                first, skip_parent_classes=True)
+            if (binding is not None
+                    and binding.binding_kind == "import"
+                    and binding.scope_kind != SCOPE_MODULE):
+                loc["call_import_source"] = (
+                    self._import_binding_sources.get(id(binding))
+                    or binding.source
+                )
 
         # The callable identity of an unshadowed builtin is independent of
         # the object it returns.  Record it before return-value provenance can
@@ -2932,8 +4262,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         method_name = (
             node.func.attr if isinstance(node.func, ast.Attribute) else "")
         if (receiver_kind is not None
-                and method_name in _BUILTIN_CONTAINER_METHODS.get(
-                    receiver_kind, frozenset())):
+                and _has_builtin_shape_method(receiver_kind, method_name)):
             loc["receiver_container_kind"] = receiver_kind
             record = {
                 'api': api_string,
@@ -2974,9 +4303,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if rs_explicit is not None:
                 if isinstance(rs_explicit, UnknownSource):
                     top = "unknown"
+                elif isinstance(rs_explicit, PythonShape):
+                    top = "python"
                 elif rs_explicit == "python":
                     top = "python"
-                elif isinstance(rs_explicit, DerivedResult):
+                elif is_structured_source(rs_explicit):
                     # Structured: defer to cross_file for resolution.
                     # In single-file, use source_display as placeholder.
                     top = source_display(base)
@@ -3066,8 +4397,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 kind = self._call_receiver_container_kind(node)
                 if rec_local or kind is not None:
                     if (kind is not None
-                            and base.method in _BUILTIN_CONTAINER_METHODS.get(
-                                kind, frozenset())):
+                            and _has_builtin_shape_method(kind, base.method)):
                         display = "python"
                         # Record kind at call-site time so cross-file
                         # phase doesn't see later invalidation.
@@ -3202,10 +4532,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Call(self, node):
         self._collect_argparse_destination(node)
         self._collect_callback_parameter_sources(node)
+        self._record_container_append_shape(node)
         for sub in self._chained_prefix_calls(node):
             self._one_api_call(sub)
         if isinstance(node.func, ast.Name) and node.func.id in self.defined_functions:
             arg_sources = []
+            protocol_arg_sources = []
             for arg in node.args:
                 if isinstance(arg, ast.Attribute):
                     name = self._attribute_name(arg)
@@ -3213,14 +4545,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         name if name else self._call_edge_argument_source(arg))
                 else:
                     arg_sources.append(self._call_edge_argument_source(arg))
+                protocol_arg_sources.append(
+                    self._expression_python_shape(arg))
             self.call_sites.setdefault(node.func.id, []).append({
                 "module": self.module_name,
                 "args": arg_sources,
+                "protocol_args": protocol_arg_sources,
                 "lineno": node.lineno,
                 "col_offset": node.col_offset,
             })
         elif isinstance(node.func, ast.Name) and node.func.id in self.class_methods:
             arg_sources = []
+            protocol_arg_sources = []
             for arg in node.args:
                 if isinstance(arg, ast.Attribute):
                     name = self._attribute_name(arg)
@@ -3228,13 +4564,147 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         name if name else self._call_edge_argument_source(arg))
                 else:
                     arg_sources.append(self._call_edge_argument_source(arg))
+                protocol_arg_sources.append(
+                    self._expression_python_shape(arg))
             self.call_sites.setdefault(node.func.id + ".__init__", []).append({
                 "module": self.module_name,
                 "args": arg_sources,
+                "protocol_args": protocol_arg_sources,
                 "lineno": node.lineno,
                 "col_offset": node.col_offset,
             })
         self.generic_visit(node)
+
+    ## Record fields of a literal element appended to a known list.
+    #  @param node Append call AST node.
+    def _record_container_append_shape(self, node):
+        if (not isinstance(node, ast.Call)
+                or not isinstance(node.func, ast.Attribute)
+                or node.func.attr != "append"
+                or len(node.args) != 1):
+            return
+        receiver = node.func.value
+        receiver_kind, _ = self._expression_container_shape(receiver)
+        if receiver_kind != "list":
+            return
+
+        ## Preserve a homogeneous owner fact for later iteration.  This is
+        # based on the appended value's traced source, not on append itself.
+        # Any unresolved or conflicting append invalidates the fact.
+        def record_item_source(binding, item_source):
+            if binding is None or binding.container_kind != "list":
+                return
+            key = id(binding)
+            current = self._iterated_append_sources.get(key)
+            current_norm = normalize_source(current)
+            current_owner = (
+                self._structured_source_owner_top(current_norm)
+                if current_norm is not None else None)
+            item_owner = self._structured_source_owner_top(item_source)
+            if isinstance(current_norm, UnknownSource):
+                current_display = current_norm.display
+                if current_display == "empty iterable":
+                    current_owner = None
+            if item_owner is None:
+                self._iterated_append_sources[key] = UnknownSource(
+                    "unresolved appended item")
+            elif current_owner is None or current_owner == item_owner:
+                self._iterated_append_sources[key] = item_owner
+            else:
+                self._iterated_append_sources[key] = UnknownSource(
+                    "conflicting iterable items")
+
+        def tuple_item_source(value):
+            """Return exact field evidence for one appended tuple/list."""
+            if not isinstance(value, (ast.Tuple, ast.List)):
+                return None
+            items = []
+            for field in value.elts:
+                shape = self._expression_python_shape(field)
+                if shape is not None:
+                    items.append(shape)
+                    continue
+                source = normalize_source(
+                    self._call_edge_argument_source(field))
+                if source is None or isinstance(source, UnknownSource):
+                    return None
+                items.append(source)
+            return TupleSource(tuple(items))
+
+        item_source = normalize_source(self.trace_source(node.args[0]))
+        if isinstance(receiver, ast.Name):
+            binding = self.current_scope().lookup(
+                receiver.id, skip_parent_classes=True)
+            record_item_source(binding, item_source)
+            tuple_source = tuple_item_source(node.args[0])
+            if binding is not None:
+                key = id(binding)
+                if key in self._iterated_append_tuple_conflicts:
+                    pass
+                elif tuple_source is None:
+                    self._iterated_append_tuple_sources.pop(key, None)
+                    self._iterated_append_tuple_conflicts.add(key)
+                else:
+                    previous = self._iterated_append_tuple_sources.get(key)
+                    if previous is None or previous == tuple_source:
+                        self._iterated_append_tuple_sources[key] = tuple_source
+                    else:
+                        self._iterated_append_tuple_sources.pop(key, None)
+                        self._iterated_append_tuple_conflicts.add(key)
+
+        ## Preserve a homogeneous item shape only when the appended value is
+        # independently proven by syntax or an existing result contract.  An
+        # unknown or conflicting append invalidates the binding fact so later
+        # iteration cannot infer a receiver type from an incomplete list.
+        item_shape = self._expression_python_shape(node.args[0])
+        item_kind = (
+            item_shape.kind
+            if isinstance(item_shape, PythonShape) and item_shape.kind
+            else "")
+
+        def record_item_kind(binding, container_name):
+            if binding is None or binding.container_kind != "list":
+                return
+            conflict_key = id(binding)
+            if conflict_key in self._container_item_kind_conflicts:
+                return
+            current = binding.container_item_kind or ""
+            if not item_kind or (current and current != item_kind):
+                binding.container_item_kind = ""
+                self.container_item_kinds.pop(container_name, None)
+                self._container_item_kind_conflicts.add(conflict_key)
+                return
+            binding.container_item_kind = item_kind
+            self.container_item_kinds[container_name] = item_kind
+
+        if isinstance(receiver, ast.Name):
+            record_item_kind(
+                self.current_scope().lookup(
+                    receiver.id, skip_parent_classes=True),
+                receiver.id)
+
+        fields = self._literal_dict_field_shapes(node.args[0])
+        if not fields:
+            if isinstance(receiver, ast.Attribute):
+                name = self._attribute_name(receiver)
+                if name and name.startswith("self.") and self._class_stack:
+                    key = (self._class_stack[-1], name)
+                    if item_kind:
+                        self.instance_attr_item_kinds[key] = item_kind
+                    else:
+                        self.instance_attr_item_kinds.pop(key, None)
+            return
+        if isinstance(receiver, ast.Name):
+            binding = self.current_scope().lookup(
+                receiver.id, skip_parent_classes=True)
+            if binding is not None and binding.container_kind == "list":
+                binding.container_item_fields = dict(fields)
+            return
+        if isinstance(receiver, ast.Attribute):
+            name = self._attribute_name(receiver)
+            if name and name.startswith("self.") and self._class_stack:
+                self.instance_attr_item_fields[(
+                    self._class_stack[-1], name)] = dict(fields)
 
     ## Visit an Attribute access node and record the top-level origin.
     #  @param node The Attribute AST node.
@@ -3311,11 +4781,140 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         self.parameter_sources.setdefault(
                             (qualname, name), []).append(source)
 
+    ## Return a kwargs parameter for a direct __dict__.update contract.
+    #  @param node The constructor AST node.
+    #  @return kwargs parameter name, or None when no direct contract exists.
+    def _constructor_kwargs_parameter(self, node):
+        if node.name != "__init__" or node.args.kwarg is None:
+            return None
+        kwargs_name = node.args.kwarg.arg
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Call):
+                continue
+            if (not isinstance(child.func, ast.Attribute)
+                    or child.func.attr != "update"
+                    or not child.args
+                    or not isinstance(child.args[0], ast.Name)
+                    or child.args[0].id != kwargs_name):
+                continue
+            if (isinstance(child.func.value, ast.Attribute)
+                    and self._attribute_name(child.func.value)
+                    == "self.__dict__"):
+                return kwargs_name
+        return None
+
+    ## Return one unambiguous wildcard-import owner, when available.
+    #
+    #  A wildcard import is still import evidence, but it does not identify
+    #  the imported symbol.  It is therefore safe to use only when the file
+    #  has one unique wildcard source.  Multiple wildcard sources remain
+    #  unresolved rather than selecting one by name.
+    #  @return Module name or None when wildcard evidence is ambiguous.
+    def _unique_wildcard_import_owner(self):
+        owners = []
+        for owner in self.wildcard_modules:
+            if not isinstance(owner, str) or not owner:
+                continue
+            top = owner.split(".", 1)[0]
+            if top not in owners:
+                owners.append(top)
+        return owners[0] if len(owners) == 1 else None
+
+    ## Return the lexical scope key for local instance field facts.
+    #  @return Tuple identifying the current module, class, and function scope.
+    def _local_instance_field_scope_key(self):
+        scope = tuple(self._class_stack) + tuple(self._func_stack)
+        return scope or ("<module>",)
+
+    ## Return lexical scopes eligible for a local instance field lookup.
+    #  A binding in the current scope blocks inherited field facts, including
+    #  a function-local global rebinding. An unbound name may inherit facts
+    #  from enclosing function, class, or module scope.
+    #  @param root_name Root name of the instance expression.
+    #  @return Scope keys ordered from innermost to outermost.
+    def _local_instance_field_scope_keys(self, root_name):
+        scope_key = self._local_instance_field_scope_key()
+        keys = [scope_key]
+        if (root_name in self.current_scope().bindings
+                or root_name in self._local_instance_field_shadowed.get(
+                    scope_key, set())):
+            return keys
+        if self._func_stack:
+            for depth in range(len(self._func_stack) - 1, 0, -1):
+                keys.append(tuple(self._class_stack)
+                            + tuple(self._func_stack[:depth]))
+        if keys[-1] != ("<module>",):
+            keys.append(("<module>",))
+        return keys
+
+    ## Record fields established by a local kwargs-backed constructor call.
+    #  Only direct keyword arguments are retained. Constructors without an
+    #  explicit self.__dict__.update(kwargs) contract remain unresolved.
+    #  @param node Assignment node.
+    #  @param target_names Names assigned by the node.
+    def _record_local_constructor_fields(self, node, target_names):
+        scope_key = self._local_instance_field_scope_key()
+        shadowed = self._local_instance_field_shadowed.setdefault(
+            scope_key, set())
+        for target_name in target_names:
+            shadowed.add(target_name)
+            for key in [key for key in self._local_instance_field_sources
+                        if key[0] == scope_key and key[1] == target_name]:
+                self._local_instance_field_sources.pop(key, None)
+                self._local_instance_field_shapes.pop(key, None)
+        if (not isinstance(node.value, ast.Call)
+                or not isinstance(node.value.func, ast.Name)):
+            return
+        class_name = node.value.func.id
+        if class_name not in self._constructor_kwargs_contracts:
+            return
+        keywords = [kw for kw in node.value.keywords if kw.arg is not None]
+        for target_name in target_names:
+            for keyword in keywords:
+                source = self._value_source(keyword.value)
+                if source is None:
+                    source = self.trace_source(keyword.value)
+                if source is not None:
+                    self._local_instance_field_sources[
+                        (scope_key, target_name, keyword.arg)] = source
+                shape = self._expression_container_shape(keyword.value)
+                if shape[0]:
+                    self._local_instance_field_shapes[
+                        (scope_key, target_name, keyword.arg)] = shape
+
     ## Visit a FunctionDef node and register it as a local definition.
     #  @param node The FunctionDef AST node.
     def _visit_function_def(self, node):
         """Common handler for FunctionDef and AsyncFunctionDef."""
+        is_direct_method = bool(self._class_stack and not self._func_stack)
+        receiver_name = ""
+        if is_direct_method:
+            decorator_names = {
+                self._attribute_name(decorator)
+                if isinstance(decorator, ast.Attribute)
+                else decorator.id
+                for decorator in node.decorator_list
+                if isinstance(decorator, (ast.Name, ast.Attribute))
+            }
+            positional = (
+                list(getattr(node.args, "posonlyargs", []))
+                + list(node.args.args)
+            )
+            is_static = any(
+                name == "staticmethod"
+                or (isinstance(name, str)
+                    and name.endswith(".staticmethod"))
+                for name in decorator_names
+            )
+            if positional and not is_static:
+                receiver_name = positional[0].arg
+        self._class_receiver_stack.append(receiver_name)
         self.local.add(node.name)
+        if self._class_stack:
+            kwargs_name = self._constructor_kwargs_parameter(node)
+            if kwargs_name is not None:
+                self._constructor_kwargs_contracts[
+                    self._class_stack[-1]] = kwargs_name
         ## Only module-level functions shadow builtins through bare-name
         ## calls.  Class methods are reachable only via self.<name>().
         if not self._class_stack:
@@ -3324,16 +4923,51 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._bind_target_name(
             node.name, "local", node, callable_key=callable_key)
         params = []
+        positional_params = []
+        keyword_only_params = []
+        vararg_name = ""
+        kwarg_name = ""
+        positional_nodes = (
+            list(getattr(node.args, "posonlyargs", []))
+            + list(node.args.args))
+        defaults = {}
+        positional_default_nodes = list(getattr(node.args, "defaults", []))
+        if positional_default_nodes:
+            positional_default_params = positional_nodes[-len(
+                positional_default_nodes):]
+            for arg, default_node in zip(
+                    positional_default_params, positional_default_nodes):
+                default_source = self._default_argument_source(
+                    self._call_edge_argument_source(default_node))
+                if default_source is not None:
+                    defaults[arg.arg] = default_source
+        for arg, default_node in zip(
+                getattr(node.args, "kwonlyargs", []),
+                getattr(node.args, "kw_defaults", [])):
+            if default_node is None:
+                continue
+            default_source = self._default_argument_source(
+                self._call_edge_argument_source(default_node))
+            if default_source is not None:
+                defaults[arg.arg] = default_source
         self.push_scope(SCOPE_FUNCTION, node.name)
-        for arg in (getattr(node.args, "posonlyargs", []) + node.args.args + getattr(node.args, "kwonlyargs", [])):
+        for arg in positional_nodes:
             if arg.arg != "self":
                 params.append(arg.arg)
+                positional_params.append(arg.arg)
+                self._bind_target_name(arg.arg, "local", arg, "parameter")
+        for arg in getattr(node.args, "kwonlyargs", []):
+            if arg.arg != "self":
+                params.append(arg.arg)
+                keyword_only_params.append(arg.arg)
                 self._bind_target_name(arg.arg, "local", arg, "parameter")
         if getattr(node.args, "vararg", None) is not None and node.args.vararg.arg != "self":
             params.append(node.args.vararg.arg)
+            vararg_name = node.args.vararg.arg
             self._bind_target_name(node.args.vararg.arg, "local", kind="parameter")
         if getattr(node.args, "kwarg", None) is not None and node.args.kwarg.arg != "self":
             params.append(node.args.kwarg.arg)
+            kwarg_name = node.args.kwarg.arg
             self._bind_target_name(node.args.kwarg.arg, "local", kind="parameter")
         self.function_params[node.name] = params
         if self._class_stack:
@@ -3357,17 +4991,30 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._caller_stack.pop()
         self._func_stack.pop()
         self.pop_scope()
+        self._class_receiver_stack.pop()
         ## Collect FunctionSummary for Phase 7B-full facts.
         ## Use qualname so class methods don't share bare-name keys.
-        func_returns = self.return_sources.get(qualname)
+        func_returns = self.call_graph_return_sources.get(qualname)
+        if func_returns is None:
+            func_returns = self.return_sources.get(qualname)
         if func_returns is None and not self._class_stack:
             func_returns = self.return_sources.get(node.name)
+        yield_values = self.call_graph_yield_sources.get(qualname, [])
+        func_yields = (
+            make_source_set(yield_values, origin="yield")
+            if yield_values else None)
         local_assignments = {}
         fs = FunctionSummary(
             id=fid,
             params=list(params),
             returns=func_returns,
             local_assignments=local_assignments,
+            positional_params=list(positional_params),
+            keyword_only_params=list(keyword_only_params),
+            vararg=vararg_name,
+            kwarg=kwarg_name,
+            defaults=defaults,
+            yields=func_yields,
         )
         self.module_cg.functions[qualname] = fs
         ## Link method to its class summary (created before class body visit).
@@ -3472,10 +5119,34 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 item_kind = (
                     self._lookup_container_kind(node.iter.id, item=True)
                     or "")
+            if not item_kind:
+                _, item_kind = self._expression_container_shape(node.iter)
+            item_fields = self._expression_container_item_fields(node.iter)
+            if item_fields and not item_kind:
+                item_kind = "dict"
             self._target_to_source(
                 node.target, source, "iteration",
-                container_kind=item_kind)
+                container_kind=item_kind,
+                container_item_fields=item_fields)
+        self._record_iteration_binding(node)
         self.generic_visit(node)
+
+    ## Record a generator-loop fact for bounded cross-file propagation.
+    #  @param node For-loop AST node.
+    def _record_iteration_binding(self, node):
+        if (not isinstance(node.iter, ast.Call)
+                or not isinstance(node.target, ast.Name)
+                or not self._caller_stack):
+            return
+        callee_name, _ = self._get_call_parts(node.iter)
+        self.module_cg.iteration_bindings.append(IterationBinding(
+            caller=self._caller_stack[-1],
+            callee_name=callee_name,
+            callee_source=self.trace_source(node.iter.func),
+            target_names=[node.target.id],
+            call_lineno=node.iter.lineno,
+            call_col_offset=node.iter.col_offset,
+        ))
 
     ## Resolve per-element ownership for for-loop iterator expressions.
     #
@@ -3486,6 +5157,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return List of (target_elt, source) pairs, or None to fall back.
     def _resolve_iterator_yields(self, iter_node, target):
         if not isinstance(iter_node, ast.Call):
+            if (isinstance(iter_node, ast.Name)
+                    and isinstance(target, (ast.Tuple, ast.List))):
+                field_sources = self._lookup_tuple_item_sources(
+                    iter_node.id)
+                if (field_sources is not None
+                        and len(field_sources) == len(target.elts)):
+                    return [
+                        (field_target, source)
+                        for field_target, source in zip(
+                            target.elts, field_sources)
+                    ]
             return None
         func_name = (
             iter_node.func.id if isinstance(iter_node.func, ast.Name)
@@ -3540,12 +5222,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             element_owner = _match_iterator_element_owner(
                 func_top, resolved_name)
             if element_owner is not None:
+                element_shape = _match_iterator_element_shape(
+                    func_top, resolved_name)
                 element_source = CallResult(
                     InstanceMethod(func_top, resolved_name),
                     call_lineno=iter_node.lineno,
                     call_col_offset=iter_node.col_offset,
-                    result_source=element_owner,
+                    result_source=element_shape or element_owner,
                 )
+                if element_shape is not None:
+                    return [(
+                        target, element_source,
+                        element_shape.kind, element_shape.item_kind)]
                 return [(target, element_source)]
             traced = normalize_source(self.trace_source(iter_node))
             if isinstance(traced, CallResult):
@@ -3557,6 +5245,15 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 
         if func_name is None:
             return None
+
+        # A local generator's yield summary is source evidence, not a
+        # callable-name or library-name heuristic.  Use it before the
+        # external iterator contracts so local and cross-file propagation
+        # can converge on the same representation.
+        if isinstance(target, ast.Name):
+            summary = self.module_cg.functions.get(func_name)
+            if summary is not None and summary.yields is not None:
+                return [(target, summary.yields)]
 
         ## enumerate(X): for i, x in ... → i=python, x from container elements
         if func_name == "enumerate" and iter_node.args:
@@ -3608,11 +5305,51 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._target_to_source(node.target, source, "iteration")
         self.generic_visit(node)
 
+    ## Record one value yielded by the current generator function.
+    #  @param node Yield AST node.
+    def visit_Yield(self, node):
+        if self._func_stack and self._caller_stack:
+            if node.value is None:
+                source = UnknownSource("bare yield")
+            else:
+                source = self._call_edge_argument_source(node.value)
+                source = self._source_with_module(source)
+                if source is None:
+                    source = UnknownSource("unresolved yield")
+            qualname = self._caller_stack[-1].qualname
+            self.call_graph_yield_sources.setdefault(
+                qualname, []).append(source)
+        self.generic_visit(node)
+
+    ## Record values forwarded by a yield-from expression.
+    #  @param node YieldFrom AST node.
+    def visit_YieldFrom(self, node):
+        if self._func_stack and self._caller_stack:
+            source = None
+            if isinstance(node.value, ast.Call):
+                callee_name = (
+                    node.value.func.id
+                    if isinstance(node.value.func, ast.Name) else None)
+                if callee_name:
+                    summary = self.module_cg.functions.get(callee_name)
+                    if summary is not None:
+                        source = summary.yields
+            if source is None:
+                source = self._call_edge_iterable_source(node.value)
+            source = self._source_with_module(source)
+            if source is None:
+                source = UnknownSource("unresolved yield from")
+            qualname = self._caller_stack[-1].qualname
+            self.call_graph_yield_sources.setdefault(
+                qualname, []).append(source)
+        self.generic_visit(node)
+
     ## Visit an If node with branch merging in v2 mode.
     #
-    #  At module level, snapshots the current scope before the if, visits
-    #  each branch independently, then merges the resulting bindings. At
-    #  function level, falls back to generic_visit.
+    #  Snapshots the current scope before the if, visits each branch
+    #  independently, then merges the resulting bindings. Module scope
+    #  merges every changed binding. Function scope merges only names
+    #  assigned directly by this branch; nested branches merge themselves.
     #  TYPE_CHECKING guards are skipped at all levels.
     #  @param node The If AST node.
     def visit_If(self, node):
@@ -3630,9 +5367,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return
 
         if self.current_scope().kind != SCOPE_MODULE:
-            self._visit_guarded_nodes(node.body, receiver_guard)
-            for stmt in node.orelse:
-                self.visit(stmt)
+            self._visit_function_if(node, receiver_guard)
             return
 
         scope_base = self.current_scope().snapshot()
@@ -3662,6 +5397,209 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         for name, binding in merged.items():
             if isinstance(binding, Binding):
                 self.symbols.add(name, binding.source)
+
+    ## Visit a function-level if while merging only direct RHS evidence.
+    #
+    #  Calls inside each branch retain the established sequential visitor
+    #  behavior. After both branches are visited, incompatible direct
+    #  assignments are replaced by a function_branch SourceSet.
+    #  @param node The function-level If node.
+    #  @param receiver_guard Optional receiver narrowing evidence.
+    def _visit_function_if(self, node, receiver_guard):
+        scope_base = self.current_scope().snapshot()
+        left_sources = self._direct_branch_assignment_sources(node.body)
+        right_sources = self._direct_branch_assignment_sources(node.orelse)
+
+        self._visit_guarded_nodes(node.body, receiver_guard)
+        for statement in node.orelse:
+            self.visit(statement)
+
+        names = set(left_sources) | set(right_sources)
+        for name in names:
+            base_binding = scope_base.get(name)
+            left_source = left_sources.get(
+                name,
+                base_binding.source if isinstance(base_binding, Binding)
+                else None)
+            right_source = right_sources.get(
+                name,
+                base_binding.source if isinstance(base_binding, Binding)
+                else None)
+            if left_source is None or right_source is None:
+                continue
+            left_binding = Binding(name, left_source)
+            right_binding = Binding(name, right_source)
+            if not self._branch_sources_require_merge(
+                    left_binding, right_binding,
+                    allow_local_callable=name.startswith("self.")):
+                continue
+            current = self.current_scope().lookup(name)
+            if current is None:
+                continue
+            merged_source = make_source_set(
+                (left_source, right_source), origin="function_branch")
+            self.current_scope().bindings[name] = Binding(
+                name=name,
+                source=merged_source,
+                scope_kind=current.scope_kind,
+                lineno=current.lineno,
+                col_offset=current.col_offset,
+                assignment_index=current.assignment_index,
+                version=current.version + 1,
+                container_kind=current.container_kind,
+                container_item_kind=current.container_item_kind,
+                callable_key=current.callable_key,
+                binding_kind=current.binding_kind,
+            )
+            if name.startswith("self.") and self._class_stack:
+                self.instance_attrs[
+                    (self._class_stack[-1], name)
+                ] = merged_source
+
+    ## Collect direct assignment RHS sources from branch statements.
+    #
+    #  Nested control-flow nodes are intentionally excluded because their
+    #  own visitors merge their assignments.
+    #  @param statements Statements belonging to the current branch.
+    #  @return Mapping of assigned local name to RHS source.
+    def _direct_branch_assignment_sources(self, statements):
+        sources = {}
+
+        def add_target(target, source):
+            if isinstance(target, ast.Name):
+                sources[target.id] = source
+            elif isinstance(target, ast.Attribute):
+                name = self._attribute_name(target)
+                if name and name.startswith("self."):
+                    sources[name] = source
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for element in target.elts:
+                    add_target(element, source)
+
+        for statement in statements:
+            if isinstance(statement, ast.Assign):
+                if isinstance(statement.value, ast.Subscript):
+                    source = UnknownSource("branch_subscript")
+                else:
+                    source = (
+                        self.trace_source(statement.value)
+                        or UnknownSource(
+                            "branch_ifexp"
+                            if isinstance(statement.value, ast.IfExp)
+                            else "branch_rhs"))
+                if (isinstance(statement.value, ast.Name)
+                        and statement.value.id in self.import_from_symbols):
+                    source = self.import_from_symbols[statement.value.id]
+                for target in statement.targets:
+                    add_target(target, source)
+            elif isinstance(statement, ast.AnnAssign):
+                source = (
+                    self.trace_source(statement.value)
+                    if statement.value is not None else "local")
+                if source is None:
+                    source = UnknownSource("branch_rhs")
+                add_target(statement.target, source)
+            elif isinstance(statement, (ast.Import, ast.ImportFrom)):
+                for alias in statement.names:
+                    name = alias.asname or alias.name.split(".")[0]
+                    if isinstance(statement, ast.ImportFrom):
+                        sources[name] = statement.module or alias.name
+                    else:
+                        sources[name] = alias.name
+        return sources
+
+    ## Decide whether two branch bindings prove different owner identities.
+    #
+    #  Local function results deliberately share one coarse identity because
+    #  their return ownership requires inter-procedural analysis. Explicit
+    #  local constructors remain distinct from that coarse bucket.
+    #  @param left_binding Binding produced by the true branch.
+    #  @param right_binding Binding produced by the false branch.
+    #  @param allow_local_callable Whether exact local callable alternatives
+    #  are meaningful for this binding. This is limited to instance fields
+    #  because ordinary local names already have established flow behavior.
+    #  @return True when the bindings must remain a SourceSet.
+    def _branch_sources_require_merge(self, left_binding, right_binding,
+                                      allow_local_callable=False):
+        if not (isinstance(left_binding, Binding)
+                and isinstance(right_binding, Binding)):
+            return False
+        left_identity = self._branch_source_identity(left_binding.source)
+        right_identity = self._branch_source_identity(right_binding.source)
+        if left_identity == right_identity:
+            return False
+        left_kind = left_identity[0]
+        right_kind = right_identity[0]
+        if left_kind == "library" and right_kind == "library":
+            return True
+        if (allow_local_callable
+                and (left_kind == "local_callable"
+                     or right_kind == "local_callable")):
+            return True
+        kinds = {left_kind, right_kind}
+        if "function_branch" in kinds:
+            return True
+        if "local_class" in kinds and (
+                "library" in kinds
+                or ("UnknownSource" in kinds
+                    and (
+                        left_identity == (
+                            "UnknownSource", "branch_ifexp")
+                        or right_identity == (
+                            "UnknownSource", "branch_ifexp")))):
+            return True
+        return False
+
+    ## Return a coarse, evidence-backed identity for branch comparison.
+    #  @param source Source value from a branch binding.
+    #  @return Hashable identity tuple.
+    def _branch_source_identity(self, source):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            return (
+                source.origin or "set",
+                tuple(sorted(
+                    repr(self._branch_source_identity(item))
+                    for item in source.sources)),
+            )
+        if isinstance(source, CallResult):
+            result_source = normalize_source(source.result_source)
+            if isinstance(result_source, str) and result_source:
+                return ("result", result_source.split(".")[0])
+            callee = source.callee
+            if isinstance(callee, str):
+                first = callee.split(".")[0]
+                imported = self._imported_top_for_branch(first)
+                if imported:
+                    return ("library", imported)
+                if callee in self.class_methods or first in self.class_methods:
+                    return ("local_class", callee)
+            return ("local_result",)
+        if isinstance(source, str):
+            if source in self.import_from_symbols.values():
+                return ("local_callable", source)
+            first = source.split(".")[0]
+            imported = self._imported_top_for_branch(first)
+            if imported:
+                return ("library", imported)
+            if source in self.class_methods or first in self.class_methods:
+                return ("local_class", source)
+            return (source if source in ("python", "unknown") else "local",)
+        return (type(source).__name__, source_display(source))
+
+    ## Resolve a single-file import name to its top-level library.
+    #  @param name Root symbol used by a branch source.
+    #  @return Top-level import name or an empty string.
+    def _imported_top_for_branch(self, name):
+        imported = self.import_from_symbols.get(name)
+        if imported:
+            return imported.split(".")[0]
+        if name in self.import_aliases:
+            direct = self.symbols.direct.get(name, name)
+            if isinstance(direct, str):
+                return direct.split(".")[0]
+            return name.split(".")[0]
+        return ""
 
     ## Visit a conditional expression with true-branch receiver narrowing.
     #
@@ -3748,6 +5686,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _visit_comprehension(self, node):
         self.push_scope(SCOPE_COMPREHENSION, "<comprehension>")
         for gen in node.generators:
+            target_names = [
+                item.id for item in ast.walk(gen.target)
+                if isinstance(item, ast.Name)
+            ]
+            self.comprehension_targets.update(target_names)
             source = self._iter_source(gen.iter)
             self._target_to_source(gen.target, source)
         self.generic_visit(node)
@@ -3785,6 +5728,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def visit_Nonlocal(self, node):
         self.generic_visit(node)
 
+    ## Build a positional source summary for a tuple return expression.
+    #
+    #  The tuple itself has no single owner. Preserve each element source so
+    #  a cross-file call edge can bind ``left, right = make_pair()`` by
+    #  position without promoting one element's owner to the whole tuple.
+    #  @param value Tuple AST node.
+    #  @return DerivedResult with one source per tuple element, or None when
+    #  any element cannot be traced.
+    def _tuple_return_source(self, value):
+        if not isinstance(value, ast.Tuple):
+            return None
+        elements = []
+        for element in value.elts:
+            source = self.trace_source(element)
+            if source is None:
+                return None
+            elements.append(normalize_source(source))
+        return DerivedResult("tuple", tuple(elements))
+
     ## Visit a Return node and record return-value flow for the function.
     #  @param node The Return AST node.
     def visit_Return(self, node):
@@ -3796,11 +5758,14 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     and isinstance(node.value.func, ast.Attribute))
                 else None
             )
+            tuple_source = self._tuple_return_source(node.value)
             result_kind = _container_kind(node.value)
             # A tuple owns only the aggregate object.  Its unpacked items may
             # have unrelated owners, so do not promote the function's entire
             # return contract to Python from a tuple literal alone.
-            if source is not None:
+            if tuple_source is not None:
+                source = tuple_source
+            elif source is not None:
                 pass
             elif result_kind is not None and result_kind != "tuple":
                 source = "python"
@@ -3822,15 +5787,28 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 ## for non-class functions to prevent cross-class pollution.
                 if self._class_stack:
                     qkey = self._class_stack[-1] + "." + func_name
-                    old_q = self.return_sources.get(qkey)
-                    self.return_sources[qkey] = make_source_set(
-                        [old_q, new_src] if old_q else [new_src],
-                        origin="return")
+                    return_key = qkey
                 else:
-                    old = self.return_sources.get(func_name)
-                    self.return_sources[func_name] = make_source_set(
-                        [old, new_src] if old else [new_src],
+                    return_key = func_name
+                if tuple_source is not None:
+                    old_cg = self.call_graph_return_sources.get(return_key)
+                    self.call_graph_return_sources[return_key] = (
+                        make_source_set(
+                            [old_cg, new_src] if old_cg else [new_src],
+                            origin="return"))
+                else:
+                    old_legacy = self.return_sources.get(return_key)
+                    self.return_sources[return_key] = make_source_set(
+                        [old_legacy, new_src]
+                        if old_legacy else [new_src],
                         origin="return")
+                    # Preserve a mixed tuple/non-tuple contract when a
+                    # function has both return shapes across branches.
+                    if return_key in self.call_graph_return_sources:
+                        old_cg = self.call_graph_return_sources[return_key]
+                        self.call_graph_return_sources[return_key] = (
+                            make_source_set(
+                                [old_cg, new_src], origin="return"))
                 self._add_symbol_ref(
                     func_name + ".return", source, "return", node)
         self.generic_visit(node)

@@ -61,6 +61,27 @@ def test_local_function_is_local():
     assert "helper" not in r.library_usage
 
 
+def test_class_qualified_local_field_stays_local():
+    """A class-qualified singleton field must not create a library owner."""
+    code = ("class Worker:\n"
+            "    def run(self):\n"
+            "        pass\n"
+            "class Local:\n"
+            "    __instance = None\n"
+            "    def __new__(cls):\n"
+            "        if cls.__instance is None:\n"
+            "            cls.__instance = object.__new__(cls)\n"
+            "            cls.__instance.worker = Worker()\n"
+            "        return cls.__instance\n"
+            "    def run(self):\n"
+            "        self.worker.run()\n"
+            "Local().run()\n")
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if c.expression == "self.worker.run()"]
+    assert len(calls) == 1
+    assert calls[0].top_library == "local"
+
+
 # ── Test 4: parameter receiver must not enter library_usage ────────────
 
 def test_parameter_receiver_not_library():
@@ -675,8 +696,8 @@ def test_local_self_attr_not_polluted_to_library():
             f"local self.y method should stay local, got {c.top_library}"
 
 
-def test_non_import_backed_receiver_stays_local():
-    """Local variable assigned from non-import source stays local."""
+def test_local_alias_of_builtin_container_keeps_python_owner():
+    """A local alias does not change a builtin container's method owner."""
     code = (
         "class A:\n"
         "    def __init__(self):\n"
@@ -690,8 +711,8 @@ def test_non_import_backed_receiver_stays_local():
     calls = [c for c in r.all_api_calls if "count" in c.expression]
     assert calls, "x.count() not collected"
     for c in calls:
-        assert c.top_library == "local", \
-            f"local x.count() should stay local, got {c.top_library}"
+        assert c.top_library == "python", \
+            f"list x.count() should be python, got {c.top_library}"
 
 
 # ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
@@ -963,6 +984,25 @@ def test_local_method_return_owns_direct_chained_call():
     ]
     assert len(calls) == 1
     assert calls[0].top_library == "bs4"
+
+
+def test_unresolved_local_method_return_does_not_claim_local_receiver():
+    """An unresolved local method result cannot prove the next owner local."""
+    code = (
+        "class Wrapper:\n"
+        "    def make(self):\n"
+        "        return self.missing()\n"
+        "    def run(self):\n"
+        "        return self.make().find('x')\n"
+        "Wrapper().run()\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.make().find('x')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "unknown"
 
 
 def test_parameter_return_does_not_guess_direct_chain_owner():

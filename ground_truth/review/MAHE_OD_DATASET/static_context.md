@@ -6,8 +6,8 @@
 | utils.py:58:11 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:63:18 | `root.iter('object')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:65:24 | `object.find('difficult')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| utils.py:67:16 | `object.find('name').text.lower()` | python / python | library / xml | builtin_string_method | static_context | v: Element.text is a Python string |
-| utils.py:67:16 | `object.find('name').text.lower().strip()` | python / python | library / xml | builtin_string_method | static_context | v: Element.text is a Python string |
+| utils.py:67:16 | `object.find('name').text.lower()` | python / python | python / python | builtin_string_method | static_context | v: Element.text is a Python string |
+| utils.py:67:16 | `object.find('name').text.lower().strip()` | python / python | python / python | builtin_string_method | static_context | v: Element.text is a Python string |
 | utils.py:67:16 | `object.find('name')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:71:15 | `object.find('bndbox')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | utils.py:72:19 | `bbox.find('xmin')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
@@ -18,11 +18,11 @@
 | utils.py:167:19 | `tensor.dim()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:169:21 | `tensor.index_select(dim=d, index=torch.arange(start=0, end=tensor.s...` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:170:73 | `tensor.size(d)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:197:33 | `true_labels[i].size(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:197:33 | `true_labels[i].size(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:204:11 | `true_images.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:204:34 | `true_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:204:56 | `true_labels.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:209:32 | `det_labels[i].size(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:209:32 | `det_labels[i].size(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:215:11 | `det_images.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:215:33 | `det_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:215:54 | `det_labels.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -33,31 +33,31 @@
 | utils.py:235:29 | `det_class_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:248:33 | `det_class_boxes[d].unsqueeze(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:255:15 | `object_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:261:41 | `overlaps.squeeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:261:41 | `overlaps.squeeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:265:50 | `true_class_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:269:15 | `max_overlap.item()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:295:15 | `recalls_above_t.any()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:296:32 | `cumul_precision[recalls_above_t].max()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:296:32 | `cumul_precision[recalls_above_t].max()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:299:36 | `precisions.mean()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:302:29 | `average_precisions.mean()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:302:29 | `average_precisions.mean().item()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:305:72 | `average_precisions.tolist()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:380:29 | `set_1[:, :2].unsqueeze(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:380:56 | `set_2[:, :2].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:381:29 | `set_1[:, 2:].unsqueeze(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:381:56 | `set_2[:, 2:].unsqueeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:380:29 | `set_1[:, :2].unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:380:56 | `set_2[:, :2].unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:381:29 | `set_1[:, 2:].unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:381:56 | `set_2[:, 2:].unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:404:12 | `areas_set_1.unsqueeze(1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:404:39 | `areas_set_2.unsqueeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:424:17 | `image.size(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:425:17 | `image.size(2)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:433:67 | `filler.unsqueeze(1).unsqueeze(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:465:17 | `image.size(1)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:466:17 | `image.size(2)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:465:17 | `image.size(1)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:466:17 | `image.size(2)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:501:43 | `crop.unsqueeze(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:503:22 | `overlap.squeeze(0)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:506:15 | `overlap.max()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:506:15 | `overlap.max().item()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:503:22 | `overlap.squeeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:506:15 | `overlap.max()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:506:15 | `overlap.max().item()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:520:19 | `centers_in_crop.any()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:546:16 | `FT.hflip(image)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
 | utils.py:569:16 | `FT.resize(image, dims)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
@@ -70,7 +70,7 @@
 | utils.py:693:13 | `scores.topk(k, 1, True, True)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:694:14 | `ind.eq(targets.view(-1, 1).expand_as(ind))` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:694:21 | `targets.view(-1, 1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:694:21 | `targets.view(-1, 1).expand_as(ind)` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:694:21 | `targets.view(-1, 1).expand_as(ind)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:695:20 | `correct.view(-1)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:695:20 | `correct.view(-1).float()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:695:20 | `correct.view(-1).float().sum()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -93,7 +93,7 @@
 | generatevocdata.py:53:19 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | generatevocdata.py:55:29 | `root.findall('*/name')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | generatevocdata.py:57:16 | `annote_labels.append(labelname)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
-| generatevocdata.py:59:20 | `annotations[labelname].append(img)` | python / python | local / local | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
+| generatevocdata.py:59:20 | `annotations[labelname].append(img)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:66:14 | `imgnames.copy()` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:73:15 | `sampler.pop()` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:76:12 | `test_list.append(elem)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
@@ -102,7 +102,7 @@
 | xmlfilerename.py:10:7 | `ET.parse(path)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | xmlfilerename.py:11:7 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | xmlfilerename.py:12:5 | `root.find('filename')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| xmlfilerename.py:15:4 | `string.replace('jpg', 'JPEG')` | python / python | library / xml | builtin_string_method | static_context | v: Element.text is assigned to string and is a Python string |
+| xmlfilerename.py:15:4 | `string.replace('jpg', 'JPEG')` | python / python | python / python | builtin_string_method | static_context | v: Element.text is assigned to string and is a Python string |
 | xmlfilerename.py:20:0 | `tree.write(path)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | read pascalvoc annotation.py:12:7 | `ET.parse(path)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | read pascalvoc annotation.py:13:7 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
@@ -140,4 +140,4 @@
 | annotation.py:46:15 | `bbox.find('ymin')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:47:15 | `bbox.find('xmax')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:48:15 | `bbox.find('ymax')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| annotation.py:63:8 | `key.split('/')` | python / python | local / local | builtin_string_method | static_context | v: receiver is a project string value |
+| annotation.py:63:8 | `key.split('/')` | python / python | unknown / unknown | builtin_string_method | static_context | v: receiver is a project string value |

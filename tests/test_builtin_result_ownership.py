@@ -379,3 +379,95 @@ def test_open_result_is_python():
     calls = _calls_by_expr(result, "f.write")
     assert len(calls) == 1
     assert calls[0].top_library == "python"
+
+
+def test_list_append_python_shape_flows_to_iteration():
+    result = _write_and_analyze("""
+items = []
+items.append('alpha')
+for item in items:
+    item.strip()
+""")
+    calls = _calls_by_expr(result, "item.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_mixed_list_append_shapes_do_not_guess_iteration_owner():
+    result = _write_and_analyze("""
+items = []
+items.append('alpha')
+items.append(1)
+for item in items:
+    item.strip()
+""")
+    calls = _calls_by_expr(result, "item.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library != "python"
+
+
+def test_parameter_string_shape_flows_to_iteration():
+    result = _write_and_analyze("""
+def consume(value):
+    for character in value:
+        character.isalpha()
+consume('alpha')
+""")
+    calls = _calls_by_expr(result, "character.isalpha")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_string_slice_shape_flows_through_local_call():
+    result = _write_and_analyze("""
+def consume(value):
+    value.strip()
+
+def forward(value):
+    consume(value[:])
+
+forward('alpha')
+""")
+    calls = _calls_by_expr(result, "value.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_parameter_method_result_does_not_claim_local_chain_owner():
+    result = _write_and_analyze("""
+def use(value):
+    value.method().next()
+
+use(object())
+""")
+    calls = _calls_by_expr(result, "value.method().next")
+    assert len(calls) == 1
+    assert calls[0].top_library == "unknown"
+
+
+def test_result_string_shape_flows_through_list_append_and_iteration():
+    result = _write_and_analyze("""
+import re
+items = []
+items.append(re.match('a', 'a').group(0))
+for item in items:
+    item.strip()
+""")
+    calls = _calls_by_expr(result, "item.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_builtin_type_constructor_preserves_string_shape():
+    result = _write_and_analyze("value = str(42); value.strip()")
+    calls = _calls_by_expr(result, "value.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_builtin_type_constructor_preserves_bytes_shape():
+    result = _write_and_analyze(
+        "value = bytes('data', 'ascii'); value.decode('ascii')")
+    calls = _calls_by_expr(result, "value.decode")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"

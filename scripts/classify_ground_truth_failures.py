@@ -18,14 +18,14 @@ DEFAULT_MARKDOWN = os.path.join(
     VERIFICATION_DIR, "failure-dispositions.md")
 
 DISPOSITION_FIX = "fix_1_0_5"
-DISPOSITION_BOUNDARY = "accepted_boundary"
+DISPOSITION_ACCEPTED_UNKNOWN = "accepted_unknown"
 DISPOSITION_GT = "ground_truth_correction"
 
 SCOPE_CONSERVATIVE = "conservative_identity"
 SCOPE_LOCAL = "local_identity"
 SCOPE_SAME = "same_scope_result_protocol"
 SCOPE_INTERPROC = "bounded_receiver_flow"
-SCOPE_BOUNDARY = "documented_boundary"
+SCOPE_EVIDENCE_UNKNOWN = "evidence_limited_unknown"
 SCOPE_GT = "label_correction"
 
 _SAME_SCOPE_CATEGORIES = frozenset({
@@ -92,10 +92,40 @@ def _needs_dead_code_gt_correction(record):
     )
 
 
+## Return whether exact ownership depends on evidence outside source analysis.
+#
+#  dynamic_probe records establish runtime truth, but do not by themselves
+#  prove that a pure static analyzer can recover that owner. manual_reasoned
+#  records cover the same boundary for dynamic callables and branch-dependent
+#  receivers.
+#
+#  @param record Ground-truth JSON object.
+#  @return True when exact ownership is supported only by non-source evidence.
+def _has_runtime_only_evidence(record):
+    return record.get("verification_level") in (
+        "dynamic_probe",
+        "manual_reasoned",
+    )
+
+
+## Return whether a visible monkey patch still has an unresolved receiver type.
+#
+#  The source proves that a local callable was assigned to selected imported
+#  classes, but a library-level receiver owner does not prove which runtime
+#  class supplies the method descriptor.
+#  @param record Ground-truth JSON object.
+#  @return True when unknown is the sound static primary owner.
+def _is_ambiguous_monkey_patch(record):
+    return (
+        record.get("category") == "monkey_patched_local_method"
+        and record.get("pcresolve_kind") == "unknown"
+    )
+
+
 ## Classify one primary mismatch into a release disposition and repair scope.
 #
 #  The disposition answers whether 1.0.5 must repair the record, retain a
-#  documented boundary, or correct the GT label.  The repair scope groups
+#  justified unknown, or correct the GT label. The repair scope groups
 #  fixable records by implementation strategy without encoding library-name
 #  whitelists.
 #
@@ -104,9 +134,10 @@ def _needs_dead_code_gt_correction(record):
 def classify_disposition(record):
     if _is_flask_payload_boundary(record):
         return (
-            DISPOSITION_BOUNDARY,
-            SCOPE_BOUNDARY,
-            "framework payload mapping protocol boundary",
+            DISPOSITION_FIX,
+            SCOPE_CONSERVATIVE,
+            "request.json runtime mapping type is not proven by project "
+            "source; replace flask certainty with unknown",
         )
 
     if _needs_dead_code_gt_correction(record):
@@ -117,7 +148,31 @@ def classify_disposition(record):
         )
 
     expected_kind = record.get("expected_kind", "")
+    actual_kind = record.get("pcresolve_kind", "")
     category = record.get("category", "")
+
+    if _is_ambiguous_monkey_patch(record):
+        return (
+            DISPOSITION_ACCEPTED_UNKNOWN,
+            SCOPE_EVIDENCE_UNKNOWN,
+            "project source proves a local monkey patch, but the receiver's "
+            "runtime class is not recoverable from project source",
+        )
+
+    if _has_runtime_only_evidence(record):
+        if actual_kind == "unknown":
+            return (
+                DISPOSITION_ACCEPTED_UNKNOWN,
+                SCOPE_EVIDENCE_UNKNOWN,
+                "runtime evidence confirms the GT owner, but project source "
+                "does not prove it under the 1.0.5 static contract",
+            )
+        return (
+            DISPOSITION_FIX,
+            SCOPE_CONSERVATIVE,
+            "exact owner depends on runtime evidence; replace unsupported "
+            "local/library certainty with unknown",
+        )
 
     if expected_kind == "unknown":
         return (
@@ -147,6 +202,24 @@ def classify_disposition(record):
     )
 
 
+## Return the release target classification for one disposition.
+#
+#  @param record Ground-truth JSON object.
+#  @param disposition Release disposition.
+#  @param repair_scope Implementation repair scope.
+#  @return Pair of target kind and target top library.
+def _target_classification(record, disposition, repair_scope):
+    if (
+            disposition == DISPOSITION_ACCEPTED_UNKNOWN
+            or repair_scope == SCOPE_CONSERVATIVE
+            or disposition == DISPOSITION_GT):
+        return ("unknown", "unknown")
+    return (
+        record.get("expected_kind", ""),
+        record.get("expected_top_library", ""),
+    )
+
+
 ## Load every JSONL record from the canonical calls directory.
 #
 #  @return List of ground-truth records.
@@ -173,6 +246,8 @@ def build_entries(records):
         if not is_primary_mismatch(record):
             continue
         disposition, repair_scope, explanation = classify_disposition(record)
+        target_kind, target_top = _target_classification(
+            record, disposition, repair_scope)
         entries.append({
             "project": record.get("project", ""),
             "file": record.get("file", ""),
@@ -191,6 +266,8 @@ def build_entries(records):
             "disposition": disposition,
             "repair_scope": repair_scope,
             "disposition_reason": explanation,
+            "target_kind": target_kind,
+            "target_top_library": target_top,
         })
     entries.sort(key=lambda item: (
         item["project"], item["file"], item["lineno"],
@@ -223,6 +300,18 @@ def render_markdown(entries):
         entry["project"] for entry in entries)
     category_counts = collections.Counter(
         entry["category"] for entry in entries)
+    evidence_counts = collections.Counter(
+        (entry["verification_level"], entry["disposition"])
+        for entry in entries)
+    unknown_outcome_counts = collections.Counter(
+        (
+            entry["project"],
+            entry["category"],
+            entry["disposition"],
+        )
+        for entry in entries
+        if entry["target_kind"] == "unknown"
+        and entry["disposition"] != DISPOSITION_GT)
 
     lines = [
         "# PCResolve 1.0.5 Failure Dispositions",
@@ -231,6 +320,22 @@ def render_markdown(entries):
         "mismatch. The canonical call labels remain in `ground_truth/calls/`; "
         "the JSONL sidecar records release disposition only.",
         "",
+        "## Classification Policy",
+        "",
+        "Ground truth records semantic or runtime ownership. Release "
+        "disposition asks a different question: whether that exact owner is "
+        "recoverable from project source under the 1.0.5 pure-static "
+        "contract.",
+        "",
+        "1. `static_obvious` and `static_context` evidence remains in the "
+        "exact-owner repair queue.",
+        "2. A runtime-only owner with a current `unknown` result is accepted "
+        "as an honest static boundary and remains a scored GT miss.",
+        "3. A runtime-only owner with a current `local` or library result must "
+        "first drop that unsupported certainty to `unknown`.",
+        "4. No library-name or external return-type whitelist is introduced "
+        "to turn runtime observations into static guesses.",
+        "",
         "## Release Disposition",
         "",
         "| Disposition | Records | Meaning |",
@@ -238,11 +343,12 @@ def render_markdown(entries):
     ]
     meanings = {
         DISPOSITION_FIX: "Must be closed in 1.0.5",
-        DISPOSITION_BOUNDARY: "Documented static-analysis boundary",
+        DISPOSITION_ACCEPTED_UNKNOWN:
+            "Current unknown is justified by the static evidence boundary",
         DISPOSITION_GT: "Canonical GT label must be corrected",
     }
     for name in (
-            DISPOSITION_FIX, DISPOSITION_BOUNDARY, DISPOSITION_GT):
+            DISPOSITION_FIX, DISPOSITION_ACCEPTED_UNKNOWN, DISPOSITION_GT):
         lines.append("| `%s` | %d | %s |" % (
             name, disposition_counts.get(name, 0), meanings[name]))
     lines.append("| **Total** | **%d** | |" % len(entries))
@@ -259,13 +365,24 @@ def render_markdown(entries):
         SCOPE_INTERPROC,
         SCOPE_CONSERVATIVE,
         SCOPE_LOCAL,
-        SCOPE_BOUNDARY,
+        SCOPE_EVIDENCE_UNKNOWN,
         SCOPE_GT,
     )
     for name in scope_order:
         lines.append("| `%s` | %d |" % (
             name, scope_counts.get(name, 0)))
     lines.append("| **Total** | **%d** |" % len(entries))
+
+    lines.extend([
+        "",
+        "## Evidence Boundary",
+        "",
+        "| Verification level | Disposition | Records |",
+        "|---|---|---:|",
+    ])
+    for (level, disposition), count in sorted(evidence_counts.items()):
+        lines.append("| `%s` | `%s` | %d |" % (
+            level, disposition, count))
 
     lines.extend([
         "",
@@ -289,25 +406,42 @@ def render_markdown(entries):
             category_counts.items(), key=lambda item: (-item[1], item[0])):
         lines.append("| `%s` | %d |" % (name or "(none)", count))
 
-    exceptional = [
+    lines.extend([
+        "",
+        "## Unknown Outcome Queue",
+        "",
+        "These records either already have a justified `unknown` result or "
+        "must drop a source-unsupported `local`/library claim to `unknown`.",
+        "",
+        "| Project | Category | Disposition | Records |",
+        "|---|---|---|---:|",
+    ])
+    for (project, category, disposition), count in sorted(
+            unknown_outcome_counts.items()):
+        lines.append("| `%s` | `%s` | `%s` | %d |" % (
+            project, category or "(none)", disposition, count))
+
+    corrections = [
         entry for entry in entries
-        if entry["disposition"] != DISPOSITION_FIX
+        if entry["disposition"] == DISPOSITION_GT
     ]
     lines.extend([
         "",
-        "## Boundary And Label Records",
+        "## Ground Truth Corrections",
         "",
-        "| Disposition | Location | Expression | Reason |",
-        "|---|---|---|---|",
+        "| Location | Expression | Reason |",
+        "|---|---|---|",
     ])
-    for entry in exceptional:
+    for entry in corrections:
         location = "%s/%s:%d:%d" % (
             entry["project"], entry["file"], entry["lineno"],
             entry["col_offset"])
         expression = entry["expression"].replace("|", "\\|")
         reason = entry["disposition_reason"].replace("|", "\\|")
-        lines.append("| `%s` | `%s` | `%s` | %s |" % (
-            entry["disposition"], location, expression, reason))
+        lines.append("| `%s` | `%s` | %s |" % (
+            location, expression, reason))
+    if not corrections:
+        lines.append("| - | - | None in the current locked GT |")
 
     lines.extend([
         "",
@@ -315,7 +449,8 @@ def render_markdown(entries):
         "",
         "1. Every `fix_1_0_5` entry must either become a primary hit or be "
         "reclassified with reviewed evidence.",
-        "2. `accepted_boundary` entries remain visible in the release report.",
+        "2. `accepted_unknown` entries remain scored as GT misses, but do not "
+        "require a guessed exact owner for release.",
         "3. `ground_truth_correction` entries must update the canonical GT "
         "before algorithm work continues.",
         "4. No mismatch may remain without a disposition.",

@@ -72,6 +72,13 @@ for compiled_pattern in compiled_patterns:
     for iterated_match in compiled_pattern.finditer("xy"):
         iterated_match.start()
 
+tuple_patterns = [
+    (re.compile(value), value) for value in ("x", "y")
+]
+for tuple_pattern, tuple_label in tuple_patterns:
+    for tuple_match in tuple_pattern.finditer(tuple_label):
+        tuple_match.group()
+
 
 class LocalPattern:
     def finditer(self, text):
@@ -81,6 +88,21 @@ class LocalPattern:
 local_patterns = [LocalPattern() for value in ("x", "y")]
 for local_pattern in local_patterns:
     local_pattern.finditer("xy")
+
+
+def use_local_tuple_patterns():
+    tuple_patterns = [
+        (LocalPattern(), value) for value in ("x", "y")
+    ]
+    for tuple_pattern, tuple_label in tuple_patterns:
+        tuple_pattern.finditer(tuple_label)
+
+
+use_local_tuple_patterns()
+
+for tuple_pattern, tuple_label in tuple_patterns:
+    for tuple_match in tuple_pattern.finditer(tuple_label):
+        tuple_match.group()
 
 rebound_patterns = [re.compile(value) for value in ("x", "y")]
 rebound_patterns = [LocalPattern()]

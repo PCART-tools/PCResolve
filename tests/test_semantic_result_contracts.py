@@ -41,6 +41,39 @@ def test_function_local_import_is_direct_ownership_evidence():
     ).top_library == "matplotlib"
 
 
+def test_function_local_import_from_is_direct_ownership_evidence():
+    result = _analyze(
+        "def render():\n"
+        "    from matplotlib import pyplot as plt\n"
+        "    plt.gcf().add_subplot(111)\n"
+    )
+
+    gcf_call = _call(result, "plt.gcf()")
+    assert gcf_call.top_library == "matplotlib"
+    assert gcf_call.resolved_func == "matplotlib.pyplot.gcf"
+    assert _call(
+        result, "plt.gcf().add_subplot(111)"
+    ).top_library == "matplotlib"
+
+
+def test_function_local_import_aliases_are_lexically_isolated():
+    result = _analyze(
+        "def decode():\n"
+        "    import json as lib\n"
+        "    lib.loads('{}')\n"
+        "def compile_pattern():\n"
+        "    import re as lib\n"
+        "    lib.compile('x')\n"
+    )
+
+    loads_call = _call(result, "lib.loads('{}')")
+    compile_call = _call(result, "lib.compile('x')")
+    assert loads_call.top_library == "json"
+    assert loads_call.resolved_func == "json.loads"
+    assert compile_call.top_library == "re"
+    assert compile_call.resolved_func == "re.compile"
+
+
 def test_python_result_contract_overrides_callable_owner():
     result = _analyze(
         "def encode():\n"
@@ -92,12 +125,16 @@ def test_stdlib_path_iterators_yield_python_strings():
         "    filename.endswith('.py')\n"
         "for path in glob.glob('*.py'):\n"
         "    path.split('/')\n"
+        "    path.append('invalid')\n"
     )
 
     assert _call(
         result, "filename.endswith('.py')"
     ).top_library == "python"
     assert _call(result, "path.split('/')").top_library == "python"
+    assert _call(
+        result, "path.append('invalid')"
+    ).top_library == "unknown"
 
 
 def test_stdlib_regex_result_objects_keep_re_owner():
@@ -106,11 +143,15 @@ def test_stdlib_regex_result_objects_keep_re_owner():
         "pattern = re.compile('a')\n"
         "match = re.match('a', 'a')\n"
         "pattern.finditer('a')\n"
-        "match.group(0)\n"
+        "group_text = match.group(0)\n"
+        "group_text.append('invalid')\n"
     )
 
     assert _call(result, "pattern.finditer('a')").top_library == "re"
     assert _call(result, "match.group(0)").top_library == "re"
+    assert _call(
+        result, "group_text.append('invalid')"
+    ).top_library == "unknown"
 
 
 def test_stdlib_regex_callback_receives_re_match():
@@ -152,6 +193,84 @@ def test_argparse_namespace_builtin_values_are_python_owned():
     ).top_library == "python"
 
 
+def test_argparse_argument_group_preserves_namespace_value_shapes():
+    result = _analyze(
+        "import argparse\n"
+        "parser = argparse.ArgumentParser()\n"
+        "group = parser.add_argument_group('options')\n"
+        "group.add_argument('--name', default='fast')\n"
+        "group.add_argument('--bytes', default='1M')\n"
+        "args = parser.parse_args()\n"
+        "args.name.strip()\n"
+        "args.bytes[-1].lower()\n"
+    )
+
+    assert _call(result, "args.name.strip()").top_library == "python"
+    assert _call(result, "args.bytes[-1].lower()").top_library == "python"
+
+
+def test_local_kwargs_constructor_preserves_field_shapes():
+    result = _analyze(
+        "class Namespace:\n"
+        "    def __init__(self, **kwargs):\n"
+        "        self.__dict__.update(kwargs)\n"
+        "options = Namespace(names=[], values={}, flags=set())\n"
+        "options.names.append('value')\n"
+        "options.values.get('key')\n"
+        "options.flags.add('flag')\n"
+    )
+
+    assert _call(result, "options.names.append('value')").top_library == "python"
+    assert _call(result, "options.values.get('key')").top_library == "python"
+    assert _call(result, "options.flags.add('flag')").top_library == "python"
+
+
+def test_local_kwargs_constructor_fields_do_not_survive_rebinding():
+    result = _analyze(
+        "class Namespace:\n"
+        "    def __init__(self, **kwargs):\n"
+        "        self.__dict__.update(kwargs)\n"
+        "options = Namespace(names=[])\n"
+        "options = make_options()\n"
+        "options.names.append('value')\n"
+    )
+
+    assert _call(result, "options.names.append('value')").top_library != "python"
+
+
+def test_local_kwargs_constructor_fields_do_not_cross_function_scopes():
+    result = _analyze(
+        "class Namespace:\n"
+        "    def __init__(self, **kwargs):\n"
+        "        self.__dict__.update(kwargs)\n"
+        "def build():\n"
+        "    options = Namespace(names=[])\n"
+        "    options.names.append('value')\n"
+        "def consume():\n"
+        "    options.names.append('value')\n"
+    )
+
+    matches = [
+        call for call in result.all_api_calls
+        if call.expression == "options.names.append('value')"
+    ]
+    assert [call.top_library for call in matches] == ["python", "unknown"]
+
+
+def test_local_kwargs_constructor_fields_do_not_cross_class_scope():
+    result = _analyze(
+        "class Namespace:\n"
+        "    def __init__(self, **kwargs):\n"
+        "        self.__dict__.update(kwargs)\n"
+        "class Holder:\n"
+        "    options = Namespace(names=[])\n"
+        "    def consume(self):\n"
+        "        options.names.append('value')\n"
+    )
+
+    assert _call(result, "options.names.append('value')").top_library != "python"
+
+
 def test_stdlib_element_text_attribute_is_python_owned():
     result = _analyze(
         "import xml.etree.ElementTree as ET\n"
@@ -165,6 +284,41 @@ def test_stdlib_element_text_attribute_is_python_owned():
     assert _call(
         result, "root.find('name').text.lower().strip()"
     ).top_library == "python"
+
+
+def test_stdlib_element_text_shape_survives_function_local_iteration():
+    result = _analyze(
+        "import xml.etree.ElementTree as ET\n"
+        "def labels(path):\n"
+        "    root = ET.parse(path).getroot()\n"
+        "    for item in root.iter('item'):\n"
+        "        item.find('name').text.lower().strip()\n"
+    )
+
+    assert _call(
+        result, "item.find('name').text.lower()"
+    ).top_library == "python"
+    assert _call(
+        result, "item.find('name').text.lower().strip()"
+    ).top_library == "python"
+
+
+def test_local_text_attribute_chain_does_not_gain_stdlib_shape():
+    result = _analyze(
+        "class Value:\n"
+        "    text = None\n"
+        "class Root:\n"
+        "    def iter(self): return [self]\n"
+        "    def find(self, name): return Value()\n"
+        "def labels():\n"
+        "    for item in Root().iter():\n"
+        "        item.find('name').text.lower()\n"
+        "labels()\n"
+    )
+
+    assert _call(
+        result, "item.find('name').text.lower()"
+    ).top_library == "local"
 
 
 def test_gpy_predict_unpacked_results_are_numpy_owned():

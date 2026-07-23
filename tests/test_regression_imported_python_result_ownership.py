@@ -24,6 +24,13 @@ def _call(result, expression):
     return matches[0]
 
 
+def _calls(result, expression):
+    return [
+        call for call in result.all_api_calls
+        if call.expression == expression
+    ]
+
+
 def _analyze():
     return analyze_project(FIXTURE, scope_model="v2")
 
@@ -126,6 +133,27 @@ def test_re_finditer_elements_keep_re_owner_through_list_comprehension():
     assert _call(
         result, "compiled_pattern.finditer('xy')").top_library == "re"
     assert _call(result, "iterated_match.start()").top_library == "re"
+
+
+def test_tuple_fields_keep_result_owner_through_list_comprehension():
+    result = _analyze()
+
+    pattern_calls = _calls(
+        result, "tuple_pattern.finditer(tuple_label)")
+    match_calls = _calls(result, "tuple_match.group()")
+    assert any(call.top_library == "re" for call in pattern_calls)
+    assert any(call.top_library == "re" for call in match_calls)
+
+
+def test_local_tuple_comprehension_does_not_overwrite_module_fact():
+    result = _analyze()
+
+    pattern_calls = _calls(
+        result, "tuple_pattern.finditer(tuple_label)")
+    assert any(call.top_library == "local" and call.lineno == 104
+               for call in pattern_calls)
+    assert any(call.top_library == "re" and call.lineno == 98
+               for call in pattern_calls)
 
 
 def test_local_finditer_name_does_not_claim_re_owner():

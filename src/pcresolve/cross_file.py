@@ -21,18 +21,18 @@ _PY2_BUILTINS = frozenset({
 _BUILTIN_CONTAINER_METHODS = {
     "list": frozenset([
         "append", "extend", "insert", "remove", "pop", "clear",
-        "index", "count", "sort", "reverse", "copy",
+        "index", "count", "sort", "reverse", "copy", "__len__",
     ]),
     "dict": frozenset([
         "get", "keys", "values", "items", "update", "pop",
-        "popitem", "clear", "copy",
+        "popitem", "clear", "copy", "__len__",
     ]),
     "set": frozenset([
         "add", "remove", "discard", "pop", "clear", "copy",
         "update", "difference", "intersection", "union",
-        "symmetric_difference", "issubset", "issuperset",
+        "symmetric_difference", "issubset", "issuperset", "__len__",
     ]),
-    "tuple": frozenset(["count", "index"]),
+    "tuple": frozenset(["count", "index", "__len__"]),
     "str": frozenset([
         "strip", "rstrip", "lstrip", "split", "rsplit", "join",
         "replace", "find", "rfind", "rindex", "startswith",
@@ -41,7 +41,7 @@ _BUILTIN_CONTAINER_METHODS = {
         "format", "format_map",
         "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
         "isidentifier", "islower", "isnumeric", "isprintable",
-        "isspace", "istitle", "isupper",
+        "isspace", "istitle", "isupper", "__len__",
     ]),
 }
 
@@ -56,16 +56,29 @@ def _receiver_container_kind(tracer, receiver_name):
 ## Check if a name is a Python builtin(including Python 2 builtins).
 def _is_builtin(name):
     return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
+
+
+## Select one field from a bounded tuple/list source.
+#  @param source Candidate tuple/list source.
+#  @param index Zero-based field index.
+#  @return Field source, or None when the field is not proven.
+def _tuple_source_item(source, index):
+    source = normalize_source(source)
+    if not isinstance(source, TupleSource) or not isinstance(index, int):
+        return None
+    if index < 0 or index >= len(source.items):
+        return None
+    return normalize_source(source.items[index])
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .ir import (SymbolProvenance, ClassificationResult,
                     REASON_DIRECT_IMPORT)
-from .single_file import (SingleFileAnalyzer, _match_result_owner,
-                          _is_verified_result_owner)
-from .sources import (ContainerItem, ContainerIter, InstanceMethod,
-                       ParameterSource, SuperMethod, CallResult,
+from .single_file import (SingleFileAnalyzer, _has_result_owner_contract,
+                          _match_result_owner, _is_verified_result_owner)
+from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
+                       ParameterSource, PythonShape, SuperMethod, CallResult,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
-                       source_display)
+                       source_display, make_source_set)
 from .call_graph import CallContext, ProjectCallGraph
 from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
@@ -111,6 +124,39 @@ def _is_import_origin(tracer, symbol):
     for ref in getattr(tracer, "symbol_refs", []):
         if ref.kind == "import" and _matches(normalize_source(ref.source)):
             return True
+    return False
+
+
+## Check whether a source contains explicit project return evidence.
+#  This distinguishes a receiver propagated through a local return or tuple
+#  binding from an independently verified external result contract.  The
+#  latter may classify the current call, but it must not rewrite unrelated
+#  downstream records as new call-graph evidence.
+#  @param source Source value to inspect.
+#  @param _seen Recursion guard for nested source objects.
+#  @return True when the source contains a return-origin SourceSet.
+def _has_return_provenance(source, _seen=None):
+    source = normalize_source(source)
+    if source is None:
+        return False
+    if _seen is None:
+        _seen = set()
+    marker = id(source)
+    if marker in _seen:
+        return False
+    _seen.add(marker)
+    if isinstance(source, SourceSet):
+        if source.origin == "return":
+            return True
+        return any(_has_return_provenance(item, _seen)
+                   for item in source.sources)
+    if isinstance(source, CallResult):
+        return _has_return_provenance(source.result_source, _seen)
+    if isinstance(source, DerivedResult):
+        return any(_has_return_provenance(item, _seen)
+                   for item in source.sources)
+    if isinstance(source, InstanceMethod):
+        return _has_return_provenance(source.receiver, _seen)
     return False
 
 
@@ -169,7 +215,8 @@ class ProjectAnalyzer:
             cg_return_cb=self._lookup_cg_return_source,
             known_local_cb=self._is_known_local_symbol,
             resolve_structured_cb=self._resolve_structured_source,
-            dedupe_cb=self._dedupe_list)
+            dedupe_cb=self._dedupe_list,
+            is_import_origin_cb=_is_import_origin)
         self._pipeline = ClassificationPipeline(
             origin_candidates_cb=self._origin_candidates,
             is_direct_import_cb=self._is_direct_import_base,
@@ -235,10 +282,14 @@ class ProjectAnalyzer:
         ## Aggregate per-module call-graph facts (Phase 7B-full PR1).
         self.project_cg = ProjectCallGraph()
         for module, tracer in module_tracers.items():
-            if tracer.module_cg.functions or tracer.module_cg.classes or tracer.module_cg.edges:
+            if (tracer.module_cg.functions or tracer.module_cg.classes
+                    or tracer.module_cg.edges
+                    or tracer.module_cg.iteration_bindings):
                 self.project_cg.modules[module] = tracer.module_cg
 
         self._bind_bounded_local_call_results(module_tracers)
+        self._bind_bounded_local_generator_results(module_tracers)
+        self._bind_proven_result_method_results(module_tracers)
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
@@ -387,6 +438,90 @@ class ProjectAnalyzer:
     def is_local(self, module_name):
         return module_name in self.module_mapper.get_all_modules()
 
+    ## Downgrade an import-backed method owner after a visible monkey patch.
+    #
+    #  A patch on one imported class does not prove that every receiver from
+    #  that library has the patched class. When the receiver has already been
+    #  reduced to the library owner, the only sound primary is unknown.
+    #  @param call_detail Single-file call record.
+    #  @param tracer Analyzer for the current module.
+    #  @param top_source Resolved import-backed owner.
+    #  @return top_source or "unknown".
+    def _apply_external_override_ambiguity(
+            self, call_detail, tracer, top_source):
+        if top_source in ("", None, "local", "python", "unknown"):
+            return top_source
+        func_name = call_detail.get("func_name", "")
+        if "." not in func_name:
+            return top_source
+        method_name = func_name.rsplit(".", 1)[-1]
+        patches = getattr(
+            tracer, "external_method_overrides", {}).get(
+                (top_source, method_name), [])
+        if not patches:
+            return top_source
+        call_scope = call_detail.get("scope_name", "")
+        call_line = call_detail.get("lineno", 0)
+        for patch_scope, patch_line, _ in patches:
+            visible = (
+                patch_scope == ""
+                or (
+                    patch_scope == call_scope
+                    and patch_line <= call_line
+                )
+            )
+            if visible:
+                return "unknown"
+        return top_source
+
+    ## Promote a chained local-call receiver to structured result evidence.
+    #
+    #  Single-file collection intentionally keeps ``make_value().method``
+    #  conservative because the return object is resolved only after the
+    #  project call graph is available.  Once the exact local edge is known,
+    #  represent the receiver as a CallResult so the existing return-summary
+    #  resolver can follow it.  This is limited to an unambiguous project
+    #  call edge and never infers an external library from the method name.
+    #  @param module Current caller module.
+    #  @param call_detail Raw single-file call record.
+    #  @param module_tracers All module analyzers.
+    #  @return InstanceMethod receiver, or None when the edge is unresolved.
+    def _promote_chained_local_call_receiver(
+            self, module, call_detail, module_tracers):
+        base = normalize_source(call_detail.get("base"))
+        func_name = call_detail.get("func_name", "")
+        if not isinstance(base, str) or not isinstance(func_name, str):
+            return None
+        marker = "()."
+        if not func_name.startswith(base + marker):
+            return None
+        inner_name, _, suffix = func_name.partition(marker)
+        if not inner_name or not suffix:
+            return None
+        edges = [
+            edge for edge in self.project_cg.modules.get(
+                module, ProjectCallGraph()).edges
+            if edge.caller.qualname == (
+                call_detail.get("scope_name", "") or "<module>")
+            and edge.call_lineno == call_detail.get("lineno", 0)
+            and edge.call_col_offset == call_detail.get("col_offset", 0)
+            and edge.callee_name == inner_name
+        ]
+        if len(edges) != 1:
+            return None
+        targets = self._local_edge_targets(edges[0], module, module_tracers)
+        if len(targets) != 1:
+            return None
+        target = targets[0]
+        result = CallResult(
+            target.module + "." + target.qualname,
+            display_name=inner_name,
+            call_lineno=edges[0].call_lineno,
+            call_col_offset=edges[0].call_col_offset,
+            source_module=module,
+        )
+        return InstanceMethod(result, suffix.rsplit(".", 1)[-1])
+
     ## Collect all API calls across all modules and resolve their top-level origin.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
     def get_calls(self, module_tracers):
@@ -399,6 +534,28 @@ class ProjectAnalyzer:
             self.all_calls[module] = []
             for call_detail in tracer.api_calls:
                 base = call_detail.get('base')
+                promoted_receiver = self._promote_chained_local_call_receiver(
+                    module, call_detail, module_tracers)
+                if promoted_receiver is not None:
+                    base = promoted_receiver
+                # A comprehension variable is an element of the receiver
+                # container, not the owner of that container.  When a local
+                # function returns a tuple and no positional binding reaches
+                # the comprehension, keep the element unresolved instead of
+                # promoting the homogeneous container owner.
+                base_receiver = (
+                    base.receiver
+                    if isinstance(base, InstanceMethod) else base)
+                if (call_detail.get('scope_name') == '<comprehension>'
+                        and call_detail.get('func_name', '').split('.', 1)[0]
+                        in getattr(tracer, 'comprehension_targets', set())
+                        and isinstance(base_receiver, CallResult)
+                        and base_receiver.result_source is None
+                        and self._is_unbound_tuple_call_result(
+                            module, base_receiver, module_tracers)):
+                    base = UnknownSource("unresolved tuple element")
+                    call_detail = dict(call_detail)
+                    call_detail['top'] = 'unknown'
                 if call_detail.get('top') == 'unknown':
                     # Preserve unknown top — the single-file phase
                     # already determined the owner cannot be resolved.
@@ -415,6 +572,8 @@ class ProjectAnalyzer:
                     if isinstance(base, str) or is_structured_source(base):
                         top_source = self._base_top_source(module, base, tracer, module_tracers)
                         if top_source and top_source != 'local':
+                            top_source = self._apply_external_override_ambiguity(
+                                call_detail, tracer, top_source)
                             record = dict(call_detail)
                             record['top'] = top_source
                             cr = self.classify_source(
@@ -453,6 +612,8 @@ class ProjectAnalyzer:
                     record['top'] = "python"
                 else:
                     top_source = self._base_top_source(module, base, tracer, module_tracers)
+                    top_source = self._apply_external_override_ambiguity(
+                        call_detail, tracer, top_source)
                     record = dict(call_detail)
                     record['top'] = top_source
                 cr = self.classify_source(
@@ -467,6 +628,25 @@ class ProjectAnalyzer:
                 c['resolved_func'] = self._resolve_func_name(c, module, tracer)
 
         self._call_searched_global = None
+
+    ## Check whether a call result used in a comprehension is an unbound
+    #  project-local tuple result.
+    #  @param module Caller module.
+    #  @param source CallResult used as the comprehension receiver.
+    #  @param tracers Per-module analyzers.
+    #  @return True when the tuple item position is not statically known.
+    def _is_unbound_tuple_call_result(self, module, source, tracers):
+        context = self._bounded_call_context(
+            module, source.call_lineno, source.call_col_offset,
+            tracers)
+        if context is None:
+            return False
+        module_cg = self.project_cg.modules.get(context.target.module)
+        summary = (
+            module_cg.functions.get(context.target.qualname)
+            if module_cg is not None else None)
+        return summary is not None and self._is_tuple_return_source(
+            summary.returns)
 
     ## Resolve the top-level source of a base symbol, preferring call_assign_funcs.
     #  @param module The current module.
@@ -628,6 +808,8 @@ class ProjectAnalyzer:
                     module, item, tracers, include_local,
                     _seen=set(seen)))
             return self._dedupe_list(out)
+        if isinstance(source, PythonShape):
+            return ["python"]
         if isinstance(source, DerivedResult):
             if source.kind == "iterator":
                 return ["unknown"]
@@ -650,6 +832,41 @@ class ProjectAnalyzer:
                 result_owner = _match_result_owner(
                     receiver_top, method_source.method)
                 return [result_owner or "unknown"]
+            if source.kind == "expression":
+                # An expression receiver is owner evidence only when every
+                # operand resolves to the same concrete owner.  A parameter
+                # expression with unresolved or mixed operands must remain
+                # unknown rather than falling through to local.  Explicit
+                # local evidence is retained when no external owner is
+                # present, which preserves local protocol receivers such as
+                # ``(self.value * mask).sum()``.
+                operand_candidates = []
+                saw_local = False
+                saw_unresolved = False
+                for item in source.sources:
+                    candidates = self._argument_owner_candidates(
+                        module, item, tracers)
+                    saw_local = saw_local or "local" in candidates
+                    saw_unresolved = (
+                        saw_unresolved or "unknown" in candidates)
+                    concrete = self._dedupe_list([
+                        candidate for candidate in candidates
+                        if candidate not in (None, "", "unknown", "local")
+                    ])
+                    if len(concrete) != 1:
+                        if concrete:
+                            return ["unknown"]
+                        saw_unresolved = True
+                        continue
+                    operand_candidates.append(concrete[0])
+                if (operand_candidates and not saw_unresolved
+                        and not saw_local and all(
+                        owner == operand_candidates[0]
+                        for owner in operand_candidates)):
+                    return [operand_candidates[0]]
+                if not operand_candidates and saw_local:
+                    return ["local"]
+                return ["unknown"]
             out = []
             for item in source.sources:
                 out.extend(self._origin_candidates(
@@ -658,6 +875,23 @@ class ProjectAnalyzer:
             return self._dedupe_list(out) or ["unknown"]
         if isinstance(source, UnknownSource):
             return ["unknown"]
+        if isinstance(source, ContainerItem):
+            container = normalize_source(source.container)
+            if (isinstance(container, CallResult)
+                    and isinstance(source.index, int)):
+                source_origin_module = container.source_module or module
+                candidates = self._bounded_call_result_item_candidates(
+                    source_origin_module, container, source.index, tracers,
+                    _seen=seen)
+                if candidates is not None:
+                    return candidates
+                # No project-local tuple contract exists. Preserve the
+                # established aggregate call-result fallback for external
+                # calls instead of treating the positional marker as a
+                # project container lookup.
+                return self._origin_candidates(
+                    source_origin_module, container, tracers, include_local,
+                    _seen=set(seen))
         if isinstance(source, ContainerIter):
             resolved = self._resolve_container_iter(
                 module, source.container, tracers)
@@ -672,13 +906,15 @@ class ProjectAnalyzer:
                 module, normalize_source(source.receiver), tracers,
                 include_local, _seen=set(seen))
         if isinstance(source, CallResult):
+            source_origin_module = source.source_module or module
             if source.result_source is not None:
                 if (isinstance(source.result_source, str)
                         and source.result_source not in (
                             "", "local", "python", "unknown")):
                     return [source.result_source]
                 return self._origin_candidates(
-                    module, source.result_source, tracers, include_local,
+                    source_origin_module, source.result_source, tracers,
+                    include_local,
                     _seen=set(seen))
             bounded = self._bounded_call_result_candidates(
                 module, source, tracers, _seen=set(seen))
@@ -727,7 +963,7 @@ class ProjectAnalyzer:
                                     candidates.append(m)
                 return candidates
             top = self._top_source(
-                module, callee, tracers, _seen=set(seen))
+                source_origin_module, callee, tracers, _seen=set(seen))
             return [top] if top else []
         if is_structured_source(source):
             resolved = self._resolve_structured_source(
@@ -822,7 +1058,10 @@ class ProjectAnalyzer:
         _visited.add(first)
 
         replacement = None
-        ifs = tracer.import_from_symbols.get(first)
+        if "call_import_source" in call_dict:
+            ifs = call_dict["call_import_source"]
+        else:
+            ifs = tracer.import_from_symbols.get(first)
         if ifs:
             ifs_top = ifs.split('.')[0]
             if not self.is_local(ifs_top):
@@ -988,6 +1227,33 @@ class ProjectAnalyzer:
             self._container_candidate(module, src, tracers, candidates, visited)
         return candidates
 
+    ## Resolve Python element shapes carried by an iterable argument.
+    #
+    #  This uses only a concrete PythonShape already recorded at a call site.
+    #  A dictionary's value shape is not reused for iteration because Python
+    #  iteration yields keys, not values. Unknown or mixed shapes remain
+    #  unknown.
+    #  @param source Argument source or PythonShape.
+    #  @return List of element sources, or None when no Python shape was
+    #  proven for this argument.
+    def _python_iterable_element_sources(self, source):
+        source = normalize_source(source)
+        if isinstance(source, PythonShape):
+            if source.kind == "str":
+                return [source]
+            if source.kind in ("list", "tuple", "set") and source.item_kind:
+                return [PythonShape(source.item_kind)]
+            return None
+        if isinstance(source, SourceSet):
+            candidates = []
+            for item in source.sources:
+                item_sources = self._python_iterable_element_sources(item)
+                if item_sources is None:
+                    return None
+                candidates.extend(item_sources)
+            return self._dedupe_list(candidates) or ["unknown"]
+        return None
+
     ## Resolve an iteration over a container to its source(s).
     #  @param module The current module.
     #  @param container_name Name of the container variable.
@@ -999,6 +1265,48 @@ class ProjectAnalyzer:
             return None
         if not isinstance(container_name, str):
             cn = normalize_source(container_name)
+            if isinstance(cn, ParameterSource):
+                if cn.derived or cn.attributes:
+                    return (module, ["unknown"])
+                params = (
+                    tracer.function_params.get(cn.scope)
+                    or tracer.function_params.get(
+                        cn.scope.rsplit(".", 1)[-1], []))
+                if cn.name not in params:
+                    return (module, ["unknown"])
+                param_index = params.index(cn.name)
+                protocol_arguments = self._parameter_call_arguments(
+                    module, cn.scope, cn.name, param_index,
+                    tracer, tracers, prefer_protocol_shape=True)
+                if protocol_arguments:
+                    element_sources = []
+                    protocol_proven = True
+                    for _, argument in protocol_arguments:
+                        argument_sources = (
+                            self._python_iterable_element_sources(argument))
+                        if argument_sources is None:
+                            protocol_proven = False
+                            break
+                        element_sources.extend(argument_sources)
+                    if protocol_proven and element_sources:
+                        return (
+                            module,
+                            self._dedupe_list(element_sources) or ["unknown"],
+                        )
+                arguments = self._parameter_call_arguments(
+                    module, cn.scope, cn.name, param_index,
+                    tracer, tracers, prefer_iterable_elements=True)
+                if not arguments:
+                    return (module, ["unknown"])
+                candidates = []
+                for caller_module, source in arguments:
+                    candidates.extend(self._origin_candidates(
+                        caller_module, source, tracers,
+                        include_local=True))
+                return (
+                    module,
+                    self._dedupe_list(candidates) or ["unknown"],
+                )
             if isinstance(cn, CallResult) and isinstance(cn.callee, str):
                 top = self._top_source(module, cn.callee, tracers)
                 if top and top not in ("local", "python", "unknown", ""):
@@ -1161,23 +1469,37 @@ class ProjectAnalyzer:
         if _seen is None:
             _seen = set()
         direct_source = normalize_source(direct_source)
+        if isinstance(direct_source, PythonShape):
+            return (source_display(direct_source), module, "python")
+        if isinstance(direct_source, DerivedResult):
+            candidates = self._origin_candidates(
+                module, direct_source, tracers, _seen=set(_seen))
+            unique = self._dedupe_list([
+                candidate for candidate in candidates
+                if candidate not in (None, "")
+            ])
+            owner = unique[0] if len(unique) == 1 else "unknown"
+            return (source_display(direct_source), module, owner)
         if isinstance(direct_source, SourceSet):
             ## 7B-full PR7-final: converge-check all candidates.
             primary = self._resolve_sourceset_primary(
                 module, direct_source, tracers, _seen=set(_seen))
             if primary:
                 return (source_display(direct_source), module, primary)
-            ## Element-derived builtins select one runtime value.  When the
-            # candidates do not converge, choosing the first source would
-            # manufacture an owner; retain every origin as alternatives.
-            if direct_source.origin == "builtin_element":
+            ## Function branch values and element-derived builtins identify
+            # multiple runtime possibilities. Preserve every origin as
+            # alternatives without selecting one branch as primary.
+            if direct_source.origin in (
+                    "builtin_element", "function_branch"):
                 return (source_display(direct_source), module, "unknown")
-            ## No convergence: fall back to str pick-first (branch imports).
+            ## Legacy module-level branch imports retain their compatibility
+            # primary until a full module CFG replaces this fallback.
             for src in direct_source.sources:
                 if isinstance(src, str):
                     top = self._top_source(
                         module, src, tracers, _seen=set(_seen))
-                    if top and top not in ("local", "python", "unknown", ""):
+                    if top and top not in (
+                            "local", "python", "unknown", ""):
                         return (source_display(direct_source), module, src)
             for src in direct_source.sources:
                 if isinstance(src, str):
@@ -1209,6 +1531,41 @@ class ProjectAnalyzer:
             return None
 
         if kind == "container_item":
+            if isinstance(a, TupleSource):
+                selected = _tuple_source_item(a, b)
+                if selected is not None:
+                    structured = self._resolve_structured_source(
+                        module, selected, tracers, _seen=set(_seen))
+                    if structured is not None:
+                        _, src_module, src_symbol = structured
+                        return (f"{source_display(a)}[{b}]",
+                                src_module, src_symbol)
+            if isinstance(a, ParameterSource):
+                tracer = tracers.get(module)
+                params = (tracer.function_params.get(a.scope)
+                          if tracer is not None else None)
+                if params is None and tracer is not None:
+                    params = tracer.function_params.get(
+                        a.scope.rsplit(".", 1)[-1], [])
+                if tracer is not None and a.name in (params or []):
+                    arguments = self._parameter_call_arguments(
+                        module, a.scope, a.name, params.index(a.name),
+                        tracer, tracers, prefer_iterable_elements=True)
+                    selected_sources = []
+                    for _, argument in arguments:
+                        selected = _tuple_source_item(argument, b)
+                        if selected is not None:
+                            selected_sources.append(selected)
+                    selected_sources = self._dedupe_list(
+                        selected_sources)
+                    if len(selected_sources) == 1:
+                        structured = self._resolve_structured_source(
+                            module, selected_sources[0], tracers,
+                            _seen=set(_seen))
+                        if structured is not None:
+                            _, src_module, src_symbol = structured
+                            return (f"{source_display(a)}[{b}]",
+                                    src_module, src_symbol)
             resolved = self._resolve_container_item(module, a, b, tracers)
             if resolved:
                 src_module, src_symbol = resolved
@@ -1237,6 +1594,30 @@ class ProjectAnalyzer:
                     module,
                     parameter_top,
                 )
+            if (isinstance(direct_source, InstanceMethod)
+                    and isinstance(direct_source.receiver, DerivedResult)
+                    and self._is_direct_parameter_expression(
+                        direct_source.receiver)):
+                parameter_top = self._resolve_derived_expression_method_top(
+                    module, direct_source.receiver, direct_source.method,
+                    tracer, tracers)
+                return (
+                    f"{source_display(a)}.{b}",
+                    module,
+                    parameter_top,
+                )
+            if (isinstance(direct_source, InstanceMethod)
+                    and isinstance(direct_source.receiver, DerivedResult)):
+                expression_top = self._resolve_expression_external_top(
+                    module, direct_source.receiver, tracers)
+                if (expression_top != "unknown"
+                        or self._has_expression_owner_evidence(
+                            direct_source.receiver)):
+                    return (
+                        f"{source_display(a)}.{b}",
+                        module,
+                        expression_top,
+                    )
             if (isinstance(a, InstanceMethod)
                     and isinstance(a.receiver, str)
                     and _is_verified_result_owner(a.receiver)):
@@ -1245,6 +1626,26 @@ class ProjectAnalyzer:
                     module,
                     a.receiver,
                 )
+            if isinstance(a, (CallResult, SourceSet)):
+                local_classes = self._local_class_candidates(
+                    module, a, tracers, visited=set(_seen))
+                branch_evidence = isinstance(a, CallResult)
+                if isinstance(a, SourceSet):
+                    branch_evidence = bool(a.sources) and all(
+                        self._local_class_candidates(
+                            module, item, tracers, visited=set(_seen))
+                        for item in a.sources
+                    )
+                if branch_evidence:
+                    local_method_classes = [
+                        identity for identity in local_classes
+                        if self._local_class_defines_method(
+                            identity[0], identity[1], b, tracers)
+                    ]
+                    if len(local_method_classes) == 1:
+                        return (f"{source_display(a)}.{b}", module, "local")
+                    if len(local_method_classes) > 1:
+                        return (f"{source_display(a)}.{b}", module, "unknown")
             if is_structured_source(a):
                 receiver = self._resolve_structured_source(
                     module, a, tracers, _seen=set(_seen))
@@ -1261,10 +1662,42 @@ class ProjectAnalyzer:
                     receiver_top = self._top_source(
                         receiver_module, receiver_symbol, tracers,
                         _seen=set(_seen))
+                # A local callable identity does not prove the type of its
+                # returned object.  Preserve ``local`` only when the call
+                # result resolves to one project-local class that actually
+                # defines this method; otherwise the receiver owner is
+                # unresolved rather than project-local.
+                if (receiver_top == "local"
+                        and isinstance(a, CallResult)
+                        and not local_classes):
+                    receiver_top = "unknown"
+                if (receiver_top == "local"
+                        and isinstance(a, InstanceMethod)
+                        and isinstance(a.receiver, InstanceMethod)
+                        and a.receiver.parameter_scope):
+                    receiver_top = "unknown"
                 if not receiver_top:
                     receiver_top = "unknown"
                 return (f"{source_display(a)}.{b}",
                         receiver_module, receiver_top)
+            # A dynamically indexed homogeneous mapping can be resolved only
+            # after the complete file has been visited.  This post-pass keeps
+            # the evidence generic: every statically resolved value must
+            # converge to one owner before it is used for the method call.
+            if isinstance(a, str):
+                homogeneous = getattr(
+                    tracer, "homogeneous_container_value_sources", {}
+                ).get(a)
+                if homogeneous is not None:
+                    resolved = self._resolve_structured_source(
+                        module, homogeneous, tracers, _seen=set(_seen))
+                    if resolved is not None:
+                        _, receiver_module, receiver_symbol = resolved
+                        receiver_top = self._top_source(
+                            receiver_module, receiver_symbol, tracers,
+                            _seen=set(_seen))
+                        if receiver_top not in (None, "local", "python", "unknown", ""):
+                            return (f"{a}.{b}", receiver_module, receiver_top)
             if a in tracer.import_from_symbols:
                 class_symbol = a
             else:
@@ -1401,6 +1834,9 @@ class ProjectAnalyzer:
             src_module, candidates = resolved
             if len(candidates) == 1:
                 src_symbol = candidates[0]
+            elif any(candidate in ("local", "python", "unknown", "")
+                     for candidate in candidates):
+                src_symbol = "unknown"
             else:
                 src_symbol = "[" + ",".join(candidates) + "]"
             return (f"{a}[*]", src_module, src_symbol)
@@ -1412,6 +1848,8 @@ class ProjectAnalyzer:
             if rs_explicit is not None:
                 if isinstance(rs_explicit, UnknownSource):
                     return (f"{callee_display or callee}()", module, "unknown")
+                if isinstance(rs_explicit, PythonShape):
+                    return (f"{callee_display or callee}()", module, "python")
                 if rs_explicit == "python":
                     return (f"{callee_display or callee}()", module, "python")
                 if isinstance(rs_explicit, DerivedResult):
@@ -1429,11 +1867,43 @@ class ProjectAnalyzer:
                     if len(unique) == 1 and unique[0] != "unknown":
                         return (f"{callee_display or callee}()",
                                 module, unique[0])
+                    # The placeholder may describe a method on a forwarded
+                    # parameter.  Its exact local method summary can still
+                    # prove the returned object at this call position.
+                    bounded = self._bounded_call_result_candidates(
+                        module, direct_source, tracers,
+                        _seen=set(_seen))
+                    if bounded is not None:
+                        bounded_top = self._bounded_candidates_top(bounded)
+                        bounded_module = self._bounded_owner_module(
+                            bounded_top, module, tracers)
+                        return (
+                            f"{callee_display or callee}()",
+                            bounded_module,
+                            bounded_top,
+                        )
                     return (f"{callee_display or callee}()", module, "unknown")
                 elif isinstance(rs_explicit, str) and rs_explicit not in ("local", "unknown", ""):
                     # Module name string (from __import__("literal")) or
                     # other explicit library name.  This IS the top_library.
                     return (f"{callee_display or callee}()", module, rs_explicit)
+            ## A method on an unconstrained function parameter does not prove
+            ## the owner of its returned object.  Keep chained calls unknown
+            ## unless an explicit result source above already resolved it.
+            callee_source = normalize_source(callee)
+            if (isinstance(callee_source, InstanceMethod)
+                    and callee_source.parameter_scope):
+                return (f"{callee_display or callee}()", module, "unknown")
+            local_classes = self._local_class_from_method_result(
+                module, direct_source, tracers)
+            if len(local_classes) == 1:
+                return (
+                    f"{callee_display or callee}()",
+                    local_classes[0][0],
+                    local_classes[0][1],
+                )
+            if len(local_classes) > 1:
+                return (f"{callee_display or callee}()", module, "unknown")
             bounded = self._bounded_call_result_candidates(
                 module, direct_source, tracers, _seen=set(_seen))
             if bounded is not None:
@@ -1623,17 +2093,32 @@ class ProjectAnalyzer:
 
         param_index = params.index(parameter)
         call_arguments = self._parameter_call_arguments(
-            module, scope_name, parameter, param_index, tracer, tracers)
+            module, scope_name, parameter, param_index, tracer, tracers,
+            prefer_protocol_shape=True)
         if not call_arguments:
             return "unknown"
+
+        receiver_class_filter = None
+        scope_parts = scope_name.rsplit(".", 1)
+        module_cg = getattr(self, "project_cg", None)
+        defining_cg = (
+            module_cg.modules.get(module)
+            if module_cg is not None else None)
+        if (len(scope_parts) == 2 and defining_cg is not None
+                and scope_parts[0] in defining_cg.classes):
+            receiver_class_filter = (module, scope_parts[0])
 
         attribute_path = (
             receiver[len(parameter) + 1:].split(".")
             if receiver != parameter else [])
         owners = []
         if not attribute_path:
-            owners = self._argument_owner_candidates(
-                module, ParameterSource(scope_name, parameter), tracers)
+            for arg_module, arg_source in call_arguments:
+                if arg_source is None:
+                    return "unknown"
+                owners.extend(self._argument_method_owner_candidates(
+                    arg_module, arg_source, method_source.method, tracers,
+                    receiver_class_filter=receiver_class_filter))
         else:
             for arg_module, arg_source in call_arguments:
                 if arg_source is None:
@@ -1650,6 +2135,287 @@ class ProjectAnalyzer:
             return unique[0]
         return "unknown"
 
+    ## Check whether an expression is composed only of direct parameters.
+    #
+    #  Subscript-derived parameters and local attributes are deliberately
+    #  excluded. Their runtime element or attribute type is not established
+    #  by the expression shape alone.
+    #  @param source Source to inspect.
+    #  @return True for a direct-parameter expression.
+    def _is_direct_parameter_expression(self, source):
+        source = normalize_source(source)
+        if isinstance(source, ParameterSource):
+            return not source.derived and not source.attributes
+        if isinstance(source, DerivedResult):
+            return (
+                source.kind == "expression"
+                and bool(source.sources)
+                and all(self._is_direct_parameter_expression(item)
+                        for item in source.sources)
+            )
+        return False
+
+    ## Resolve a method on an expression derived from one or more parameters.
+    #
+    #  For example, ``combined = left + right`` followed by
+    #  ``combined.reshape(...)`` carries two parameter sources.  Resolve each
+    #  operand through its exact project call sites and accept the method
+    #  owner only when every operand converges to the same owner.  This is a
+    #  data-flow rule, not a library or method-name whitelist.
+    #
+    #  @param module Module containing the expression.
+    #  @param source DerivedResult describing the expression operands.
+    #  @param method Receiver method name.
+    #  @param tracer Analyzer for the defining module.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return One owner string, or "unknown" when the operands do not
+    #  converge.
+    def _resolve_derived_expression_method_top(self, module, source, method,
+                                                tracer, tracers):
+        owners = []
+        seen = set()
+
+        def collect(value):
+            value = normalize_source(value)
+            if isinstance(value, DerivedResult):
+                if value.kind != "expression" or not value.sources:
+                    owners.append("unknown")
+                    return
+                for operand in value.sources:
+                    collect(operand)
+                return
+            if isinstance(value, SourceSet):
+                if not value.sources:
+                    owners.append("unknown")
+                    return
+                for operand in value.sources:
+                    collect(operand)
+                return
+            if isinstance(value, ParameterSource):
+                key = (value.scope, value.name, method)
+                if key in seen:
+                    owners.append("unknown")
+                    return
+                seen.add(key)
+                params = tracer.function_params.get(value.scope)
+                if params is None:
+                    params = tracer.function_params.get(
+                        value.scope.rsplit(".", 1)[-1], [])
+                if value.name not in params:
+                    owners.append("unknown")
+                    return
+                arguments = self._parameter_call_arguments(
+                    module, value.scope, value.name, params.index(value.name),
+                    tracer, tracers, prefer_protocol_shape=True)
+                if not arguments:
+                    owners.append("unknown")
+                    return
+                for arg_module, arg_source in arguments:
+                    candidates = self._argument_method_owner_candidates(
+                        arg_module, arg_source, method, tracers)
+                    owners.extend(candidates or ["unknown"])
+                return
+            candidates = self._argument_method_owner_candidates(
+                module, value, method, tracers)
+            owners.extend(candidates or ["unknown"])
+
+        collect(source)
+        unique = self._dedupe_list(
+            owner for owner in owners if owner not in (None, ""))
+        if len(unique) == 1 and unique[0] != "unknown":
+            return unique[0]
+        return "unknown"
+
+    ## Resolve an expression receiver from converged import-backed operands.
+    #
+    #  This handles expressions that combine direct parameters with an
+    #  independently resolved import-backed result.  The ordinary origin
+    #  resolver follows parameter call edges and requires every operand to
+    #  converge.  Python, local, unresolved, and conflicting candidates are
+    #  deliberately rejected here because they do not prove one external
+    #  receiver owner.
+    #  @param module Module containing the expression.
+    #  @param source DerivedResult describing the expression operands.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return One import-backed owner string, or "unknown".
+    def _resolve_expression_external_top(self, module, source, tracers):
+        source = normalize_source(source)
+        if (not isinstance(source, DerivedResult)
+                or source.kind != "expression"
+                or not source.sources):
+            return "unknown"
+        candidates = self._dedupe_list(
+            self._origin_candidates(module, source, tracers))
+        if (len(candidates) == 1
+                and candidates[0] not in (
+                    None, "", "local", "python", "unknown")):
+            return candidates[0]
+        return "unknown"
+
+    ## Check whether an expression retains independent owner evidence.
+    #
+    #  When such evidence conflicts with parameter flow, the receiver must
+    #  remain unknown instead of falling back to local.  Expressions made
+    #  only from local and parameter sources retain the existing local
+    #  identity contract.
+    #  @param source Expression source to inspect.
+    #  @return True when an operand carries non-local owner evidence.
+    def _has_expression_owner_evidence(self, source):
+        source = normalize_source(source)
+        if isinstance(source, (CallResult, PythonShape)):
+            return True
+        if isinstance(source, SourceSet):
+            return any(self._has_expression_owner_evidence(item)
+                       for item in source.sources)
+        if isinstance(source, DerivedResult):
+            return any(self._has_expression_owner_evidence(item)
+                       for item in source.sources)
+        if isinstance(source, str):
+            return source not in ("", "local", "python", "unknown")
+        return False
+
+    ## Resolve argument ownership for one concrete receiver method.
+    #
+    #  PythonShape values must support the requested builtin protocol.
+    #  Forwarded parameters are followed recursively; all other sources use
+    #  ordinary owner resolution.
+    #  @param module Module containing the argument expression.
+    #  @param source Argument source.
+    #  @param method Receiver method name.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param _seen Parameter recursion guard.
+    #  @param receiver_class_filter Optional project-local virtual-dispatch
+    #  class context retained while following forwarded parameters.
+    #  @return Candidate owner strings.
+    def _argument_method_owner_candidates(
+            self, module, source, method, tracers, _seen=None,
+            receiver_class_filter=None):
+        source = normalize_source(source)
+        if isinstance(source, PythonShape):
+            methods = _BUILTIN_CONTAINER_METHODS.get(source.kind, ())
+            return ["python"] if method in methods else ["unknown"]
+        if isinstance(source, DerivedResult):
+            if self._is_direct_parameter_expression(source):
+                candidates = []
+                for operand in source.sources:
+                    candidates.extend(
+                        self._argument_method_owner_candidates(
+                            module, operand, method, tracers, _seen,
+                            receiver_class_filter=receiver_class_filter))
+                unique = self._dedupe_list(candidates)
+                if len(unique) == 1 and unique[0] != "unknown":
+                    return unique
+            external = self._resolve_expression_external_top(
+                module, source, tracers)
+            if external != "unknown":
+                return [external]
+            return ["unknown"]
+        if isinstance(source, ContainerItem):
+            container = normalize_source(source.container)
+            if isinstance(container, ParameterSource):
+                seen = set(_seen or set())
+                key = ("pack-method", module, container.scope,
+                       container.name, source.index, method)
+                if key in seen:
+                    return ["unknown"]
+                seen.add(key)
+                tracer = tracers.get(module)
+                if tracer is None:
+                    return ["unknown"]
+                params = tracer.function_params.get(container.scope)
+                if params is None:
+                    params = tracer.function_params.get(
+                        container.scope.rsplit(".", 1)[-1], [])
+                if container.name in params:
+                    target_module_cg = self.project_cg.modules.get(module)
+                    summary = (target_module_cg.functions.get(container.scope)
+                               if target_module_cg is not None else None)
+                    is_variadic = (
+                        summary is not None
+                        and container.name in (
+                            getattr(summary, "vararg", ""),
+                            getattr(summary, "kwarg", "")))
+                    if not is_variadic:
+                        arguments = self._parameter_call_arguments(
+                            module, container.scope, container.name,
+                            params.index(container.name), tracer, tracers,
+                            prefer_iterable_elements=True)
+                        if not arguments:
+                            return ["unknown"]
+                        candidates = []
+                        for arg_module, arg_source in arguments:
+                            selected = _tuple_source_item(
+                                arg_source, source.index)
+                            if selected is None:
+                                candidates.append("unknown")
+                                continue
+                            candidates.extend(
+                                self._argument_method_owner_candidates(
+                                    arg_module, selected, method, tracers,
+                                    seen, receiver_class_filter=
+                                    receiver_class_filter))
+                        return self._dedupe_list(candidates) or ["unknown"]
+                    arguments = self._parameter_pack_item_arguments(
+                        module, container, source.index, tracers)
+                    if not arguments:
+                        return ["unknown"]
+                    candidates = []
+                    for arg_module, arg_source in arguments:
+                        candidates.extend(
+                            self._argument_method_owner_candidates(
+                                arg_module, arg_source, method, tracers,
+                                seen, receiver_class_filter=receiver_class_filter))
+                    return self._dedupe_list(candidates) or ["unknown"]
+                return ["unknown"]
+        if not isinstance(source, ParameterSource):
+            return self._origin_candidates(module, source, tracers)
+        if source.attributes:
+            return ["unknown"]
+        if (source.derived
+                and source.derived_operation != "slice"):
+            return ["unknown"]
+
+        seen = set(_seen or set())
+        key = (
+            module, source.scope, source.name, method,
+            source.derived_operation, receiver_class_filter,
+        )
+        if key in seen:
+            return []
+        seen.add(key)
+        tracer = tracers.get(module)
+        if tracer is None:
+            return ["unknown"]
+        params = tracer.function_params.get(source.scope)
+        if params is None:
+            params = tracer.function_params.get(
+                source.scope.rsplit(".", 1)[-1], [])
+        if source.name not in params:
+            return ["unknown"]
+        arguments = self._parameter_call_arguments(
+            module, source.scope, source.name,
+            params.index(source.name), tracer, tracers,
+            prefer_protocol_shape=True,
+            receiver_class_filter=receiver_class_filter)
+        if not arguments:
+            return ["unknown"]
+        candidates = []
+        for arg_module, arg_source in arguments:
+            if source.derived:
+                arg_source = normalize_source(arg_source)
+                if isinstance(arg_source, PythonShape):
+                    if arg_source.kind not in (
+                            "str", "bytes", "list", "tuple"):
+                        candidates.append("unknown")
+                        continue
+                elif not isinstance(arg_source, ParameterSource):
+                    candidates.append("unknown")
+                    continue
+            candidates.extend(self._argument_method_owner_candidates(
+                arg_module, arg_source, method, tracers, seen,
+                receiver_class_filter=receiver_class_filter))
+        return self._dedupe_list(candidates)
+
     ## Resolve owner candidates for an argument, following parameter forwarding.
     #  @param module Module containing the argument expression.
     #  @param source Argument source.
@@ -1658,6 +2424,43 @@ class ProjectAnalyzer:
     #  @return Candidate owner strings.
     def _argument_owner_candidates(self, module, source, tracers, _seen=None):
         source = normalize_source(source)
+        if source == "local":
+            return ["local"]
+        if isinstance(source, ContainerIter):
+            container = normalize_source(source.container)
+            if isinstance(container, ParameterSource):
+                # An iterable element from a parameter is not evidence of a
+                # project-local receiver.  Returning unknown here also keeps
+                # local call-target matching from recursively resolving the
+                # same parameterization edge.
+                return ["unknown"]
+        if isinstance(source, ContainerItem):
+            container = normalize_source(source.container)
+            if isinstance(container, ParameterSource):
+                seen = set(_seen or set())
+                key = ("pack-item", module, container.scope,
+                       container.name, source.index)
+                if key in seen:
+                    return ["unknown"]
+                seen.add(key)
+                tracer = tracers.get(module)
+                if tracer is None:
+                    return ["unknown"]
+                params = tracer.function_params.get(container.scope)
+                if params is None:
+                    params = tracer.function_params.get(
+                        container.scope.rsplit(".", 1)[-1], [])
+                if container.name in params:
+                    arguments = self._parameter_pack_item_arguments(
+                        module, container, source.index, tracers)
+                    if not arguments:
+                        return ["unknown"]
+                    candidates = []
+                    for arg_module, arg_source in arguments:
+                        candidates.extend(self._argument_owner_candidates(
+                            arg_module, arg_source, tracers, seen))
+                    return self._dedupe_list(candidates) or ["unknown"]
+                return ["unknown"]
         if not isinstance(source, ParameterSource):
             return self._origin_candidates(module, source, tracers)
         if source.derived or source.attributes:
@@ -1758,6 +2561,475 @@ class ProjectAnalyzer:
                 return (candidate_module, candidate_class)
         return None
 
+    ## Resolve a local class returned by a local class or static method.
+    #
+    #  This follows only an explicit return summary. It does not infer a
+    #  class from a method name or from a variable spelling. Every return
+    #  branch must resolve to a project-local class; multiple classes remain
+    #  ambiguous and are resolved conservatively by the caller.
+    #  @param module Module containing the call result.
+    #  @param source CallResult representing a method call.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return List of unique local class identities.
+    def _local_class_from_method_result(self, module, source, tracers):
+        source = normalize_source(source)
+        if not isinstance(source, CallResult):
+            return []
+        callee = source.callee
+        if not isinstance(callee, str) or "." not in callee:
+            return []
+        caller_tracer = tracers.get(module)
+        identities = []
+        for candidate_module, module_cg in self.project_cg.modules.items():
+            for class_name, class_summary in module_cg.classes.items():
+                for method_name, method_summary in class_summary.methods.items():
+                    qualified_class = candidate_module + "." + class_name
+                    qualified_method = qualified_class + "." + method_name
+                    spellings = {qualified_method}
+                    if candidate_module == module:
+                        spellings.add(class_name + "." + method_name)
+                    if caller_tracer is not None:
+                        parts = callee.split(".")
+                        prefix = parts[0]
+                        imported = caller_tracer.import_from_symbols.get(
+                            prefix)
+                        if (isinstance(imported, str)
+                                and imported + "." + method_name
+                                == qualified_method):
+                            spellings.add(callee)
+                        direct = normalize_source(
+                            caller_tracer.symbols.direct.get(prefix))
+                        if (isinstance(direct, str)
+                                and direct == candidate_module
+                                and len(parts) == 3
+                                and parts[1] == class_name
+                                and parts[2] == method_name):
+                            spellings.add(callee)
+                    if callee not in spellings:
+                        continue
+                    returns = normalize_source(method_summary.returns)
+                    if returns is None:
+                        continue
+                    return_sources = (
+                        list(returns.sources)
+                        if isinstance(returns, SourceSet)
+                        else [returns]
+                    )
+                    returned_classes = []
+                    for returned in return_sources:
+                        returned = normalize_source(returned)
+                        if returned == "self":
+                            returned_classes.append(
+                                (candidate_module, class_name))
+                            continue
+                        if isinstance(returned, CallResult):
+                            returned = returned.callee
+                        identity = self._local_class_from_source(
+                            candidate_module, returned)
+                        if identity is None:
+                            returned_classes = []
+                            break
+                        returned_classes.append(identity)
+                    if returned_classes:
+                        identities.extend(self._dedupe_list(returned_classes))
+        return self._dedupe_list(identities)
+
+    ## Resolve local classes returned by a project-local function.
+    #
+    #  The function must have an explicit return summary whose every branch
+    #  resolves to one project-local constructor.  This deliberately does not
+    #  infer a class from a function name, argument type, or method spelling.
+    #  @param module Module containing the call site.
+    #  @param callee Callee spelling from a CallResult.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return List of unique local class identities.
+    def _local_classes_from_function_result(self, module, callee, tracers):
+        if not isinstance(callee, str):
+            return []
+        candidates = []
+        caller_tracer = tracers.get(module)
+        if caller_tracer is not None:
+            imported = caller_tracer.import_from_symbols.get(callee)
+            if isinstance(imported, str):
+                candidates.append((module, imported))
+
+        parts = callee.split(".")
+        for index in range(len(parts), 0, -1):
+            candidate_module = ".".join(parts[:index])
+            if candidate_module in tracers:
+                candidates.append((
+                    candidate_module, ".".join(parts[index:])))
+                break
+        candidates.append((module, callee))
+
+        identities = []
+        seen = set()
+        for target_module, qualname in candidates:
+            key = (target_module, qualname)
+            if key in seen or not qualname:
+                continue
+            seen.add(key)
+            tracer = tracers.get(target_module)
+            if tracer is None:
+                continue
+            returns = tracer.return_sources.get(qualname)
+            if returns is None and target_module == module:
+                returns = tracer.return_sources.get(parts[-1])
+            if returns is None:
+                continue
+            normalized = normalize_source(returns)
+            returned_sources = (
+                list(normalized.sources)
+                if isinstance(normalized, SourceSet)
+                else [normalized]
+            )
+            branch_identities = []
+            for returned in returned_sources:
+                returned = normalize_source(returned)
+                if isinstance(returned, CallResult):
+                    returned = returned.callee
+                identity = self._local_class_from_source(
+                    target_module, returned)
+                if identity is None:
+                    branch_identities = []
+                    break
+                branch_identities.append(identity)
+            if branch_identities:
+                identities.extend(branch_identities)
+        return self._dedupe_list(identities)
+
+    ## Check whether a local class owns a method through local inheritance.
+    #  @param module Defining module of the class.
+    #  @param class_name Local class name.
+    #  @param method_name Method name.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param visited Recursion guard.
+    #  @return True when the method is locally defined or locally inherited.
+    def _local_class_defines_method(self, module, class_name, method_name,
+                                    tracers, visited=None):
+        key = (module, class_name, method_name)
+        seen = set(visited or set())
+        if key in seen:
+            return False
+        seen.add(key)
+        module_cg = self.project_cg.modules.get(module)
+        if module_cg is None:
+            return False
+        class_summary = module_cg.classes.get(class_name)
+        if class_summary is None:
+            return False
+        if method_name in class_summary.methods:
+            return True
+        tracer = tracers.get(module)
+        if tracer is None:
+            return False
+        for base_symbol in class_summary.bases:
+            base_identity = self._resolve_local_class_identity(
+                module, base_symbol, tracers)
+            if base_identity and self._local_class_defines_method(
+                    base_identity[0], base_identity[1], method_name,
+                    tracers, seen):
+                return True
+        return False
+
+    ## Resolve a project-local class through imports and package re-exports.
+    #
+    #  @param module Module where the class symbol is referenced.
+    #  @param source Class symbol or constructor source.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return (defining module, class name) or None.
+    def _resolve_local_class_identity(self, module, source, tracers):
+        direct = self._local_class_from_source(module, source)
+        if direct is not None:
+            return direct
+        source = normalize_source(source)
+        if isinstance(source, CallResult):
+            source = normalize_source(source.callee)
+        if not isinstance(source, str):
+            return None
+        chain = self.trace_symbol(module, source, tracers, set())
+        cg = getattr(self, "project_cg", None)
+        if cg is None:
+            return None
+        for index in range(len(chain) - 1, 0, -1):
+            class_name = chain[index]
+            class_module = chain[index - 1]
+            if not isinstance(class_name, str):
+                continue
+            module_cg = cg.modules.get(class_module)
+            if module_cg and class_name in module_cg.classes:
+                return (class_module, class_name)
+        return None
+
+    ## Return whether one project-local class derives from another.
+    #
+    #  @param candidate_module Defining module of the candidate subclass.
+    #  @param candidate_class Candidate subclass name.
+    #  @param base_module Defining module of the required base class.
+    #  @param base_class Required base class name.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param visited Recursion guard for cyclic or malformed hierarchies.
+    #  @return True for identity or transitive local inheritance.
+    def _local_class_is_or_derives(
+            self, candidate_module, candidate_class,
+            base_module, base_class, tracers, visited=None):
+        candidate = (candidate_module, candidate_class)
+        required = (base_module, base_class)
+        if candidate == required:
+            return True
+        seen = set(visited or set())
+        if candidate in seen:
+            return False
+        seen.add(candidate)
+        tracer = tracers.get(candidate_module)
+        if tracer is None:
+            return False
+        for base_symbol in tracer.class_bases.get(candidate_class, []):
+            identity = self._resolve_local_class_identity(
+                candidate_module, base_symbol, tracers)
+            if identity is None:
+                continue
+            if self._local_class_is_or_derives(
+                    identity[0], identity[1],
+                    base_module, base_class, tracers, seen):
+                return True
+        return False
+
+    ## Collect project-local runtime class candidates for a receiver source.
+    #
+    #  Explicit constructors and statically tracked container elements provide
+    #  class-level dispatch evidence. An empty result means the source cannot
+    #  constrain dispatch, not that the receiver is non-local.
+    #  @param module Module where the source is evaluated.
+    #  @param source Receiver source.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param visited Recursion guard.
+    #  @return List of (defining module, class name) tuples.
+    def _local_class_candidates(
+            self, module, source, tracers, visited=None):
+        source = normalize_source(source)
+        key = (module, type(source).__name__, source_display(source))
+        seen = set(visited or set())
+        if key in seen:
+            return []
+        seen.add(key)
+
+        if isinstance(source, CallResult):
+            method_classes = self._local_class_from_method_result(
+                module, source, tracers)
+            if method_classes:
+                return method_classes
+            function_classes = self._local_classes_from_function_result(
+                module, source.callee, tracers)
+            if function_classes:
+                return function_classes
+            callable_classes = self._local_callable_class_candidates(
+                module, source, tracers.get(module), tracers, seen)
+            if callable_classes:
+                return callable_classes
+            identity = self._local_class_from_source(
+                module, source.callee)
+            return [identity] if identity is not None else []
+        identity = self._resolve_local_class_identity(
+            module, source, tracers)
+        if identity is not None:
+            return [identity]
+        if isinstance(source, SourceSet):
+            candidates = []
+            for item in source.sources:
+                candidates.extend(self._local_class_candidates(
+                    module, item, tracers, set(seen)))
+            return self._dedupe_list(candidates)
+        if isinstance(source, ContainerItem):
+            resolved = self._resolve_container_item(
+                module, source.container, source.index, tracers)
+            if resolved is None:
+                return []
+            return self._local_class_candidates(
+                resolved[0], resolved[1], tracers, seen)
+        if isinstance(source, ContainerIter):
+            container = normalize_source(source.container)
+            if not isinstance(container, str):
+                return self._local_class_candidates(
+                    module, container, tracers, seen)
+            tracer = tracers.get(module)
+            if tracer is None:
+                return []
+            candidates = []
+            for (container_name, _), item_source in (
+                    tracer.container_items.items()):
+                if container_name == container:
+                    candidates.extend(self._local_class_candidates(
+                        module, item_source, tracers, set(seen)))
+            for item_source in tracer.container_set_sources.get(
+                    container, set()):
+                candidates.extend(self._local_class_candidates(
+                    module, item_source, tracers, set(seen)))
+            return self._dedupe_list(candidates)
+        return []
+
+    ## Resolve local classes represented by callable-object constructor calls.
+    #
+    #  A call such as ``f(value)`` stores the constructor's defining module in
+    #  CallEdge.callee while retaining the imported class spelling in
+    #  CallEdge.callee_name.  CallResult sources carry the same spelling in
+    #  display_name.  Reconstruct the class only from that existing evidence
+    #  and the caller's import bindings.
+    #  @param module Module containing the callable-object call.
+    #  @param source Callable source or SourceSet of callable sources.
+    #  @param tracer Analyzer for the caller module.
+    #  @param tracers All project analyzers.
+    #  @param visited Recursion guard.
+    #  @param display_name Optional call-edge spelling for the source.
+    #  @return List of local class identities.
+    def _local_callable_class_candidates(
+            self, module, source, tracer, tracers, visited=None,
+            display_name=None):
+        source = normalize_source(source)
+        seen = set(visited or set())
+        key = (type(source).__name__, source_display(source))
+        if key in seen:
+            return []
+        seen.add(key)
+
+        if isinstance(source, SourceSet):
+            candidates = []
+            for item in source.sources:
+                candidates.extend(self._local_callable_class_candidates(
+                    module, item, tracer, tracers, set(seen)))
+            return self._dedupe_list(candidates)
+
+        direct = self._local_class_from_source(module, source)
+        if direct is not None:
+            return [direct]
+        if isinstance(source, CallResult) and isinstance(source.callee, str):
+            call_method = ".__call__"
+            if source.callee.endswith(call_method):
+                direct = self._local_class_from_source(
+                    module, source.callee[:-len(call_method)])
+                if direct is not None:
+                    return [direct]
+        if tracer is None:
+            return []
+
+        display = display_name
+        if display is None and isinstance(source, CallResult):
+            display = source.display_name
+        if (not display
+                and isinstance(source, CallResult)
+                and isinstance(source.callee, str)):
+            for imported in getattr(
+                    tracer, "import_from_symbols", {}).values():
+                if (isinstance(imported, str)
+                        and (imported == source.callee
+                             or imported.startswith(source.callee + "."))):
+                    identity = self._local_class_from_source(
+                        module, imported)
+                    if identity is not None:
+                        return [identity]
+        if not isinstance(display, str) or not display:
+            return []
+        if "." in display:
+            alias, class_name = display.rsplit(".", 1)
+            bound_module = tracer.import_from_symbols.get(alias)
+            if bound_module is None:
+                bound_module = tracer.symbols.direct.get(alias)
+        else:
+            class_name = display
+            bound_module = tracer.import_from_symbols.get(display)
+            if bound_module is None:
+                bound_module = tracer.symbols.direct.get(display)
+        bound_module = normalize_source(bound_module)
+        if isinstance(bound_module, CallResult):
+            bound_module = bound_module.callee
+        if isinstance(bound_module, str):
+            imported_symbol = tracer.import_from_symbols.get(bound_module)
+            if imported_symbol is not None:
+                bound_module = imported_symbol
+            if bound_module.endswith(".__call__"):
+                bound_module = bound_module[:-len(".__call__")]
+        if not isinstance(bound_module, str):
+            return []
+        candidate_source = (
+            bound_module if "." not in display
+            else bound_module + "." + class_name)
+        identity = self._local_class_from_source(module, candidate_source)
+        return [identity] if identity is not None else []
+
+    ## Return whether an edge receiver may have one required local class.
+    #
+    #  @param edge Project call-graph edge.
+    #  @param caller_module Module containing the edge.
+    #  @param required Pair of required (module, class).
+    #  @param tracers Dict of module name to analyzer.
+    #  @return False only when concrete local class evidence excludes it.
+    def _edge_receiver_may_have_class(
+            self, edge, caller_module, required, tracers):
+        candidates = self._local_class_candidates(
+            caller_module, edge.receiver_source, tracers)
+        if not candidates:
+            return True
+        return any(
+            self._local_class_is_or_derives(
+                candidate[0], candidate[1],
+                required[0], required[1], tracers)
+            for candidate in candidates
+        )
+
+    ## Select one positional element from a function return summary.
+    #
+    #  SourceSet represents alternative return branches, so every branch must
+    #  provide the same positional element. A tuple DerivedResult is the only
+    #  aggregate shape consumed here. Other return values remain whole-result
+    #  sources and use the existing path.
+    #  @param source Return summary source.
+    #  @param index Zero-based assignment position.
+    #  @return Selected element source, or None when position is unproven.
+    def _return_item_source(self, source, index):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            items = []
+            for branch in source.sources:
+                item = self._return_item_source(branch, index)
+                if item is None:
+                    return None
+                items.append(item)
+            if not items:
+                return None
+            return make_source_set(items, origin=source.origin or "return")
+        if isinstance(source, DerivedResult) and source.kind == "tuple":
+            if index < 0 or index >= len(source.sources):
+                return None
+            return normalize_source(source.sources[index])
+        return None
+
+    ## Return whether a summary explicitly describes a positional tuple.
+    #  @param source Return summary source.
+    #  @return True when every alternative has tuple positional evidence.
+    def _is_tuple_return_source(self, source):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            return bool(source.sources) and all(
+                self._is_tuple_return_source(branch)
+                for branch in source.sources)
+        return isinstance(source, DerivedResult) and source.kind == "tuple"
+
+    ## Return whether one tuple element is concrete enough to replace a
+    #  caller binding. Parameter-derived and unresolved elements must stay on
+    #  the legacy bounded path, because their owner still depends on a
+    #  runtime argument or an external return contract.
+    #  @param source Positional tuple element source.
+    #  @return True when the source carries usable owner evidence.
+    def _is_resolved_return_item(self, source):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            return bool(source.sources) and all(
+                self._is_resolved_return_item(branch)
+                for branch in source.sources)
+        if isinstance(source, (UnknownSource, DerivedResult)):
+            return False
+        return source is not None
+
     ## Preserve exact result calls for assigned project-local methods.
     #
     #  Single-file analysis cannot know whether an imported class is defined
@@ -1793,7 +3065,8 @@ class ProjectAnalyzer:
                     target.module].functions.get(target.qualname)
                 if summary is None or summary.returns is None:
                     continue
-                for assigned_name in edge.assigned_to:
+                for assigned_index, assigned_name in enumerate(
+                        edge.assigned_to):
                     key = (edge.caller.qualname, assigned_name)
                     assigned_edges = assignment_edges.get(key, [])
                     edge_index = assigned_edges.index(edge)
@@ -1806,11 +3079,25 @@ class ProjectAnalyzer:
                         )
                     current = normalize_source(
                         tracer.symbols.direct.get(assigned_name))
+                    result_source = None
+                    if len(edge.assigned_to) > 1:
+                        selected = self._return_item_source(
+                            summary.returns, assigned_index)
+                        if (selected is not None
+                                and self._is_resolved_return_item(selected)):
+                            result_source = selected
+                        elif self._is_tuple_return_source(summary.returns):
+                            # A positional tuple contract exists but this
+                            # element cannot be proven. Keep the pre-existing
+                            # bounded path instead of replacing it with an
+                            # unresolved aggregate result.
+                            continue
                     result_call = CallResult(
                         target.module + "." + target.qualname,
                         display_name=edge.callee_name,
                         call_lineno=edge.call_lineno,
                         call_col_offset=edge.call_col_offset,
+                        result_source=result_source,
                     )
                     current_position = (
                         getattr(current, "call_lineno", 0),
@@ -1828,6 +3115,14 @@ class ProjectAnalyzer:
                         record_base = normalize_source(
                             call_record.get("base"))
                         receiver_matches = record_base == current
+                        if (isinstance(record_base, InstanceMethod)
+                                and normalize_source(record_base.receiver)
+                                == assigned_name):
+                            receiver_matches = True
+                        if (isinstance(record_base, InstanceMethod)
+                                and normalize_source(record_base.receiver)
+                                == current):
+                            receiver_matches = True
                         if (isinstance(record_base, InstanceMethod)
                                 and isinstance(record_base.receiver, str)
                                 and isinstance(result_call.callee, str)):
@@ -1855,11 +3150,427 @@ class ProjectAnalyzer:
                                     edge.call_lineno,
                                     edge.call_col_offset)
                                 and (next_position is None
-                                     or record_position < next_position)):
+                                     or record_position <= next_position)):
                             call_record["base"] = InstanceMethod(
                                 result_call,
                                 func_name.rsplit(".", 1)[-1],
                             )
+                    for future_edge in module_cg.edges:
+                        if future_edge.caller != edge.caller:
+                            continue
+                        future_position = (
+                            future_edge.call_lineno,
+                            future_edge.call_col_offset)
+                        if (future_position <= (
+                                edge.call_lineno, edge.call_col_offset)
+                                or (next_position is not None
+                                    and future_position > next_position)):
+                            continue
+                        if (not isinstance(future_edge.callee_name, str)
+                                or not future_edge.callee_name.startswith(
+                                    assigned_name + ".")):
+                            continue
+                        future_edge.receiver_source = result_call
+                        if isinstance(future_edge.callee, InstanceMethod):
+                            future_edge.callee = InstanceMethod(
+                                result_call, future_edge.callee.method)
+                        future_edge.callee_source = result_call
+
+    ## Propagate sources yielded by one project-local generator to its loop.
+    #  The binding is bounded by the exact iterator call site and the next
+    #  rebind of each loop target. No external return contract is inferred.
+    #  @param tracers Dict of module name to analyzer.
+    def _bind_bounded_local_generator_results(self, tracers):
+        for caller_module, module_cg in self.project_cg.modules.items():
+            tracer = tracers.get(caller_module)
+            if tracer is None:
+                continue
+            for binding in getattr(module_cg, "iteration_bindings", []):
+                if binding.caller.module != caller_module:
+                    continue
+                iterator_edges = [
+                    edge for edge in module_cg.edges
+                    if edge.caller == binding.caller
+                    and edge.call_lineno == binding.call_lineno
+                    and edge.call_col_offset == binding.call_col_offset
+                    and edge.callee_name == binding.callee_name
+                ]
+                if len(iterator_edges) != 1:
+                    continue
+                edge = iterator_edges[0]
+                targets = self._local_edge_targets(
+                    edge, caller_module, tracers)
+                if len(targets) != 1:
+                    continue
+                summary = self.project_cg.modules[
+                    targets[0].module].functions.get(targets[0].qualname)
+                if summary is None or summary.yields is None:
+                    continue
+                yield_source = self._substitute_generator_parameters(
+                    summary.yields, edge, summary, tracers)
+                if yield_source is None:
+                    continue
+                for target_name in binding.target_names:
+                    next_position = self._next_iteration_rebind_position(
+                        module_cg, tracer, binding, target_name)
+                    self._rewrite_generator_target_records(
+                        tracer, binding, target_name, yield_source,
+                        next_position)
+                    self._rewrite_generator_target_edges(
+                        module_cg, binding, target_name, yield_source,
+                        next_position)
+                    current = normalize_source(
+                        tracer.symbols.direct.get(target_name))
+                    if (isinstance(current, CallResult)
+                            and current.call_lineno == binding.call_lineno
+                            and current.call_col_offset
+                            == binding.call_col_offset):
+                        tracer.symbols.direct[target_name] = yield_source
+
+    ## Substitute exact call-edge arguments into a local generator yield.
+    #
+    #  A generator summary may yield one of its own parameters.  The summary
+    #  is declaration-level evidence, so it still names the generator's
+    #  ParameterSource.  An exact local call edge supplies the concrete source
+    #  for that parameter.  This substitution is bounded to one iterator call
+    #  site and does not infer any external library return semantics.
+    #  @param source Generator yield source or nested source IR.
+    #  @param edge Exact call edge for the iterator expression.
+    #  @param summary Callee function summary containing parameter metadata.
+    #  @return Substituted source, or None when the parameter is ambiguous.
+    def _substitute_generator_parameters(
+            self, source, edge, summary, tracers, _seen=None):
+        source = normalize_source(source)
+        if isinstance(source, ParameterSource):
+            if source.scope != summary.id.qualname:
+                nested = self._nested_generator_parameter_argument(
+                    source, edge, summary, tracers, _seen)
+                return source if nested is None else nested
+            parameter_index = summary.params.index(source.name) \
+                if source.name in summary.params else None
+            if parameter_index is None:
+                return None
+            arguments = self._edge_parameter_sources(
+                edge, summary, source.name, parameter_index,
+                prefer_protocol_shape=True)
+            if arguments is None or len(arguments) != 1:
+                return None
+            argument = normalize_source(arguments[0])
+            if source.attributes or source.derived:
+                # The current bounded generator contract preserves direct
+                # parameter yields. Attribute and derived yields need a
+                # separate source-composition contract.
+                return None
+            return argument
+        if isinstance(source, SourceSet):
+            substituted = []
+            for item in source.sources:
+                item_source = self._substitute_generator_parameters(
+                    item, edge, summary, tracers, _seen)
+                if item_source is None:
+                    return None
+                substituted.append(item_source)
+            return make_source_set(substituted, origin=source.origin)
+        if isinstance(source, InstanceMethod):
+            receiver = self._substitute_generator_parameters(
+                source.receiver, edge, summary, tracers, _seen)
+            if receiver is None:
+                return None
+            return InstanceMethod(
+                receiver, source.method, source.parameter_scope,
+                source.parameter_name)
+        if isinstance(source, ContainerItem):
+            container = self._substitute_generator_parameters(
+                source.container, edge, summary, tracers, _seen)
+            if container is None:
+                return None
+            return ContainerItem(container, source.index)
+        if isinstance(source, ContainerIter):
+            container = self._substitute_generator_parameters(
+                source.container, edge, summary, tracers, _seen)
+            if container is None:
+                return None
+            return ContainerIter(container)
+        if isinstance(source, CallResult):
+            callee = self._substitute_generator_parameters(
+                source.callee, edge, summary, tracers, _seen)
+            if callee is None:
+                return None
+            result_source = source.result_source
+            if result_source is not None:
+                result_source = self._substitute_generator_parameters(
+                    result_source, edge, summary, tracers, _seen)
+                if result_source is None:
+                    return None
+            return CallResult(
+                callee,
+                source.display_name,
+                source.call_lineno,
+                source.call_col_offset,
+                source.source_module,
+                result_source)
+        if isinstance(source, DerivedResult):
+            operands = []
+            for item in source.sources:
+                item_source = self._substitute_generator_parameters(
+                    item, edge, summary, tracers, _seen)
+                if item_source is None:
+                    return None
+                operands.append(item_source)
+            return DerivedResult(source.kind, tuple(operands), source.attribute)
+        return source
+
+    ## Resolve a parameter inherited through one local yield-from edge.
+    #
+    #  For ``outer(value): yield from inner(value)``, the return summary of
+    #  outer may still contain ``ParameterSource('inner', 'value')``.  Follow
+    #  that exact local edge once, then let the caller's edge resolve the
+    #  resulting outer parameter.  Ambiguous targets remain unresolved.
+    #  @param source Nested generator ParameterSource.
+    #  @param edge Outer iterator call edge.
+    #  @param summary Current generator summary.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Recursion guard.
+    #  @return Substituted source, or None when no unique local edge exists.
+    def _nested_generator_parameter_argument(
+            self, source, edge, summary, tracers, _seen=None):
+        seen = set(_seen or set())
+        key = (summary.id.module, summary.id.qualname,
+               source.scope, source.name)
+        if key in seen:
+            return None
+        seen.add(key)
+        module = summary.id.module
+        module_cg = self.project_cg.modules.get(module)
+        if module_cg is None:
+            return None
+        nested_edges = []
+        nested_summary = None
+        for nested_edge in module_cg.edges:
+            if nested_edge.caller.qualname != summary.id.qualname:
+                continue
+            targets = self._local_edge_targets(
+                nested_edge, module, tracers)
+            matching = [
+                target for target in targets
+                if target.qualname == source.scope
+            ]
+            if len(matching) != 1:
+                continue
+            candidate = module_cg.functions.get(source.scope)
+            if candidate is None:
+                candidate = self.project_cg.modules[
+                    matching[0].module].functions.get(matching[0].qualname)
+            if candidate is None or source.name not in candidate.params:
+                continue
+            nested_edges.append((nested_edge, candidate))
+            nested_summary = candidate
+        if len(nested_edges) != 1 or nested_summary is None:
+            return None
+        parameter_index = nested_summary.params.index(source.name)
+        arguments = self._edge_parameter_sources(
+            nested_edges[0][0], nested_summary, source.name,
+            parameter_index, prefer_protocol_shape=True)
+        if arguments is None or len(arguments) != 1:
+            return None
+        return self._substitute_generator_parameters(
+            arguments[0], edge, summary, tracers, seen)
+
+    ## Find the next source-level rebind of one loop target.
+    #  @param module_cg Module call graph.
+    #  @param binding Current iteration binding.
+    #  @param target_name Loop target name.
+    #  @return Position tuple or None.
+    def _next_iteration_rebind_position(self, module_cg, tracer, binding,
+                                        target_name):
+        current = (binding.call_lineno, binding.call_col_offset)
+        candidates = []
+        for edge in module_cg.edges:
+            if edge.caller != binding.caller or target_name not in (
+                    edge.assigned_to or []):
+                continue
+            position = (edge.call_lineno, edge.call_col_offset)
+            if position > current:
+                candidates.append(position)
+        for other in getattr(module_cg, "iteration_bindings", []):
+            if other is binding or other.caller != binding.caller:
+                continue
+            if target_name not in other.target_names:
+                continue
+            position = (other.call_lineno, other.call_col_offset)
+            if position > current:
+                candidates.append(position)
+        caller_scope = binding.caller.qualname
+        caller_short_scope = caller_scope.rsplit(".", 1)[-1]
+        for ref in getattr(tracer, "symbol_refs", []):
+            if ref.symbol != target_name:
+                continue
+            ref_scope = getattr(ref, "scope_name", "")
+            if ref_scope not in ("", caller_scope, caller_short_scope):
+                continue
+            position = (getattr(ref, "lineno", 0),
+                        getattr(ref, "col_offset", 0))
+            if position > current:
+                candidates.append(position)
+        return min(candidates) if candidates else None
+
+    ## Rewrite API call records whose receiver is one generator target.
+    #  @param tracer Analyzer for the caller module.
+    #  @param binding Iteration binding.
+    #  @param target_name Loop target name.
+    #  @param yield_source Source yielded by the target function.
+    #  @param next_position Next rebind position, if any.
+    def _rewrite_generator_target_records(
+            self, tracer, binding, target_name, yield_source,
+            next_position):
+        caller_scope = ("" if binding.caller.qualname == "<module>"
+                        else binding.caller.qualname)
+        start = (binding.call_lineno, binding.call_col_offset)
+        for record in tracer.api_calls:
+            position = (record.get("lineno", 0),
+                        record.get("col_offset", 0))
+            func_name = record.get("func_name", "")
+            if (record.get("scope_name", "") != caller_scope
+                    or position <= start
+                    or (next_position is not None
+                        and position > next_position)
+                    or not func_name.startswith(target_name + ".")):
+                continue
+            record["base"] = InstanceMethod(
+                yield_source, func_name.rsplit(".", 1)[-1])
+
+    ## Rewrite future call edges whose receiver is one generator target.
+    #  @param module_cg Module call graph.
+    #  @param binding Iteration binding.
+    #  @param target_name Loop target name.
+    #  @param yield_source Source yielded by the target function.
+    #  @param next_position Next rebind position, if any.
+    def _rewrite_generator_target_edges(
+            self, module_cg, binding, target_name, yield_source,
+            next_position):
+        start = (binding.call_lineno, binding.call_col_offset)
+        for edge in module_cg.edges:
+            position = (edge.call_lineno, edge.call_col_offset)
+            if (edge.caller != binding.caller
+                    or position <= start
+                    or (next_position is not None
+                        and position > next_position)
+                    or not edge.callee_name.startswith(target_name + ".")):
+                continue
+            edge.receiver_source = yield_source
+            edge.callee = InstanceMethod(
+                yield_source, edge.callee_name.rsplit(".", 1)[-1])
+            edge.callee_source = edge.callee
+
+    ## Propagate an explicitly proven receiver through an assigned method call.
+    #
+    #  This is the next bounded call-graph step after a local function return:
+    #  ``left_view = left.reshape(...)`` may carry the owner already proven for
+    #  ``left`` into ``left_view``. Only an existing result-owner contract is
+    #  accepted; an unresolved receiver or method remains unchanged.
+    #  @param tracers Dict of module name to analyzer.
+    def _bind_proven_result_method_results(self, tracers):
+        for module, module_cg in self.project_cg.modules.items():
+            tracer = tracers.get(module)
+            if tracer is None:
+                continue
+            edges = sorted(
+                module_cg.edges,
+                key=lambda edge: (
+                    edge.caller.qualname,
+                    edge.call_lineno,
+                    edge.call_col_offset),
+            )
+            flow = {}
+            for edge in edges:
+                if not isinstance(edge.callee_name, str):
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                root, separator, _ = edge.callee_name.partition(".")
+                if not separator:
+                    # A non-method assignment is a rebinding barrier.  The
+                    # final module symbol table is intentionally not used as
+                    # a time-insensitive fallback here.
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                flow_key = (edge.caller.qualname, root)
+                receiver = normalize_source(flow.get(flow_key))
+                if receiver is None:
+                    receiver = normalize_source(edge.receiver_source)
+                if not isinstance(receiver, CallResult):
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                if receiver.result_source is None:
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                origin_module = module
+                if (isinstance(receiver.callee, str)
+                        and "." in receiver.callee):
+                    candidate_module = receiver.callee.rsplit(".", 1)[0]
+                    if candidate_module in tracers:
+                        origin_module = candidate_module
+                receiver_owners = self._origin_candidates(
+                    origin_module, receiver.result_source, tracers)
+                if (len(receiver_owners) != 1
+                        or receiver_owners[0] in (
+                            "local", "python", "unknown", "")):
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                return_proven = _has_return_provenance(
+                    receiver.result_source)
+                # Existing external result contracts are sufficient for the
+                # legacy resolver, but they are not a new interprocedural
+                # fact. Only local return/tuple evidence may rewrite a
+                # downstream call record in this pass.
+                if not return_proven:
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                method_records = [
+                    record for record in tracer.api_calls
+                    if record.get("lineno") == edge.call_lineno
+                    and record.get("col_offset") == edge.call_col_offset
+                    and record.get("scope_name", "") == (
+                        "" if edge.caller.qualname == "<module>"
+                        else edge.caller.qualname)
+                    and record.get("func_name", "").startswith(root + ".")
+                ]
+                if not method_records:
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                method_name = max(
+                    (record.get("func_name", "")
+                     for record in method_records),
+                    key=len).rsplit(".", 1)[-1]
+                method_source = InstanceMethod(receiver, method_name)
+                edge.receiver_source = receiver
+                edge.callee = method_source
+                edge.callee_source = method_source
+                for record in method_records:
+                    method = record.get("func_name", "").rsplit(".", 1)[-1]
+                    record["base"] = InstanceMethod(receiver, method)
+                if not edge.assigned_to or not _has_result_owner_contract(
+                        method_name):
+                    for assigned_name in edge.assigned_to:
+                        flow.pop((edge.caller.qualname, assigned_name), None)
+                    continue
+                result_call = CallResult(
+                    method_source,
+                    display_name=edge.callee_name,
+                    call_lineno=edge.call_lineno,
+                    call_col_offset=edge.call_col_offset,
+                    result_source=DerivedResult(
+                        "method_result", (method_source,), method_name),
+                )
+                for assigned_name in edge.assigned_to:
+                    flow[(edge.caller.qualname, assigned_name)] = result_call
+                    tracer.symbols.direct[assigned_name] = result_call
 
     ## Find all project-local functions reached by one call edge.
     #
@@ -1885,6 +3596,79 @@ class ProjectAnalyzer:
                 unique.append(target)
         return unique
 
+    ## Resolve every branch of an explicit local callable SourceSet.
+    #
+    #  This deliberately rejects inferred method-name candidates. Multiple
+    #  targets are safe to converge only when the call edge itself retains
+    #  each exact project-local callable selected by source control flow.
+    #  @param edge Call edge containing callable provenance.
+    #  @param caller_module Module containing the edge.
+    #  @return List of exact FunctionId values, or an empty list.
+    def _explicit_local_callable_targets(self, edge, caller_module):
+        source = normalize_source(getattr(edge, "callee_source", None))
+        if not isinstance(source, SourceSet):
+            return []
+        targets = []
+        seen = set()
+        for branch in source.sources:
+            branch = normalize_source(branch)
+            if not isinstance(branch, str):
+                return []
+            matches = []
+            for module, module_cg in self.project_cg.modules.items():
+                for qualname, summary in module_cg.functions.items():
+                    qualified = module + "." + qualname
+                    if branch == qualified or (
+                            module == caller_module
+                            and branch == qualname):
+                        matches.append(summary.id)
+            if len(matches) != 1:
+                return []
+            target = matches[0]
+            key = (target.module, target.qualname)
+            if key not in seen:
+                seen.add(key)
+                targets.append(target)
+        return targets
+
+    ## Build all project-local contexts from one exact call-site position.
+    #
+    #  Multiple contexts are retained for a statically enumerated callable
+    #  branch. Their result owners are converged by the caller.
+    #  @param caller_module Module containing the call.
+    #  @param call_lineno Call line number.
+    #  @param call_col_offset Call column offset.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param parent Enclosing forwarding context.
+    #  @return List of CallContext values.
+    def _bounded_call_contexts(self, caller_module, call_lineno,
+                               call_col_offset, tracers, parent=None):
+        module_cg = self.project_cg.modules.get(caller_module)
+        if module_cg is None or not call_lineno:
+            return []
+        edges = [
+            edge for edge in module_cg.edges
+            if edge.call_lineno == call_lineno
+            and edge.call_col_offset == call_col_offset
+        ]
+        if len(edges) != 1:
+            return []
+        targets = self._local_edge_targets(edges[0], caller_module, tracers)
+        if len(targets) > 1:
+            targets = self._explicit_local_callable_targets(
+                edges[0], caller_module)
+            if len(targets) <= 1:
+                return []
+        return [
+            CallContext(
+                caller_module=caller_module,
+                target=target,
+                edge=edges[0],
+                parent=parent,
+            )
+            for target in targets
+        ]
+
     ## Build one exact bounded context from a call-site position.
     #
     #  @param caller_module Module containing the call.
@@ -1895,26 +3679,12 @@ class ProjectAnalyzer:
     #  @return CallContext when edge and target are unique, otherwise None.
     def _bounded_call_context(self, caller_module, call_lineno,
                               call_col_offset, tracers, parent=None):
-        module_cg = self.project_cg.modules.get(caller_module)
-        if module_cg is None or not call_lineno:
+        contexts = self._bounded_call_contexts(
+            caller_module, call_lineno, call_col_offset, tracers,
+            parent=parent)
+        if len(contexts) != 1:
             return None
-        edges = [
-            edge for edge in module_cg.edges
-            if edge.call_lineno == call_lineno
-            and edge.call_col_offset == call_col_offset
-        ]
-        if len(edges) != 1:
-            return None
-        targets = self._local_edge_targets(
-            edges[0], caller_module, tracers)
-        if len(targets) != 1:
-            return None
-        return CallContext(
-            caller_module=caller_module,
-            target=targets[0],
-            edge=edges[0],
-            parent=parent,
-        )
+        return contexts[0]
 
     ## Read the argument supplied to one parameter in a bounded context.
     #
@@ -1931,8 +3701,108 @@ class ProjectAnalyzer:
         keyword_args = context.edge.arg_sources.get("kw", {})
         if parameter in keyword_args:
             return keyword_args[parameter]
-        index = summary.params.index(parameter)
-        return context.edge.arg_sources.get("pos", {}).get(index)
+        if parameter == summary.vararg or parameter == summary.kwarg:
+            # A variadic parameter is a pack, not one source.  It is resolved
+            # only when a later edge selects one item from the pack.
+            return None
+        positional_params = list(getattr(summary, "positional_params", []))
+        if not positional_params:
+            positional_params = [
+                name for name in summary.params
+                if name not in (summary.vararg, summary.kwarg)
+            ]
+        if parameter in positional_params:
+            index = positional_params.index(parameter)
+            positional = context.edge.arg_sources.get("pos", {})
+            if index in positional:
+                return positional[index]
+            star_source = self._star_positional_item_source(
+                context.edge, summary, index)
+            if star_source is not None:
+                return star_source
+        star_kwargs = getattr(context.edge, "star_kwarg_sources", [])
+        if star_kwargs:
+            if len(star_kwargs) != 1:
+                return None
+            return ContainerItem(star_kwargs[0], parameter)
+        defaults = getattr(summary, "defaults", {})
+        if parameter in defaults:
+            return defaults[parameter]
+        return None
+
+    ## Resolve one positional parameter from a starred call argument.
+    #  @param edge Call graph edge.
+    #  @param summary Callee signature summary.
+    #  @param index Zero-based positional parameter index.
+    #  @return ContainerItem selecting the pack item, or None.
+    def _star_positional_item_source(self, edge, summary, index):
+        raw_stars = getattr(edge, "star_arg_sources", {})
+        if any(start is None for start in raw_stars):
+            return None
+        stars = sorted(raw_stars.items(), key=lambda item: item[0])
+        if not stars:
+            return None
+        matches = []
+        for start, source in stars:
+            if start <= index:
+                matches.append((start, source))
+        if len(matches) != 1:
+            return None
+        start, source = matches[0]
+        return ContainerItem(source, index - start)
+
+    ## Resolve one selected item from a local variadic parameter under a
+    #  bounded call context.
+    #  @param context Current exact call context.
+    #  @param pack_source ParameterSource naming *args or **kwargs.
+    #  @param index Integer position or keyword name.
+    #  @return (caller module, source, parent context), or None.
+    def _bounded_pack_item_source(self, context, pack_source, index):
+        if not isinstance(pack_source, ParameterSource):
+            return None
+        current = context
+        while current is not None:
+            if pack_source.scope != current.target.qualname:
+                current = current.parent
+                continue
+            module_cg = self.project_cg.modules.get(current.target.module)
+            summary = (
+                module_cg.functions.get(current.target.qualname)
+                if module_cg is not None else None)
+            if summary is None:
+                return None
+            edge = current.edge
+            if pack_source.name == summary.vararg:
+                if not isinstance(index, int):
+                    return None
+                positional_params = list(
+                    getattr(summary, "positional_params", []))
+                actual_index = len(positional_params) + index
+                positional = edge.arg_sources.get("pos", {})
+                if actual_index in positional:
+                    return (current.caller_module,
+                            positional[actual_index], current.parent)
+                star_item = self._star_positional_item_source(
+                    edge, summary, actual_index)
+                if star_item is not None:
+                    return (current.caller_module,
+                            star_item, current.parent)
+                return None
+            if pack_source.name == summary.kwarg:
+                if not isinstance(index, str):
+                    return None
+                keyword_args = edge.arg_sources.get("kw", {})
+                if index in keyword_args:
+                    return (current.caller_module,
+                            keyword_args[index], current.parent)
+                star_kwargs = getattr(edge, "star_kwarg_sources", [])
+                if len(star_kwargs) == 1:
+                    return (current.caller_module,
+                            ContainerItem(star_kwargs[0], index),
+                            current.parent)
+                return None
+            return None
+        return None
 
     ## Resolve a constructor parameter referenced by a method return summary.
     #
@@ -2016,6 +3886,29 @@ class ProjectAnalyzer:
             return self._dedupe_list(candidates) or ["unknown"]
         if isinstance(source, UnknownSource):
             return ["unknown"]
+        if isinstance(source, ContainerItem):
+            container = normalize_source(source.container)
+            if (isinstance(container, CallResult)
+                    and isinstance(source.index, int)):
+                candidates = self._bounded_call_result_item_candidates(
+                    source_module, container, source.index, tracers,
+                    parent=context, _seen=seen)
+                if candidates is not None:
+                    return candidates
+                return self._bounded_source_candidates(
+                    source_module, container, context, tracers, seen)
+
+        if isinstance(source, ContainerItem):
+            container = normalize_source(source.container)
+            if isinstance(container, ParameterSource):
+                selected = self._bounded_pack_item_source(
+                    context, container, source.index)
+                if selected is None:
+                    return ["unknown"]
+                selected_module, selected_source, next_context = selected
+                return self._bounded_source_candidates(
+                    selected_module, selected_source, next_context,
+                    tracers, seen)
 
         if isinstance(source, ParameterSource):
             current = context
@@ -2035,7 +3928,13 @@ class ProjectAnalyzer:
                         context, source, tracers, seen))
                 if constructor_candidates is not None:
                     return constructor_candidates
-            return ["unknown"]
+            # A local callee may return a parameter forwarded from its
+            # enclosing project function.  No parent CallContext is attached
+            # when this call expression is classified directly, so converge
+            # that outer parameter over its collected project call edges.
+            candidates = self._argument_owner_candidates(
+                source_module, source, tracers)
+            return candidates or ["unknown"]
 
         if (isinstance(source, str) and context is not None):
             current = context
@@ -2062,11 +3961,13 @@ class ProjectAnalyzer:
                 return nested
             if source.result_source is not None:
                 return self._origin_candidates(
-                    source_module, source.result_source, tracers,
+                    source.source_module or source_module,
+                    source.result_source, tracers,
                     _seen=seen)
             if isinstance(source.callee, str):
+                source_origin_module = source.source_module or source_module
                 top = self._top_source(
-                    source_module, source.callee, tracers,
+                    source_origin_module, source.callee, tracers,
                     _seen=seen)
                 return [top or "unknown"]
             return ["unknown"]
@@ -2086,6 +3987,83 @@ class ProjectAnalyzer:
                                         parent=None, _seen=None):
         if not isinstance(source, CallResult):
             return None
+        contexts = self._bounded_call_contexts(
+            caller_module, source.call_lineno, source.call_col_offset,
+            tracers, parent=parent)
+        if not contexts:
+            return None
+        seen = set(_seen or set())
+        candidates = []
+        for context in contexts:
+            module_cg = self.project_cg.modules.get(context.target.module)
+            summary = (
+                module_cg.functions.get(context.target.qualname)
+                if module_cg is not None else None)
+            if summary is None or summary.returns is None:
+                if len(contexts) == 1:
+                    return None
+                candidates.append("unknown")
+                continue
+            key = (
+                "bounded-call", caller_module, source.call_lineno,
+                source.call_col_offset, context.target.module,
+                context.target.qualname,
+            )
+            if key in seen:
+                candidates.append("unknown")
+                continue
+            context_seen = set(seen)
+            context_seen.add(key)
+            # A tuple return has no owner for the aggregate object. It is only
+            # meaningful after the caller binds a proven positional item into
+            # CallResult.result_source. If no positional marker is available,
+            # evaluate every tuple item and retain only a common owner.
+            if self._is_tuple_return_source(summary.returns):
+                if source.result_source is not None:
+                    candidates.extend(self._bounded_source_candidates(
+                        context.target.module, source.result_source, context,
+                        tracers, context_seen))
+                    continue
+                tuple_source = normalize_source(summary.returns)
+                tuple_lengths = []
+                branches = (tuple_source.sources
+                            if isinstance(tuple_source, SourceSet)
+                            else (tuple_source,))
+                for branch in branches:
+                    if isinstance(branch, DerivedResult):
+                        tuple_lengths.append(len(branch.sources))
+                if not tuple_lengths:
+                    candidates.append("unknown")
+                    continue
+                for index in range(min(tuple_lengths)):
+                    selected = self._return_item_source(
+                        summary.returns, index)
+                    if selected is None:
+                        candidates.append("unknown")
+                        break
+                    candidates.extend(self._bounded_source_candidates(
+                        context.target.module, selected, context,
+                        tracers, set(context_seen)))
+                continue
+            candidates.extend(self._bounded_source_candidates(
+                context.target.module, summary.returns, context,
+                tracers, context_seen))
+        return self._dedupe_list(candidates) or ["unknown"]
+
+    ## Resolve one positional item from an exact local tuple-return call.
+    #
+    #  @param caller_module Module containing the call.
+    #  @param source CallResult for the tuple-producing local call.
+    #  @param index Zero-based selected tuple position.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param parent Enclosing forwarding context.
+    #  @param _seen Recursion guard.
+    #  @return Candidate owners, or None when no tuple context is proven.
+    def _bounded_call_result_item_candidates(
+            self, caller_module, source, index, tracers,
+            parent=None, _seen=None):
+        if not isinstance(source, CallResult) or not isinstance(index, int):
+            return None
         context = self._bounded_call_context(
             caller_module, source.call_lineno, source.call_col_offset,
             tracers, parent=parent)
@@ -2097,18 +4075,20 @@ class ProjectAnalyzer:
             if module_cg is not None else None)
         if summary is None or summary.returns is None:
             return None
+        selected = self._return_item_source(summary.returns, index)
+        if selected is None:
+            return None
         seen = set(_seen or set())
         key = (
-            "bounded-call", caller_module, source.call_lineno,
-            source.call_col_offset, context.target.module,
-            context.target.qualname,
+            "bounded-call-item", caller_module,
+            source.call_lineno, source.call_col_offset,
+            context.target.module, context.target.qualname, index,
         )
         if key in seen:
             return ["unknown"]
         seen.add(key)
         return self._bounded_source_candidates(
-            context.target.module, summary.returns, context,
-            tracers, seen)
+            context.target.module, selected, context, tracers, seen)
 
     ## Converge bounded candidates without guessing across owners.
     #
@@ -2156,27 +4136,49 @@ class ProjectAnalyzer:
     #  @param param_index Positional parameter index.
     #  @param tracer Defining-module analyzer.
     #  @param tracers Dict of module name to analyzer.
+    #  @param prefer_protocol_shape Prefer independently proven PythonShape
+    #  evidence without changing ordinary call-target argument sources.
+    #  @param prefer_iterable_elements Prefer independently preserved
+    #  container element sources without treating the container as an item.
+    #  @param receiver_class_filter Optional project-local runtime class
+    #  required by a virtual-dispatch forwarding context.
     #  @return List of (caller module, argument source) tuples.
     def _parameter_call_arguments(self, module, scope_name, parameter,
-                                  param_index, tracer, tracers):
+                                  param_index, tracer, tracers,
+                                  prefer_protocol_shape=False,
+                                  prefer_iterable_elements=False,
+                                  receiver_class_filter=None):
         found = []
         seen = set()
         bare_scope = scope_name.rsplit(".", 1)[-1]
 
         for index, source in enumerate(
                 tracer.parameter_sources.get((scope_name, parameter), [])):
+            if source is None:
+                continue
             key = ("parameterization", index, source_display(source))
             if key not in seen:
                 seen.add(key)
                 found.append((module, source))
 
-        call_sites = (tracer.call_sites.get(scope_name)
-                      or tracer.call_sites.get(bare_scope, []))
+        call_sites = []
+        if receiver_class_filter is None:
+            call_sites = (tracer.call_sites.get(scope_name)
+                          or tracer.call_sites.get(bare_scope, []))
         for call_site in call_sites:
+            if prefer_iterable_elements:
+                continue
             args = call_site.get("args", [])
+            if prefer_protocol_shape:
+                protocol_args = call_site.get("protocol_args", [])
+                if (param_index < len(protocol_args)
+                        and protocol_args[param_index] is not None):
+                    args = protocol_args
             if param_index >= len(args):
                 continue
             arg_source = args[param_index]
+            if arg_source is None:
+                continue
             caller_module = call_site.get("module") or module
             key = (
                 caller_module,
@@ -2187,6 +4189,68 @@ class ProjectAnalyzer:
                 seen.add(key)
                 found.append((caller_module, arg_source))
 
+        ## A bounded callback edge can supply one exact iterable element to a
+        # local callback parameter.  The only callback contract handled here
+        # is multiprocessing.Pool.map(callback, iterable); arbitrary
+        # external dispatch remains unresolved.
+        if prefer_iterable_elements:
+            target_name = scope_name.rsplit(".", 1)[-1]
+            for caller_module, caller_cg in (
+                    getattr(self, "project_cg", ProjectCallGraph()).modules.items()):
+                for edge in caller_cg.edges:
+                    if not self._is_multiprocessing_map_edge(edge):
+                        continue
+                    callback_positions = [
+                        position for position, callback_name
+                        in getattr(edge, "callback_args", {}).items()
+                        if callback_name == target_name
+                    ]
+                    if len(callback_positions) != 1:
+                        continue
+                    iterable_position = callback_positions[0] + 1
+                    element_source = getattr(
+                        edge, "iterable_arg_sources", {}).get(
+                            "pos", {}).get(iterable_position)
+                    if element_source is None or isinstance(
+                            element_source, UnknownSource):
+                        continue
+                    key = (caller_module, edge.call_lineno,
+                           edge.call_col_offset, source_display(element_source))
+                    if key not in seen:
+                        seen.add(key)
+                        found.append((caller_module, element_source))
+
+        ## A bounded Process(target=..., args=(...)) edge supplies direct
+        #  positional arguments to the named local callback.  This is kept
+        #  separate from ordinary call-target matching because Process itself
+        #  is the external callable, not the worker function.
+        target_name = scope_name.rsplit(".", 1)[-1]
+        for caller_module, caller_cg in (
+                getattr(self, "project_cg", ProjectCallGraph()).modules.items()):
+            caller_tracer = tracers.get(caller_module)
+            for edge in caller_cg.edges:
+                if not self._is_multiprocessing_process_edge(
+                        edge, caller_tracer):
+                    continue
+                for binding in getattr(edge, "callback_bindings", []):
+                    if binding.get("callback") != target_name:
+                        continue
+                    target_module_cg = self.project_cg.modules.get(module)
+                    if (target_module_cg is None
+                            or target_name not in target_module_cg.functions):
+                        continue
+                    callback_args = normalize_source(binding.get("args"))
+                    if not isinstance(callback_args, TupleSource):
+                        continue
+                    if param_index >= len(callback_args.items):
+                        continue
+                    arg_source = callback_args.items[param_index]
+                    key = (caller_module, edge.call_lineno,
+                           edge.call_col_offset, source_display(arg_source))
+                    if key not in seen:
+                        seen.add(key)
+                        found.append((caller_module, arg_source))
+
         cg = getattr(self, "project_cg", None)
         if cg is None:
             return found
@@ -2195,25 +4259,212 @@ class ProjectAnalyzer:
             for edge in module_cg.edges:
                 if not self._edge_targets_local_function(
                         edge, caller_module, module, scope_name,
+                        caller_tracer, tracers,
+                        allow_inherited_dispatch=True):
+                    continue
+                if (receiver_class_filter is not None
+                        and not self._edge_receiver_may_have_class(
+                            edge, caller_module, receiver_class_filter,
+                            tracers)):
+                    continue
+                target_cg = cg.modules.get(module)
+                target_summary = (
+                    target_cg.functions.get(scope_name)
+                    if target_cg is not None else None)
+                if target_summary is None:
+                    target_summary = (
+                        target_cg.functions.get(
+                            scope_name.rsplit(".", 1)[-1])
+                        if target_cg is not None else None)
+                edge_args = self._edge_parameter_sources(
+                    edge, target_summary, parameter, param_index,
+                    prefer_protocol_shape=prefer_protocol_shape,
+                    prefer_iterable_elements=prefer_iterable_elements)
+                if edge_args is None:
+                    continue
+                for arg_source in edge_args:
+                    key = (
+                        caller_module,
+                        edge.call_lineno,
+                        edge.call_col_offset,
+                        source_display(arg_source),
+                    )
+                    if key not in seen:
+                        seen.add(key)
+                        found.append((caller_module, arg_source))
+        return found
+
+    ## Check the narrow standard-library callback contract supported above.
+    #  @param edge Candidate call edge.
+    #  @return True only for multiprocessing.Pool.map(...).
+    def _is_multiprocessing_map_edge(self, edge):
+        if (not isinstance(getattr(edge, "callee_name", None), str)
+                or not edge.callee_name.endswith(".map")):
+            return False
+        receiver = normalize_source(getattr(edge, "receiver_source", None))
+        return (isinstance(receiver, CallResult)
+                and receiver.callee == "multiprocessing")
+
+    ## Check the narrow standard-library Process callback contract.
+    #  @param edge Candidate call edge.
+    #  @param tracer Caller-module analyzer, used for direct imports.
+    #  @return True only for multiprocessing.Process.
+    def _is_multiprocessing_process_edge(self, edge, tracer=None):
+        callee_name = getattr(edge, "callee_name", None)
+        if callee_name == "multiprocessing.Process":
+            return True
+        if callee_name != "Process" or tracer is None:
+            return False
+        return (getattr(tracer, "import_from_symbols", {}).get("Process")
+                == "multiprocessing.Process")
+
+    ## Select sources supplied to one parameter from a resolved call edge.
+    #  @param edge Call graph edge.
+    #  @param summary Callee function signature summary.
+    #  @param parameter Target parameter name.
+    #  @param param_index Position in the flattened parameter list.
+    #  @param prefer_protocol_shape Use independent PythonShape evidence.
+    #  @param prefer_iterable_elements Use preserved iterable element evidence.
+    #  @return List of sources, or None when the edge cannot bind safely.
+    def _edge_parameter_sources(self, edge, summary, parameter, param_index,
+                                prefer_protocol_shape=False,
+                                prefer_iterable_elements=False):
+        if summary is None:
+            return None
+        ordinary_args = edge.arg_sources
+        if prefer_iterable_elements:
+            ordinary_args = getattr(edge, "iterable_arg_sources", {})
+        elif prefer_protocol_shape:
+            ordinary_args = {
+                "pos": dict(edge.arg_sources.get("pos", {})),
+                "kw": dict(edge.arg_sources.get("kw", {})),
+            }
+            protocol_args = getattr(edge, "protocol_arg_sources", {})
+            ordinary_args["pos"].update(protocol_args.get("pos", {}))
+            ordinary_args["kw"].update(protocol_args.get("kw", {}))
+        keyword_args = ordinary_args.get("kw", {})
+        if parameter in keyword_args:
+            return [keyword_args[parameter]]
+        positional_params = list(
+            getattr(summary, "positional_params", []))
+        if not positional_params:
+            positional_params = [
+                name for name in summary.params
+                if name not in (summary.vararg, summary.kwarg)
+            ]
+        if parameter == summary.vararg:
+            start = len(positional_params)
+            positional = ordinary_args.get("pos", {})
+            values = [
+                positional[index]
+                for index in sorted(positional)
+                if index >= start
+            ]
+            values.extend(getattr(edge, "star_arg_sources", {}).values())
+            return values or None
+        if parameter == summary.kwarg:
+            explicit = set(positional_params)
+            explicit.update(getattr(summary, "keyword_only_params", []))
+            values = [
+                value for name, value in keyword_args.items()
+                if name not in explicit
+            ]
+            values.extend(getattr(edge, "star_kwarg_sources", []))
+            return values or None
+        if parameter in positional_params:
+            index = positional_params.index(parameter)
+            positional = ordinary_args.get("pos", {})
+            if index in positional:
+                return [positional[index]]
+            star_item = self._star_positional_item_source(
+                edge, summary, index)
+            if star_item is not None:
+                return [star_item]
+        star_kwargs = getattr(edge, "star_kwarg_sources", [])
+        if len(star_kwargs) == 1:
+            return [ContainerItem(star_kwargs[0], parameter)]
+        defaults = getattr(summary, "defaults", {})
+        if parameter in defaults:
+            return [defaults[parameter]]
+        return None
+
+    ## Collect the selected item of a variadic parameter from each exact
+    #  project-local call edge.
+    #  @param module Defining module of the variadic parameter.
+    #  @param pack_source ParameterSource naming *args or **kwargs.
+    #  @param index Integer position or keyword name.
+    #  @param tracers Per-module analyzers.
+    #  @return List of (caller module, selected source) tuples.
+    def _parameter_pack_item_arguments(self, module, pack_source, index,
+                                       tracers):
+        if not isinstance(pack_source, ParameterSource):
+            return []
+        cg = getattr(self, "project_cg", None)
+        target_cg = cg.modules.get(module) if cg is not None else None
+        if target_cg is None:
+            return []
+        summary = target_cg.functions.get(pack_source.scope)
+        if summary is None:
+            summary = target_cg.functions.get(
+                pack_source.scope.rsplit(".", 1)[-1])
+        if summary is None or pack_source.name not in summary.params:
+            return []
+        param_index = summary.params.index(pack_source.name)
+        found = []
+        seen = set()
+        for caller_module, caller_cg in cg.modules.items():
+            caller_tracer = tracers.get(caller_module)
+            for edge in caller_cg.edges:
+                if not self._edge_targets_local_function(
+                        edge, caller_module, module, pack_source.scope,
                         caller_tracer, tracers):
                     continue
-                keyword_args = edge.arg_sources.get("kw", {})
-                positional_args = edge.arg_sources.get("pos", {})
-                if parameter in keyword_args:
-                    arg_source = keyword_args[parameter]
-                else:
-                    if param_index not in positional_args:
-                        continue
-                    arg_source = positional_args[param_index]
-                key = (
-                    caller_module,
-                    edge.call_lineno,
-                    edge.call_col_offset,
-                )
-                if key not in seen:
-                    seen.add(key)
-                    found.append((caller_module, arg_source))
+                selected = self._edge_pack_item_source(
+                    edge, summary, pack_source.name, index)
+                if selected is None:
+                    continue
+                key = (caller_module, edge.call_lineno,
+                       edge.call_col_offset, source_display(selected))
+                if key in seen:
+                    continue
+                seen.add(key)
+                found.append((caller_module, selected))
         return found
+
+    ## Select one item from a variadic parameter on one call edge.
+    #  @param edge Call graph edge.
+    #  @param summary Callee signature summary.
+    #  @param parameter Variadic parameter name.
+    #  @param index Integer position or keyword name.
+    #  @return Selected source or None when the edge is ambiguous.
+    def _edge_pack_item_source(self, edge, summary, parameter, index):
+        if parameter == summary.vararg:
+            if not isinstance(index, int):
+                return None
+            positional_params = list(
+                getattr(summary, "positional_params", []))
+            actual_index = len(positional_params) + index
+            positional = edge.arg_sources.get("pos", {})
+            if actual_index in positional:
+                return positional[actual_index]
+            star_item = self._star_positional_item_source(
+                edge, summary, actual_index)
+            return star_item
+        if parameter == summary.kwarg:
+            if not isinstance(index, str):
+                return None
+            keyword_args = edge.arg_sources.get("kw", {})
+            if index in keyword_args:
+                positional_params = set(
+                    getattr(summary, "positional_params", []))
+                keyword_only = set(
+                    getattr(summary, "keyword_only_params", []))
+                if index not in positional_params | keyword_only:
+                    return keyword_args[index]
+            star_kwargs = getattr(edge, "star_kwarg_sources", [])
+            if len(star_kwargs) == 1:
+                return ContainerItem(star_kwargs[0], index)
+        return None
 
     ## Return whether a CallEdge targets one specific local callable.
     #
@@ -2228,10 +4479,13 @@ class ProjectAnalyzer:
     #  @param scope_name Qualified target function name.
     #  @param caller_tracer Analyzer for caller module.
     #  @param tracers Dict of module name to analyzer.
+    #  @param allow_inherited_dispatch Match inherited and overridden methods
+    #  for parameter-flow analysis.
     #  @return True when the edge resolves to the target function.
     def _edge_targets_local_function(self, edge, caller_module,
                                      target_module, scope_name,
-                                     caller_tracer, tracers):
+                                     caller_tracer, tracers,
+                                     allow_inherited_dispatch=False):
         cg = getattr(self, "project_cg", None)
         target_cg = cg.modules.get(target_module) if cg is not None else None
         if target_cg is None:
@@ -2264,6 +4518,26 @@ class ProjectAnalyzer:
                         and (not is_constructor or class_name == callable_name)):
                     return True
 
+        # A local instance call such as ``f(value)`` is represented by the
+        # variable name rather than ``__call__`` in the AST.  When the call
+        # edge retains constructor sources for that variable, use those local
+        # class identities to connect the edge to the corresponding
+        # ``__call__`` method.  No class or library name is inferred from the
+        # spelling of the variable itself.
+        if is_method and target_name == "__call__":
+            callable_classes = self._local_callable_class_candidates(
+                caller_module,
+                getattr(edge, "callee", None),
+                caller_tracer,
+                tracers,
+                display_name=getattr(edge, "callee_name", ""),
+            )
+            for candidate_module, candidate_class in callable_classes:
+                if self._local_class_is_or_derives(
+                        candidate_module, candidate_class,
+                        target_module, class_name, tracers):
+                    return True
+
         callee_name = getattr(edge, "callee_name", "") or ""
         if not callee_name:
             return False
@@ -2275,15 +4549,38 @@ class ProjectAnalyzer:
             if (isinstance(callee, InstanceMethod)
                     and isinstance(callee.receiver, str)
                     and callee.receiver in target_cg.classes):
+                if allow_inherited_dispatch:
+                    if edge.receiver_source == "self":
+                        return self._local_class_is_or_derives(
+                            target_module, class_name,
+                            target_module, callee.receiver, tracers)
+                    return self._local_class_is_or_derives(
+                        target_module, callee.receiver,
+                        target_module, class_name, tracers)
                 return callee.receiver == class_name
-            receiver_class = self._local_class_from_source(
-                caller_module, edge.receiver_source)
+            receiver_class = self._resolve_local_class_identity(
+                caller_module, edge.receiver_source, tracers)
             if receiver_class is not None:
+                if allow_inherited_dispatch:
+                    return self._local_class_is_or_derives(
+                        receiver_class[0], receiver_class[1],
+                        target_module, class_name, tracers)
                 return receiver_class == (target_module, class_name)
-            if (caller_module == target_module
-                    and edge.caller.qualname.startswith(class_name + ".")
-                    and edge.receiver_source == "self"):
-                return True
+            if edge.receiver_source == "self":
+                caller_parts = edge.caller.qualname.rsplit(".", 1)
+                caller_class = (
+                    caller_parts[0] if len(caller_parts) == 2 else "")
+                caller_cg = self.project_cg.modules.get(caller_module)
+                if (caller_cg is not None
+                        and caller_class in caller_cg.classes):
+                    if allow_inherited_dispatch:
+                        return self._local_class_is_or_derives(
+                            target_module, class_name,
+                            caller_module, caller_class, tracers)
+                    return (
+                        caller_module == target_module
+                        and caller_class == class_name)
+                return False
             if callee in ("local", "self"):
                 return True
             receiver_candidates = self._argument_owner_candidates(
@@ -2549,6 +4846,10 @@ class ProjectAnalyzer:
                 continue
             # Found in this module — if no returns, don't fall back to others.
             if fs.returns is None:
+                return None
+            # Tuple return summaries require caller-side positional binding;
+            # they are not whole-result sources for the legacy resolver.
+            if self._is_tuple_return_source(fs.returns):
                 return None
             returns_norm = normalize_source(fs.returns)
             if isinstance(returns_norm, SourceSet):
@@ -2866,6 +5167,8 @@ class ProjectAnalyzer:
     def _top_source(self, src_module, symbol, tracers, _seen=None):
         if not symbol:
             return None
+        if isinstance(symbol, PythonShape):
+            return "python"
         if isinstance(symbol, str) and _is_builtin(symbol):
             return "python"
         src_tracer = tracers.get(src_module)

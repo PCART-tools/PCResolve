@@ -10,6 +10,54 @@ module_dict = {}
 module_listcomp = [x for x in range(3)]
 
 
+class ClassContainers:
+    """Container attributes retain their literal Python shape."""
+
+    LOOKUP = {"one": 1}
+
+    @classmethod
+    def values(cls):
+        return cls.LOOKUP.values()
+
+    @staticmethod
+    def unrelated_receiver(cls):
+        return cls.LOOKUP.values()
+
+
+def helper_dynamic_dict_items():
+    """Uniform subscript writes establish the selected item shape."""
+    buckets = {}
+    buckets["first"] = []
+    buckets["second"] = list()
+    buckets["first"].append(1)
+    return buckets
+
+
+class LocalBag:
+    def append(self, value):
+        return value
+
+
+def helper_conflicting_dict_items(flag):
+    """Conflicting writes must not claim a Python list receiver."""
+    buckets = {}
+    buckets["first"] = []
+    buckets["second"] = LocalBag()
+    key = "first" if flag else "second"
+    buckets[key].append(1)
+    return buckets
+
+
+def helper_rebound_dict_items():
+    """A new dict binding starts a fresh item-shape flow."""
+    buckets = {}
+    buckets["first"] = LocalBag()
+    buckets = {}
+    buckets["second"] = []
+    buckets["second"].append(1)
+    return buckets
+
+
 def helper_build_list():
     """Function-local builtin list: .append() belongs to Python."""
     local_list = []

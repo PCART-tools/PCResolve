@@ -1,9 +1,8 @@
-# Contrucao — static_obvious (43 records)
+# Contrucao — static_obvious (42 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
 | main.py:9:16 | `soup(['style', 'script', 'head', 'header', 'meta', '[document]', 't...` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| main.py:10:8 | `data.decompose()` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
 | main.py:13:11 | `' '.join(soup.stripped_strings)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | main.py:23:9 | `spacy.load('en_core_web_sm')` | library / spacy | library / spacy | direct_import | static_obvious | v: direct import-backed API call |
 | main.py:38:9 | `requests.get(url)` | library / requests | library / requests | direct_import | static_obvious | v: direct import-backed API call |

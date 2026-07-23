@@ -2,6 +2,14 @@ def use_decoder(decoder):
     decoder.decode("cross-file")
 
 
+def use_cross_file_text(text):
+    text.swapcase()
+
+
+def use_cross_file_list(items):
+    items.reverse()
+
+
 class DecoderHolder:
     def __init__(self, decoder):
         self.decoder = decoder

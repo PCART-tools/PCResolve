@@ -18,11 +18,12 @@
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 375
+- [static_obvious](static_obvious.md): 371
 - [static_context](static_context.md): 41
 - [dynamic_probe](dynamic_probe.md): 28
+- [manual_reasoned](manual_reasoned.md): 4
 
-## [Suspicious Records](suspicious.md): 31
+## [Suspicious Records](suspicious.md): 26
 
 ## Category Breakdown
 

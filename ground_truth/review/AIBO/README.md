@@ -12,18 +12,18 @@
 
 ## Expected Kind
 
-- library: 370
+- library: 373
 - python: 173
-- local: 114
+- local: 111
 - unknown: 3
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 487
-- [static_context](static_context.md): 169
+- [static_obvious](static_obvious.md): 489
+- [static_context](static_context.md): 167
 - [manual_reasoned](manual_reasoned.md): 4
 
-## [Suspicious Records](suspicious.md): 17
+## [Suspicious Records](suspicious.md): 11
 
 ## Category Breakdown
 
@@ -34,11 +34,10 @@
 - builtin_string_method: 2
 - cma_receiver: 3
 - datetime_receiver: 1
-- direct_import: 269
+- direct_import: 271
 - dynamic_local_callable: 3
 - gym_receiver: 10
 - lassobench_receiver: 1
-- local_baseline_callable: 3
 - local_call: 63
 - local_callable: 5
 - local_constructor: 3
@@ -50,6 +49,7 @@
 - numpy_array_receiver: 10
 - pygame_receiver: 2
 - pymoo_receiver: 10
+- receiver_return: 1
 - unconstrained_dead_code_parameter: 3
 
 ## Top Libraries
@@ -65,6 +65,7 @@
 - pygame: 8
 - cma: 4
 - scipy: 4
+- baselines: 3
 - os: 3
 - json: 3
 - AIBO: 2

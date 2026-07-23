@@ -54,6 +54,40 @@ def test_literal_container_argument_propagates_python_owner():
     assert call.top_library == "python"
 
 
+def test_named_string_argument_preserves_lexical_python_shape():
+    call = _call("text.upper")
+    assert call.top_library == "python"
+
+
+def test_named_container_argument_preserves_lexical_python_shape():
+    call = _call("items.extend")
+    assert call.top_library == "python"
+
+
+def test_named_python_shape_still_requires_compatible_protocol():
+    call = _call("items.upper", "items.upper()")
+    assert call.top_library == "unknown"
+
+
+def test_named_local_object_does_not_gain_python_shape():
+    call = _call("receiver.write")
+    assert call.top_library == "local"
+
+
+def test_python_argument_requires_compatible_receiver_protocol():
+    call = _call("number.strip", "number.strip()")
+    assert call.top_library == "unknown"
+
+
+def test_python_shape_survives_one_parameter_forwarding_step():
+    calls = [
+        call for call in _calls_named("text.strip")
+        if call.expression == "text.strip()"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
 def test_converged_python_parameter_method_result_stays_python():
     call = _call("normalized_text.upper")
     assert call.top_library == "python"
@@ -94,6 +128,16 @@ def test_forward_local_call_site_preserves_local_owner():
 def test_cross_file_call_site_propagates_receiver_owner():
     call = _call("decoder.decode", "decoder.decode('cross-file')")
     assert call.top_library == "json"
+
+
+def test_cross_file_named_string_preserves_protocol_shape():
+    call = _call("text.swapcase")
+    assert call.top_library == "python"
+
+
+def test_cross_file_named_container_preserves_protocol_shape():
+    call = _call("items.reverse")
+    assert call.top_library == "python"
 
 
 def test_self_method_identity_is_unchanged():
@@ -164,6 +208,48 @@ def test_method_result_contract_survives_self_attribute_binding():
 def test_static_callback_table_propagates_argument_owner():
     call = _call("worker.expand")
     assert call.top_library == "local"
+
+
+def test_dict_get_preserves_static_callback_identity():
+    call = _call("selected_callback")
+    assert call.top_library == "local"
+
+
+def test_constructor_container_elements_propagate_local_owner():
+    calls = _calls_named("item.ping")
+    assert len(calls) == 1
+    assert calls[0].top_library == "local"
+
+
+def test_constructor_container_elements_require_owner_convergence():
+    call = _call("item.decode")
+    assert call.top_library == "unknown"
+
+
+def test_named_iterable_evidence_is_isolated_by_lexical_binding():
+    python_call = _call("entry.strip")
+    local_call = _call("entry.ping")
+    assert python_call.top_library == "python"
+    assert local_call.top_library == "local"
+
+
+def test_local_virtual_dispatch_propagates_forwarded_parameter_owner():
+    call = _call("value.raw_decode")
+    assert call.top_library == "json"
+
+
+def test_local_virtual_dispatch_keeps_subclass_contexts_isolated():
+    json_call = _call(
+        "value.scan_once", "value.scan_once('{}')")
+    local_call = _call(
+        "value.scan_once", "value.scan_once()")
+    assert json_call.top_library == "json"
+    assert local_call.top_library == "local"
+
+
+def test_cross_file_virtual_dispatch_propagates_forwarded_parameter_owner():
+    call = _call("value.object_hook")
+    assert call.top_library == "json"
 
 
 def test_pytest_parametrize_values_propagate_parameter_owner():

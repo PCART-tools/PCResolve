@@ -10,15 +10,15 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | locked | 0 | 487 | 169 | 0 | 4 | 17 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 489 | 167 | 0 | 4 | 11 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 104 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 58 |
 | [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
 | [click3](click3/README.md) | 4 | locked | 0 | 4 | 0 | 0 | 0 | 0 |
-| [Contrucao](Contrucao/README.md) | 52 | locked | 0 | 43 | 9 | 0 | 0 | 6 |
+| [Contrucao](Contrucao/README.md) | 52 | locked | 0 | 42 | 9 | 0 | 1 | 1 |
 | [covid19](covid19/README.md) | 89 | locked | 0 | 67 | 22 | 0 | 0 | 0 |
 | [CustomSamplers](CustomSamplers/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
@@ -31,28 +31,28 @@ machine source of truth.
 | [fuel_forecast_explorer](fuel_forecast_explorer/README.md) | 25 | locked | 0 | 5 | 20 | 0 | 0 | 0 |
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
-| [gistable](gistable/README.md) | 10 | locked | 0 | 8 | 0 | 2 | 0 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 38 |
-| [hfhd](hfhd/README.md) | 444 | locked | 0 | 375 | 41 | 28 | 0 | 31 |
+| [gistable](gistable/README.md) | 10 | locked | 0 | 7 | 0 | 2 | 1 | 0 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 28 |
+| [hfhd](hfhd/README.md) | 444 | locked | 0 | 371 | 41 | 28 | 4 | 26 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
-| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 38 |
+| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 29 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 46 |
-| [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 40 | 30 | 0 | 0 | 19 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 26 |
+| [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 38 | 30 | 0 | 2 | 21 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
 | [qho](qho/README.md) | 71 | locked | 0 | 61 | 10 | 0 | 0 | 0 |
 | [recommendation](recommendation/README.md) | 60 | locked | 0 | 40 | 20 | 0 | 0 | 0 |
 | [redis](redis/README.md) | 33 | locked | 0 | 13 | 0 | 20 | 0 | 0 |
 | [scrapping](scrapping/README.md) | 110 | locked | 0 | 72 | 30 | 8 | 0 | 8 |
-| [SDOML](SDOML/README.md) | 94 | locked | 0 | 73 | 18 | 3 | 0 | 5 |
-| [sg-restart-regridder](sg-restart-regridder/README.md) | 10 | locked | 0 | 6 | 4 | 0 | 0 | 0 |
+| [SDOML](SDOML/README.md) | 94 | locked | 0 | 73 | 18 | 3 | 0 | 0 |
+| [sg-restart-regridder](sg-restart-regridder/README.md) | 10 | locked | 0 | 5 | 5 | 0 | 0 | 0 |
 | [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 6 | 4 | 5 | 0 | 1 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3745** | **1816** | **185** | **42** | **359** |
+| **TOTAL** | **5788** | | **0** | **3738** | **1815** | **185** | **50** | **255** |
 
 ## Directory Layout
 
