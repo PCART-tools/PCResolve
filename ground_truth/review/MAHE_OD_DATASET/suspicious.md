@@ -1,19 +1,12 @@
-# MAHE_OD_DATASET — Suspicious Records (45)
+# MAHE_OD_DATASET — Suspicious Records (38)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
 |---------------|------------|----|-----------|----------|-------|---------|
-| annotation.py:32:9 | `file.split('/')` | python / python | library / glob | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=glob |
-| annotation.py:43:12 | `object.find('name').text.lower()` | python / python | library / xml | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=xml |
-| annotation.py:43:12 | `object.find('name').text.lower().strip()` | python / python | library / xml | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=xml |
 | annotation.py:63:8 | `key.split('/')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
-| generatevocdata.py:34:15 | `elem.replace(' ', '')` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
-| generatevocdata.py:38:11 | `filename.endswith('.jpg')` | python / python | library / os | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=os |
-| generatevocdata.py:39:18 | `filename.rstrip('.jpg')` | python / python | library / os | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=os |
 | generatevocdata.py:59:20 | `annotations[labelname].append(img)` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
-| generatevocdata.py:73:15 | `sampler.pop()` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
 | preprocess.py:146:10 | `image.copy()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | rescaling.py:88:10 | `image.copy()` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
 | utils.py:67:16 | `object.find('name').text.lower()` | python / python | library / xml | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=xml |

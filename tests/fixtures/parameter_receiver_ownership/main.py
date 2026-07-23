@@ -21,6 +21,18 @@ def use_json_decoder(decoder):
     decoder.decode("{}")
 
 
+def use_python_text(text):
+    text.strip()
+
+
+def use_python_list(items):
+    items.append("value")
+
+
+def normalize_python_text(value):
+    return value.strip()
+
+
 def close_polymorphic(stream):
     stream.close()
 
@@ -64,6 +76,35 @@ class Holder:
         self.payload = payload
 
 
+class TextHolder:
+    def __init__(self, title):
+        self.title = title
+
+    def normalize(self):
+        self.title.strip()
+
+
+class UncalledTextHolder:
+    def __init__(self, caption):
+        self.caption = caption
+
+    def normalize(self):
+        self.caption.strip()
+
+
+class BranchingWriter:
+    def __init__(self, compressed):
+        self.file = self.open(compressed)
+
+    def write(self):
+        self.file.write("value")
+
+    def open(self, compressed):
+        if compressed:
+            return gzip.open("compressed.gz", "wb")
+        return open("plain.txt", "w")
+
+
 class PhysicsWrapper:
     def __init__(self):
         self.world = b2World()
@@ -105,12 +146,18 @@ def use_holder_alias(holder):
 
 use_local_sink(LocalSink())
 use_json_decoder(json.JSONDecoder())
+use_python_text(" literal ")
+use_python_list([])
+normalized_text = normalize_python_text(" normalized ")
+normalized_text.upper()
 close_polymorphic(open("plain.txt", "w"))
 close_polymorphic(gzip.open("compressed.gz", "wb"))
 invoke_forward()
 Effector(World())
 use_holder(Holder(Payload()))
 use_holder_alias(Holder(Payload()))
+TextHolder(" title ").normalize()
+BranchingWriter(True).write()
 build_body(PhysicsWrapper())
 PhysicsOwner(PhysicsWrapper()).attach()
 CalledTransformer().transfer(LocalSink())

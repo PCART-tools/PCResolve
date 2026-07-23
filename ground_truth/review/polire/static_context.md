@@ -80,7 +80,7 @@
 | polire/preprocessing/sptial_features.py:93:18 | `self.distance(lonlat, self_lonlat)` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:95:22 | `dst.argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
 | polire/preprocessing/sptial_features.py:97:22 | `dst.argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
-| polire/preprocessing/sptial_features.py:103:19 | `self_y_local[:, None].repeat(lonlat.shape[0], 1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
+| polire/preprocessing/sptial_features.py:103:19 | `self_y_local[:, None].repeat(lonlat.shape[0], 1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array established by source assignments |
 | polire/preprocessing/sptial_features.py:114:20 | `model.fit(self_lonlat[idx[i]], self_y_local[idx[i]])` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:115:27 | `model.predict(lonlat[i][None, :])` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
 | polire/preprocessing/sptial_features.py:130:8 | `self.fit(X, y)` | local / local | local / local | local_method | static_context | v: callable is project-defined or receiver is a project-local IDW instance |
@@ -91,7 +91,7 @@
 | polire/spatial/spatial.py:53:53 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/spatial/spatial.py:59:15 | `self._average(X)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/spatial/spatial.py:62:15 | `self.distance(X, self.X)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
-| polire/spatial/spatial.py:64:15 | `(self.y * mask).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
+| polire/spatial/spatial.py:64:15 | `(self.y * mask).sum(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/spatial/spatial.py:64:45 | `mask.sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/custom/custom.py:31:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/custom/custom.py:53:44 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: X1 and X2 are returned by numpy.meshgrid |
@@ -104,7 +104,7 @@
 | polire/idw/idw.py:83:17 | `(weights * self.y[:, None]).sum(axis=0)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/idw/idw.py:83:59 | `weights.sum(axis=0)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/idw/idw.py:88:15 | `mask.any()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
-| polire/idw/idw.py:89:28 | `(self.y * mask).sum()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
+| polire/idw/idw.py:89:28 | `(self.y * mask).sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/kriging/kriging.py:53:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/kriging/kriging.py:74:22 | `OrdinaryKriging(X[:, 0], X[:, 1], y, variogram_model=self.variogram...` | library / pykrige | library / pykrige | pykrige_receiver | static_context | v: constructor or receiver belongs to pykrige |
 | polire/kriging/kriging.py:85:22 | `UniversalKriging(X[:, 0], X[:, 1], y, variogram_model=self.variogra...` | library / pykrige | library / pykrige | pykrige_receiver | static_context | v: constructor or receiver belongs to pykrige |
@@ -135,9 +135,9 @@
 | polire/nsgp/nsgp.py:117:23 | `job.map(self._c_inv, self.__kernels)` | library / multiprocessing | library / multiprocessing | multiprocessing_receiver | static_context | v: job is a multiprocessing.Pool instance |
 | polire/nsgp/nsgp.py:118:8 | `job.close()` | library / multiprocessing | library / multiprocessing | multiprocessing_receiver | static_context | v: job is a multiprocessing.Pool instance |
 | polire/nsgp/nsgp.py:149:20 | `self.__weight_func(s1)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
-| polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:153:24 | `self.__weight_func(s2)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
-| polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:156:43 | `self.__kernels[i](S1, self._X)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:157:43 | `self.__kernels[i](self._X, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:158:45 | `self.__kernels[i](S1, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
@@ -161,8 +161,8 @@
 | polire/nsgp/nsgp.py:233:18 | `self._Kernel(X, self._X)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:235:12 | `KX_test.dot(self._KX_inv)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:235:12 | `KX_test.dot(self._KX_inv).dot(self._y - self._y.mean())` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:235:52 | `self._y.mean()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:236:14 | `self._y.mean()` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:235:52 | `self._y.mean()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:236:14 | `self._y.mean()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:239:23 | `self._Kernel(X, X)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:239:44 | `KX_test.dot(self._KX_inv)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:239:44 | `KX_test.dot(self._KX_inv).dot(KX_test.T)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |

@@ -323,9 +323,14 @@ class ProjectAnalyzer:
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
             for ref in tracer.symbol_refs:
+                direct_source = ref.source
+                if ref.kind == "parameter" and ref.scope_name:
+                    direct_source = ParameterSource(
+                        ref.scope_name, ref.symbol)
                 try:
                     chain = self.trace_symbol(module, ref.symbol, module_tracers,
-                                               set(), _direct_source=ref.source)
+                                               set(),
+                                               _direct_source=direct_source)
                 except RecursionError:
                     chain = [source_display(ref.source)]
                 chain = _dedup_consecutive(chain)
@@ -432,10 +437,17 @@ class ProjectAnalyzer:
                     self.all_calls[module].append(record)
                     continue
                 # 1.0.5 P1: preserve python top from single-file phase
-                # for calls with call-site recorded container kind.
+                # for calls with call-site recorded container kind or a
+                # lexically verified, unshadowed builtin callable.
                 call_kind = call_detail.get("receiver_container_kind")
-                if (call_kind is not None
-                        and call_detail.get("top") == "python"):
+                direct_builtin = (
+                    call_detail.get("top") == "python"
+                    and call_detail.get("direct_name_callee") == base
+                    and _is_builtin(base)
+                )
+                if ((call_kind is not None
+                     and call_detail.get("top") == "python")
+                        or direct_builtin):
                     record = dict(call_detail)
                     record['top'] = "python"
                 else:
@@ -632,6 +644,8 @@ class ProjectAnalyzer:
                 receiver_top = self._top_source(
                     receiver_module, receiver_symbol, tracers,
                     _seen=set(seen))
+                if receiver_top == "python":
+                    return ["python"]
                 result_owner = _match_result_owner(
                     receiver_top, method_source.method)
                 return [result_owner or "unknown"]
@@ -1158,6 +1172,14 @@ class ProjectAnalyzer:
                 if isinstance(src, str):
                     return (source_display(direct_source), module, src)
             return None
+        if isinstance(direct_source, ParameterSource):
+            owners = self._dedupe_list([
+                owner for owner in self._argument_owner_candidates(
+                    module, direct_source, tracers)
+                if owner not in (None, "")
+            ])
+            owner = owners[0] if len(owners) == 1 else "unknown"
+            return (source_display(direct_source), module, owner)
         callee_display = None
         if isinstance(direct_source, ContainerItem):
             kind, a, b = "container_item", direct_source.container, direct_source.index
@@ -1468,6 +1490,23 @@ class ProjectAnalyzer:
                                     rs = tr.return_sources.get(func_from_display)
                 rs = normalize_source(rs)
                 if isinstance(rs, SourceSet):
+                    return_candidates = self._dedupe_list([
+                        candidate for candidate in self._origin_candidates(
+                            cur_module, rs, tracers, _seen=set(_seen))
+                        if candidate not in ("", None)
+                    ])
+                    if return_candidates == ["python"]:
+                        return (f"{callee_display or callee}()",
+                                cur_module, "python")
+                    concrete_returns = [
+                        candidate for candidate in return_candidates
+                        if candidate != "unknown"
+                    ]
+                    if ("python" in concrete_returns
+                            and any(candidate not in ("python", "local")
+                                    for candidate in concrete_returns)):
+                        return (f"{callee_display or callee}()",
+                                cur_module, "unknown")
                     ## 7B-full PR7-final: check primary convergence first
                     ## so that "return" origin can pick import-backed library even
                     ## when local sources are present.

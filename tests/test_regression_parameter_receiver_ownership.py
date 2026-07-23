@@ -44,6 +44,21 @@ def test_unique_library_call_site_propagates_receiver_owner():
     assert call.top_library == "json"
 
 
+def test_literal_string_argument_propagates_python_owner():
+    call = _call("text.strip")
+    assert call.top_library == "python"
+
+
+def test_literal_container_argument_propagates_python_owner():
+    call = _call("items.append")
+    assert call.top_library == "python"
+
+
+def test_converged_python_parameter_method_result_stays_python():
+    call = _call("normalized_text.upper")
+    assert call.top_library == "python"
+
+
 def test_conflicting_call_site_owners_are_unknown():
     call = _call("stream.close")
     assert call.top_library == "unknown"
@@ -93,6 +108,21 @@ def test_self_method_identity_is_unchanged():
 def test_constructor_argument_propagates_to_init_parameter():
     call = _call("world.add_bodies")
     assert call.top_library == "local"
+
+
+def test_constructor_argument_propagates_through_self_attribute():
+    call = _call("self.title.strip")
+    assert call.top_library == "python"
+
+
+def test_uncalled_constructor_attribute_parameter_remains_unknown():
+    call = _call("self.caption.strip")
+    assert call.top_library == "unknown"
+
+
+def test_branch_dependent_local_method_result_remains_unknown():
+    call = _call("self.file.write")
+    assert call.top_library == "unknown"
 
 
 def test_local_constructor_attribute_chain_preserves_local_owner():

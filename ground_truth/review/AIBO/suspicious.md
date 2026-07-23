@@ -1,4 +1,4 @@
-# AIBO — Suspicious Records (18)
+# AIBO — Suspicious Records (17)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -15,11 +15,10 @@ matching suspicious criteria.
 | functions/rover_utils.py:44:17 | `params.reshape((-1, self.d))` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
 | functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
 | functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
+| functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | python / python | local_method | static_context | kind mismatch: expected=local pcresolve=python<br>owner mismatch: expected=local pcresolve=python |
 | functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | functions/rover_utils.py:294:9 | `plt.gcf()` | library / matplotlib | unknown / unknown | matplotlib_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=matplotlib pcresolve=unknown<br>expected library, pcresolve=unknown |
 | run.py:41:8 | `f_class(dim=args.dim, foldername=f'{args.method}-{args.ba...` | local / local | unknown / unknown | dynamic_local_callable | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
-| run.py:68:3 | `args.method.startswith('AIBO')` | python / python | library / argparse | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=argparse |
-| run.py:82:7 | `acqf_mode.startswith('UCB')` | python / python | library / re | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=library<br>owner mismatch: expected=python pcresolve=re |
 | run.py:170:13 | `Turbo1(f=f, lb=f.lb, ub=f.ub, n_init=2 * args.batch_size,...` | local / local | library / baselines | local_baseline_callable | static_context | kind mismatch: expected=local pcresolve=library<br>owner mismatch: expected=local pcresolve=baselines |
 | run.py:185:4 | `turbo1.optimize()` | local / local | library / baselines | local_baseline_callable | static_context | kind mismatch: expected=local pcresolve=library<br>owner mismatch: expected=local pcresolve=baselines |
 | run.py:325:4 | `OpenTuner.main(args)` | local / local | library / baselines | local_baseline_callable | static_context | kind mismatch: expected=local pcresolve=library<br>owner mismatch: expected=local pcresolve=baselines |

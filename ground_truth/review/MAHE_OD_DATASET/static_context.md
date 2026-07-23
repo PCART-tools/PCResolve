@@ -85,9 +85,9 @@
 | datavisualizer.py:44:0 | `ax.set_xlabel('Width', size=14)` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: figure and axes receivers are created by matplotlib |
 | datavisualizer.py:45:0 | `ax.set_ylabel('Height', size=14)` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: figure and axes receivers are created by matplotlib |
 | generatevocdata.py:33:13 | `label_string.split(',')` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
-| generatevocdata.py:34:15 | `elem.replace(' ', '')` | python / python | local / local | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
-| generatevocdata.py:38:11 | `filename.endswith('.jpg')` | python / python | library / os | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
-| generatevocdata.py:39:18 | `filename.rstrip('.jpg')` | python / python | library / os | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
+| generatevocdata.py:34:15 | `elem.replace(' ', '')` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
+| generatevocdata.py:38:11 | `filename.endswith('.jpg')` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
+| generatevocdata.py:39:18 | `filename.rstrip('.jpg')` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:40:12 | `imgnames.append(img)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:52:19 | `ET.parse(annote)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | generatevocdata.py:53:19 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
@@ -95,7 +95,7 @@
 | generatevocdata.py:57:16 | `annote_labels.append(labelname)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:59:20 | `annotations[labelname].append(img)` | python / python | local / local | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:66:14 | `imgnames.copy()` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
-| generatevocdata.py:73:15 | `sampler.pop()` | python / python | local / local | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
+| generatevocdata.py:73:15 | `sampler.pop()` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:76:12 | `test_list.append(elem)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:78:12 | `val_list.append(elem)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
 | generatevocdata.py:80:12 | `train_list.append(elem)` | python / python | python / python | builtin_container_method | static_context | v: receiver is an explicit Python string, list, or dict value |
@@ -128,12 +128,12 @@
 | preprocess.py:367:18 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
 | rescaling.py:88:10 | `image.copy()` | library / numpy | local / local | numpy_array_receiver | static_context | v: image is returned by cv2.imread as a numpy.ndarray |
 | rescaling.py:115:14 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
-| annotation.py:32:9 | `file.split('/')` | python / python | library / glob | builtin_string_method | static_context | v: receiver is a project string value |
+| annotation.py:32:9 | `file.split('/')` | python / python | python / python | builtin_string_method | static_context | v: receiver is a project string value |
 | annotation.py:37:9 | `ET.parse(file)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:38:9 | `tree.getroot()` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:42:16 | `root.iter('object')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
-| annotation.py:43:12 | `object.find('name').text.lower()` | python / python | library / xml | builtin_string_method | static_context | v: Element.text is a Python string |
-| annotation.py:43:12 | `object.find('name').text.lower().strip()` | python / python | library / xml | builtin_string_method | static_context | v: Element.text is a Python string |
+| annotation.py:43:12 | `object.find('name').text.lower()` | python / python | python / python | builtin_string_method | static_context | v: Element.text is a Python string |
+| annotation.py:43:12 | `object.find('name').text.lower().strip()` | python / python | python / python | builtin_string_method | static_context | v: Element.text is a Python string |
 | annotation.py:43:12 | `object.find('name')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:44:11 | `object.find('bndbox')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |
 | annotation.py:45:15 | `bbox.find('xmin')` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |

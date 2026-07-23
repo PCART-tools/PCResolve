@@ -17,8 +17,8 @@
 | run.py:46:8 | `robot_push.PushReward(method=f'{args.method}-{args.batch_size}', ve...` | local / local | local / local | local_constructor | static_context | v: callable is defined in the project-local functions package |
 | run.py:50:8 | `rover.Rover(method=f'{args.method}-{args.batch_size}', verbose=args...` | local / local | local / local | local_constructor | static_context | v: callable is defined in the project-local functions package |
 | run.py:54:8 | `mujoco.HalfCheetah(method=f'{args.method}-{args.batch_size}', verbo...` | local / local | local / local | local_constructor | static_context | v: callable is defined in the project-local functions package |
-| run.py:68:3 | `args.method.startswith('AIBO')` | python / python | library / argparse | builtin_string_method | static_context | v: receiver is a Python string |
-| run.py:82:7 | `acqf_mode.startswith('UCB')` | python / python | library / re | builtin_string_method | static_context | v: receiver is a Python string |
+| run.py:68:3 | `args.method.startswith('AIBO')` | python / python | python / python | builtin_string_method | static_context | v: receiver is a Python string |
+| run.py:82:7 | `acqf_mode.startswith('UCB')` | python / python | python / python | builtin_string_method | static_context | v: receiver is a Python string |
 | run.py:145:38 | `es.stop()` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
 | run.py:146:13 | `es.ask()` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
 | run.py:148:8 | `es.tell(xs, y)` | library / cma | library / cma | cma_receiver | static_context | v: es is created by cma.CMAEvolutionStrategy |
@@ -121,7 +121,7 @@
 | functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:172:16 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
-| functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
+| functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | python / python | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:189:24 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:232:24 | `g.reshape((-1, 1))` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:235:12 | `roverdomain.cost_fn(points)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |

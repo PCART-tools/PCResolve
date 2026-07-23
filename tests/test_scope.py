@@ -362,6 +362,34 @@ def test_v2_param_shadow_not_in_library_usage():
                     f"Parameter shadow in f() mis-attributed to requests: {p.symbol}")
 
 
+def test_parameter_provenance_keeps_same_name_scopes_distinct():
+    """Same-named parameters must retain their defining function scopes."""
+    import tempfile
+    from pcresolve.cross_file import analyze_project
+
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "m.py"), "w") as f:
+            f.write(
+                "def first(value):\n"
+                "    return value.strip()\n"
+                "def second(value):\n"
+                "    return value.upper()\n"
+                "first(' first ')\n"
+                "second('second')\n"
+            )
+        result = analyze_project(td, scope_model="v2")
+        parameters = [
+            p for p in result.all_symbol_provenance
+            if p.kind == "parameter" and p.symbol == "value"
+        ]
+
+        assert {p.scope_name for p in parameters} == {"first", "second"}
+        for provenance in parameters:
+            assert provenance.top_library == "python"
+            assert provenance.chain[1] == (
+                provenance.scope_name + ":value")
+
+
 def test_module_level_reassignment_provenance_distinct():
     """x = requests.Session() then x = np.array([]): each x must keep its own provenance."""
     import tempfile, os

@@ -123,6 +123,47 @@ value.method()
     assert calls[0].top_library == "local"
 
 
+def test_next_call_identity_is_python_even_when_result_is_unknown():
+    result = _write_and_analyze("""
+def consume(iterator):
+    return next(iterator)
+""")
+    calls = _calls_by_expr(result, "next(iterator)")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
+def test_shadowed_next_call_identity_is_local():
+    result = _write_and_analyze("""
+def next(iterator):
+    return iterator
+
+next(object())
+""")
+    calls = [
+        call for call in _calls_by_expr(result, "next(object())")
+        if call.expression == "next(object())"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "local"
+
+
+def test_class_attribute_does_not_shadow_builtin_in_method_scope():
+    result = _write_and_analyze("""
+class Iterator:
+    def __next__(self):
+        return self
+
+    next = __next__
+
+    def consume(self):
+        return next(self)
+""")
+    calls = _calls_by_expr(result, "next(self)")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
+
+
 def test_max_self_rebinding_does_not_recurse_in_either_scope_model():
     code = """
 def clamp(process_count):
@@ -290,6 +331,18 @@ tokenizer.split()[0].replace('sample', 'result')
     calls = _calls_by_expr(result, ".replace")
     assert len(calls) == 1
     assert calls[0].top_library != "python"
+
+
+def test_known_string_split_iteration_preserves_python_items():
+    result = _write_and_analyze("""
+text = 'alpha,beta'
+parts = text.split(',')
+for part in parts:
+    part.strip()
+""")
+    calls = _calls_by_expr(result, "part.strip")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
 
 
 def test_parameter_unpack_does_not_borrow_module_binding():

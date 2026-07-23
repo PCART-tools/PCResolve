@@ -84,6 +84,89 @@ def test_scipy_bisplev_result_is_numpy_owned():
     ).top_library == "numpy"
 
 
+def test_stdlib_path_iterators_yield_python_strings():
+    result = _analyze(
+        "import glob\n"
+        "import os\n"
+        "for filename in os.listdir('.'):\n"
+        "    filename.endswith('.py')\n"
+        "for path in glob.glob('*.py'):\n"
+        "    path.split('/')\n"
+    )
+
+    assert _call(
+        result, "filename.endswith('.py')"
+    ).top_library == "python"
+    assert _call(result, "path.split('/')").top_library == "python"
+
+
+def test_stdlib_regex_result_objects_keep_re_owner():
+    result = _analyze(
+        "import re\n"
+        "pattern = re.compile('a')\n"
+        "match = re.match('a', 'a')\n"
+        "pattern.finditer('a')\n"
+        "match.group(0)\n"
+    )
+
+    assert _call(result, "pattern.finditer('a')").top_library == "re"
+    assert _call(result, "match.group(0)").top_library == "re"
+
+
+def test_stdlib_regex_callback_receives_re_match():
+    result = _analyze(
+        "import re\n"
+        "def replace(match):\n"
+        "    return match.group(0)\n"
+        "re.sub('a', replace, 'a')\n"
+    )
+
+    assert _call(result, "match.group(0)").top_library == "re"
+
+
+def test_stdlib_regex_split_items_are_python_strings():
+    result = _analyze(
+        "import re\n"
+        "prefix, value = re.split(':', 'key:value')\n"
+        "prefix.strip()\n"
+        "value.startswith('v')\n"
+    )
+
+    assert _call(result, "prefix.strip()").top_library == "python"
+    assert _call(result, "value.startswith('v')").top_library == "python"
+
+
+def test_argparse_namespace_builtin_values_are_python_owned():
+    result = _analyze(
+        "import argparse\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('--method', default='fast')\n"
+        "parser.add_argument('--count', type=int)\n"
+        "args = parser.parse_args()\n"
+        "args.method.startswith('f')\n"
+        "str(args.count).strip()\n"
+    )
+
+    assert _call(
+        result, "args.method.startswith('f')"
+    ).top_library == "python"
+
+
+def test_stdlib_element_text_attribute_is_python_owned():
+    result = _analyze(
+        "import xml.etree.ElementTree as ET\n"
+        "root = ET.parse('input.xml').getroot()\n"
+        "value = root.find('name').text.lower().strip()\n"
+    )
+
+    assert _call(
+        result, "root.find('name').text.lower()"
+    ).top_library == "python"
+    assert _call(
+        result, "root.find('name').text.lower().strip()"
+    ).top_library == "python"
+
+
 def test_gpy_predict_unpacked_results_are_numpy_owned():
     result = _analyze(
         "from GPy.models import GPRegression\n"

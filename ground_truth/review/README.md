@@ -10,10 +10,10 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | locked | 0 | 487 | 169 | 0 | 4 | 18 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 487 | 169 | 0 | 4 | 17 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 117 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 459 | 528 | 0 | 26 | 104 |
 | [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
@@ -35,10 +35,10 @@ machine source of truth.
 | [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 38 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 375 | 41 | 28 | 0 | 31 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
-| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 45 |
+| [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 38 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 49 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 44 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 40 | 30 | 0 | 0 | 19 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3747** | **1814** | **185** | **42** | **408** |
+| **TOTAL** | **5788** | | **0** | **3747** | **1814** | **185** | **42** | **382** |
 
 ## Directory Layout
 

@@ -2,8 +2,8 @@
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
-| hfhd/hf.py:175:30 | `x.dropna()` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
-| hfhd/hf.py:176:20 | `x.dropna()` | library / pandas | local / local | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
+| hfhd/hf.py:175:30 | `x.dropna()` | library / pandas | library / numpy | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
+| hfhd/hf.py:176:20 | `x.dropna()` | library / pandas | library / numpy | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:407:23 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:408:21 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas .dropna() on pd.Series<br>v: pandas .dropna( method on pandas Series/DataFrame |
 | hfhd/hf.py:433:15 | `price.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | gt: pandas method<br>v: pandas .dropna( method on pandas Series/DataFrame |

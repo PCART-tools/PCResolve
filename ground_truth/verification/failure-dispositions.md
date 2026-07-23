@@ -6,35 +6,35 @@ This report classifies every current locked primary ownership mismatch. The cano
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 404 | Must be closed in 1.0.5 |
+| `fix_1_0_5` | 378 | Must be closed in 1.0.5 |
 | `accepted_boundary` | 4 | Documented static-analysis boundary |
 | `ground_truth_correction` | 0 | Canonical GT label must be corrected |
-| **Total** | **408** | |
+| **Total** | **382** | |
 
 ## Repair Scope
 
 | Repair scope | Records |
 |---|---:|
-| `same_scope_result_protocol` | 170 |
-| `bounded_receiver_flow` | 212 |
-| `conservative_identity` | 16 |
-| `local_identity` | 6 |
+| `same_scope_result_protocol` | 153 |
+| `bounded_receiver_flow` | 210 |
+| `conservative_identity` | 7 |
+| `local_identity` | 8 |
 | `documented_boundary` | 4 |
 | `label_correction` | 0 |
-| **Total** | **408** |
+| **Total** | **382** |
 
 ## Project Queue
 
 | Project | Records |
 |---|---:|
-| `allnews` | 117 |
-| `polire` | 49 |
-| `MAHE_OD_DATASET` | 45 |
+| `allnews` | 104 |
+| `polire` | 44 |
 | `final` | 43 |
+| `MAHE_OD_DATASET` | 38 |
 | `greenbenchmark` | 38 |
 | `hfhd` | 31 |
 | `political-polarisation` | 19 |
-| `AIBO` | 18 |
+| `AIBO` | 17 |
 | `simulation` | 9 |
 | `scrapping` | 8 |
 | `django` | 7 |
@@ -50,34 +50,33 @@ This report classifies every current locked primary ownership mismatch. The cano
 | Category | Records |
 |---|---:|
 | `transitive_method` | 81 |
-| `python_protocol_method` | 69 |
-| `numpy_array_receiver` | 47 |
-| `builtin_string_method` | 34 |
+| `python_protocol_method` | 65 |
+| `numpy_array_receiver` | 45 |
 | `torch_tensor_receiver` | 31 |
+| `builtin_string_method` | 30 |
 | `pandas_receiver` | 20 |
-| `builtin_container_method` | 15 |
-| `branch_dependent_io_receiver` | 13 |
 | `conversion_boundary` | 13 |
 | `matplotlib_receiver` | 12 |
-| `regex_receiver` | 10 |
+| `builtin_container_method` | 11 |
 | `library_result_boundary` | 8 |
+| `regex_receiver` | 8 |
+| `branch_dependent_io_receiver` | 7 |
 | `builtin_method_local_receiver` | 6 |
 | `gpy_receiver` | 6 |
-| `builtin` | 5 |
 | `pandas_receiver_chain` | 5 |
 | `android_viewclient_receiver` | 4 |
+| `builtin` | 4 |
 | `mapping_protocol_method` | 4 |
 | `multiprocessing_receiver` | 4 |
 | `box2d_receiver` | 3 |
 | `local_baseline_callable` | 3 |
-| `polymorphic_library_receiver` | 3 |
 | `pymysql_receiver` | 3 |
-| `builtin_callable` | 2 |
+| `local_method` | 2 |
 | `numpy_result_receiver` | 2 |
 | `direct_import` | 1 |
 | `dynamic_local_callable` | 1 |
 | `keras_receiver` | 1 |
-| `local_method` | 1 |
+| `local_call` | 1 |
 | `monkey_patched_local_method` | 1 |
 
 ## Boundary And Label Records
