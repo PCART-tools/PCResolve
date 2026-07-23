@@ -1,4 +1,4 @@
-# scrapping — static_obvious (74 records)
+# scrapping — static_obvious (72 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -30,7 +30,6 @@
 | jojo.py:88:33 | `characters_div.find_all(class_='category-page__member')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo.py:90:27 | `len(self.characters_link_second_part)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | jojo.py:103:19 | `self.get_soup(self.pages[0] + character_link)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| jojo.py:104:33 | `page.find_all(class_='pi-group')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo.py:107:27 | `informations.find_all(class_='pi-data')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo.py:109:35 | `content.find(class_='pi-secondary-font')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo.py:109:90 | `content.find(class_='pi-font')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
@@ -67,7 +66,6 @@
 | jojo1.py:88:33 | `characters_div.find_all(class_='category-page__member')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo1.py:90:27 | `len(self.characters_link_second_part)` | python / python | python / python | builtin | static_obvious | v: Python builtin function call |
 | jojo1.py:103:19 | `self.get_soup(self.pages[0] + character_link)` | local / local | local / local | local_call | static_obvious | v: project-local function/method call |
-| jojo1.py:104:33 | `page.find_all(class_='pi-group')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo1.py:107:27 | `informations.find_all(class_='pi-data')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo1.py:109:35 | `content.find(class_='pi-secondary-font')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |
 | jojo1.py:109:90 | `content.find(class_='pi-font')` | library / bs4 | library / bs4 | direct_import | static_obvious | v: direct import-backed API call |

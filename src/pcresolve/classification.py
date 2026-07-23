@@ -11,7 +11,7 @@ from .ir import (ClassificationResult,
                  REASON_BUILTIN, REASON_PARAMETER_PROPAGATION,
                  REASON_RETURN_PROPAGATION, REASON_FLOW_MERGE,
                  REASON_UNRESOLVED, REASON_TRANSITIVE_IMPORT)
-from .sources import (SourceSet, CallResult, normalize_source)
+from .sources import (InstanceMethod, SourceSet, CallResult, normalize_source)
 
 
 ## Determine confidence for a classification result.
@@ -132,10 +132,15 @@ class ClassificationPipeline:
             return REASON_FLOW_MERGE
 
         # Rule 6: RETURN_PROPAGATION — CallResult base
-        if isinstance(base_norm, CallResult):
+        result_base = base_norm
+        if (isinstance(base_norm, InstanceMethod)
+                and isinstance(
+                    normalize_source(base_norm.receiver), CallResult)):
+            result_base = normalize_source(base_norm.receiver)
+        if isinstance(result_base, CallResult):
             if expand_origins:
                 origins = self._origin_candidates(
-                    module, base_norm, tracers, include_local=False)
+                    module, result_base, tracers, include_local=False)
                 unique = [o for o in self._dedupe(origins)
                           if o not in ("", None, "unknown")]
                 if len(unique) > 1:

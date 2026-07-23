@@ -24,8 +24,8 @@ machine source of truth.
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
 | [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 40 | 14 | 0 | 2 | 0 |
-| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 9 |
-| [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 43 |
+| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 2 |
+| [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 25 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
 | [fuel_forecast_explorer](fuel_forecast_explorer/README.md) | 25 | locked | 0 | 5 | 20 | 0 | 0 | 0 |
@@ -38,21 +38,21 @@ machine source of truth.
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 38 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 44 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 46 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 40 | 30 | 0 | 0 | 19 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
 | [qho](qho/README.md) | 71 | locked | 0 | 61 | 10 | 0 | 0 | 0 |
 | [recommendation](recommendation/README.md) | 60 | locked | 0 | 40 | 20 | 0 | 0 | 0 |
 | [redis](redis/README.md) | 33 | locked | 0 | 13 | 0 | 20 | 0 | 0 |
-| [scrapping](scrapping/README.md) | 110 | locked | 0 | 74 | 28 | 8 | 0 | 8 |
+| [scrapping](scrapping/README.md) | 110 | locked | 0 | 72 | 30 | 8 | 0 | 8 |
 | [SDOML](SDOML/README.md) | 94 | locked | 0 | 73 | 18 | 3 | 0 | 5 |
 | [sg-restart-regridder](sg-restart-regridder/README.md) | 10 | locked | 0 | 6 | 4 | 0 | 0 | 0 |
 | [tensorflow1](tensorflow1/README.md) | 15 | locked | 0 | 6 | 4 | 5 | 0 | 1 |
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3747** | **1814** | **185** | **42** | **382** |
+| **TOTAL** | **5788** | | **0** | **3745** | **1816** | **185** | **42** | **359** |
 
 ## Directory Layout
 

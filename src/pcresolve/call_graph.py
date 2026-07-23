@@ -78,6 +78,23 @@ class CallEdge:
     call_col_offset: int = 0
 
 
+## One bounded call-site context used while substituting local parameters.
+#
+#  Contexts are internal analysis facts. They retain the exact call edge and
+#  may point to the enclosing context when a local function forwards one of
+#  its own parameters to another local function.
+@dataclass(frozen=True)
+class CallContext:
+    ## Module containing the call expression.
+    caller_module: str
+    ## Unambiguous project-local function or method reached by the edge.
+    target: FunctionId
+    ## Exact edge at this call site.
+    edge: CallEdge
+    ## Enclosing substitution context for bounded forwarding.
+    parent: object = None
+
+
 ## Full call-graph facts for a module.
 @dataclass
 class ModuleCallGraph:

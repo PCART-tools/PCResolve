@@ -6,36 +6,35 @@ This report classifies every current locked primary ownership mismatch. The cano
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 378 | Must be closed in 1.0.5 |
+| `fix_1_0_5` | 355 | Must be closed in 1.0.5 |
 | `accepted_boundary` | 4 | Documented static-analysis boundary |
 | `ground_truth_correction` | 0 | Canonical GT label must be corrected |
-| **Total** | **382** | |
+| **Total** | **359** | |
 
 ## Repair Scope
 
 | Repair scope | Records |
 |---|---:|
 | `same_scope_result_protocol` | 153 |
-| `bounded_receiver_flow` | 210 |
+| `bounded_receiver_flow` | 187 |
 | `conservative_identity` | 7 |
 | `local_identity` | 8 |
 | `documented_boundary` | 4 |
 | `label_correction` | 0 |
-| **Total** | **382** |
+| **Total** | **359** |
 
 ## Project Queue
 
 | Project | Records |
 |---|---:|
 | `allnews` | 104 |
-| `polire` | 44 |
-| `final` | 43 |
+| `polire` | 46 |
 | `MAHE_OD_DATASET` | 38 |
 | `greenbenchmark` | 38 |
 | `hfhd` | 31 |
+| `final` | 25 |
 | `political-polarisation` | 19 |
 | `AIBO` | 17 |
-| `simulation` | 9 |
 | `scrapping` | 8 |
 | `django` | 7 |
 | `Contrucao` | 6 |
@@ -43,15 +42,16 @@ This report classifies every current locked primary ownership mismatch. The cano
 | `SDOML` | 5 |
 | `flask2` | 4 |
 | `Python-Workshop` | 2 |
+| `simulation` | 2 |
 | `tensorflow1` | 1 |
 
 ## Failure Families
 
 | Category | Records |
 |---|---:|
-| `transitive_method` | 81 |
 | `python_protocol_method` | 65 |
-| `numpy_array_receiver` | 45 |
+| `transitive_method` | 56 |
+| `numpy_array_receiver` | 47 |
 | `torch_tensor_receiver` | 31 |
 | `builtin_string_method` | 30 |
 | `pandas_receiver` | 20 |

@@ -1,4 +1,4 @@
-# polire — Suspicious Records (44)
+# polire — Suspicious Records (46)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -14,6 +14,8 @@ matching suspicious criteria.
 | polire/nsgp/nsgp.py:60:12 | `self.__dmat[i].argsort()` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
 | polire/nsgp/nsgp.py:65:42 | `((S - self._X) ** 2).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
 | polire/nsgp/nsgp.py:75:24 | `kernel.K(self._X[self.__close_locs[loc]])` | library / GPy | local / local | gpy_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=GPy pcresolve=local<br>expected library, pcresolve=local |
+| polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
+| polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | polire/nsgp/nsgp.py:156:43 | `self.__kernels[i](S1, self._X)` | library / GPy | local / local | gpy_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=GPy pcresolve=local<br>expected library, pcresolve=local |
 | polire/nsgp/nsgp.py:157:43 | `self.__kernels[i](self._X, S2)` | library / GPy | local / local | gpy_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=GPy pcresolve=local<br>expected library, pcresolve=local |
 | polire/nsgp/nsgp.py:158:45 | `self.__kernels[i](S1, S2)` | library / GPy | local / local | gpy_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=GPy pcresolve=local<br>expected library, pcresolve=local |

@@ -18,7 +18,7 @@
         "alias_call": "requests",
         "partial_call": "requests",
         "client": "local",
-        "local_method_call": "local",
+        "local_method_call": "requests",
         "m_client": "local",
         "local_inherited_call": "local",
         "tp": "local",
@@ -93,8 +93,8 @@
         ],
         "local_method_call": [
           "local_method_call",
-          "LocalClient.get",
-          "local_lib"
+          "client.get()",
+          "requests"
         ],
         "m_client": [
           "m_client",

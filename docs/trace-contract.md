@@ -96,10 +96,34 @@ by `ClassificationPipeline.classify()`.
 
 ## Known Limitations
 
-- Parameter propagation uses `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching for disambiguation. Multi-call-site scenarios may still produce merged alternatives.
+- Parameter and return propagation uses exact call-site positions and a unique
+  project-local target. Ambiguous targets, conflicting owners, unsupported
+  argument binding, and recursive cycles remain `unknown`.
 - `return_sources` uses `SourceSet` for multi-return paths; alternatives classification handles ambiguous cases.
 - Constructor argument to `self.attr` propagation and wrapper-class instance method resolution uses `instance_attrs` and constructor call-site matching. Factory-returned instances are supported in 1.0.5 P1 via `_resolve_receiver_object_top`; complex factories with branches or unresolved returns remain conservative.
 - `nonlocal` is first-edition no-crash only.
+
+## Bounded Local Call Propagation
+
+PCResolve performs context-sensitive propagation across a unique
+project-local call edge. The context is identified by the caller module and
+the exact call line and column. Positional and keyword arguments can replace
+the callee's parameters while resolving:
+
+- a parameter used as a receiver inside a local function;
+- a local function result returned from one or more simple wrappers;
+- a constructor argument stored on `self` and returned by a local method;
+- the same local function called with different owners at different call
+  sites.
+
+Each context is evaluated independently. Reusing the same assignment name at
+later call sites does not change earlier results. A return summary with one
+owner produces `RETURN_PROPAGATION`; multiple concrete owners produce
+`FLOW_MERGE` with alternatives and an `unknown` primary owner.
+
+This is not whole-program call-graph inference. PCResolve does not guess
+through dynamic dispatch, unresolved callbacks, arbitrary mutation, external
+library implementations, or dead code without a statically supported value.
 
 ## Class and Instance Method Resolution
 

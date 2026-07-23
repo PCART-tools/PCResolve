@@ -1,4 +1,4 @@
-# scrapping — static_context (28 records)
+# scrapping — static_context (30 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -12,6 +12,7 @@
 | jojo.py:83:24 | `self.characters_link_second_part.append(link)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
 | jojo.py:91:35 | `character.a.get('href')` | library / bs4 | library / bs4 | return_propagation | static_context | v: receiver ownership follows the BeautifulSoup element chain in project source |
 | jojo.py:94:32 | `self.characters_link_second_part.append(link)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
+| jojo.py:104:33 | `page.find_all(class_='pi-group')` | library / bs4 | library / bs4 | return_propagation | static_context | v: receiver owner follows a project-local method return backed by BeautifulSoup |
 | jojo.py:109:35 | `content.find(class_='pi-secondary-font').get_text()` | library / bs4 | library / bs4 | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | jojo.py:109:90 | `content.find(class_='pi-font').get_text()` | library / bs4 | library / bs4 | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | jojo.py:110:12 | `self.characters.append(character_info)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
@@ -26,6 +27,7 @@
 | jojo1.py:83:24 | `self.characters_link_second_part.append(link)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
 | jojo1.py:91:35 | `character.a.get('href')` | library / bs4 | library / bs4 | return_propagation | static_context | v: receiver ownership follows the BeautifulSoup element chain in project source |
 | jojo1.py:94:32 | `self.characters_link_second_part.append(link)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
+| jojo1.py:104:33 | `page.find_all(class_='pi-group')` | library / bs4 | library / bs4 | return_propagation | static_context | v: receiver owner follows a project-local method return backed by BeautifulSoup |
 | jojo1.py:109:35 | `content.find(class_='pi-secondary-font').get_text()` | library / bs4 | library / bs4 | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | jojo1.py:109:90 | `content.find(class_='pi-font').get_text()` | library / bs4 | library / bs4 | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
 | jojo1.py:110:12 | `self.characters.append(character_info)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |

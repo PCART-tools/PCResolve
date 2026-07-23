@@ -36,11 +36,11 @@ def test_make_return_call_classified(result):
 
 
 def test_value_get_has_multi_source(result):
-    """UPDATEPHASE5: value.get(...) traces to either requests or numpy.
-    Full alternatives support needs classification engine (Phase 8A)."""
+    """Conflicting return owners remain unknown with both alternatives."""
     value_calls = [c for c in result.all_api_calls if "get" in c.expression]
     assert len(value_calls) == 1
-    assert value_calls[0].top_library in ("requests", "numpy")
+    assert value_calls[0].top_library == "unknown"
+    assert set(value_calls[0].alternatives) == {"requests", "numpy"}
 
 
 def test_return_sources_is_sourceset():
@@ -82,12 +82,12 @@ def test_chained_call_through_return():
 
 
 def test_value_get_top_library_v2():
-    """value.get(...) must resolve to requests or numpy in v2 (regression check)."""
+    """v2 must not choose one owner from conflicting return branches."""
     result_v2 = analyze_project(FIXTURE, scope_model="v2")
     value_calls = [c for c in result_v2.all_api_calls if "get" in c.expression]
     assert len(value_calls) == 1
-    assert value_calls[0].top_library in ("requests", "numpy"), \
-        f"Expected requests or numpy, got {value_calls[0].top_library}"
+    assert value_calls[0].top_library == "unknown"
+    assert set(value_calls[0].alternatives) == {"requests", "numpy"}
 
 
 def test_no_sourceset_leak_in_top_library():

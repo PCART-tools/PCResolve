@@ -18,8 +18,8 @@
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 74
-- [static_context](static_context.md): 28
+- [static_obvious](static_obvious.md): 72
+- [static_context](static_context.md): 30
 - [dynamic_probe](dynamic_probe.md): 8
 
 ## [Suspicious Records](suspicious.md): 8
@@ -28,10 +28,10 @@
 
 - builtin: 20
 - builtin_container_method: 10
-- direct_import: 36
+- direct_import: 34
 - library_result_boundary: 8
 - local_call: 18
-- return_propagation: 12
+- return_propagation: 14
 - transitive_method: 6
 
 ## Top Libraries
