@@ -1076,6 +1076,21 @@ class ProjectAnalyzer:
                 caf = call_dict['call_assign_func']
             else:
                 caf = tracer.call_assign_funcs.get(first)
+            # Bare-name factories are represented directly by the call-result
+            # source rather than call_assign_funcs (which records dotted
+            # callees).  Use that exact source only when it identifies one
+            # callee; SourceSet and other structured callees are intentionally
+            # left unresolved instead of selecting one candidate.
+            if not caf:
+                call_base = normalize_source(call_dict.get('base'))
+                if isinstance(call_base, CallResult):
+                    factory_callee = normalize_source(call_base.callee)
+                    if isinstance(factory_callee, str):
+                        if (call_base.display_name
+                                and '.' in call_base.display_name):
+                            caf = call_base.display_name
+                        else:
+                            caf = factory_callee
             if caf and not caf.startswith(first + '.'):
                 resolved_callee = self._resolve_func_name({'func_name': caf}, module, tracer, _visited)
                 if resolved_callee and not resolved_callee.startswith('self.'):
