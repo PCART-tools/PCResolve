@@ -3641,6 +3641,31 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return receiver_top
         return None
 
+    ## Check whether a return expression is fully bounded by project sources.
+    #  @param source Structured return-expression source.
+    #  @return True when exact call-edge substitution is safe.
+    def _is_bounded_return_expression(self, source):
+        source = normalize_source(source)
+        if isinstance(source, (ParameterSource, InstanceAttribute,
+                               PythonShape)):
+            return True
+        if isinstance(source, str):
+            return source == "python"
+        if isinstance(source, DerivedResult):
+            return (
+                source.kind == "expression"
+                and bool(source.sources)
+                and all(self._is_bounded_return_expression(item)
+                        for item in source.sources)
+            )
+        if isinstance(source, CallResult):
+            return (
+                source.result_source is not None
+                and self._is_bounded_return_expression(
+                    source.result_source)
+            )
+        return False
+
     ## Check whether a structured source still depends on a parameter.
     #
     #  Parameter expressions must be resolved from project call edges.  A
@@ -5886,11 +5911,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if self._func_stack and node.value is not None:
             func_name = self._func_stack[-1]
             source = (
-                self._parameter_dependency_source(node.value)
-                if (isinstance(node.value, ast.Call)
-                    and isinstance(node.value.func, ast.Attribute))
+                self._parameter_dependency_source(
+                    node.value, expression_context=True)
+                if (isinstance(node.value, (ast.BinOp, ast.UnaryOp))
+                    or (isinstance(node.value, ast.Call)
+                        and isinstance(node.value.func, ast.Attribute)))
                 else None
             )
+            if (isinstance(node.value, (ast.BinOp, ast.UnaryOp))
+                    and source is not None
+                    and not self._is_bounded_return_expression(source)):
+                source = None
             tuple_source = self._tuple_return_source(node.value)
             result_kind = _container_kind(node.value)
             # A tuple owns only the aggregate object.  Its unpacked items may

@@ -803,6 +803,30 @@ class ProjectAnalyzer:
             return external[0]
         return "unknown"
 
+    ## Converge exact operands for a local arithmetic return expression.
+    #  @param candidate_groups One candidate-owner list per expression operand.
+    #  @return Result owner or "unknown".
+    def _bounded_expression_owner(self, candidate_groups):
+        owners = []
+        for candidates in candidate_groups:
+            unique = self._dedupe_list(
+                candidate for candidate in candidates
+                if candidate not in (None, ""))
+            if len(unique) != 1 or unique[0] == "unknown":
+                return "unknown"
+            owners.append(unique[0])
+        external = self._dedupe_list(
+            owner for owner in owners
+            if owner not in ("local", "python"))
+        if len(external) == 1 and all(
+                owner in (external[0], "python") for owner in owners):
+            return external[0]
+        if owners and all(owner == "python" for owner in owners):
+            return "python"
+        if owners and all(owner == "local" for owner in owners):
+            return "local"
+        return "unknown"
+
     ## Collect all origin candidates from a source value.
     #  @param module Current module name.
     #  @param source Source value to expand.
@@ -4106,6 +4130,14 @@ class ProjectAnalyzer:
                 for item in source.sources
             ]
             return [self._receiver_preserving_ufunc_owner(candidate_groups)]
+        if (isinstance(source, DerivedResult)
+                and source.kind == "expression"):
+            candidate_groups = [
+                self._bounded_source_candidates(
+                    source_module, item, context, tracers, set(seen))
+                for item in source.sources
+            ]
+            return [self._bounded_expression_owner(candidate_groups)]
         if isinstance(source, ContainerItem):
             container = normalize_source(source.container)
             if (isinstance(container, CallResult)
