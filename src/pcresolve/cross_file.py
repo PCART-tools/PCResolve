@@ -286,6 +286,7 @@ class ProjectAnalyzer:
                 self.project_cg.modules[module] = tracer.module_cg
 
         self._bind_bounded_local_call_results(module_tracers)
+        self._bind_bounded_callback_map_results(module_tracers)
         self._bind_bounded_local_generator_results(module_tracers)
         self._bind_proven_result_method_results(module_tracers)
         self.resolve_cross_file_symbols(module_tracers)
@@ -533,7 +534,8 @@ class ProjectAnalyzer:
                 base = call_detail.get('base')
                 promoted_receiver = self._promote_chained_local_call_receiver(
                     module, call_detail, module_tracers)
-                if promoted_receiver is not None:
+                if (promoted_receiver is not None
+                        and not isinstance(base, UnknownSource)):
                     base = promoted_receiver
                 # A comprehension variable is an element of the receiver
                 # container, not the owner of that container.  When a local
@@ -553,7 +555,8 @@ class ProjectAnalyzer:
                     base = UnknownSource("unresolved tuple element")
                     call_detail = dict(call_detail)
                     call_detail['top'] = 'unknown'
-                if call_detail.get('top') == 'unknown':
+                if (call_detail.get('top') == 'unknown'
+                        or isinstance(base, UnknownSource)):
                     # Preserve unknown top — the single-file phase
                     # already determined the owner cannot be resolved.
                     record = dict(call_detail)
@@ -3412,6 +3415,258 @@ class ProjectAnalyzer:
                                 result_call, future_edge.callee.method)
                         future_edge.callee_source = result_call
 
+    ## Bind one converged local callback return to a Pool.map result field.
+    #
+    #  The existing callback edge proves which project function is invoked.
+    #  This pass adds the reverse result edge: every callback return branch
+    #  must resolve to one owner before calls through a mapped result item are
+    #  rewritten. The rewrite ends at the next source-level rebind.
+    #  @param tracers Dict of module name to analyzer.
+    def _bind_bounded_callback_map_results(self, tracers):
+        for caller_module, module_cg in self.project_cg.modules.items():
+            tracer = tracers.get(caller_module)
+            if tracer is None:
+                continue
+            for edge in module_cg.edges:
+                if (not edge.assigned_to
+                        or not self._is_multiprocessing_map_edge(
+                            edge, tracer)):
+                    continue
+                callback_names = self._dedupe_list(
+                    getattr(edge, "callback_args", {}).values())
+                if len(callback_names) != 1:
+                    continue
+                callback_summary = module_cg.functions.get(
+                    callback_names[0])
+                if (callback_summary is None
+                        or callback_summary.returns is None):
+                    continue
+                owners = self._dedupe_list(
+                    self._origin_candidates(
+                        caller_module, callback_summary.returns, tracers))
+                owners = [
+                    owner for owner in owners
+                    if owner not in (None, "")
+                ]
+                result_source = callback_summary.returns
+                if len(owners) != 1 or owners[0] == "unknown":
+                    result_source = UnknownSource(
+                        "mixed callback result owners")
+                for assigned_name in edge.assigned_to:
+                    next_position = self._next_assignment_rebind_position(
+                        tracer, module_cg, edge, assigned_name)
+                    self._rewrite_mapped_result_records(
+                        tracer, edge, assigned_name,
+                        result_source, next_position)
+                    self._rewrite_mapped_result_edges(
+                        module_cg, edge, assigned_name,
+                        result_source, next_position)
+                    class_name = self._stable_field_assignment_class(
+                        tracer, module_cg, edge, assigned_name)
+                    if class_name:
+                        self._rewrite_class_mapped_result_records(
+                            tracer, module_cg, class_name, assigned_name,
+                            result_source)
+                        self._rewrite_class_mapped_result_edges(
+                            module_cg, class_name, assigned_name,
+                            result_source)
+
+    ## Return the owning class for one uniquely assigned instance field.
+    #  @param tracer Analyzer containing field assignment references.
+    #  @param module_cg Caller module call graph.
+    #  @param edge Pool.map assignment edge.
+    #  @param assigned_name Candidate self-field name.
+    #  @return Class name when the field has exactly one assignment, else "".
+    def _stable_field_assignment_class(
+            self, tracer, module_cg, edge, assigned_name):
+        if (not assigned_name.startswith("self.")
+                or "." not in edge.caller.qualname):
+            return ""
+        class_name = edge.caller.qualname.split(".", 1)[0]
+        if class_name not in module_cg.classes:
+            return ""
+        for ref in getattr(tracer, "symbol_refs", []):
+            if ref.symbol != assigned_name or ref.kind != "variable":
+                continue
+            source = normalize_source(ref.source)
+            if (not isinstance(source, CallResult)
+                    or source.call_lineno != edge.call_lineno
+                    or source.call_col_offset != edge.call_col_offset):
+                return ""
+        for other_edge in module_cg.edges:
+            if (other_edge is not edge
+                    and assigned_name in other_edge.assigned_to):
+                return ""
+        return class_name
+
+    ## Find the next source-level assignment to one mapped result binding.
+    #  @param tracer Analyzer containing provenance references.
+    #  @param module_cg Caller module call graph.
+    #  @param edge Current Pool.map call edge.
+    #  @param assigned_name Name or self-field receiving the result.
+    #  @return Position tuple or None.
+    def _next_assignment_rebind_position(
+            self, tracer, module_cg, edge, assigned_name):
+        current = (edge.call_lineno, edge.call_col_offset)
+        scopes = {
+            edge.caller.qualname,
+            edge.caller.qualname.rsplit(".", 1)[-1],
+        }
+        candidates = []
+        for ref in getattr(tracer, "symbol_refs", []):
+            position = (
+                getattr(ref, "lineno", 0),
+                getattr(ref, "col_offset", 0),
+            )
+            if (ref.symbol == assigned_name
+                    and getattr(ref, "scope_name", "") in scopes
+                    and position > current):
+                candidates.append(position)
+        for future_edge in module_cg.edges:
+            position = (
+                future_edge.call_lineno,
+                future_edge.call_col_offset,
+            )
+            if (future_edge.caller == edge.caller
+                    and assigned_name in future_edge.assigned_to
+                    and position > current):
+                candidates.append(position)
+        return min(candidates) if candidates else None
+
+    ## Return the method suffix following a mapped container item.
+    #  @param func_name Callable spelling from an API record or edge.
+    #  @param assigned_name Mapped result binding.
+    #  @return Empty string for direct item calls, method name for item methods,
+    #          or None when the callable is unrelated.
+    @staticmethod
+    def _mapped_item_method(func_name, assigned_name):
+        if (not isinstance(func_name, str)
+                or not func_name.startswith(assigned_name + "[")):
+            return None
+        closing = func_name.find("]", len(assigned_name) + 1)
+        if closing < 0:
+            return None
+        suffix = func_name[closing + 1:]
+        if not suffix:
+            return ""
+        if not suffix.startswith("."):
+            return None
+        return suffix.rsplit(".", 1)[-1]
+
+    ## Rewrite API records using one bounded mapped-result item source.
+    #  @param tracer Caller analyzer.
+    #  @param edge Pool.map assignment edge.
+    #  @param assigned_name Mapped result binding.
+    #  @param result_source Converged callback return summary.
+    #  @param next_position Next rebind position or None.
+    def _rewrite_mapped_result_records(
+            self, tracer, edge, assigned_name, result_source,
+            next_position):
+        caller_scope = ("" if edge.caller.qualname == "<module>"
+                        else edge.caller.qualname.rsplit(".", 1)[-1])
+        start = (edge.call_lineno, edge.call_col_offset)
+        for record in tracer.api_calls:
+            position = (
+                record.get("lineno", 0),
+                record.get("col_offset", 0),
+            )
+            method = self._mapped_item_method(
+                record.get("func_name", ""), assigned_name)
+            if (method is None
+                    or record.get("scope_name", "") != caller_scope
+                    or position <= start
+                    or (next_position is not None
+                        and position >= next_position)):
+                continue
+            record["base"] = (
+                result_source if not method
+                else InstanceMethod(result_source, method))
+
+    ## Rewrite downstream call edges using a mapped-result item source.
+    #  @param module_cg Caller module call graph.
+    #  @param edge Pool.map assignment edge.
+    #  @param assigned_name Mapped result binding.
+    #  @param result_source Converged callback return summary.
+    #  @param next_position Next rebind position or None.
+    def _rewrite_mapped_result_edges(
+            self, module_cg, edge, assigned_name, result_source,
+            next_position):
+        start = (edge.call_lineno, edge.call_col_offset)
+        for future_edge in module_cg.edges:
+            position = (
+                future_edge.call_lineno,
+                future_edge.call_col_offset,
+            )
+            method = self._mapped_item_method(
+                future_edge.callee_name, assigned_name)
+            if (method is None
+                    or future_edge.caller != edge.caller
+                    or position <= start
+                    or (next_position is not None
+                        and position >= next_position)):
+                continue
+            source = (
+                result_source if not method
+                else InstanceMethod(result_source, method))
+            future_edge.callee = source
+            future_edge.callee_source = source
+            if method:
+                future_edge.receiver_source = result_source
+
+    ## Resolve the unique class containing one API record's method scope.
+    #  @param module_cg Module call graph.
+    #  @param scope_name Bare method scope stored on the API record.
+    #  @return Class name when unique, otherwise "".
+    @staticmethod
+    def _record_scope_class(module_cg, scope_name):
+        matches = [
+            class_name for class_name, summary in module_cg.classes.items()
+            if scope_name in summary.methods
+        ]
+        return matches[0] if len(matches) == 1 else ""
+
+    ## Rewrite mapped field-item records across one proven local class.
+    #  @param tracer Caller analyzer.
+    #  @param module_cg Caller module call graph.
+    #  @param class_name Class with one field assignment.
+    #  @param assigned_name Mapped self-field binding.
+    #  @param result_source Converged callback return summary.
+    def _rewrite_class_mapped_result_records(
+            self, tracer, module_cg, class_name, assigned_name,
+            result_source):
+        for record in tracer.api_calls:
+            method = self._mapped_item_method(
+                record.get("func_name", ""), assigned_name)
+            if (method is None
+                    or self._record_scope_class(
+                        module_cg, record.get("scope_name", ""))
+                    != class_name):
+                continue
+            record["base"] = (
+                result_source if not method
+                else InstanceMethod(result_source, method))
+
+    ## Rewrite mapped field-item edges across one proven local class.
+    #  @param module_cg Caller module call graph.
+    #  @param class_name Class with one field assignment.
+    #  @param assigned_name Mapped self-field binding.
+    #  @param result_source Converged callback return summary.
+    def _rewrite_class_mapped_result_edges(
+            self, module_cg, class_name, assigned_name, result_source):
+        prefix = class_name + "."
+        for edge in module_cg.edges:
+            method = self._mapped_item_method(
+                edge.callee_name, assigned_name)
+            if method is None or not edge.caller.qualname.startswith(prefix):
+                continue
+            source = (
+                result_source if not method
+                else InstanceMethod(result_source, method))
+            edge.callee = source
+            edge.callee_source = source
+            if method:
+                edge.receiver_source = result_source
+
     ## Propagate sources yielded by one project-local generator to its loop.
     #  The binding is bounded by the exact iterator call site and the next
     #  rebind of each loop target. No external return contract is inferred.
@@ -4448,8 +4703,10 @@ class ProjectAnalyzer:
             target_name = scope_name.rsplit(".", 1)[-1]
             for caller_module, caller_cg in (
                     getattr(self, "project_cg", ProjectCallGraph()).modules.items()):
+                caller_tracer = tracers.get(caller_module)
                 for edge in caller_cg.edges:
-                    if not self._is_multiprocessing_map_edge(edge):
+                    if not self._is_multiprocessing_map_edge(
+                            edge, caller_tracer):
                         continue
                     callback_positions = [
                         position for position, callback_name
@@ -4548,13 +4805,20 @@ class ProjectAnalyzer:
     ## Check the narrow standard-library callback contract supported above.
     #  @param edge Candidate call edge.
     #  @return True only for multiprocessing.Pool.map(...).
-    def _is_multiprocessing_map_edge(self, edge):
+    def _is_multiprocessing_map_edge(self, edge, tracer=None):
         if (not isinstance(getattr(edge, "callee_name", None), str)
                 or not edge.callee_name.endswith(".map")):
             return False
         receiver = normalize_source(getattr(edge, "receiver_source", None))
-        return (isinstance(receiver, CallResult)
-                and receiver.callee == "multiprocessing")
+        if not isinstance(receiver, CallResult):
+            return False
+        if receiver.callee == "multiprocessing":
+            return True
+        if tracer is None or not isinstance(receiver.callee, str):
+            return False
+        root = receiver.callee.split(".", 1)[0]
+        return normalize_source(
+            tracer.symbols.direct.get(root)) == "multiprocessing"
 
     ## Check the narrow standard-library Process callback contract.
     #  @param edge Candidate call edge.

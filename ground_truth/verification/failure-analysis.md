@@ -5,8 +5,8 @@ Snapshot: 2026-08-28
 ## Executive Summary
 
 The locked evaluation set contains 5,788 call records across 42 projects.
-PCResolve currently produces 5,541 primary hits and 247 primary mismatches,
-for recall 0.957. AST call coverage is complete at 5,788/5,788. There are no
+PCResolve currently produces 5,546 primary hits and 242 primary mismatches,
+for recall 0.958. AST call coverage is complete at 5,788/5,788. There are no
 missing, stale, or uncovered call predictions.
 
 The remaining records are ownership-classification mismatches. They do not
@@ -15,7 +15,7 @@ or runtime callable owner, while release disposition asks whether project
 source proves that owner under a pure-static contract.
 
 The generated [failure disposition report](failure-dispositions.md) currently
-places 184 records in the 1.0.5 repair queue and accepts 63 `unknown` results
+places 179 records in the 1.0.5 repair queue and accepts 63 `unknown` results
 as static-analysis boundaries. Accepted boundaries remain scored misses so
 the evaluation does not hide unavailable runtime information.
 
@@ -39,20 +39,20 @@ hardcoded library or method mappings in the analyzer.
 
 | Current reason | Records | Share | Meaning |
 |---|---:|---:|---|
-| `UNRESOLVED` | 219 | 88.7% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
-| `LOCAL_DEFINITION` | 18 | 7.3% | A local binding is selected although the reviewed runtime callable has another owner. |
-| `TRANSITIVE_IMPORT` | 6 | 2.4% | Producer or enclosing-object provenance leaks into the callable owner. |
-| `FLOW_MERGE` | 4 | 1.6% | Multiple static paths do not converge on the reviewed owner. |
-| **Total** | **247** | **100.0%** | |
+| `UNRESOLVED` | 219 | 90.5% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
+| `LOCAL_DEFINITION` | 13 | 5.4% | A local binding is selected although the reviewed runtime callable has another owner. |
+| `TRANSITIVE_IMPORT` | 6 | 2.5% | Producer or enclosing-object provenance leaks into the callable owner. |
+| `FLOW_MERGE` | 4 | 1.7% | Multiple static paths do not converge on the reviewed owner. |
+| **Total** | **242** | **100.0%** | |
 
 ## Expected Owner Kind
 
 | Expected kind | Records | Share |
 |---|---:|---:|
-| `library` | 155 | 62.8% |
-| `python` | 85 | 34.4% |
-| `local` | 7 | 2.8% |
-| **Total** | **247** | **100.0%** |
+| `library` | 150 | 62.0% |
+| `python` | 85 | 35.1% |
+| `local` | 7 | 2.9% |
+| **Total** | **242** | **100.0%** |
 
 ## Highest Impact Families
 
@@ -68,18 +68,17 @@ hardcoded library or method mappings in the analyzer.
 | Conversion boundaries | 9 |
 | Pandas receivers | 8 |
 | Pandas receiver chains | 5 |
-| GPy receivers | 5 |
 
 ## Release Disposition
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 184 | Candidate repair supported by the current evidence taxonomy. |
+| `fix_1_0_5` | 179 | Candidate repair supported by the current evidence taxonomy. |
 | `accepted_unknown` | 63 | Runtime owner is known, but project source does not prove it. |
 | `ground_truth_correction` | 0 | No canonical GT correction is currently pending. |
-| **Total** | **247** | |
+| **Total** | **242** | |
 
-The repair queue is further divided into 99 bounded receiver-flow records,
+The repair queue is further divided into 94 bounded receiver-flow records,
 76 same-scope result or protocol records, eight conservative-identity
 records, and one local-identity record. Before implementation, each group
 must be checked for actual project call evidence. A category label alone is

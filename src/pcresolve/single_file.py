@@ -1619,6 +1619,24 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             result_source=source.result_source,
         )
 
+    ## Return a project-local callback identity carried by one argument.
+    #  @param node Call argument AST node.
+    #  @return Local function or qualified self-method name, otherwise None.
+    def _call_edge_callback_name(self, node):
+        if isinstance(node, ast.Name):
+            if (node.id in self.defined_functions
+                    or node.id in self.class_methods):
+                return node.id
+            return None
+        if (isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id in ("self", "cls")
+                and self._class_stack
+                and node.attr in self.class_methods.get(
+                    self._class_stack[-1], [])):
+            return self._class_stack[-1] + "." + node.attr
+        return None
+
     ## Preserve element ownership for a call argument used as an iterable.
     #
     #  This fact is separate from ordinary argument ownership. A Python list
@@ -3943,8 +3961,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _visit_assignment(self, node, target_names,
                           field_target_names=None):
         imported_call = self._imported_call_result_source(node.value)
-        if target_names and isinstance(node.value, ast.Call):
-            self._pending_call_targets_by_node[id(node.value)] = target_names
+        pending_targets = list(target_names)
+        pending_targets.extend(field_target_names or [])
+        if pending_targets and isinstance(node.value, ast.Call):
+            self._pending_call_targets_by_node[
+                id(node.value)] = pending_targets
 
         result_item_owner = None
         if (isinstance(node.value, ast.Subscript)
@@ -4302,6 +4323,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     iterable_arg_sources["kw"][kw.arg] = iterable_src
             ## Consume assigned_to only for the top-level RHS call.
             assigned = self._pending_call_targets_by_node.pop(id(node), [])
+            callback_args = {}
+            for index, arg in enumerate(node.args):
+                callback_name = self._call_edge_callback_name(arg)
+                if callback_name:
+                    callback_args[index] = callback_name
             callback_bindings = []
             target_names = {
                 kw.value.id for kw in getattr(node, "keywords", []) or []
@@ -4325,13 +4351,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 arg_sources=arg_sources,
                 star_arg_sources=star_arg_sources,
                 star_kwarg_sources=star_kwarg_sources,
-                callback_args={
-                    index: arg.id
-                    for index, arg in enumerate(node.args)
-                    if isinstance(arg, ast.Name)
-                    and (arg.id in self.defined_functions
-                         or arg.id in self.class_methods)
-                },
+                callback_args=callback_args,
                 callback_bindings=callback_bindings,
                 protocol_arg_sources=protocol_arg_sources,
                 iterable_arg_sources=iterable_arg_sources,

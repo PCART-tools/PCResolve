@@ -1,4 +1,4 @@
-import multiprocessing
+import multiprocessing as mp
 
 
 def handle(item):
@@ -18,7 +18,7 @@ def handle_mixed(item):
 
 items = []
 items.append(("name", 1))
-pool = multiprocessing.Pool(1)
+pool = mp.Pool(1)
 pool.map(handle, items)
 
 mixed_items = []

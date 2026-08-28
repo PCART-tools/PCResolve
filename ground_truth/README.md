@@ -272,10 +272,10 @@ Excluded from precision and recall; counted in coverage metrics.
 
 All 42 fixture projects are **locked** (2026-07-20). The set contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
-snapshot has 5,541 primary hits and 247 primary misses, for aggregate recall
-0.957. AST call coverage is 5,788/5,788.
+snapshot has 5,546 primary hits and 242 primary misses, for aggregate recall
+0.958. AST call coverage is 5,788/5,788.
 
-Evidence is distributed across 3,738 `static_obvious`, 1,815
+Evidence is distributed across 3,739 `static_obvious`, 1,814
 `static_context`, 185 `dynamic_probe`, and 50 `manual_reasoned` records.
 The generated [review index](review/README.md) is the authoritative current
 per-project breakdown.

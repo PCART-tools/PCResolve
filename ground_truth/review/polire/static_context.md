@@ -138,11 +138,11 @@
 | polire/nsgp/nsgp.py:150:42 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:153:24 | `self.__weight_func(s2)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:154:46 | `s_vec.sum()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:156:43 | `self.__kernels[i](S1, self._X)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
-| polire/nsgp/nsgp.py:157:43 | `self.__kernels[i](self._X, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
-| polire/nsgp/nsgp.py:158:45 | `self.__kernels[i](S1, S2)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
-| polire/nsgp/nsgp.py:162:43 | `self.__kernels[i](S1, self._X)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
-| polire/nsgp/nsgp.py:164:45 | `self.__kernels[i](S1)` | library / GPy | local / local | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:156:43 | `self.__kernels[i](S1, self._X)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:157:43 | `self.__kernels[i](self._X, S2)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:158:45 | `self.__kernels[i](S1, S2)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:162:43 | `self.__kernels[i](S1, self._X)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
+| polire/nsgp/nsgp.py:164:45 | `self.__kernels[i](S1)` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:171:20 | `self.__c_mat_s1[i, :, :].dot(self.__C_inv[i])` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:171:20 | `self.__c_mat_s1[i, :, :].dot(self.__C_inv[i]).dot(self._Gamma)` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:171:20 | `self.__c_mat_s1[i, :, :].dot(self.__C_inv[i]).dot(self._Gamma).dot(...` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |

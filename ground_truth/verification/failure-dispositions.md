@@ -15,22 +15,22 @@ Ground truth records semantic or runtime ownership. Release disposition asks a d
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 184 | Must be closed in 1.0.5 |
+| `fix_1_0_5` | 179 | Must be closed in 1.0.5 |
 | `accepted_unknown` | 63 | Current unknown is justified by the static evidence boundary |
 | `ground_truth_correction` | 0 | Canonical GT label must be corrected |
-| **Total** | **247** | |
+| **Total** | **242** | |
 
 ## Repair Scope
 
 | Repair scope | Records |
 |---|---:|
 | `same_scope_result_protocol` | 76 |
-| `bounded_receiver_flow` | 99 |
+| `bounded_receiver_flow` | 94 |
 | `conservative_identity` | 8 |
 | `local_identity` | 1 |
 | `evidence_limited_unknown` | 63 |
 | `label_correction` | 0 |
-| **Total** | **247** |
+| **Total** | **242** |
 
 ## Evidence Boundary
 
@@ -40,7 +40,7 @@ Ground truth records semantic or runtime ownership. Release disposition asks a d
 | `dynamic_probe` | `fix_1_0_5` | 4 |
 | `manual_reasoned` | `accepted_unknown` | 8 |
 | `static_context` | `accepted_unknown` | 1 |
-| `static_context` | `fix_1_0_5` | 180 |
+| `static_context` | `fix_1_0_5` | 175 |
 
 ## Project Queue
 
@@ -50,8 +50,8 @@ Ground truth records semantic or runtime ownership. Release disposition asks a d
 | `MAHE_OD_DATASET` | 29 |
 | `greenbenchmark` | 26 |
 | `hfhd` | 26 |
-| `polire` | 26 |
 | `final` | 25 |
+| `polire` | 21 |
 | `political-polarisation` | 21 |
 | `AIBO` | 11 |
 | `scrapping` | 8 |
@@ -76,7 +76,6 @@ Ground truth records semantic or runtime ownership. Release disposition asks a d
 | `conversion_boundary` | 9 |
 | `library_result_boundary` | 9 |
 | `pandas_receiver` | 8 |
-| `gpy_receiver` | 5 |
 | `pandas_receiver_chain` | 5 |
 | `android_viewclient_receiver` | 4 |
 | `builtin_container_method` | 4 |

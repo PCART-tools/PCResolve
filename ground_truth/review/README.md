@@ -38,7 +38,7 @@ machine source of truth.
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 29 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 26 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 21 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 38 | 30 | 0 | 2 | 21 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **247** |
+| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **242** |
 
 ## Directory Layout
 
