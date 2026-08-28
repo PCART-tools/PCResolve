@@ -1,4 +1,4 @@
-# allnews — static_obvious (459 records)
+# allnews — static_obvious (460 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -47,6 +47,7 @@
 | allnews_am/NER_models/ner.py:110:48 | `np.array(y_te)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | allnews_am/NER_models/ner.py:112:28 | `np.array(y_tr)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
 | allnews_am/NER_models/ner.py:113:80 | `np.array(y_te)` | library / numpy | library / numpy | direct_import | static_obvious | v: direct import-backed API call |
+| allnews_am/wikiextractor/WikiExtractor.py:87:12 | `self.__dict__.update(kwargs)` | python / python | python / python | builtin | static_obvious | v: self.__dict__ is a Python-provided dict and update() is its builtin method |
 | allnews_am/wikiextractor/WikiExtractor.py:89:19 | `sorted(self.__dict__)` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:90:21 | `'{}={!r}'.format(k, self.__dict__[k])` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |
 | allnews_am/wikiextractor/WikiExtractor.py:91:19 | `'{}({})'.format(type(self).__name__, ', '.join(items))` | python / python | python / python | builtin | static_obvious | v: Python builtin function or method call |

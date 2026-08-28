@@ -74,6 +74,21 @@ class ParameterSource:
     derived_operation: str = ""
 
 
+## Source for an instance field whose binding depends on runtime subclass.
+#
+#  A base-class method may read ``self.payload`` even though only a local
+#  subclass assigns that field. Cross-file analysis resolves the field from
+#  the concrete project call edges that reach the base method.
+@dataclass(frozen=True)
+class InstanceAttribute:
+    ## Class that lexically contains the field read.
+    class_name: str
+    ## Normalized field path, for example ``self.payload``.
+    attribute: str
+    ## Qualified method containing the field read.
+    scope: str
+
+
 ## Concrete Python-provided value shape preserved across local call edges.
 #
 #  This is language-level evidence, not an import-library return contract.
@@ -162,8 +177,8 @@ class SourceSet:
 
 ## Union of all Source IR types and plain strings.
 SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod,
-                   TupleSource, ParameterSource, PythonShape, SuperMethod, CallResult,
-                   DerivedResult, SourceSet, UnknownSource]
+                   TupleSource, ParameterSource, InstanceAttribute, PythonShape,
+                   SuperMethod, CallResult, DerivedResult, SourceSet, UnknownSource]
 ## Build a SourceSet from an iterable of source values, deduplicating by display.
 #
 #  @param values Iterable of source values.
@@ -198,8 +213,9 @@ def is_structured_source(value):
     if isinstance(value, tuple) and len(value) == 3 and isinstance(value[0], str):
         return True
     if isinstance(value, (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
-                          ParameterSource, PythonShape, SuperMethod, CallResult,
-                          DerivedResult, SourceSet, UnknownSource, NameSource)):
+                          ParameterSource, InstanceAttribute, PythonShape,
+                          SuperMethod, CallResult, DerivedResult, SourceSet,
+                          UnknownSource, NameSource)):
         return True
     return False
 
@@ -228,6 +244,10 @@ def normalize_source(value):
                     a[0], b, bool(a[1]), attributes=attributes,
                     derived_operation=operation)
             return ParameterSource(a, b)
+        if kind == "instance_attribute":
+            if isinstance(a, tuple) and len(a) == 2:
+                return InstanceAttribute(a[0], b, a[1])
+            return InstanceAttribute(a, b, "")
         if kind == "python_shape":
             return PythonShape(a, b or "")
         if kind == "call_result":
@@ -277,6 +297,12 @@ def source_to_legacy(value):
             metadata,
             value.name,
         )
+    if isinstance(value, InstanceAttribute):
+        return (
+            "instance_attribute",
+            (value.class_name, value.scope),
+            value.attribute,
+        )
     if isinstance(value, PythonShape):
         return ("python_shape", value.kind, value.item_kind)
     if isinstance(value, CallResult):
@@ -320,6 +346,8 @@ def source_display(value):
         suffix = "*" if value.derived else ""
         return "%s:%s%s%s" % (
             value.scope, value.name, path, suffix)
+    if isinstance(value, InstanceAttribute):
+        return "%s:%s" % (value.class_name, value.attribute)
     if isinstance(value, PythonShape):
         if value.item_kind:
             return "python:%s[%s]" % (value.kind, value.item_kind)

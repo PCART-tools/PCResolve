@@ -12,7 +12,8 @@ from .ir import CallSite, SymbolRef
 from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
 from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
-                       ParameterSource, PythonShape, SuperMethod, CallResult,
+                       ParameterSource, InstanceAttribute, PythonShape,
+                       SuperMethod, CallResult,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
@@ -813,9 +814,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if not self._class_stack or not isinstance(name, str):
             return None
         class_name = self._class_stack[-1]
-        prefix = class_name + "."
-        if not name.startswith(prefix):
+        prefixes = (class_name + ".", "cls.")
+        prefix = next(
+            (candidate for candidate in prefixes
+             if name.startswith(candidate)), None)
+        if prefix is None:
             return None
+        if prefix == "cls.":
+            binding = self.current_scope().lookup(
+                "cls", skip_parent_classes=True)
+            if (binding is None
+                    or binding.binding_kind != "parameter"):
+                return None
         parts = name[len(prefix):].split(".")
         if parts and parts[0] == "__instance":
             parts = parts[1:]
@@ -2624,9 +2634,18 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if chain:
                 if chain[0] == "self" and self._class_stack:
                     cn = self._class_stack[-1]
+                    attr_name = "self." + ".".join(chain[1:])
                     result = _resolve_on_class(cn, cn)
                     if isinstance(normalize_source(result), InstanceMethod):
-                        attr_name = "self." + ".".join(chain[1:])
+                        if attr_name == "self.__dict__":
+                            if _has_builtin_shape_method(
+                                    "dict", method_name):
+                                return InstanceMethod("python", method_name)
+                            return InstanceMethod(
+                                UnknownSource(
+                                    "unsupported dict protocol"),
+                                method_name,
+                            )
                         attr_source = _lookup_instance_attr(attr_name)
                         attr_source = normalize_source(attr_source)
                         if isinstance(attr_source, ParameterSource):
@@ -2682,7 +2701,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             return InstanceMethod(attr_source, method_name)
                         if isinstance(attr_source, str) and attr_source != "local":
                             return InstanceMethod(attr_source, method_name)
-                    return result
+                    scope_name = (
+                        self._caller_stack[-1].qualname
+                        if self._caller_stack else "")
+                    return InstanceMethod(
+                        InstanceAttribute(cn, attr_name, scope_name),
+                        method_name,
+                    )
                 root = chain[0]
                 if root in self.import_from_symbols:
                     return InstanceMethod(root, method_name)

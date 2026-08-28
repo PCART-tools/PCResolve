@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve.sources import (
     ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
-    DerivedResult, NameSource, ParameterSource, PythonShape, SourceSet,
-    TupleSource, UnknownSource,
+    DerivedResult, InstanceAttribute, NameSource, ParameterSource, PythonShape,
+    SourceSet, TupleSource, UnknownSource,
     normalize_source, source_to_legacy, source_display, is_structured_source,
 )
 
@@ -107,6 +107,16 @@ def test_parameter_source_slice_operation_roundtrip():
     assert normalize_source(legacy) == source
 
 
+def test_instance_attribute_roundtrip_and_display():
+    source = InstanceAttribute("Base", "self.payload", "Base.consume")
+    legacy = source_to_legacy(source)
+
+    assert legacy == (
+        "instance_attribute", ("Base", "Base.consume"), "self.payload")
+    assert normalize_source(legacy) == source
+    assert source_display(source) == "Base:self.payload"
+
+
 def test_python_shape_roundtrip_and_display():
     source = PythonShape("list", "str")
     legacy = source_to_legacy(source)
@@ -128,7 +138,8 @@ def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
 
     source_ir_types = (
         ContainerItem, ContainerIter, InstanceMethod, SuperMethod,
-        CallResult, DerivedResult, ParameterSource, PythonShape, SourceSet,
+        CallResult, DerivedResult, InstanceAttribute, ParameterSource,
+        PythonShape, SourceSet,
         UnknownSource, NameSource,
     )
 

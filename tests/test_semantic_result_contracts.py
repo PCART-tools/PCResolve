@@ -223,6 +223,7 @@ def test_local_kwargs_constructor_preserves_field_shapes():
     assert _call(result, "options.names.append('value')").top_library == "python"
     assert _call(result, "options.values.get('key')").top_library == "python"
     assert _call(result, "options.flags.add('flag')").top_library == "python"
+    assert _call(result, "self.__dict__.update(kwargs)").top_library == "python"
 
 
 def test_local_kwargs_constructor_fields_do_not_survive_rebinding():

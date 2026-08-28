@@ -75,7 +75,8 @@ from .ir import (SymbolProvenance, ClassificationResult,
 from .single_file import (SingleFileAnalyzer, _has_result_owner_contract,
                           _match_result_owner, _is_verified_result_owner)
 from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
-                       ParameterSource, PythonShape, SuperMethod, CallResult,
+                       ParameterSource, InstanceAttribute, PythonShape,
+                       SuperMethod, CallResult,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
@@ -1605,6 +1606,19 @@ class ProjectAnalyzer:
             if not tracer:
                 return None
             if (isinstance(direct_source, InstanceMethod)
+                    and isinstance(
+                        direct_source.receiver, InstanceAttribute)):
+                attribute_top = self._resolve_instance_attribute_method_top(
+                    module, direct_source.receiver, direct_source.method,
+                    tracers, _seen=set(_seen))
+                return (
+                    "%s.%s" % (
+                        source_display(direct_source.receiver),
+                        direct_source.method),
+                    module,
+                    attribute_top,
+                )
+            if (isinstance(direct_source, InstanceMethod)
                     and direct_source.parameter_scope):
                 parameter_top = self._resolve_parameter_method_top(
                     module, direct_source, tracer, tracers,
@@ -2577,6 +2591,112 @@ class ProjectAnalyzer:
             candidates.extend(self._argument_owner_candidates(
                 arg_module, arg_source, tracers))
         return self._dedupe_list(candidates)
+
+    ## Resolve a base-method field read through concrete subclass call edges.
+    #
+    #  A base class may read ``self.payload`` while a local subclass assigns
+    #  that field from one of its method parameters. The lexical class alone
+    #  cannot resolve the field. This helper finds the local runtime classes
+    #  that actually reach the containing method, follows their field
+    #  bindings through project call edges, and accepts only one converged
+    #  callable owner.
+    #  @param module Module containing the field read.
+    #  @param source Structured instance-attribute source.
+    #  @param method Method called on the field value.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Converged owner string or "unknown".
+    def _resolve_instance_attribute_method_top(
+            self, module, source, method, tracers, _seen=None):
+        if not source.scope or not source.class_name or not source.attribute:
+            return "unknown"
+
+        base_identity = (module, source.class_name)
+        runtime_classes = []
+        for caller_module, caller_cg in self.project_cg.modules.items():
+            caller_tracer = tracers.get(caller_module)
+            for edge in caller_cg.edges:
+                if not self._edge_targets_local_function(
+                        edge, caller_module, module, source.scope,
+                        caller_tracer, tracers,
+                        allow_inherited_dispatch=True):
+                    continue
+                candidates = self._local_class_candidates(
+                    caller_module, edge.receiver_source, tracers)
+                if (not candidates and edge.receiver_source == "self"):
+                    caller_parts = edge.caller.qualname.rsplit(".", 1)
+                    if len(caller_parts) == 2:
+                        caller_class = caller_parts[0]
+                        module_cg = self.project_cg.modules.get(caller_module)
+                        if (module_cg is not None
+                                and caller_class in module_cg.classes):
+                            candidates = [(caller_module, caller_class)]
+                for candidate in candidates:
+                    if self._local_class_is_or_derives(
+                            candidate[0], candidate[1],
+                            base_identity[0], base_identity[1], tracers):
+                        runtime_classes.append(candidate)
+
+        runtime_classes = self._dedupe_list(runtime_classes)
+        if not runtime_classes:
+            return "unknown"
+
+        owners = []
+        for runtime_module, runtime_class in runtime_classes:
+            bindings = self._local_class_attribute_bindings(
+                runtime_module, runtime_class, source.attribute, tracers)
+            if not bindings:
+                owners.append("unknown")
+                continue
+            for binding_module, binding_source in bindings:
+                candidates = self._argument_method_owner_candidates(
+                    binding_module, binding_source, method, tracers,
+                    _seen=set(_seen or set()),
+                    receiver_class_filter=(runtime_module, runtime_class))
+                owners.extend(candidates or ["unknown"])
+
+        unique = self._dedupe_list(
+            owner for owner in owners if owner not in (None, ""))
+        if len(unique) == 1 and unique[0] != "unknown":
+            return unique[0]
+        return "unknown"
+
+    ## Find one instance-field binding on a local class or its local bases.
+    #  @param module Defining module of the candidate class.
+    #  @param class_name Candidate class name.
+    #  @param attribute Normalized ``self.<field>`` path.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param visited Inheritance recursion guard.
+    #  @return List of (module, source) bindings.
+    def _local_class_attribute_bindings(
+            self, module, class_name, attribute, tracers, visited=None):
+        identity = (module, class_name)
+        seen = set(visited or set())
+        if identity in seen:
+            return []
+        seen.add(identity)
+        module_cg = self.project_cg.modules.get(module)
+        class_summary = (
+            module_cg.classes.get(class_name)
+            if module_cg is not None else None)
+        if class_summary is None:
+            return []
+        if attribute in class_summary.attrs:
+            return [(module, class_summary.attrs[attribute])]
+
+        bindings = []
+        tracer = tracers.get(module)
+        if tracer is None:
+            return []
+        for base_symbol in tracer.class_bases.get(class_name, []):
+            base_identity = self._resolve_local_class_identity(
+                module, base_symbol, tracers)
+            if base_identity is None:
+                continue
+            bindings.extend(self._local_class_attribute_bindings(
+                base_identity[0], base_identity[1], attribute, tracers,
+                seen))
+        return self._dedupe_list(bindings)
 
     ## Identify a project-local class constructor source.
     #  @param module Module containing the source.

@@ -1,4 +1,4 @@
-# allnews — static_context (528 records)
+# allnews — static_context (527 records)
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
 |---------------|------------|----|-----------|----------|-------|-------|
@@ -69,7 +69,6 @@
 | allnews_am/NER_models/ner.py:106:6 | `pad_sequences(maxlen=MAX_LEN, sequences=y, padding='post', value=ta...` | library / keras | library / keras | keras_receiver | static_context | v: callable or model receiver is created by keras |
 | allnews_am/NER_models/ner.py:107:7 | `to_categorical(i, num_classes=n_tags + 1)` | library / keras | library / keras | keras_receiver | static_context | v: callable or model receiver is created by keras |
 | allnews_am/NER_models/ner.py:112:12 | `model.fit(X_tr, np.array(y_tr), batch_size=BATCH_SIZE, epochs=EPOCH...` | library / keras | unknown / unknown | keras_receiver | static_context | v: callable or model receiver is created by keras |
-| allnews_am/wikiextractor/WikiExtractor.py:87:12 | `self.__dict__.update(kwargs)` | local / local | local / local | local_method | static_context | v: method or callable is defined by the project-local WikiExtractor implementation |
 | allnews_am/wikiextractor/WikiExtractor.py:109:10 | `SimpleNamespace(knownNamespaces={'Template': 10}, templateNamespace...` | library / types | library / types | imported_constructor | static_context | v: SimpleNamespace is imported from types |
 | allnews_am/wikiextractor/WikiExtractor.py:229:15 | `filter_disambig_page_pattern.match(line)` | library / re | library / re | regex_receiver | static_context | v: receiver is a compiled re pattern or re Match object |
 | allnews_am/wikiextractor/WikiExtractor.py:289:12 | `title.strip(' _')` | python / python | unknown / unknown | python_protocol_method | static_context | v: receiver is a Python string, list, dict, or set established by source context |

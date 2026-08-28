@@ -13,14 +13,14 @@
 ## Expected Kind
 
 - library: 434
-- python: 362
-- local: 191
+- python: 363
+- local: 190
 - unknown: 26
 
 ## Verification Level Breakdown
 
-- [static_obvious](static_obvious.md): 459
-- [static_context](static_context.md): 528
+- [static_obvious](static_obvious.md): 460
+- [static_context](static_context.md): 527
 - [manual_reasoned](manual_reasoned.md): 26
 
 ## [Suspicious Records](suspicious.md): 52
@@ -29,7 +29,7 @@
 
 - argparse_receiver: 53
 - branch_dependent_io_receiver: 17
-- builtin: 177
+- builtin: 178
 - builtin_callable: 2
 - builtin_container_method: 28
 - builtin_string_method: 11
@@ -43,7 +43,7 @@
 - keras_receiver: 19
 - local_call: 97
 - local_constructor: 1
-- local_method: 90
+- local_method: 89
 - local_package_callable: 3
 - logging_receiver: 4
 - multiprocessing_receiver: 10
