@@ -50,3 +50,15 @@ def test_conflicting_subclass_field_owners_stay_unknown():
     calls = _calls()
     call = calls[(53, "self.payload.reshape(1, -1)")]
     assert call.top_library == "unknown"
+
+
+def test_inherited_field_expression_uses_called_subclass_only():
+    calls = _calls()
+    call = calls[(68, "(self.payload * 2).sum()")]
+    assert call.top_library == "numpy"
+
+
+def test_conflicting_inherited_field_expression_stays_unknown():
+    calls = _calls()
+    call = calls[(83, "(self.payload * 2).sum()")]
+    assert call.top_library == "unknown"

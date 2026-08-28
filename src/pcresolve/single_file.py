@@ -1762,10 +1762,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                                    DerivedResult)):
                         return existing_attr
                     return None
-                # A method receiver is project-local callable context. Keep
-                # its attributes as local evidence without inferring their
-                # runtime type.
-                return "local"
+                scope_name = (
+                    self._caller_stack[-1].qualname
+                    if self._caller_stack else "")
+                if not self._class_stack:
+                    return "local"
+                return InstanceAttribute(
+                    self._class_stack[-1], attr_name, scope_name)
             dependency = self._parameter_dependency_source(
                 node.value, expression_context=expression_context)
             if isinstance(dependency, ParameterSource):
@@ -2398,19 +2401,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         # operand and can incorrectly classify the call as local.
         if isinstance(re, (ast.BinOp, ast.UnaryOp)):
             parameter_dependency = self._parameter_dependency_source(re)
-            def contains_parameter(source):
+            def contains_bounded_source(source):
                 source = normalize_source(source)
-                if isinstance(source, ParameterSource):
+                if isinstance(source, (ParameterSource, InstanceAttribute)):
                     return True
                 if isinstance(source, DerivedResult):
-                    return any(contains_parameter(item)
+                    return any(contains_bounded_source(item)
                                for item in source.sources)
                 if isinstance(source, CallResult):
-                    return contains_parameter(source.result_source)
+                    return contains_bounded_source(source.result_source)
                 return False
 
             if (isinstance(parameter_dependency, DerivedResult)
-                    and contains_parameter(parameter_dependency)):
+                    and contains_bounded_source(parameter_dependency)):
                 return InstanceMethod(parameter_dependency, method_name)
         receiver_kind, _ = self._expression_container_shape(re)
         if receiver_kind:

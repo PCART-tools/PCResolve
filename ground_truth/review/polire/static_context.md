@@ -124,7 +124,7 @@
 | polire/nsgp/nsgp.py:27:8 | `super().__init__()` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/nsgp/nsgp.py:58:8 | `self.__calculate_dmat()` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:60:12 | `self.__dmat[i].argsort()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:65:42 | `((S - self._X) ** 2).sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:65:42 | `((S - self._X) ** 2).sum(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:75:24 | `kernel.K(self._X[self.__close_locs[loc]])` | library / GPy | library / GPy | gpy_receiver | static_context | v: callable is the K bound method returned by a GPy kernel |
 | polire/nsgp/nsgp.py:81:19 | `Matern32(input_dim=self._X.shape[1], active_dims=list(range(self._X...` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy |
 | polire/nsgp/nsgp.py:86:19 | `Matern52(input_dim=self._X.shape[1], active_dims=list(range(self._X...` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy |

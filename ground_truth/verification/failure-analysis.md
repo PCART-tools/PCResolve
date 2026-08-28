@@ -39,8 +39,8 @@ hardcoded library or method mappings in the analyzer.
 
 | Current reason | Records | Share | Meaning |
 |---|---:|---:|---|
-| `UNRESOLVED` | 218 | 88.3% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
-| `LOCAL_DEFINITION` | 19 | 7.7% | A local binding is selected although the reviewed runtime callable has another owner. |
+| `UNRESOLVED` | 219 | 88.7% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
+| `LOCAL_DEFINITION` | 18 | 7.3% | A local binding is selected although the reviewed runtime callable has another owner. |
 | `TRANSITIVE_IMPORT` | 6 | 2.4% | Producer or enclosing-object provenance leaks into the callable owner. |
 | `FLOW_MERGE` | 4 | 1.6% | Multiple static paths do not converge on the reviewed owner. |
 | **Total** | **247** | **100.0%** | |

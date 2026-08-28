@@ -1659,7 +1659,7 @@ class ProjectAnalyzer:
                 )
             if (isinstance(direct_source, InstanceMethod)
                     and isinstance(direct_source.receiver, DerivedResult)
-                    and self._is_direct_parameter_expression(
+                    and self._is_bounded_expression_source(
                         direct_source.receiver)):
                 parameter_top = self._resolve_derived_expression_method_top(
                     module, direct_source.receiver, direct_source.method,
@@ -2238,6 +2238,24 @@ class ProjectAnalyzer:
             )
         return False
 
+    ## Check whether every expression operand has bounded call-edge evidence.
+    #  @param source Source or expression source to inspect.
+    #  @return True for direct parameters and deferred instance fields.
+    def _is_bounded_expression_source(self, source):
+        source = normalize_source(source)
+        if isinstance(source, InstanceAttribute):
+            return True
+        if isinstance(source, ParameterSource):
+            return not source.derived and not source.attributes
+        if isinstance(source, DerivedResult):
+            return (
+                source.kind == "expression"
+                and bool(source.sources)
+                and all(self._is_bounded_expression_source(item)
+                        for item in source.sources)
+            )
+        return False
+
     ## Resolve a method on an expression derived from one or more parameters.
     #
     #  For example, ``combined = left + right`` followed by
@@ -2374,11 +2392,15 @@ class ProjectAnalyzer:
             self, module, source, method, tracers, _seen=None,
             receiver_class_filter=None):
         source = normalize_source(source)
+        if isinstance(source, InstanceAttribute):
+            return [self._resolve_instance_attribute_method_top(
+                module, source, method, tracers,
+                _seen=set(_seen or set()))]
         if isinstance(source, PythonShape):
             methods = _BUILTIN_CONTAINER_METHODS.get(source.kind, ())
             return ["python"] if method in methods else ["unknown"]
         if isinstance(source, DerivedResult):
-            if self._is_direct_parameter_expression(source):
+            if self._is_bounded_expression_source(source):
                 candidates = []
                 for operand in source.sources:
                     candidates.extend(

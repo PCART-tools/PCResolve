@@ -63,6 +63,36 @@ class SharedPandas(SharedBase):
         self.payload = value
 
 
+class ExpressionBase:
+    def total(self):
+        return (self.payload * 2).sum()
+
+
+class ExpressionNumpy(ExpressionBase):
+    def fit(self, value):
+        self.payload = value
+
+
+class ExpressionPandas(ExpressionBase):
+    def fit(self, value):
+        self.payload = value
+
+
+class ConflictingExpressionBase:
+    def total(self):
+        return (self.payload * 2).sum()
+
+
+class ConflictingExpressionNumpy(ConflictingExpressionBase):
+    def fit(self, value):
+        self.payload = value
+
+
+class ConflictingExpressionPandas(ConflictingExpressionBase):
+    def fit(self, value):
+        self.payload = value
+
+
 direct = Holder()
 direct.fit(np.array([1, 2]))
 direct.reshape_payload()
@@ -89,3 +119,15 @@ shared_numpy.reshape_payload()
 shared_pandas = SharedPandas()
 shared_pandas.fit(pd.DataFrame([1, 2]))
 shared_pandas.reshape_payload()
+
+expression_numpy = ExpressionNumpy()
+expression_numpy.fit(np.array([1, 2]))
+expression_numpy.total()
+
+conflicting_expression_numpy = ConflictingExpressionNumpy()
+conflicting_expression_numpy.fit(np.array([1, 2]))
+conflicting_expression_numpy.total()
+
+conflicting_expression_pandas = ConflictingExpressionPandas()
+conflicting_expression_pandas.fit(pd.DataFrame([1, 2]))
+conflicting_expression_pandas.total()
