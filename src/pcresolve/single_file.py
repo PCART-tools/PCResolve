@@ -1537,9 +1537,19 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return ParameterSource or ordinary argument source.
     def _call_edge_argument_source(self, node):
         if isinstance(node, ast.Subscript):
-            dependency = self._parameter_dependency_source(node)
+            dependency = self._parameter_dependency_source(node.value)
             if isinstance(dependency, ParameterSource):
-                return dependency
+                if isinstance(node.slice, ast.Slice):
+                    return ParameterSource(
+                        dependency.scope,
+                        dependency.name,
+                        derived=True,
+                        attributes=dependency.attributes,
+                        derived_operation="slice",
+                    )
+                index = self._get_slice(node.slice)
+                return ContainerItem(
+                    dependency, index if index is not None else "*")
         if isinstance(node, (ast.Constant, ast.JoinedStr, ast.List,
                              ast.Tuple, ast.Set, ast.Dict)):
             python_shape = self._expression_python_shape(node)

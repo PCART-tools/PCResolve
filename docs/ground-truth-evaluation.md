@@ -7,7 +7,7 @@ from a 42-project fixture corpus. All 42 projects are locked. The set contains
 **Target corpus:** 42 real Python projects (`tests/fixtures/tested_projects/`)
 **Locked projects:** 42/42 (see `ground_truth/projects.json`)
 **Coverage:** 5,788/5,788 AST calls, 0 missing, 0 stale
-**Current result:** 5,380 primary hits, 408 primary misses, recall 0.930
+**Current result:** 5,541 primary hits, 247 primary misses, recall 0.957
 
 The core question: given a call expression, does PCResolve correctly
 identify its primary owner (`top_library`) as an import-backed library,
@@ -54,7 +54,7 @@ The generated [review index](../ground_truth/review/README.md) contains the
 current per-project call counts, evidence-level breakdown, and suspicious
 record counts. Canonical labels remain in `ground_truth/calls/*.jsonl`.
 
-The aggregate result is 5,380 primary hits from 5,788 calls, for recall
-0.930. Of the 408 misses, 404 form the evidence-backed repair queue. Four
-accepted static-analysis boundaries remain visible in the scored misses
-rather than being removed from evaluation.
+The aggregate result is 5,541 primary hits from 5,788 calls, for recall
+0.957. Of the 247 misses, 184 remain in the 1.0.5 repair queue and 63 are
+accepted static-analysis boundaries. Accepted boundaries remain visible in
+the scored misses rather than being removed from evaluation.

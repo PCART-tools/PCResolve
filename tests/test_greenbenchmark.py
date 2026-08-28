@@ -38,3 +38,15 @@ def test_only_contract_owners(calls_by_top):
         "argparse", "com",
     }
     assert set(calls_by_top) <= expected
+
+
+def test_nested_parameter_subscript_preserves_dataframe_owner(result):
+    calls = {
+        call.expression: call
+        for call in result.all_api_calls
+        if call.file_path.endswith("report_all_results.py")
+    }
+    assert calls["sample1.var()"].top_library == "pandas"
+    assert calls["sample1.mean()"].top_library == "pandas"
+    assert calls["sample2.var()"].top_library == "unknown"
+    assert calls["sample2.mean()"].top_library == "unknown"

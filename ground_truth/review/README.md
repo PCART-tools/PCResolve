@@ -32,7 +32,7 @@ machine source of truth.
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 7 | 0 | 2 | 1 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 28 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 26 |
 | [hfhd](hfhd/README.md) | 444 | locked | 0 | 371 | 41 | 28 | 4 | 26 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 29 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3738** | **1815** | **185** | **50** | **249** |
+| **TOTAL** | **5788** | | **0** | **3738** | **1815** | **185** | **50** | **247** |
 
 ## Directory Layout
 

@@ -1,4 +1,4 @@
-# greenbenchmark — Suspicious Records (28)
+# greenbenchmark — Suspicious Records (26)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -6,10 +6,8 @@ matching suspicious criteria.
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
 |---------------|------------|----|-----------|----------|-------|---------|
 | report_all_results.py:52:11 | `df_energy.loc[t1:t2, [power_feature, 'timestamp_delta']]....` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
-| report_all_results.py:79:11 | `sample1.var()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:80:11 | `sample2.var()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:81:12 | `sample2.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
-| report_all_results.py:81:29 | `sample1.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:97:29 | `group.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:97:52 | `group.std()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:121:29 | `experiment.replace(experiment_pivot + '-lint-', '')` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |

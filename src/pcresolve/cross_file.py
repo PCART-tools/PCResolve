@@ -1480,6 +1480,14 @@ class ProjectAnalyzer:
         if _seen is None:
             _seen = set()
         direct_source = normalize_source(direct_source)
+        structured_key = (
+            "structured", module, type(direct_source).__name__,
+            source_display(direct_source),
+        )
+        if structured_key in _seen:
+            return (source_display(direct_source), module, "unknown")
+        _seen = set(_seen)
+        _seen.add(structured_key)
         if isinstance(direct_source, PythonShape):
             return (source_display(direct_source), module, "python")
         if isinstance(direct_source, DerivedResult):
@@ -1599,7 +1607,8 @@ class ProjectAnalyzer:
             if (isinstance(direct_source, InstanceMethod)
                     and direct_source.parameter_scope):
                 parameter_top = self._resolve_parameter_method_top(
-                    module, direct_source, tracer, tracers)
+                    module, direct_source, tracer, tracers,
+                    _seen=set(_seen))
                 return (
                     f"{source_display(a)}.{b}",
                     module,
@@ -2099,9 +2108,10 @@ class ProjectAnalyzer:
     #  @param method_source Parameter-backed InstanceMethod source.
     #  @param tracer Single-file analyzer for module.
     #  @param tracers Dict of module name to analyzer.
+    #  @param _seen Structured-source recursion guard.
     #  @return Converged owner string or "unknown".
     def _resolve_parameter_method_top(self, module, method_source,
-                                      tracer, tracers):
+                                      tracer, tracers, _seen=None):
         parameter = method_source.parameter_name
         scope_name = method_source.parameter_scope
         if not parameter or not scope_name:
@@ -2147,6 +2157,7 @@ class ProjectAnalyzer:
                     return "unknown"
                 owners.extend(self._argument_method_owner_candidates(
                     arg_module, arg_source, method_source.method, tracers,
+                    _seen=set(_seen or set()),
                     receiver_class_filter=receiver_class_filter))
         else:
             for arg_module, arg_source in call_arguments:
@@ -2343,7 +2354,7 @@ class ProjectAnalyzer:
             container = normalize_source(source.container)
             if isinstance(container, ParameterSource):
                 seen = set(_seen or set())
-                key = ("pack-method", module, container.scope,
+                key = ("item-method", module, container.scope,
                        container.name, source.index, method)
                 if key in seen:
                     return ["unknown"]
@@ -2367,8 +2378,7 @@ class ProjectAnalyzer:
                     if not is_variadic:
                         arguments = self._parameter_call_arguments(
                             module, container.scope, container.name,
-                            params.index(container.name), tracer, tracers,
-                            prefer_iterable_elements=True)
+                            params.index(container.name), tracer, tracers)
                         if not arguments:
                             return ["unknown"]
                         candidates = []
@@ -2376,8 +2386,8 @@ class ProjectAnalyzer:
                             selected = _tuple_source_item(
                                 arg_source, source.index)
                             if selected is None:
-                                candidates.append("unknown")
-                                continue
+                                selected = ContainerItem(
+                                    arg_source, source.index)
                             candidates.extend(
                                 self._argument_method_owner_candidates(
                                     arg_module, selected, method, tracers,
@@ -2397,7 +2407,9 @@ class ProjectAnalyzer:
                     return self._dedupe_list(candidates) or ["unknown"]
                 return ["unknown"]
         if not isinstance(source, ParameterSource):
-            return self._origin_candidates(module, source, tracers)
+            return self._origin_candidates(
+                module, source, tracers,
+                _seen=set(_seen or set()))
         if source.attributes:
             return ["unknown"]
         if (source.derived
