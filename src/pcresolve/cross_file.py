@@ -3269,6 +3269,29 @@ class ProjectAnalyzer:
             return False
         return source is not None
 
+    ## Check whether a return summary contains an opaque call result.
+    #
+    #  A call's callable owner is not a contract for the returned object's
+    #  owner. Inherited-target fallback therefore must not extend that legacy
+    #  inference unless the CallResult carries an explicit result_source.
+    #  @param source Function return summary source.
+    #  @return True when any branch contains an unqualified CallResult.
+    def _has_opaque_call_result(self, source):
+        source = normalize_source(source)
+        if isinstance(source, SourceSet):
+            return any(
+                self._has_opaque_call_result(branch)
+                for branch in source.sources)
+        if isinstance(source, CallResult):
+            if source.result_source is None:
+                return True
+            return self._has_opaque_call_result(source.result_source)
+        if isinstance(source, DerivedResult):
+            return any(
+                self._has_opaque_call_result(branch)
+                for branch in source.sources)
+        return False
+
     ## Preserve exact result calls for assigned project-local methods.
     #
     #  Single-file analysis cannot know whether an imported class is defined
@@ -3303,6 +3326,12 @@ class ProjectAnalyzer:
                 summary = self.project_cg.modules[
                     target.module].functions.get(target.qualname)
                 if summary is None or summary.returns is None:
+                    continue
+                exact_target = self._edge_targets_local_function(
+                    edge, caller_module, target.module, target.qualname,
+                    tracer, tracers)
+                if (not exact_target
+                        and self._has_opaque_call_result(summary.returns)):
                     continue
                 for assigned_index, assigned_name in enumerate(
                         edge.assigned_to):
@@ -4078,6 +4107,20 @@ class ProjectAnalyzer:
                         edge, caller_module, target_module, qualname,
                         caller_tracer, tracers):
                     targets.append(summary.id)
+        # An exact subclass method wins over inherited implementations. When
+        # no exact method exists, resolve the nearest available local base
+        # implementation through the class graph. Multiple inherited targets
+        # remain explicit and therefore cannot drive bounded result binding.
+        if not targets:
+            for target_module, module_cg in self.project_cg.modules.items():
+                for qualname, summary in module_cg.functions.items():
+                    if self._edge_targets_local_function(
+                            edge, caller_module, target_module, qualname,
+                            caller_tracer, tracers,
+                            allow_inherited_dispatch=True):
+                        targets.append(summary.id)
+            targets = self._nearest_inherited_method_targets(
+                targets, tracers)
         unique = []
         seen = set()
         for target in targets:
@@ -4086,6 +4129,41 @@ class ProjectAnalyzer:
                 seen.add(key)
                 unique.append(target)
         return unique
+
+    ## Remove ancestor methods hidden by a more-derived local implementation.
+    #
+    #  Multiple-inheritance siblings remain separate candidates because this
+    #  bounded resolver does not claim a complete Python MRO. A linear local
+    #  inheritance chain, however, has one unambiguous nearest implementation.
+    #  @param targets Candidate inherited FunctionId values.
+    #  @param tracers Dict of module name to analyzer.
+    #  @return Candidate list with shadowed ancestor methods removed.
+    def _nearest_inherited_method_targets(self, targets, tracers):
+        class_targets = {}
+        for target in targets:
+            module_cg = self.project_cg.modules.get(target.module)
+            parts = target.qualname.rsplit(".", 1)
+            if (module_cg is not None and len(parts) == 2
+                    and parts[0] in module_cg.classes
+                    and parts[1] in module_cg.classes[parts[0]].methods):
+                class_targets[target] = (target.module, parts[0])
+
+        nearest = []
+        for target in targets:
+            target_class = class_targets.get(target)
+            if target_class is None:
+                nearest.append(target)
+                continue
+            shadowed = any(
+                other != target
+                and self._local_class_is_or_derives(
+                    other_class[0], other_class[1],
+                    target_class[0], target_class[1], tracers)
+                for other, other_class in class_targets.items()
+            )
+            if not shadowed:
+                nearest.append(target)
+        return nearest
 
     ## Resolve every branch of an explicit local callable SourceSet.
     #
@@ -5030,6 +5108,10 @@ class ProjectAnalyzer:
                 candidate = normalize_source(candidate)
                 if (isinstance(candidate, str)
                         and candidate.rsplit(".", 1)[-1] == callable_name
+                        and (not is_constructor
+                             or not isinstance(
+                                 normalize_source(edge.callee),
+                                 InstanceMethod))
                         and (not is_constructor or class_name == callable_name)):
                     return True
 
