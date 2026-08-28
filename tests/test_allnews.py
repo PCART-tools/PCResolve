@@ -163,6 +163,24 @@ def test_kwargs_backed_namespace_fields_are_python(result):
         assert matches[expression].top_library == "python"
 
 
+def test_attribute_tuple_container_preserves_regex_receivers(result):
+    matches = {
+        (call.lineno, call.expression): call
+        for call in result.all_api_calls
+        if call.file_path.endswith("WikiExtractor.py")
+        and call.lineno in (767, 768, 769, 770)
+    }
+
+    for key in (
+            (767, "left.finditer(text)"),
+            (768, "m.start()"),
+            (768, "m.end()"),
+            (769, "right.finditer(text)"),
+            (770, "m.start()"),
+            (770, "m.end()")):
+        assert matches[key].top_library == "re"
+
+
 def test_nested_callback_lookup_preserves_local_callable(result):
     matches = [
         call for call in result.all_api_calls

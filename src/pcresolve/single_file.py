@@ -726,6 +726,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         self._iterated_append_sources = {}
         self._iterated_append_tuple_sources = {}
         self._iterated_append_tuple_conflicts = set()
+        self._attribute_append_tuple_sources = {}
+        self._attribute_append_tuple_conflicts = set()
         self.external_method_overrides = {}
 
     ## Return the current innermost scope.
@@ -746,6 +748,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return The popped Scope.
     def pop_scope(self):
         return self.scope_stack.pop()
+
+    ## Return the stable analyzer-local identity of a lexical binding.
+    #  @param binding Binding created by this analyzer.
+    #  @return Monotonic assignment index unique within the analyzed file.
+    def _binding_key(self, binding):
+        return binding.assignment_index
 
     ## Bind a name in the current scope and optionally in the compat symbols table.
     #
@@ -916,6 +924,62 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if binding is not None and binding.scope_kind != SCOPE_MODULE:
             return None
         return self.homogeneous_container_tuple_items.get(name)
+
+    ## Return the lexical identity of an attribute-backed container.
+    #
+    #  The root binding's monotonic assignment index keeps same-spelled local
+    #  objects in separate functions isolated without relying on reusable
+    #  Python object ids. Attribute facts are shared across functions only
+    #  when their root resolves to the same enclosing binding.
+    #  @param node Attribute expression naming the container.
+    #  @return Tuple of root binding identity and attribute path, or None.
+    def _attribute_container_key(self, node):
+        chain = self._attribute_chain_list(node)
+        if not chain or len(chain) < 2:
+            return None
+        binding = self.current_scope().lookup(
+            chain[0], skip_parent_classes=True)
+        if binding is None:
+            return None
+        return (binding.assignment_index, tuple(chain[1:]))
+
+    ## Return tuple-field facts recorded for an attribute-backed list.
+    #  @param node Attribute expression naming the list.
+    #  @return TupleSource fields, or None when unresolved or conflicting.
+    def _lookup_attribute_tuple_item_sources(self, node):
+        key = self._attribute_container_key(node)
+        if key is None or key in self._attribute_append_tuple_conflicts:
+            return None
+        source = self._attribute_append_tuple_sources.get(key)
+        return source.items if isinstance(source, TupleSource) else None
+
+    ## Invalidate tuple-field facts when an attribute container is rebound.
+    #  @param node Attribute assignment target naming the container.
+    def _invalidate_attribute_tuple_item_sources(self, node):
+        key = self._attribute_container_key(node)
+        if key is None:
+            return
+        self._attribute_append_tuple_sources.pop(key, None)
+        self._attribute_append_tuple_conflicts.discard(key)
+
+    ## Check whether two tuple item facts have the same positional owners.
+    #  Call locations and expression spellings are not ownership differences.
+    #  Unresolved positions never converge.
+    #  @param left Existing TupleSource fact.
+    #  @param right Newly observed TupleSource fact.
+    #  @return True when every field has one matching resolved owner.
+    def _tuple_item_owners_match(self, left, right):
+        if (not isinstance(left, TupleSource)
+                or not isinstance(right, TupleSource)
+                or len(left.items) != len(right.items)):
+            return False
+        for left_item, right_item in zip(left.items, right.items):
+            left_owner = self._structured_source_owner_top(left_item)
+            right_owner = self._structured_source_owner_top(right_item)
+            if (left_owner in (None, "unknown", "")
+                    or left_owner != right_owner):
+                return False
+        return True
 
     ## Infer field shapes from a literal dictionary element.
     #  @param node Candidate dictionary AST node.
@@ -1252,7 +1316,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if binding is None or binding.container_kind != "dict":
             return
 
-        conflict_key = id(binding)
+        conflict_key = self._binding_key(binding)
         if conflict_key in self._container_item_kind_conflicts:
             return
         current = binding.container_item_kind or ""
@@ -1559,10 +1623,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 node.id, skip_parent_classes=True)
             if binding is not None:
                 tuple_sources = self._iterated_append_tuple_sources.get(
-                    id(binding))
+                    self._binding_key(binding))
                 if tuple_sources is not None:
                     return tuple_sources
-                source = self._iterable_binding_sources.get(id(binding))
+                source = self._iterable_binding_sources.get(
+                    self._binding_key(binding))
                 if source is not None:
                     return source
                 dependency = self._parameter_dependency_source(node)
@@ -1590,7 +1655,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 continue
             binding = self.current_scope().bindings.get(target.id)
             if binding is not None:
-                self._iterable_binding_sources[id(binding)] = item_source
+                self._iterable_binding_sources[
+                    self._binding_key(binding)] = item_source
 
     ## Resolve the result object of a builtin container method.
     #
@@ -1802,7 +1868,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             self._bind_target_name(symbol, alias.name, node, "import")
             binding = self.current_scope().bindings.get(symbol)
             if binding is not None:
-                self._import_binding_sources[id(binding)] = alias.name
+                self._import_binding_sources[
+                    self._binding_key(binding)] = alias.name
         self.generic_visit(node)
 
     ## Visit an ImportFrom node and record alias-to-module mappings.
@@ -1833,7 +1900,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 self.import_from_symbols[symbol] = qualified
             binding = self.current_scope().bindings.get(symbol)
             if binding is not None:
-                self._import_binding_sources[id(binding)] = qualified
+                self._import_binding_sources[
+                    self._binding_key(binding)] = qualified
         self.generic_visit(node)
 
     ## Resolve a relative import to its full dotted module name.
@@ -2998,7 +3066,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             binding = self.current_scope().lookup(
                 container_name, skip_parent_classes=True)
             item_source = (
-                self._iterated_append_sources.get(id(binding))
+                self._iterated_append_sources.get(
+                    self._binding_key(binding))
                 if binding is not None else None)
             if item_source is not None:
                 return item_source
@@ -3120,7 +3189,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     binding = self.current_scope().lookup(
                         target.id, skip_parent_classes=True)
                     if binding is not None:
-                        binding_key = id(binding)
+                        binding_key = self._binding_key(binding)
                         self._iterated_append_tuple_sources.pop(
                             binding_key, None)
                         self._iterated_append_tuple_conflicts.discard(
@@ -3273,6 +3342,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 if name and name.startswith("self."):
                     field_targets.append(name)
         right = self._visit_assignment(node, targets, field_targets)
+        for target in node.targets:
+            if isinstance(target, ast.Attribute):
+                self._invalidate_attribute_tuple_item_sources(target)
         self._record_local_constructor_fields(node, targets)
         self._record_external_method_override(node)
         callable_keys = {}
@@ -3930,6 +4002,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         field_targets = [
             name for name in targets if name.startswith("self.")]
         right = self._visit_assignment(node, targets, field_targets)
+        if isinstance(node.target, ast.Attribute):
+            self._invalidate_attribute_tuple_item_sources(node.target)
         self._record_local_constructor_fields(node, targets)
         callable_keys = {}
         if isinstance(node.value, ast.Lambda):
@@ -4234,7 +4308,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     and binding.binding_kind == "import"
                     and binding.scope_kind != SCOPE_MODULE):
                 loc["call_import_source"] = (
-                    self._import_binding_sources.get(id(binding))
+                    self._import_binding_sources.get(
+                        self._binding_key(binding))
                     or binding.source
                 )
 
@@ -4594,7 +4669,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         def record_item_source(binding, item_source):
             if binding is None or binding.container_kind != "list":
                 return
-            key = id(binding)
+            key = self._binding_key(binding)
             current = self._iterated_append_sources.get(key)
             current_norm = normalize_source(current)
             current_owner = (
@@ -4638,7 +4713,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             record_item_source(binding, item_source)
             tuple_source = tuple_item_source(node.args[0])
             if binding is not None:
-                key = id(binding)
+                key = self._binding_key(binding)
                 if key in self._iterated_append_tuple_conflicts:
                     pass
                 elif tuple_source is None:
@@ -4651,6 +4726,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     else:
                         self._iterated_append_tuple_sources.pop(key, None)
                         self._iterated_append_tuple_conflicts.add(key)
+        elif isinstance(receiver, ast.Attribute):
+            key = self._attribute_container_key(receiver)
+            tuple_source = tuple_item_source(node.args[0])
+            if key is not None:
+                if key in self._attribute_append_tuple_conflicts:
+                    pass
+                elif tuple_source is None:
+                    self._attribute_append_tuple_sources.pop(key, None)
+                    self._attribute_append_tuple_conflicts.add(key)
+                else:
+                    previous = self._attribute_append_tuple_sources.get(key)
+                    if (previous is None
+                            or previous == tuple_source
+                            or self._tuple_item_owners_match(
+                                previous, tuple_source)):
+                        self._attribute_append_tuple_sources[key] = tuple_source
+                    else:
+                        self._attribute_append_tuple_sources.pop(key, None)
+                        self._attribute_append_tuple_conflicts.add(key)
 
         ## Preserve a homogeneous item shape only when the appended value is
         # independently proven by syntax or an existing result contract.  An
@@ -4665,7 +4759,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         def record_item_kind(binding, container_name):
             if binding is None or binding.container_kind != "list":
                 return
-            conflict_key = id(binding)
+            conflict_key = self._binding_key(binding)
             if conflict_key in self._container_item_kind_conflicts:
                 return
             current = binding.container_item_kind or ""
@@ -5161,6 +5255,17 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     and isinstance(target, (ast.Tuple, ast.List))):
                 field_sources = self._lookup_tuple_item_sources(
                     iter_node.id)
+                if (field_sources is not None
+                        and len(field_sources) == len(target.elts)):
+                    return [
+                        (field_target, source)
+                        for field_target, source in zip(
+                            target.elts, field_sources)
+                    ]
+            if (isinstance(iter_node, ast.Attribute)
+                    and isinstance(target, (ast.Tuple, ast.List))):
+                field_sources = self._lookup_attribute_tuple_item_sources(
+                    iter_node)
                 if (field_sources is not None
                         and len(field_sources) == len(target.elts)):
                     return [

@@ -1,4 +1,4 @@
-# allnews — Suspicious Records (58)
+# allnews — Suspicious Records (52)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -12,12 +12,6 @@ matching suspicious criteria.
 | allnews_am/wikiextractor/WikiExtractor.py:609:16 | `self.title.find(':')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:620:16 | `pagename.rfind('/')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:627:16 | `pagename.find('/')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:767:21 | `left.finditer(text)` | library / re | local / local | regex_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=re pcresolve=local<br>expected library, pcresolve=local |
-| allnews_am/wikiextractor/WikiExtractor.py:768:30 | `m.start()` | library / re | unknown / unknown | regex_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=re pcresolve=unknown<br>expected library, pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:768:41 | `m.end()` | library / re | unknown / unknown | regex_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=re pcresolve=unknown<br>expected library, pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:769:21 | `right.finditer(text)` | library / re | local / local | regex_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=re pcresolve=local<br>expected library, pcresolve=local |
-| allnews_am/wikiextractor/WikiExtractor.py:770:30 | `m.start()` | library / re | unknown / unknown | regex_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=re pcresolve=unknown<br>expected library, pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:770:41 | `m.end()` | library / re | unknown / unknown | regex_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=re pcresolve=unknown<br>expected library, pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:929:28 | `param.strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:988:16 | `parts[0].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1152:14 | `paramsList[cur:s].split(sep)` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |

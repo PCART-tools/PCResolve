@@ -58,6 +58,28 @@ def test_scope_binding_version_increments():
     assert s.lookup("x").version == 2
 
 
+def test_analyzer_binding_keys_are_monotonic_across_popped_scopes():
+    tracer = SingleFileAnalyzer()
+    tracer._bind_target_name("item", "module")
+    module_binding = tracer.current_scope().lookup("item")
+
+    tracer.push_scope(SCOPE_FUNCTION, "first")
+    tracer._bind_target_name("item", "first")
+    first_binding = tracer.current_scope().lookup("item")
+    tracer.pop_scope()
+
+    tracer.push_scope(SCOPE_FUNCTION, "second")
+    tracer._bind_target_name("item", "second")
+    second_binding = tracer.current_scope().lookup("item")
+
+    keys = {
+        tracer._binding_key(module_binding),
+        tracer._binding_key(first_binding),
+        tracer._binding_key(second_binding),
+    }
+    assert len(keys) == 3
+
+
 # ── merge_snapshots ─────────────────────────────────────────────────────
 
 def test_merge_both_unchanged():
