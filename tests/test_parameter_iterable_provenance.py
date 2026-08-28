@@ -18,7 +18,7 @@ def _calls(result, function_name):
 
 
 def test_parameter_iterable_preserves_concrete_python_element_shape():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = _calls(result, "item.strip")
     assert len(calls) == 4
     by_line = {call.lineno: call for call in calls}
@@ -29,12 +29,12 @@ def test_parameter_iterable_preserves_concrete_python_element_shape():
 
 
 def test_unresolved_parameter_iterable_does_not_become_local():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = _calls(result, "item.strip")
     assert calls[2].top_library == "unknown"
 
 
 def test_unresolved_iterator_element_does_not_become_local():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = _calls(result, "item.strip")
     assert calls[3].top_library == "unknown"

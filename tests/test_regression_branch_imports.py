@@ -13,43 +13,27 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "regression_branch
 
 
 @pytest.fixture(scope="module")
-def result_v1():
-    return analyze_project(FIXTURE, scope_model="v1")
+def result():
+    return analyze_project(FIXTURE)
 
 
-@pytest.fixture(scope="module")
-def result_v2():
-    return analyze_project(FIXTURE, scope_model="v2")
+def test_single_file_analyzed(result):
+    assert len(result.files) == 1
 
 
-def test_single_file_analyzed_v1(result_v1):
-    assert len(result_v1.files) == 1
-
-
-def test_single_file_analyzed_v2(result_v2):
-    assert len(result_v2.files) == 1
-
-
-def test_lib_array_call_is_pandas_v1(result_v1):
-    """v1: last branch wins, so lib -> pandas."""
-    lib_calls = [c for c in result_v1.all_api_calls if "lib" in c.expression]
-    assert len(lib_calls) == 1
-    assert lib_calls[0].top_library == "pandas"
-
-
-def test_lib_array_call_has_alternatives_v2(result_v2):
-    """v2: branch merging produces SourceSet, top should be numpy or pandas."""
-    lib_calls = [c for c in result_v2.all_api_calls if "lib" in c.expression]
+def test_lib_array_call_has_alternatives(result):
+    """Branch merging produces a SourceSet with both possible owners."""
+    lib_calls = [c for c in result.all_api_calls if "lib" in c.expression]
     assert len(lib_calls) == 1
     assert lib_calls[0].top_library in ("numpy", "pandas")
     assert "SourceSet(" not in str(lib_calls[0].top_library)
 
 
-def test_branch_imports_no_sourceset_leak(result_v2):
+def test_branch_imports_no_sourceset_leak(result):
     """No SourceSet repr in library_usage keys or top_library."""
-    for call in result_v2.all_api_calls:
+    for call in result.all_api_calls:
         assert "SourceSet(" not in str(call.top_library)
-    for lib in result_v2.library_usage:
+    for lib in result.library_usage:
         assert "SourceSet(" not in str(lib)
 
 
@@ -65,7 +49,7 @@ def test_if_without_else_merges_with_base():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         lib_calls = [c for c in result.all_api_calls if "lib.get" in c.expression]
         assert len(lib_calls) == 1
         assert lib_calls[0].top_library in ("requests", "numpy")
@@ -86,7 +70,7 @@ def test_try_else_inherits_try_bindings():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         lib_calls = [c for c in result.all_api_calls if "lib.array" in c.expression]
         assert len(lib_calls) == 1
         assert lib_calls[0].top_library in ("numpy", "pandas"), \
@@ -98,7 +82,7 @@ def test_try_else_inherits_try_bindings():
 
 
 def test_if_without_else_file_symbols_not_local():
-    """v2: if-without-else merged symbol should not be 'local' in file symbols."""
+    """A branch-merged symbol should not be local in file symbols."""
     import tempfile
     code = "import requests as lib\n"
     code += "FLAG = True\n"
@@ -108,7 +92,7 @@ def test_if_without_else_file_symbols_not_local():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         fa = result.files[0]
         assert fa.symbols.get("lib") != "local", \
             f"Expected non-local for lib, got {fa.symbols.get('lib')}"
@@ -127,7 +111,7 @@ def test_try_else_symbol_provenance_not_local():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         value_provs = [p for p in result.all_symbol_provenance if p.symbol == "value"]
         assert len(value_provs) >= 1, "Expected symbol provenance for value"
         assert value_provs[0].top_library != "local", \
@@ -143,7 +127,7 @@ def test_classification_reason_on_direct_import():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         get_calls = [c for c in result.all_api_calls if "get" in c.expression]
         assert len(get_calls) == 1
         assert get_calls[0].reason == "DIRECT_IMPORT", \
@@ -153,7 +137,7 @@ def test_classification_reason_on_direct_import():
 
 def test_classification_reason_on_branch_merge():
     """Branch-merged calls should get FLOW_MERGE reason with alternatives."""
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     lib_calls = [c for c in result.all_api_calls if "lib" in c.expression]
     assert len(lib_calls) == 1
     assert lib_calls[0].reason == "FLOW_MERGE", \
@@ -172,7 +156,7 @@ def test_classification_metadata_on_symbol_provenance():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        result = analyze_project(tmpdir, scope_model="v2")
+        result = analyze_project(tmpdir)
         session_provs = [p for p in result.all_symbol_provenance if p.symbol == "session"]
         assert len(session_provs) >= 1
         assert session_provs[0].reason, "Expected non-empty reason"

@@ -54,7 +54,7 @@ def relative_file(file_path, proj_root):
 
 def generate_one(name, info):
     proj_root = project_root(info["path"])
-    result = analyze_project(proj_root, scope_model="v2")
+    result = analyze_project(proj_root)
 
     calls = result.all_api_calls
     if not calls:

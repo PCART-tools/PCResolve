@@ -23,12 +23,11 @@ def _call(result, expression, lineno=None):
 
 
 def test_local_lambda_keeps_callable_identity_and_result_owner():
-    for scope_model in ("v1", "v2"):
-        result = analyze_project(FIXTURE_DIR, scope_model=scope_model)
+    result = analyze_project(FIXTURE_DIR)
 
-        assert _call(
-            result, "transform(np.array([1.0]))").top_library == "local"
-        assert _call(result, "transformed.flatten()").top_library == "numpy"
+    assert _call(
+        result, "transform(np.array([1.0]))").top_library == "local"
+    assert _call(result, "transformed.flatten()").top_library == "numpy"
 
 
 def test_function_local_builtin_containers_are_python_owned():

@@ -32,7 +32,7 @@ def _calls(result, expression):
 
 
 def _analyze():
-    return analyze_project(FIXTURE, scope_model="v2")
+    return analyze_project(FIXTURE)
 
 
 def test_imported_callable_keeps_its_library_owner():
@@ -107,7 +107,7 @@ def test_function_local_import_result_keeps_explicit_owner():
 
 
 def test_nested_result_owner_survives_cross_file_resolution():
-    result = analyze_project(FUNCTION_LOCAL_FIXTURE, scope_model="v2")
+    result = analyze_project(FUNCTION_LOCAL_FIXTURE)
 
     call = _call(result, "local_only_axes.scatter([1], [2])")
     assert call.top_library == "matplotlib"

@@ -120,68 +120,57 @@ def test_merge_new_binding_in_one_branch():
     assert merged["x"].source == "a" if isinstance(merged["x"], Binding) else merged["x"] == "a"
 
 
-# ── SingleFileAnalyzer with scope_model="v2" ─────────────────────────────
+# ── SingleFileAnalyzer lexical scope behavior ──────────────────────────
 
-def _analyze_v2(code):
-    """Helper: analyze source with scope_model="v2"."""
-    return analyze_source(code, scope_model="v2")
+def _analyze(code):
+    """Analyze source with lexical scope semantics."""
+    return analyze_source(code)
 
 
-def test_v2_function_param_not_in_module_symbols():
+def test_function_param_not_in_module_symbols():
     """Function parameter 'requests' must not pollute module-level symbols."""
     code = """import requests
 def f(requests):
     return requests.get('')
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     # Module-level 'requests' should stay 'requests'
     assert result.symbols.get("requests") == "requests"
 
 
-def test_v2_local_var_not_in_module_symbols():
+def test_local_var_not_in_module_symbols():
     """Local variable 'np' must not overwrite module-level 'np'."""
     code = """import numpy as np
 def f():
     np = 'something'
     return np
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     assert result.symbols.get("np") == "numpy"
 
 
-def test_v2_comprehension_var_not_in_module_symbols():
+def test_comprehension_var_not_in_module_symbols():
     """Comprehension variable 'x' must not leak to module level."""
     code = """import numpy as np
 items = [np.array([x]) for x in range(2)]
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     assert "x" not in result.symbols
 
 
-def test_v2_class_body_var_not_in_module_symbols():
+def test_class_body_var_not_in_module_symbols():
     """Class body temporary should not be in module symbols."""
     code = """class Foo:
     tmp = 42
     def method(self):
         return tmp
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     # 'tmp' should not leak to module level
     assert "tmp" not in result.symbols or result.symbols.get("tmp") == "local"
 
 
-def test_v1_legacy_mode_still_works():
-    """v1 mode preserves legacy behaviour (function params leak to module)."""
-    code = """import numpy as np
-def f():
-    np = 'something'
-"""
-    result = analyze_source(code, scope_model="v1")
-    # In v1 mode, np gets overwritten by local binding
-    assert result.symbols.get("np") == "local"
-
-
-def test_v2_nested_function_reads_outer():
+def test_nested_function_reads_outer():
     """Nested inner() must be classified as 'local', and s.get('') must
     trace through the outer function's scope to 'requests'."""
     code = """import requests
@@ -191,13 +180,13 @@ def outer():
         return s.get('')
     return inner()
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     calls = {c.expression: c.top_library for c in result.api_calls}
     assert calls.get("inner()") == "local", f"inner() should be local, got {calls}"
     assert calls.get("requests.Session()") == "requests"
 
 
-def test_v2_local_function_shadows_import():
+def test_local_function_shadows_import():
     """Locally defined function named 'requests' must shadow the import."""
     code = """import requests
 def outer():
@@ -205,25 +194,9 @@ def outer():
         return None
     requests()
 """
-    result = _analyze_v2(code)
+    result = _analyze(code)
     calls = {c.expression: c.top_library for c in result.api_calls}
     assert calls.get("requests()") == "local", f"requests() should be local, got {calls}"
-
-
-# ── Scope kind in binding ───────────────────────────────────────────────
-
-def test_v1_structured_base_chain_stays_legacy():
-    """In v1 mode, structured base calls must keep chain=[] as in Phase 2."""
-    code = """from flask import Flask
-app = Flask(__name__)
-app.logger.info('test')
-"""
-    result = analyze_source(code, scope_model="v1")
-    info_calls = [c for c in result.api_calls if "info" in c.expression]
-    assert info_calls, "app.logger.info(...) not found"
-    assert info_calls[0].chain == [], (
-        f"v1 structured chain must stay [], got {info_calls[0].chain}"
-    )
 
 
 # ── CallSite collection ─────────────────────────────────────────────────
@@ -248,9 +221,9 @@ def test_callsite_module_name_filled():
     assert cs.module_name == "pkg.mod"
 
 
-def test_callsite_v2_scope_name():
-    """v2 function body calls carry scope_name == function name."""
-    tracer = SingleFileAnalyzer(scope_model="v2")
+def test_callsite_scope_name():
+    """Function body calls carry scope_name == function name."""
+    tracer = SingleFileAnalyzer()
     code = "import requests\ndef f():\n    requests.get('')\n"
     tracer.visit(ast.parse(code))
     func_calls = [cs for cs in tracer.call_site_objects if cs.scope_name]
@@ -285,7 +258,7 @@ def test_symbol_provenance_in_project_mode():
 
 
 def test_binding_scope_kind_is_set():
-    tracer = SingleFileAnalyzer(scope_model="v2")
+    tracer = SingleFileAnalyzer()
     code = """import requests
 def f():
     x = requests.get('')
@@ -344,10 +317,10 @@ def test_library_usage_files_deduplicated():
         assert len(usage["requests"].files) == len(set(usage["requests"].files))
 
 
-# ── v2 provenance regression ────────────────────────────────────────────
+# ── Lexical provenance regression ──────────────────────────────────────
 
-def test_v2_local_var_not_in_library_usage():
-    """v2 local variable 's' must not appear as a library in usage."""
+def test_local_var_not_in_library_usage():
+    """Local variable 's' must not appear as a library in usage."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -357,13 +330,13 @@ def test_v2_local_var_not_in_library_usage():
                     "    s = requests.Session()\n"
                     "    s.get('')\n"
                     "f()\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         usage = result.library_usage
         assert "s" not in usage, f"Local var 's' leaked into library_usage: {list(usage.keys())}"
 
 
-def test_v2_param_shadow_not_in_library_usage():
-    """v2 parameter shadowing an import must not contribute to third-party usage."""
+def test_param_shadow_not_in_library_usage():
+    """A parameter shadowing an import must not contribute library usage."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -372,7 +345,7 @@ def test_v2_param_shadow_not_in_library_usage():
                     "def f(requests):\n"
                     "    requests.get('')\n"
                     "f('')\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         # Check that the parameter does NOT contribute to requests' symbol_count
         usage = result.library_usage
         if "requests" in usage:
@@ -399,7 +372,7 @@ def test_parameter_provenance_keeps_same_name_scopes_distinct():
                 "first(' first ')\n"
                 "second('second')\n"
             )
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         parameters = [
             p for p in result.all_symbol_provenance
             if p.kind == "parameter" and p.symbol == "value"
@@ -428,8 +401,8 @@ def test_module_level_reassignment_provenance_distinct():
         assert "numpy" in tops, f"Second assignment should be numpy, got tops={tops}"
 
 
-def test_v2_s_provenance_is_requests():
-    """v2 local s = requests.Session() must have top_library='requests'."""
+def test_session_provenance_is_requests():
+    """Local s = requests.Session() must have top_library='requests'."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -437,16 +410,16 @@ def test_v2_s_provenance_is_requests():
             f.write("import requests\n"
                     "def f():\n"
                     "    s = requests.Session()\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         for p in result.all_symbol_provenance:
             if p.symbol == "s":
                 assert p.top_library == "requests", (
-                    f"v2 s provenance should be 'requests', got {p.top_library} chain={p.chain}"
+                    f"s provenance should be 'requests', got {p.top_library} chain={p.chain}"
                 )
 
 
-def test_v2_alias_call_result_provenance_keeps_external_origin():
-    """v2 x = np.array(...) must attribute x to numpy, not the local module."""
+def test_alias_call_result_provenance_keeps_external_origin():
+    """x = np.array(...) must attribute x to numpy, not the local module."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -454,7 +427,7 @@ def test_v2_alias_call_result_provenance_keeps_external_origin():
             f.write("import numpy as np\n"
                     "x = np.array([])\n"
                     "y = np.sum(x)\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         by_symbol = {}
         for p in result.all_symbol_provenance:
             by_symbol.setdefault(p.symbol, []).append(p)
@@ -463,8 +436,8 @@ def test_v2_alias_call_result_provenance_keeps_external_origin():
         assert result.library_usage["numpy"].symbol_count >= 3
 
 
-def test_v2_local_function_call_result_uses_return_source():
-    """v2 x = local_func() must keep the callee name to follow return_sources."""
+def test_local_function_call_result_uses_return_source():
+    """x = local_func() must keep the callee name for return tracing."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -473,14 +446,14 @@ def test_v2_local_function_call_result_uses_return_source():
                     "def make():\n"
                     "    return dia_matrix(([1], [0]), shape=(1, 1))\n"
                     "x = make()\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         x_provs = [p for p in result.all_symbol_provenance if p.symbol == "x"]
         assert x_provs
         assert x_provs[0].top_library == "scipy", x_provs[0].chain
 
 
-def test_v2_constructor_arg_flows_to_self_attribute_methods():
-    """v2 should trace constructor parameters stored on self across methods."""
+def test_constructor_arg_flows_to_self_attribute_methods():
+    """Constructor parameters stored on self should trace across methods."""
     import tempfile, os
     from pcresolve.cross_file import analyze_project
     with tempfile.TemporaryDirectory() as td:
@@ -496,7 +469,7 @@ def test_v2_constructor_arg_flows_to_self_attribute_methods():
                     "    c = Client()\n"
                     "    w = Wrapper(c)\n"
                     "    return w.run()\n")
-        result = analyze_project(td, scope_model="v2")
+        result = analyze_project(td)
         calls = {c.expression: c.top_library for c in result.all_api_calls}
         assert calls.get("client.open()") == "ext", calls
         assert calls.get("self.client.close()") == "ext", calls
@@ -514,7 +487,7 @@ def f():
     x = np.array([1])
 f()
 """
-    result = analyze_source(code, scope_model="v2")
+    result = analyze_source(code)
     assert result.symbols.get("x") is not None
     # Module-level x must trace to numpy after the global assignment
     chain = result.chains.get("x", [])
@@ -530,7 +503,7 @@ def f():
     global x
     x = 2
 """
-    result = analyze_source(code, scope_model="v2")
+    result = analyze_source(code)
     assert result is not None
 
 
@@ -543,7 +516,7 @@ def test_nonlocal_does_not_crash():
         x = 2
     inner()
 """
-    result = analyze_source(code, scope_model="v2")
+    result = analyze_source(code)
     assert result is not None
     # First edition: no semantic resolution, just verify no crash
 

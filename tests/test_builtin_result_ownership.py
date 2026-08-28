@@ -13,12 +13,12 @@ def _calls_by_expr(result, expr_substring):
     return [c for c in result.all_api_calls if expr_substring in c.expression]
 
 
-def _write_and_analyze(code, scope_model="v2"):
+def _write_and_analyze(code):
     tmpdir = tempfile.mkdtemp()
     test_file = os.path.join(tmpdir, "test_mod.py")
     with open(test_file, "w") as f:
         f.write(code)
-    result = analyze_project(tmpdir, scope_model=scope_model)
+    result = analyze_project(tmpdir)
     import shutil
     shutil.rmtree(tmpdir)
     return result
@@ -164,17 +164,16 @@ class Iterator:
     assert calls[0].top_library == "python"
 
 
-def test_max_self_rebinding_does_not_recurse_in_either_scope_model():
+def test_max_self_rebinding_does_not_recurse():
     code = """
 def clamp(process_count):
     process_count = max(1, process_count)
     return process_count
 """
-    for scope_model in ("v1", "v2"):
-        result = _write_and_analyze(code, scope_model=scope_model)
-        calls = _calls_by_expr(result, "max(1, process_count)")
-        assert len(calls) == 1
-        assert calls[0].top_library == "python"
+    result = _write_and_analyze(code)
+    calls = _calls_by_expr(result, "max(1, process_count)")
+    assert len(calls) == 1
+    assert calls[0].top_library == "python"
 
 
 def test_max_of_multiple_library_candidates_is_unknown_with_alternatives():

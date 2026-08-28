@@ -127,7 +127,7 @@ def test_cli_fails_when_updates_and_uncovered_predictions_coexist(
         record["project"] = name
         return [record]
 
-    def analyze(root, scope_model="v2"):
+    def analyze(root):
         calls = [_call(root)]
         if root == str(uncovered_root):
             calls.append(_call(root, "extra()", "json", col=2))

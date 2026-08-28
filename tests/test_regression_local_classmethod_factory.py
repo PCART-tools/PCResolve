@@ -12,7 +12,7 @@ FIXTURE = os.path.join(
 
 
 def test_local_classmethod_return_preserves_local_receiver_identity():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = {
         call.expression: call
         for call in result.all_api_calls
@@ -22,7 +22,7 @@ def test_local_classmethod_return_preserves_local_receiver_identity():
 
 
 def test_local_classmethod_call_remains_local():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = {
         call.expression: call
         for call in result.all_api_calls
@@ -32,7 +32,7 @@ def test_local_classmethod_call_remains_local():
 
 
 def test_ambiguous_local_classmethod_return_is_unknown():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = {
         call.expression: call
         for call in result.all_api_calls

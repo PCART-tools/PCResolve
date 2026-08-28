@@ -17,7 +17,7 @@ def _find_call(calls, expression_prefix):
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE, scope_model="v2")
+    return analyze_project(FIXTURE)
 
 
 # --- P0: Builtin functions ---

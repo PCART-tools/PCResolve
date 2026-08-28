@@ -11,11 +11,11 @@ import pytest
 from pcresolve import analyze_project
 
 
-def _run_code(code, scope_model="v2"):
+def _run_code(code):
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        return analyze_project(td, scope_model=scope_model)
+        return analyze_project(td)
 
 
 # ── Test 1: self.method() must not enter library_usage ──────────────────
@@ -165,7 +165,7 @@ def test_mixed_local_third_party_alternatives():
         f"Mixed alternatives should have confidence < 1.0, got {get_calls[0].confidence}"
 
 
-# ── Test 9: v1 mode should still pass all existing tests ───────────────
+# ── Test 9: local function identity ────────────────────────────────────
 
 # ── Phase 8C: decorator provenance ────────────────────────────────────
 
@@ -606,15 +606,16 @@ def test_7b_pure_local_method_stays_local():
                 f"Calc.add() should be local, got {c.top_library}"
 
 
-def test_v1_still_works_for_local_functions():
+def test_local_functions_use_local_owner():
     code = ("def helper():\n"
             "    pass\n"
             "helper()\n")
-    r = _run_code(code, scope_model="v1")
+    r = _run_code(code)
     helper_calls = [c for c in r.all_api_calls if "helper" in c.expression]
     assert len(helper_calls) >= 1
     for c in helper_calls:
-        assert c.top_library == "local", f"v1 helper() not local: {c.top_library}"
+        assert c.top_library == "local", \
+            f"helper() should be local, got {c.top_library}"
 
 
 # ── Test 10: dotted import descendant must be library ─────────────────
@@ -830,13 +831,13 @@ def test_method_result_object_keeps_library_for_followup_call():
 # ── Phase 7B-full PR1: call-graph fact integrity ───────────────────────
 
 
-def _run_code_with_cg(code, scope_model="v2"):
+def _run_code_with_cg(code):
     """Analyze code and return (result, project_cg)."""
     from pcresolve.cross_file import ProjectAnalyzer
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        pa = ProjectAnalyzer(td, scope_model=scope_model)
+        pa = ProjectAnalyzer(td)
         result = pa.analyze()
         return result, pa.project_cg
 
@@ -1043,7 +1044,7 @@ def test_same_name_function_across_modules_not_polluted():
                 "x = make_arr()\n"
                 "x.count(1)\n"
             )
-        pa = ProjectAnalyzer(td, scope_model="v2")
+        pa = ProjectAnalyzer(td)
         result = pa.analyze()
         count_calls = [c for c in result.all_api_calls if "count" in c.expression]
         assert count_calls, "x.count() not collected in b.py"
@@ -1187,7 +1188,7 @@ def test_multi_return_source_set_not_pick_first():
     assert calls, "y.sum() not collected"
     for c in calls:
         assert c.top_library == "numpy", \
-            f"v2 should resolve sole SourceSet candidate to numpy, got {c.top_library}"
+            f"Expected sole SourceSet candidate numpy, got {c.top_library}"
         assert "numpy" in (getattr(c, "alternatives", []) or []), \
             f"alternatives should include numpy, got {getattr(c, 'alternatives', [])}"
         assert getattr(c, "reason", "") == "RETURN_PROPAGATION", \

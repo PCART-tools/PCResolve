@@ -135,12 +135,11 @@ def _is_unshadowed_builtin_call(tracer, node):
         return False
     if name in tracer.local:
         return False
-    # Check scope binding for shadowing
-    if tracer.scope_model == "v2":
-        binding = tracer.current_scope().lookup(
-            name, skip_parent_classes=True)
-        if binding is not None:
-            return False
+    # Check lexical scope binding for shadowing.
+    binding = tracer.current_scope().lookup(
+        name, skip_parent_classes=True)
+    if binding is not None:
+        return False
     return True
 
 
@@ -651,12 +650,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     ## Initialize the analyzer with empty state.
     #  @param module_name Optional dotted module name for resolving relative imports.
     #  @param is_package Whether the file is a package __init__.py.
-    #  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
-    def __init__(self, module_name=None, is_package=False, scope_model="v2",
-                 file_path=""):
+    def __init__(self, module_name=None, is_package=False, file_path=""):
         self.module_name = module_name
         self.is_package = is_package
-        self.scope_model = scope_model
         self._file_path = file_path
         self.return_sources = {}
         # Positional tuple return summaries are consumed only by the project
@@ -755,10 +751,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _binding_key(self, binding):
         return binding.assignment_index
 
-    ## Bind a name in the current scope and optionally in the compat symbols table.
+    ## Bind a name in the current lexical scope and compatibility symbol table.
     #
-    #  In v2 mode, only module-scope bindings also go into self.symbols.
-    #  In v1 mode, all bindings write to self.symbols (legacy behaviour).
+    #  Only module-scope and explicit global bindings enter self.symbols.
     #  @param name Symbol name.
     #  @param source Source value.
     #  @param node Optional AST node for position info.
@@ -776,7 +771,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             callable_key=callable_key,
             binding_kind=kind,
             container_item_fields=container_item_fields)
-        if name in self._global_names or self.scope_model == "v1" or self.current_scope().kind == SCOPE_MODULE:
+        if (name in self._global_names
+                or self.current_scope().kind == SCOPE_MODULE):
             self.symbols.add(name, source)
         if name.startswith("self.") and self._class_stack:
             attr_key = (self._class_stack[-1], name)
@@ -827,26 +823,25 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             return None
         return "self." + ".".join(parts)
 
-    ## Look up a name in the lexical scope chain (v2) or return the name as-is.
+    ## Look up a name in the lexical scope chain or return the name as-is.
     #
     #  Unified helper so that trace_source, get_base, and _resolve_call_receiver
     #  all use the same scope-aware resolution.
     #  @param name The raw AST name string.
-    #  @return Scope binding source in v2, or the name itself in v1 / not found.
+    #  @return Scope binding source, or the name itself when not found.
     def _lookup_name_source(self, name):
-        if self.scope_model == "v2":
-            binding = self.current_scope().lookup(name, skip_parent_classes=True)
-            if binding is not None:
-                if binding.source == "local":
-                    return binding.source
-                if (binding.binding_kind == "import"
-                        and binding.scope_kind != SCOPE_MODULE):
-                    return binding.source
-                if (name in self.import_aliases
-                        and isinstance(binding.source, str)
-                        and '.' not in binding.source):
-                    return name
+        binding = self.current_scope().lookup(name, skip_parent_classes=True)
+        if binding is not None:
+            if binding.source == "local":
                 return binding.source
+            if (binding.binding_kind == "import"
+                    and binding.scope_kind != SCOPE_MODULE):
+                return binding.source
+            if (name in self.import_aliases
+                    and isinstance(binding.source, str)
+                    and '.' not in binding.source):
+                return name
+            return binding.source
         return name
 
     ## Return assignment metadata for a name in the active lexical scope.
@@ -1090,7 +1085,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     self.instance_attr_kinds.get(key, ""),
                     self.instance_attr_item_kinds.get(key, ""),
                 )
-            if name and self.scope_model == "v2":
+            if name:
                 binding = self.current_scope().lookup(
                     name, skip_parent_classes=True)
                 if binding is not None:
@@ -1541,8 +1536,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param node Argument expression.
     #  @return ParameterSource or ordinary argument source.
     def _call_edge_argument_source(self, node):
-        if self.scope_model != "v2":
-            return self.get_base(node)
         if isinstance(node, ast.Subscript):
             dependency = self._parameter_dependency_source(node)
             if isinstance(dependency, ParameterSource):
@@ -1696,9 +1689,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @return ParameterSource, DerivedResult, UnknownSource, "local", or
     #  None.
     def _parameter_dependency_source(self, node, expression_context=False):
-        if self.scope_model != "v2":
-            return None
-
         if isinstance(node, ast.Name):
             if not self._caller_stack:
                 return None
@@ -1842,10 +1832,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param node Optional AST node for position.
     def _add_symbol_ref(self, symbol, source, kind, node=None):
         scope_name = ""
-        if self.scope_model == "v2":
-            cs = self.current_scope()
-            if cs.kind != SCOPE_MODULE:
-                scope_name = cs.name
+        cs = self.current_scope()
+        if cs.kind != SCOPE_MODULE:
+            scope_name = cs.name
         self.symbol_refs.append(SymbolRef(
             symbol=symbol,
             source=source,
@@ -1983,7 +1972,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         and isinstance(me.receiver, str)):
                     # Check whether the receiver is a local class instance.
                     local_class = me.receiver in self.class_methods
-                    if not local_class and self.scope_model == "v2":
+                    if not local_class:
                         binding = self.current_scope().lookup(me.receiver)
                         if binding is not None:
                             src = normalize_source(binding.source)
@@ -2442,7 +2431,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             if (isinstance(inner_method, InstanceMethod)
                     and isinstance(inner_method.receiver, str)):
                 local_method = inner_method.receiver in self.class_methods
-                if not local_method and self.scope_model == "v2":
+                if not local_method:
                     binding = self.current_scope().lookup(
                         inner_method.receiver)
                     if binding is not None:
@@ -2543,45 +2532,44 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             # absent — still create InstanceMethod so the
             # builtin container method check applies.
             if not class_name or class_name == "local":
-                if self.scope_model == "v2":
-                    binding = self.current_scope().lookup(re.id)
-                    if binding is not None:
-                        src_norm = normalize_source(binding.source)
-                        if isinstance(src_norm, ParameterSource):
-                            if src_norm.derived:
-                                receiver = re.id
-                            else:
-                                receiver = ".".join(
-                                    (src_norm.name,) + src_norm.attributes)
-                            return InstanceMethod(
-                                receiver, method_name,
-                                parameter_scope=src_norm.scope,
-                                parameter_name=src_norm.name)
-                        if (isinstance(src_norm, str)
-                                and src_norm in
-                                self.homogeneous_container_value_sources):
-                            return InstanceMethod(
-                                self.homogeneous_container_value_sources[
-                                    src_norm], method_name)
-                        if binding.source == "local":
-                            parameter = _parameter_method(re.id, re.id)
-                            if parameter is not None:
-                                return parameter
-                            return InstanceMethod(re.id, method_name)
-                        if isinstance(src_norm, CallResult):
-                            cn = src_norm.callee
-                            if isinstance(cn, str) and cn in self.class_methods:
-                                return _resolve_on_class(cn, cn)
-                            if isinstance(cn, str) and cn in self.import_from_symbols:
-                                return InstanceMethod(cn, method_name)
-                            return InstanceMethod(src_norm, method_name)
-                        if is_structured_source(src_norm):
-                            return InstanceMethod(src_norm, method_name)
-                        if (isinstance(src_norm, str)
-                                and binding.binding_kind != "import"
-                                and src_norm not in (
-                                    "", "local", "python", "unknown")):
-                            return InstanceMethod(src_norm, method_name)
+                binding = self.current_scope().lookup(re.id)
+                if binding is not None:
+                    src_norm = normalize_source(binding.source)
+                    if isinstance(src_norm, ParameterSource):
+                        if src_norm.derived:
+                            receiver = re.id
+                        else:
+                            receiver = ".".join(
+                                (src_norm.name,) + src_norm.attributes)
+                        return InstanceMethod(
+                            receiver, method_name,
+                            parameter_scope=src_norm.scope,
+                            parameter_name=src_norm.name)
+                    if (isinstance(src_norm, str)
+                            and src_norm in
+                            self.homogeneous_container_value_sources):
+                        return InstanceMethod(
+                            self.homogeneous_container_value_sources[
+                                src_norm], method_name)
+                    if binding.source == "local":
+                        parameter = _parameter_method(re.id, re.id)
+                        if parameter is not None:
+                            return parameter
+                        return InstanceMethod(re.id, method_name)
+                    if isinstance(src_norm, CallResult):
+                        cn = src_norm.callee
+                        if isinstance(cn, str) and cn in self.class_methods:
+                            return _resolve_on_class(cn, cn)
+                        if isinstance(cn, str) and cn in self.import_from_symbols:
+                            return InstanceMethod(cn, method_name)
+                        return InstanceMethod(src_norm, method_name)
+                    if is_structured_source(src_norm):
+                        return InstanceMethod(src_norm, method_name)
+                    if (isinstance(src_norm, str)
+                            and binding.binding_kind != "import"
+                            and src_norm not in (
+                                "", "local", "python", "unknown")):
+                        return InstanceMethod(src_norm, method_name)
                 # Module-level local bindings — scope lookup
                 # may return None at module scope; fall back
                 # to the direct symbol table.
@@ -2712,7 +2700,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 # through instance_attrs to find json, then
                 # classify loads as json.loads.
                 target_class = root_src
-                if not target_class and self.scope_model == "v2":
+                if not target_class:
                     binding = self.current_scope().lookup(root)
                     if binding is not None:
                         target_class = normalize_source(binding.source)
@@ -2914,7 +2902,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if receiver_name in self.symbols.direct:
             return receiver_name
         chain = self._attribute_chain_list(receiver_node)
-        if chain and self.scope_model == "v2":
+        if chain:
             root_src = self._lookup_name_source(chain[0])
             if root_src and root_src != chain[0]:
                 return root_src
@@ -3128,9 +3116,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         else:
                             return attr_source
                 root = chain[0]
-                if self.scope_model == "v2":
-                    return self._lookup_name_source(root)
-                return root
+                return self._lookup_name_source(root)
             return self.get_base(node.value, call_lookup=call_lookup)
         elif isinstance(node, ast.Call):
             if self._is_partial_call(node) and node.args:
@@ -3398,11 +3384,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             if not preserve_imported_result:
                                 continue
                         attr_source = right
-                        if (
-                            self.scope_model == "v2"
-                            and isinstance(node.value, ast.Name)
-                            and right == "local"
-                        ):
+                        if (isinstance(node.value, ast.Name)
+                                and right == "local"):
                             attr_source = node.value.id
                         self._bind_target_name(
                             attr_name, attr_source, target,
@@ -3509,52 +3492,52 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         # 1.0.5 P0: generic_visit already called above, before target binding.
         self._collect_argparse_assignment(node)
 
-    ## Resolve a receiver name to its top library (v2 scope-aware).
+    ## Resolve a receiver name to its top library using lexical scope.
     def _receiver_top(self, name):
-        if self.scope_model == "v2":
-            binding = self.current_scope().lookup(
-                name, skip_parent_classes=True)
-            if binding is not None:
-                src = normalize_source(binding.source)
-                if isinstance(src, str):
-                    if src in ("local", "python", "unknown", ""):
-                        return src or None
-                    source_top = self.symbols.get_top(src)
-                    return source_top or src
-                if isinstance(src, InstanceMethod):
-                    receiver = normalize_source(src.receiver)
-                    if isinstance(receiver, str):
-                        receiver_top = self.symbols.get_top(receiver)
-                        return receiver_top or receiver
-                    return None
-                if isinstance(src, CallResult):
-                    result_owner = normalize_source(src.result_source)
-                    if isinstance(result_owner, str):
-                        owner_top = self.symbols.get_top(result_owner)
-                        return owner_top or result_owner
-                    if isinstance(result_owner, UnknownSource):
-                        return "unknown"
-                    if not isinstance(src.callee, str):
-                        return None
-                    callee_top = self.symbols.get_top(src.callee)
-                    if callee_top and callee_top not in ("local", name):
-                        return callee_top
-                    # Follow return_sources through local functions
-                    rs = self.return_sources.get(src.callee)
-                    if rs is not None:
-                        rs = normalize_source(rs)
-                        sources = rs.sources if isinstance(rs, SourceSet) else [rs]
-                        for s in sources:
-                            s = normalize_source(s)
-                            if isinstance(s, CallResult) and isinstance(s.callee, str):
-                                callee_top = self.symbols.get_top(s.callee)
-                                if callee_top and callee_top not in ("local", name):
-                                    return callee_top
-                    return callee_top
-                # A lexical binding is authoritative.  Do not consult a
-                # same-name module binding when its structured source cannot
-                # be resolved here.
+        binding = self.current_scope().lookup(
+            name, skip_parent_classes=True)
+        if binding is not None:
+            src = normalize_source(binding.source)
+            if isinstance(src, str):
+                if src in ("local", "python", "unknown", ""):
+                    return src or None
+                source_top = self.symbols.get_top(src)
+                return source_top or src
+            if isinstance(src, InstanceMethod):
+                receiver = normalize_source(src.receiver)
+                if isinstance(receiver, str):
+                    receiver_top = self.symbols.get_top(receiver)
+                    return receiver_top or receiver
                 return None
+            if isinstance(src, CallResult):
+                result_owner = normalize_source(src.result_source)
+                if isinstance(result_owner, str):
+                    owner_top = self.symbols.get_top(result_owner)
+                    return owner_top or result_owner
+                if isinstance(result_owner, UnknownSource):
+                    return "unknown"
+                if not isinstance(src.callee, str):
+                    return None
+                callee_top = self.symbols.get_top(src.callee)
+                if callee_top and callee_top not in ("local", name):
+                    return callee_top
+                # Follow return_sources through local functions.
+                rs = self.return_sources.get(src.callee)
+                if rs is not None:
+                    rs = normalize_source(rs)
+                    sources = rs.sources if isinstance(rs, SourceSet) else [rs]
+                    for source in sources:
+                        source = normalize_source(source)
+                        if (isinstance(source, CallResult)
+                                and isinstance(source.callee, str)):
+                            callee_top = self.symbols.get_top(source.callee)
+                            if (callee_top
+                                    and callee_top not in ("local", name)):
+                                return callee_top
+                return callee_top
+            # A lexical binding is authoritative. Do not consult a same-name
+            # module binding when its structured source is unresolved here.
+            return None
         top = self.symbols.get_top(name)
         return top
 
@@ -4282,10 +4265,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             direct_name = None
 
         scope_name = ""
-        if self.scope_model == "v2":
-            cs = self.current_scope()
-            if cs.kind != SCOPE_MODULE:
-                scope_name = cs.name
+        cs = self.current_scope()
+        if cs.kind != SCOPE_MODULE:
+            scope_name = cs.name
         loc = {
             'func_name': func_name,
             'parameters': parameters,
@@ -4320,7 +4302,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             record = {
                 'api': api_string,
                 'top': 'python',
-                'chain': ['python'] if self.scope_model == "v2" else [],
+                'chain': ['python'],
                 'base': direct_name,
                 'direct_name_callee': direct_name,
             }
@@ -4342,7 +4324,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             record = {
                 'api': api_string,
                 'top': 'python',
-                'chain': ['python'] if self.scope_model == "v2" else [],
+                'chain': ['python'],
                 'base': base,
                 'direct_name_callee': direct_name,
             }
@@ -4356,7 +4338,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             record = {
                 'api': api_string,
                 'top': 'unknown',
-                'chain': ['unknown'] if self.scope_model == "v2" else [],
+                'chain': ['unknown'],
                 'base': base,
                 'direct_name_callee': direct_name,
             }
@@ -4399,7 +4381,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                             callee = inner_callee
                     elif isinstance(resolved, SourceSet):
                         top = source_display(base)
-                        chain = [top] if (self.scope_model == "v2") else []
+                        chain = [top]
                         record = {
                             'api': api_string,
                             'top': top,
@@ -4415,7 +4397,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 top = self.symbols.get_top(callee) or source_display(base)
             else:
                 top = source_display(base)
-            chain = [source_display(base)] if (self.scope_model == "v2") else []
+            chain = [source_display(base)]
             record = {
                 'api': api_string,
                 'top': top,
@@ -4437,7 +4419,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                     and isinstance(base.receiver, str)
                     and base.receiver == "__unresolved_compare__"):
                 display = "unknown"
-                chain = ["unknown"] if (self.scope_model == "v2") else []
+                chain = ["unknown"]
                 record = {
                     'api': api_string,
                     'top': display,
@@ -4461,7 +4443,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 # but item kind is list).
                 #
                 rec_local = (top_from_receiver == "local")
-                if (not rec_local and self.scope_model == "v2"):
+                if not rec_local:
                     binding = self.current_scope().lookup(base.receiver)
                     if (binding is not None
                             and binding.source == "local"):
@@ -4481,7 +4463,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                         display = "local"
                     else:
                         display = display  # keep source_display default
-            chain = [display] if (self.scope_model == "v2" and display) else []
+            chain = [display] if display else []
             record = {
                 'api': api_string,
                 'top': display,
@@ -4495,7 +4477,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                                     base, loc)
             return
 
-        # Handle "local" base (v2 scope binding returns "local" for params/locals)
+        # Handle a lexical binding that resolves to a local value.
         if base == "local":
             record = {
                 'api': api_string,
@@ -4535,10 +4517,9 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     def _collect_call_site(self, expression, func_name, parameters,
                            base, loc):
         scope_name = ""
-        if self.scope_model == "v2":
-            cs = self.current_scope()
-            if cs.kind != SCOPE_MODULE:
-                scope_name = cs.name
+        cs = self.current_scope()
+        if cs.kind != SCOPE_MODULE:
+            scope_name = cs.name
         self.call_site_objects.append(CallSite(
             expression=expression,
             func_name=func_name,
@@ -4828,8 +4809,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param qualname Qualified function name.
     #  @param params Declared function parameter names.
     def _collect_parametrize_sources(self, node, qualname, params):
-        if self.scope_model != "v2":
-            return
         for decorator in node.decorator_list:
             if (not isinstance(decorator, ast.Call)
                     or not isinstance(decorator.func, ast.Attribute)
@@ -5449,7 +5428,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 qualname, []).append(source)
         self.generic_visit(node)
 
-    ## Visit an If node with branch merging in v2 mode.
+    ## Visit an If node with lexical branch merging.
     #
     #  Snapshots the current scope before the if, visits each branch
     #  independently, then merges the resulting bindings. Module scope
@@ -5458,10 +5437,6 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  TYPE_CHECKING guards are skipped at all levels.
     #  @param node The If AST node.
     def visit_If(self, node):
-        if self.scope_model != "v2":
-            self.generic_visit(node)
-            return
-
         self.visit(node.test)
         receiver_guard = self._resolve_receiver_owner_guard(node.test)
 
@@ -5726,17 +5701,13 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 return True
         return False
 
-    ## Visit a Try node with conservative branch merging in v2 mode.
+    ## Visit a Try node with conservative lexical branch merging.
     #
     #  At module level, each except handler and the else clause are treated
     #  as independent branches merged conservatively.  At function level,
     #  falls back to generic_visit (deferred to Phase 6 CFG).
     #  @param node The Try AST node.
     def visit_Try(self, node):
-        if self.scope_model != "v2":
-            self.generic_visit(node)
-            return
-
         if self.current_scope().kind != SCOPE_MODULE:
             self.generic_visit(node)
             return
@@ -5929,11 +5900,10 @@ class SingleFileAnalyzer(ast.NodeVisitor):
 ## Analyze a single source string and return per-file results.
 #  @param source Python source code string.
 #  @param file_path Optional file path for reporting.
-#  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
 #  @return FileAnalysis object.
-def analyze_source(source, file_path="<string>", scope_model="v2"):
+def analyze_source(source, file_path="<string>"):
     tree = ast.parse(source)
-    tracer = SingleFileAnalyzer(scope_model=scope_model, file_path=file_path)
+    tracer = SingleFileAnalyzer(file_path=file_path)
     tracer.visit(tree)
     return FileAnalysis(
         file_path=file_path,

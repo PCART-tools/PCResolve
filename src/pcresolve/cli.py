@@ -66,7 +66,6 @@ def _print_summary(result, top=20):
     libs = result.library_usage
     print("PCResolve Summary")
     print("Project: %s" % result.project_root)
-    print("Scope model: %s" % stats.get("scope_model", "v1"))
     print("Files: %d parsed, %d skipped" % (
         stats.get("parsed_modules", 0), stats.get("skipped_modules", 0)))
     print("Libraries: %d" % len(libs))
@@ -200,8 +199,6 @@ def main():
                         help="Print diagnostics in human-readable mode.")
     parser.add_argument("--strict", action="store_true",
                         help="Exit non-zero when error diagnostics are present.")
-    parser.add_argument("--scope-model", choices=("v1", "v2"), default="v2",
-                        help="Scope model: v1 (legacy), v2 (lexical scopes). Default: v2.")
     parser.add_argument("--usage-summary", action="store_true",
                         help="Print library usage summary in text mode.")
     parser.add_argument("--quiet", action="store_true",
@@ -228,7 +225,7 @@ def main():
         print("Error: %s does not exist." % project_root, file=sys.stderr)
         sys.exit(1)
 
-    result = analyze_project(project_root, scope_model=args.scope_model)
+    result = analyze_project(project_root)
 
     # ── explain modes ────────────────────────────────────────────────
     if args.explain_library:

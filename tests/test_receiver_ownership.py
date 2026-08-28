@@ -23,7 +23,7 @@ def _top(calls, prefix):
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE, scope_model="v2")
+    return analyze_project(FIXTURE)
 
 
 # ======================================================================

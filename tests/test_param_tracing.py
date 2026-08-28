@@ -7,7 +7,7 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "test_param_tracin
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE, scope_model="v2")
+    return analyze_project(FIXTURE)
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +50,7 @@ def test_unbound_name_not_traced_to_same_named_parameter():
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        r = analyze_project(td, scope_model="v2")
+        r = analyze_project(td)
         head_calls = [c for c in r.all_api_calls if "df.head" in c.expression]
         assert len(head_calls) >= 1
         assert head_calls[0].top_library != "pandas", (
@@ -74,7 +74,7 @@ def test_return_parameter_uses_matching_callsite_arg():
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        r = analyze_project(td, scope_model="v2")
+        r = analyze_project(td)
         for c in r.all_api_calls:
             if "head" in c.expression:
                 assert c.top_library == "pandas", \
@@ -103,7 +103,7 @@ def test_return_parameter_callsite_at_col_zero_is_matched():
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        r = analyze_project(td, scope_model="v2")
+        r = analyze_project(td)
         for c in r.all_api_calls:
             if "head" in c.expression:
                 assert c.top_library == "pandas", \

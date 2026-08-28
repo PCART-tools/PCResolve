@@ -133,7 +133,7 @@ def evaluate_one(name, info, view="all", include_auto_labeled=False):
     if not gt_records:
         return None
 
-    result = analyze_project(proj_root, scope_model="v2")
+    result = analyze_project(proj_root)
     pc_by_pos = {}
     for c in result.all_api_calls:
         key = (name, relative_file(c.file_path, proj_root),

@@ -38,7 +38,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 
 | Output | Type | Purpose |
 |--------|------|---------|
-| `symbols.direct` | `dict[str, object]` | Name → source mapping (module-level or v1 all-level) |
+| `symbols.direct` | `dict[str, object]` | Module-level name → source compatibility mapping |
 | `symbols.chains` | `dict[str, list]` | Name → resolution chain |
 | `api_calls` | `list[dict]` | Legacy call records (keyed by `api`, `top`, `base`, `chain`, ...) |
 | `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
@@ -48,7 +48,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |
 | `import_from_symbols` | `dict[str, str]` | Import alias → fully qualified name |
-| `instance_attrs` | `dict[(class, attr), source]` | `(ClassName, self.attr)` → source (v2 constructor propagation) |
+| `instance_attrs` | `dict[(class, attr), source]` | `(ClassName, self.attr)` → constructor-propagated source |
 
 ### Cross-File Analysis (`cross_file.py` + extracted sub-modules)
 
@@ -72,20 +72,18 @@ Output: `ProjectAnalysis`
 | `all_symbol_provenance` | Flat list of every `SymbolProvenance` |
 | `library_usage` | `dict[library → LibraryUsage]` with counts, files, imports |
 | `diagnostics` | Parse/read errors |
-| `stats` | Module counts, scope model |
+| `stats` | Parsed, skipped, and total module counts |
 
-## Scope Model (v1 vs v2)
+## Lexical Scope Semantics
 
-| Behavior | v1 (legacy) | v2 (default, lexical scopes) |
-|----------|-------------|---------------------|
-| Function params | Written to module `symbols.direct` | Only in function scope |
-| Local variables | Written to module `symbols.direct` | Only in function scope |
-| Comprehension vars | Written to module `symbols.direct` | Only in comprehension scope |
-| CallResult callee | Raw name (e.g., `"nx"`) | Scope-resolved name (e.g., `"networkx"`) |
-| `get_base` (non-call-lookup) | Returns name | Returns scope binding source |
-| `get_base` (call_lookup=True) | Returns name | Returns name (kept raw for CallResult) |
+PCResolve uses one lexical scope model. Function parameters, local variables,
+class-body names, and comprehension targets remain in their defining scopes.
+Module-level `SymbolTable.direct` is retained as a compatibility bridge for
+cross-file resolution, but function-local bindings never overwrite it.
 
-v2 is the default as of 1.0.4. v2 fixes scope pollution and no longer produces dataclass repr or structured source display strings as library keys. v1 is available via `--scope-model v1` for legacy comparison.
+Name lookup walks the active lexical scope chain, class-parent scopes are
+skipped where Python method lookup requires it, and branch snapshots merge
+competing sources conservatively through `SourceSet`.
 
 ## Legacy Compatibility Paths
 
@@ -93,7 +91,7 @@ Compatibility surfaces still present in the codebase:
 
 | Surface | Current Status | Notes |
 |---------|---------------|-------|
-| `SymbolTable.direct` | Still used as module-level fallback | Scope model writes to `Scope.bindings`; `direct` is compat bridge |
+| `SymbolTable.direct` | Still used as module-level fallback | Lexical bindings live in `Scope.bindings`; `direct` is a module bridge |
 | `api_calls` (dict list) | Still the primary single-file output | Typed `CallSite` collected in parallel |
 | `return_sources` (SourceSet) | Multi-return tracking via `SourceSet` + CallGraph | Current default |
 | `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Current default |

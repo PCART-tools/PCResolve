@@ -190,7 +190,7 @@ def main():
             failures += 1
             continue
 
-        result = analyze_project(root, scope_model="v2")
+        result = analyze_project(root)
         refreshed, changed, uncovered = refresh_records(
             name, records, result.all_api_calls, root)
         if uncovered:

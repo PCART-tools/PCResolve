@@ -118,8 +118,8 @@ def _is_import_origin(tracer, symbol):
                     return True
         elif _matches(value):
             return True
-    # v2 keeps function-local imports in lexical scopes instead of the
-    # module-level compatibility table. SymbolRef is the durable project
+    # Function-local imports live in lexical scopes instead of the module-level
+    # compatibility table. SymbolRef is the durable project
     # fact available after the visitor has left that scope.
     for ref in getattr(tracer, "symbol_refs", []):
         if ref.kind == "import" and _matches(normalize_source(ref.source)):
@@ -202,10 +202,8 @@ class ProjectAnalyzer:
 
     ## Initialize the analyzer for a given project root.
     #  @param project_root Absolute path to the project root directory.
-    #  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
-    def __init__(self, project_root, scope_model="v2"):
+    def __init__(self, project_root):
         self.project_root = project_root
-        self.scope_model = scope_model
         self.module_mapper = ModuleMapper(project_root)
         self.global_symbols = {}
         self.symbol_chains = {}
@@ -273,7 +271,6 @@ class ProjectAnalyzer:
             tracer = SingleFileAnalyzer(
                 module_name=module,
                 is_package=self.module_mapper.is_package(module),
-                scope_model=self.scope_model,
                 file_path=file_path,
             )
             tracer.visit(tree)
@@ -304,7 +301,6 @@ class ProjectAnalyzer:
             "total_modules": len(all_modules),
             "parsed_modules": len(module_tracers),
             "skipped_modules": len(diagnostics),
-            "scope_model": self.scope_model,
         }
 
         return ProjectAnalysis(
@@ -1858,6 +1854,24 @@ class ProjectAnalyzer:
 
         if kind == "call_result":
             callee = a
+            # A call can be made through a structured receiver source, such
+            # as a DataFrame column selected with ``df["col"]``. Resolve that
+            # source before ordinary symbol tracing so reassignment preserves
+            # the receiver owner instead of collapsing to a local callable.
+            if isinstance(callee, ContainerItem):
+                resolved_callee = self._resolve_structured_source(
+                    module, callee, tracers, _seen=set(_seen))
+                if resolved_callee is not None:
+                    _, callee_module, callee_symbol = resolved_callee
+                    callee_top = self._top_source(
+                        callee_module, callee_symbol, tracers,
+                        _seen=set(_seen))
+                    if callee_top:
+                        return (
+                            f"{callee_display or source_display(callee)}()",
+                            callee_module,
+                            callee_top,
+                        )
             ## 1.0.5 P2: explicit result_source carries result-object ownership.
             rs_explicit = getattr(direct_source, 'result_source', None)
             if rs_explicit is not None:
@@ -5260,8 +5274,7 @@ class ProjectAnalyzer:
 #  Convenience function: creates a ProjectAnalyzer, runs analysis, and
 #  returns a ProjectAnalysis object.
 #  @param project_root Absolute path to the project root directory.
-#  @param scope_model "v1" (legacy) or "v2" (lexical scopes, default).
 #  @return ProjectAnalysis with all per-file and cross-file results.
-def analyze_project(project_root, scope_model="v2"):
-    analyzer = ProjectAnalyzer(project_root, scope_model=scope_model)
+def analyze_project(project_root):
+    analyzer = ProjectAnalyzer(project_root)
     return analyzer.analyze()

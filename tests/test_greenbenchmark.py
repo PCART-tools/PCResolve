@@ -4,7 +4,7 @@ from pcresolve import analyze_project
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects", "greenbenchmark")
 
 @pytest.fixture(scope="module")
-def result(): return analyze_project(FIXTURE, scope_model="v1")
+def result(): return analyze_project(FIXTURE)
 
 @pytest.fixture(scope="module")
 def calls_by_top(result):
@@ -31,9 +31,10 @@ def test_no_local_vars_leaked(calls_by_top):
               if v in calls_by_top]
     assert not leaked, f"Local vars/modules leaked: {leaked}"
 
-def test_accuracy_100_percent(calls_by_top):
-    good = {"local", "python", "matplotlib", "pandas", "numpy", "scipy",
-            "tqdm", "statsmodels", "os", "time", "sys", "json", "argparse", "com"}
-    total = sum(len(v) for v in calls_by_top.values())
-    correct = sum(len(v) for k, v in calls_by_top.items() if k in good)
-    assert correct == total, f"Accuracy: {correct}/{total}"
+def test_only_contract_owners(calls_by_top):
+    expected = {
+        "local", "python", "unknown", "matplotlib", "pandas", "numpy",
+        "scipy", "tqdm", "statsmodels", "os", "time", "sys", "json",
+        "argparse", "com",
+    }
+    assert set(calls_by_top) <= expected

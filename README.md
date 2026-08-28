@@ -6,7 +6,7 @@ Project-level Python static analysis for API ownership and library usage provena
 
 ## News
 
-- **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
+- **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, lexical scope analysis, `--json` full output, and Windows-safe tooling.
 
 ## What is PCResolve?
 
@@ -63,7 +63,7 @@ for call in result.all_api_calls:
 
 ## Output
 
-PCResolve 1.0.4 is the first stable provenance contract release. The default scope model is `v2`, and `--json` returns the full provenance schema.
+PCResolve 1.0.4 is the first stable provenance contract release. `--json` returns the full provenance schema.
 
 The main output sections are:
 
@@ -97,15 +97,16 @@ Supported patterns include:
 
 ## Validation
 
-The 1.0.4 release was validated with:
+The current analyzer is validated against locked call-site ground truth from 42 real-world projects:
 
 ```text
-pytest:          557 passed
-hard baselines:  21 projects, 0 exceeded
-full audit:      42 real-world projects, 0 crashes, 0 illegal keys
+ground-truth records:  5,788
+primary hits:          5,539
+primary recall:        0.957
+false positives:       0
 ```
 
-The regression gate checks that library keys stay clean, golden JSON output remains stable, and real-project baseline counts do not exceed the recorded contract.
+The regression gate checks complete AST call coverage, locked annotations, stable snapshots, clean library keys, and golden JSON output.
 
 ## Limitations
 
@@ -127,8 +128,9 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 ```bash
 pip install -e .
 python -m pytest tests/ -v
-python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
-python scripts/audit_tested_projects.py --output reports/1.0.4   # 1.0.4 snapshot
+python scripts/evaluate_ground_truth.py --view all
+python scripts/verify_ground_truth_calls.py --coverage-only
+python scripts/refresh_ground_truth_snapshots.py --all --check
 ```
 
 PCResolve uses only the Python standard library at runtime. Tests use pytest.

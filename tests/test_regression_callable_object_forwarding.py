@@ -10,7 +10,7 @@ FIXTURE = os.path.join(
 
 def test_local_callable_object_forwards_call_argument_owner():
     """A uniquely resolved local __call__ receives the argument owner."""
-    analysis = analyze_project(FIXTURE, scope_model="v2")
+    analysis = analyze_project(FIXTURE)
     matches = [
         call for call in analysis.all_api_calls
         if call.func_name == "x.reshape"

@@ -11,7 +11,7 @@ FIXTURE = os.path.join(
 
 
 def _close_calls():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     return [
         call for call in result.all_api_calls
         if call.expression == "stream.close()"
@@ -31,7 +31,7 @@ def test_local_and_imported_branch_receivers_remain_unknown():
 
 
 def test_same_category_function_branches_converge():
-    result = analyze_project(FIXTURE, scope_model="v2")
+    result = analyze_project(FIXTURE)
     calls = {call.expression: call for call in result.all_api_calls}
 
     assert calls["values.append(1)"].top_library == "python"

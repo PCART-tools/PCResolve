@@ -7,7 +7,7 @@ compatible.
 ## CLI
 
 ```bash
-pcresolve project                  # human summary (v2 default)
+pcresolve project                  # human summary
 pcresolve project --json           # full provenance JSON
 pcresolve project --json-summary   # compact summary JSON (CI)
 pcresolve project --explain-library numpy
@@ -15,8 +15,7 @@ pcresolve project --explain-symbol x
 pcresolve project --explain-call "np.array"
 ```
 
-- `scope_model` defaults to `v2` (lexical scopes).
-- `--scope-model v1` is still accepted for legacy compatibility.
+- Lexical scope analysis is the only supported scope semantics.
 - `--json` is the primary machine-consumption format.
 - `--json-full` and `--json-stable` are hidden aliases for `--json`.
 - `--json-summary` is the recommended CI format.
@@ -133,9 +132,9 @@ External paths use the `<external>/...` prefix.
 | FLOW_MERGE (N alts) | max(1/N, 0.2) |
 | UNRESOLVED | 0.0 |
 
-## Breaking changes (1.0.4)
+## Contract changes
 
-- Default `scope_model`: `v1` → `v2`.
+- PCResolve 1.0.5 uses lexical scopes exclusively; JSON stats contain module counts only.
 - `--json`: legacy dataclass dump → full provenance schema.
 - `--json-stable`: deprecated, hidden.
 - Pre-1.0.4 JSON: experimental, no compatibility guarantee.
