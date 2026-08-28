@@ -3808,7 +3808,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     #  @param call_node Ufunc call expression.
     #  @param func_top Resolved callable owner.
     #  @param func_name Resolved function name.
-    #  @return Owner string, UnknownSource, or None when not applicable.
+    #  @return Owner string, structured deferred source, UnknownSource, or
+    #  None when not applicable.
     def _receiver_preserving_result_owner(self, call_node, func_top,
                                           func_name):
         if (func_top != "numpy"
@@ -3816,14 +3817,32 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 or not call_node.args):
             return None
         arg_tops = []
+        deferred_sources = []
         for argument in call_node.args:
             arg_top = self._expr_receiver_top(argument)
             if (_container_kind(argument) is not None
                     or isinstance(argument, ast.Constant)):
                 arg_top = "python"
             if arg_top in (None, "", "local", "unknown"):
-                return UnknownSource("receiver-preserving ufunc result")
+                dependency = self._parameter_dependency_source(
+                    argument, expression_context=True)
+                dependency = normalize_source(dependency)
+                if dependency is None or isinstance(
+                        dependency, UnknownSource):
+                    return UnknownSource(
+                        "receiver-preserving ufunc result")
+                deferred_sources.append(dependency)
+            else:
+                deferred_sources.append(arg_top)
             arg_tops.append(arg_top)
+
+        if any(top in (None, "", "local", "unknown")
+               for top in arg_tops):
+            return DerivedResult(
+                "receiver_preserving_ufunc",
+                tuple(deferred_sources),
+                func_name,
+            )
 
         external = set(top for top in arg_tops if top != "python")
         if not external:

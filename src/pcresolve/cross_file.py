@@ -781,6 +781,28 @@ class ProjectAnalyzer:
             return True
         return False
 
+    ## Converge argument candidates under the receiver-preserving ufunc rule.
+    #  @param candidate_groups One candidate-owner list per ufunc argument.
+    #  @return Result owner or "unknown".
+    def _receiver_preserving_ufunc_owner(self, candidate_groups):
+        owners = []
+        for candidates in candidate_groups:
+            unique = self._dedupe_list(
+                candidate for candidate in candidates
+                if candidate not in (None, ""))
+            if len(unique) != 1:
+                return "unknown"
+            owners.append(unique[0])
+        if any(owner in ("local", "unknown") for owner in owners):
+            return "unknown"
+        external = self._dedupe_list(
+            owner for owner in owners if owner != "python")
+        if not external:
+            return "numpy"
+        if len(external) == 1 and external[0] in ("numpy", "pandas"):
+            return external[0]
+        return "unknown"
+
     ## Collect all origin candidates from a source value.
     #  @param module Current module name.
     #  @param source Source value to expand.
@@ -810,6 +832,13 @@ class ProjectAnalyzer:
         if isinstance(source, DerivedResult):
             if source.kind == "iterator":
                 return ["unknown"]
+            if source.kind == "receiver_preserving_ufunc":
+                candidate_groups = [
+                    self._argument_owner_candidates(module, item, tracers)
+                    for item in source.sources
+                ]
+                return [self._receiver_preserving_ufunc_owner(
+                    candidate_groups)]
             if source.kind == "method_result":
                 if len(source.sources) != 1:
                     return ["unknown"]
@@ -4047,6 +4076,14 @@ class ProjectAnalyzer:
             return self._dedupe_list(candidates) or ["unknown"]
         if isinstance(source, UnknownSource):
             return ["unknown"]
+        if (isinstance(source, DerivedResult)
+                and source.kind == "receiver_preserving_ufunc"):
+            candidate_groups = [
+                self._bounded_source_candidates(
+                    source_module, item, context, tracers, set(seen))
+                for item in source.sources
+            ]
+            return [self._receiver_preserving_ufunc_owner(candidate_groups)]
         if isinstance(source, ContainerItem):
             container = normalize_source(source.container)
             if (isinstance(container, CallResult)
@@ -4121,10 +4158,9 @@ class ProjectAnalyzer:
             if nested is not None:
                 return nested
             if source.result_source is not None:
-                return self._origin_candidates(
+                return self._bounded_source_candidates(
                     source.source_module or source_module,
-                    source.result_source, tracers,
-                    _seen=seen)
+                    source.result_source, context, tracers, seen)
             if isinstance(source.callee, str):
                 source_origin_module = source.source_module or source_module
                 top = self._top_source(
