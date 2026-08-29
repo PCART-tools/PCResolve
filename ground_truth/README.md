@@ -75,6 +75,12 @@ Run `python scripts/add_verification_levels.py --check` to validate either
 state.  It accepts both `reviewed` and `locked` and exits non-zero on any
 blocker.
 
+For the stable 1.0.5 release, run
+`python scripts/classify_ground_truth_failures.py --release-check`. It also
+checks generated disposition artifacts and fails until the repair queue and
+GT-correction queue are both empty. Reviewed `accepted_unknown` records remain
+visible as scored misses but do not block release.
+
 ### `verification_level` Semantics
 
 | Level | Meaning | Verification method |
@@ -272,8 +278,8 @@ Excluded from precision and recall; counted in coverage metrics.
 
 All 42 fixture projects are **locked** (2026-07-20). The set contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
-snapshot has 5,547 primary hits and 241 primary misses, for aggregate recall
-0.958. AST call coverage is 5,788/5,788.
+snapshot has 5,548 primary hits and 240 primary misses, for aggregate recall
+0.959. AST call coverage is 5,788/5,788.
 
 Evidence is distributed across 3,739 `static_obvious`, 1,814
 `static_context`, 185 `dynamic_probe`, and 50 `manual_reasoned` records.
@@ -282,10 +288,48 @@ per-project breakdown.
 
 ### Repair Priority
 
-The 408 records in generated `suspicious.md` views form the current repair
-queue. They include known inter-procedural boundaries as well as statically
-actionable ownership gaps. Release triage must use the current views instead
-of the earlier pilot-only miss counts.
+The 240 records in generated `suspicious.md` views are independently justified
+unknowns. There are 0 open repair entries and 0 GT corrections. A
+`dynamic_probe` or `manual_reasoned` label alone does not close a record.
+Release triage uses the generated
+[failure dispositions](verification/failure-dispositions.md), not the earlier
+pilot-only miss counts.
+
+Independently reviewed boundaries are recorded in
+`verification/static-boundary-reviews.json`. The file binds each decision to
+the exact GT call identity and a digest of all Python sources in its project.
+It is validated by the release gate and does not alter canonical labels or raw
+recall.
+
+The latest source audit corrected four unsupported `local` labels in the
+uncalled `hfhd.nerive` parameter path to `unknown`. The resulting four extra
+hits are GT corrections, not analyzer improvements. Two political-polarisation
+text-method labels were corrected from pandas to Python under the documented
+intended CSV text pipeline; these remain misses and are not dynamic-probe
+observations.
+
+Local dispatch or forwarding complexity is not itself an external semantic
+boundary. The reopened groups were traced through their local calls before
+being closed. The latest implementation adds exact local-return protocols,
+parameter slicing, branch alternatives, dictionary key evidence, finite
+qualified-name selection, bound-method argument alignment, and
+constructor-injected callable-field dispatch with escape guards. Five real
+calls improved: two AIBO calls, two allnews string-slice calls, and polire's
+independently proven mask reduction. No canonical GT labels changed.
+
+The remaining allnews parser cycle has a concrete external-value entry:
+`time.strftime()` results and a queue-derived title enter `magicWords`, are
+returned by template expansion, and are forwarded into parser arguments and
+recursive expansion without a guaranteed string conversion. Known string
+branches do not establish every incoming type. The separate `params = None`
+and `frame.args` paths still prevent a proven dictionary receiver. The review
+document records these paths per call; dispatch complexity alone is not the
+reason for accepting them.
+
+Release queue closure does not mean perfect ownership recall or complete
+runtime semantics. All 240 unknowns remain visible in `suspicious.md` and in
+the raw recall denominator. Source changes invalidate the corresponding
+boundary reviews and require another audit.
 
 ### Labeling Conventions (1.0.5 Pilot)
 
@@ -352,7 +396,7 @@ It does NOT auto-change labels; review each flagged record.
 `suspicious.md` contains only GT versus PCResolve mismatches, including kind,
 primary owner, alternatives, decorated evidence, and missing candidates.
 Records are not included merely because they use contextual or dynamic
-evidence. The current locked set contains 241 suspicious records.
+evidence. The current locked set contains 240 suspicious records.
 
 ### Dynamic Probes
 

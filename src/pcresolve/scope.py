@@ -37,6 +37,8 @@ class Binding:
     callable_key: str = ""
     ## Binding role such as parameter, variable, import, or attribute.
     binding_kind: str = ""
+    ## Private literal-mapping value for local callback identity only.
+    mapping_value: object = None
 
 
 ## A lexical scope with parent lookup.

@@ -116,8 +116,8 @@
 | functions/rover_utils.py:133:16 | `self.cost_fn(points)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:141:26 | `self.start_miss_cost(points[0], self.start)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:143:26 | `self.goal_miss_cost(points[-1], self.goal)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
-| functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
-| functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
+| functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
+| functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:172:16 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:180:33 | `g.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:189:24 | `self.geom.contains(X)` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
@@ -127,7 +127,7 @@
 | functions/rover_utils.py:241:18 | `roverdomain.traj.get_points(np.linspace(0.0, 1.0, ntraj_points, end...` | local / local | local / local | local_method | static_context | v: receiver or callable is defined by the project-local rover geometry implementati |
 | functions/rover_utils.py:244:4 | `plt.title('traj cost: {0}'.format(traj_cost))` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:247:12 | `plt.pcolormesh(grid_points[0], grid_points[1], costs.reshape((ngrid...` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
-| functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
+| functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array or RandomState |
 | functions/rover_utils.py:249:8 | `plt.gcf()` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:249:8 | `plt.gcf().colorbar(cmesh)` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |
 | functions/rover_utils.py:251:4 | `plt.plot(traj_points[:, 0], traj_points[:, 1], 'g')` | library / matplotlib | library / matplotlib | matplotlib_receiver | static_context | v: callable or receiver is imported from matplotlib inside the plotting function |

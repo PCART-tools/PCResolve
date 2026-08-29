@@ -26,3 +26,12 @@ def test_seaborn(calls_by_top): assert "seaborn" in calls_by_top
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["data", "create_grid", "analytical", "discretization", "solve", "export_results"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
+
+def test_parameter_runtime_attribute_items_are_unknown(result):
+    calls = [
+        call for call in result.all_api_calls
+        if "domain_boundary_faces" in call.expression
+        and ".nonzero()" in call.expression
+    ]
+    assert len(calls) == 2
+    assert all(call.top_library == "unknown" for call in calls)

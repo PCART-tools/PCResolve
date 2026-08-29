@@ -22,8 +22,8 @@ verification evidence, and zero stale project snapshots.
 ```text
 Projects:          42
 GT records:        5,788
-Primary hits:      5,547
-Primary misses:      241
+Primary hits:      5,543
+Primary misses:      245
 Primary recall:    0.958
 False positives:       0
 AST coverage:      100%
@@ -40,6 +40,13 @@ whether that owner is recoverable from project source under PCResolve's
 pure-static contract. Runtime-only owners may remain scored misses when the
 honest static result is `unknown`; the analyzer does not add library-specific
 return-type guesses to force a hit.
+
+A `dynamic_probe` or `manual_reasoned` verification level does not by itself
+prove a static boundary. Each accepted unknown needs independent source
+evidence; value-flow and dispatch dependencies remain open until reviewed.
+Reviewed boundaries are tied to exact GT records and project-source digests in
+`ground_truth/verification/static-boundary-reviews.json`; they never change the
+raw evaluation score.
 
 See [Ground Truth Evaluation](./ground-truth-evaluation.md) for the annotation
 schema and review workflow.

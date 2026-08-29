@@ -9,7 +9,7 @@
 | usage3.py:28:58 | `Matern()` | library / sklearn | library / sklearn | imported_constructor | static_context | v: constructor is imported from sklearn |
 | usage3.py:31:4 | `r.fit(X, y)` | local / local | local / local | local_interpolator_method | static_context | v: r iterates over project-local CustomInterpolator instances |
 | usage3.py:32:8 | `r.predict_grid((0, 3), (0, 3))` | local / local | local / local | local_interpolator_method | static_context | v: r iterates over project-local CustomInterpolator instances |
-| usage3.py:32:8 | `r.predict_grid((0, 3), (0, 3)).reshape(100, 100)` | library / numpy | local / local | numpy_result_receiver | static_context | v: project predict_grid returns a numpy array |
+| usage3.py:32:8 | `r.predict_grid((0, 3), (0, 3)).reshape(100, 100)` | library / numpy | unknown / unknown | numpy_result_receiver | static_context | v: project predict_grid returns a numpy array |
 | usage.py:31:7 | `Matern32(input_dim=2)` | library / GPy | library / GPy | imported_callable | static_context | v: callable is imported from GPy or matplotlib |
 | usage.py:39:8 | `r.fit(X, y)` | local / local | local / local | local_interpolator_method | static_context | v: receiver is a project-local interpolator instance |
 | usage.py:40:17 | `r.predict_grid()` | local / local | local / local | local_interpolator_method | static_context | v: receiver is a project-local interpolator instance |
@@ -92,7 +92,7 @@
 | polire/spatial/spatial.py:59:15 | `self._average(X)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/spatial/spatial.py:62:15 | `self.distance(X, self.X)` | local / local | local / local | local_method | static_context | v: method or callable is defined in the project |
 | polire/spatial/spatial.py:64:15 | `(self.y * mask).sum(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
-| polire/spatial/spatial.py:64:45 | `mask.sum(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
+| polire/spatial/spatial.py:64:45 | `mask.sum(axis=1)` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array by source construction and method contract |
 | polire/custom/custom.py:31:8 | `super().__init__(resolution, coordinate_type)` | local / local | local / local | local_method | static_context | v: super().__init__ resolves to a project-local base class method |
 | polire/custom/custom.py:53:44 | `X1.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: X1 and X2 are returned by numpy.meshgrid |
 | polire/custom/custom.py:53:56 | `X2.ravel()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: X1 and X2 are returned by numpy.meshgrid |
@@ -160,12 +160,12 @@
 | polire/nsgp/nsgp.py:232:42 | `self._Kernel(self._X, self._X)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:233:18 | `self._Kernel(X, self._X)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:235:12 | `KX_test.dot(self._KX_inv)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:235:12 | `KX_test.dot(self._KX_inv).dot(self._y - self._y.mean())` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:235:12 | `KX_test.dot(self._KX_inv).dot(self._y - self._y.mean())` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:235:52 | `self._y.mean()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:236:14 | `self._y.mean()` | library / numpy | library / numpy | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | polire/nsgp/nsgp.py:239:23 | `self._Kernel(X, X)` | local / local | local / local | local_method | static_context | v: method is defined on the project-local NSGP class |
 | polire/nsgp/nsgp.py:239:44 | `KX_test.dot(self._KX_inv)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
-| polire/nsgp/nsgp.py:239:44 | `KX_test.dot(self._KX_inv).dot(KX_test.T)` | library / numpy | local / local | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
+| polire/nsgp/nsgp.py:239:44 | `KX_test.dot(self._KX_inv).dot(KX_test.T)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: receiver is a NumPy array created or propagated within NSGP |
 | tests/polire_basic.py:39:4 | `model.fit(X, y)` | local / local | local / local | local_interpolator_method | static_context | v: model is parametrized exclusively with project-local interpolator instances |
 | tests/polire_basic.py:40:12 | `model.predict(X_new)` | local / local | local / local | local_interpolator_method | static_context | v: model is parametrized exclusively with project-local interpolator instances |
 | tests/polire_basic.py:33:27 | `LinearRegression()` | library / sklearn | library / sklearn | imported_constructor | static_context | v: LinearRegression is imported from sklearn |

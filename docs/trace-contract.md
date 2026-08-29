@@ -125,6 +125,60 @@ This is not whole-program call-graph inference. PCResolve does not guess
 through dynamic dispatch, unresolved callbacks, arbitrary mutation, external
 library implementations, or dead code without a statically supported value.
 
+### Literal Callback Tables
+
+Nested literal dictionaries retain local callable identities through aliases,
+subscripts and builtin `dict.get` selection:
+
+```python
+registry = {'module': {'run': consume}}
+callback = registry['module'].get('run')
+callback(options)
+```
+
+The selected callable can connect a local call edge and propagate arguments.
+It does not make the dictionary or its other values share that callable's
+owner. Unknown keys retain possible local targets, not a unique return
+context. Mixed or unresolved alternatives cannot establish an exact return
+context either.
+
+Mutation, escaping containers and deferred module rebindings invalidate the
+supporting facts, including aliases. Closure captures and mappings rebound
+across unsupported control-flow joins remain conservative. These are private
+analysis facts and add no fields to the public output contract.
+
+### Return Shapes in Parameter Forwarding
+
+Method queries through local parameter forwarding use concrete return-value
+facts separately from symbol provenance. Explicit scalar and `None` returns
+are retained alongside container returns. A possible fall-through return also
+prevents the remaining branch from being treated as an unconditional result.
+
+For example, passing a function result that can be either a dictionary or an
+integer to `consume(value)` does not prove that `value.get(...)` is a Python
+method. Every retained alternative must support the requested protocol.
+Cross-file wrappers and nested local functions preserve their exact call
+contexts; recursive or unresolved alternatives remain conservative.
+
+An `__init__` return does not describe the instance produced by a constructor.
+Likewise, a returned tuple and its unpacked items are distinct. These private
+facts neither change public JSON fields nor infer external return types.
+
+### Returned Iterable Elements
+
+The owner of a returned container is separate from the owners of its elements.
+For a local `pack(value): return [value]`, iteration over `pack(argument)`
+substitutes that call's argument into the returned-element source. This also
+applies across modules, local method calls, simple return wrappers, and wrappers
+returning a local generator. Generator elements come from `yield`, not `return`.
+
+Different call sites remain independent. Concrete Python element shapes are
+preserved so a returned string can support `strip()` without being assumed to
+support `append()`. Conflicting branches, unresolved elements, and recursive
+cycles remain `unknown`. Rebinding a loop variable ends the earlier evidence.
+This path does not infer an external iterable's element owner from its
+container owner.
+
 ## Class and Instance Method Resolution
 
 PCResolve handles common wrapper-class patterns using `InstanceMethod`,

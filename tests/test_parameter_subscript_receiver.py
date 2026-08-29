@@ -50,11 +50,11 @@ def test_dynamic_subscripted_parameter_preserves_receiver_owner():
     assert matches[0].top_library == "numpy"
 
 
-def test_nested_parameter_subscript_preserves_receiver_owner():
+def test_nested_parameter_subscript_without_item_contract_is_unknown():
     calls = analyze_project(_FIXTURE).all_api_calls
     matches = [
         call for call in calls
         if call.expression == "value.mean()"
     ]
     assert len(matches) == 1
-    assert matches[0].top_library == "numpy"
+    assert matches[0].top_library == "unknown"

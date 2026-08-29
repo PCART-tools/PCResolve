@@ -40,13 +40,15 @@ def test_only_contract_owners(calls_by_top):
     assert set(calls_by_top) <= expected
 
 
-def test_nested_parameter_subscript_preserves_dataframe_owner(result):
+def test_nested_parameter_subscript_without_item_evidence_is_unknown(result):
     calls = {
         call.expression: call
         for call in result.all_api_calls
         if call.file_path.endswith("report_all_results.py")
     }
-    assert calls["sample1.var()"].top_library == "pandas"
-    assert calls["sample1.mean()"].top_library == "pandas"
+    # The selected object crosses two subscripts and a local call boundary.
+    # A DataFrame owner alone is not a contract for the selected value.
+    assert calls["sample1.var()"].top_library == "unknown"
+    assert calls["sample1.mean()"].top_library == "unknown"
     assert calls["sample2.var()"].top_library == "unknown"
     assert calls["sample2.mean()"].top_library == "unknown"

@@ -1,4 +1,4 @@
-# greenbenchmark — Suspicious Records (26)
+# greenbenchmark — Suspicious Records (31)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -6,11 +6,14 @@ matching suspicious criteria.
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
 |---------------|------------|----|-----------|----------|-------|---------|
 | report_all_results.py:52:11 | `df_energy.loc[t1:t2, [power_feature, 'timestamp_delta']]....` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
+| report_all_results.py:52:11 | `df_energy.loc[t1:t2, [power_feature, 'timestamp_delta']]....` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
+| report_all_results.py:79:11 | `sample1.var()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:80:11 | `sample2.var()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:81:12 | `sample2.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
+| report_all_results.py:81:29 | `sample1.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:97:29 | `group.mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | report_all_results.py:97:52 | `group.std()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
-| report_all_results.py:121:29 | `experiment.replace(experiment_pivot + '-lint-', '')` | python / python | local / local | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| report_all_results.py:121:29 | `experiment.replace(experiment_pivot + '-lint-', '')` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | report_all_results.py:122:29 | `experiment.replace('-', ' ')` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | report_all_results.py:122:29 | `experiment.replace('-', ' ').title()` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | report_all_results.py:184:29 | `group[energy_feature].mean()` | library / pandas | unknown / unknown | pandas_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
@@ -31,3 +34,5 @@ matching suspicious criteria.
 | tests/test_helper.py:13:16 | `view.getXY()` | library / com | unknown / unknown | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=com pcresolve=unknown<br>expected library, pcresolve=unknown |
 | tests/test_helper.py:14:25 | `view.getWidth()` | library / com | unknown / unknown | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=com pcresolve=unknown<br>expected library, pcresolve=unknown |
 | tests/test_helper.py:14:46 | `view.getHeight()` | library / com | unknown / unknown | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=com pcresolve=unknown<br>expected library, pcresolve=unknown |
+| tests/test_helper.py:23:4 | `device.shell('input keyevent KEYCODE_BACK')` | library / com | unknown / unknown | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=com pcresolve=unknown<br>expected library, pcresolve=unknown |
+| tests/test_helper.py:45:4 | `device.drag(s, e, 500, 20, -1)` | library / com | unknown / unknown | android_viewclient_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=com pcresolve=unknown<br>expected library, pcresolve=unknown |

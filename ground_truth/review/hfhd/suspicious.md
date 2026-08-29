@@ -1,14 +1,10 @@
-# hfhd — Suspicious Records (26)
+# hfhd — Suspicious Records (22)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
 
 | File:Line:Col | Expression | GT | PCResolve | Category | Level | Reasons |
 |---------------|------------|----|-----------|----------|-------|---------|
-| hfhd/hd.py:748:15 | `series.index[0].date()` | local / local | unknown / unknown | local_call | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
-| hfhd/hd.py:748:41 | `series.index[-1].date()` | local / local | unknown / unknown | local_call | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
-| hfhd/hd.py:752:19 | `series.index[0].date()` | local / local | unknown / unknown | local_call | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
-| hfhd/hd.py:754:27 | `series.index[0].date()` | local / local | unknown / unknown | local_call | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
 | hfhd/hd.py:766:19 | `x.between_time(stp[j], stp[j + 1], True, True)` | library / pandas | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | hfhd/hd.py:768:22 | `x.between_time(stp[j + 1], stp[j], False, False)` | library / pandas | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | hfhd/hf.py:175:30 | `x.dropna()` | library / pandas | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
@@ -29,5 +25,5 @@ matching suspicious criteria.
 | hfhd/hf.py:1519:27 | `data.to_numpy()` | library / pandas | unknown / unknown | conversion_boundary | dynamic_probe | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=pandas pcresolve=unknown<br>expected library, pcresolve=unknown |
 | hfhd/hf.py:1973:31 | `a_values.reshape(-1, 1)` | library / numpy | unknown / unknown | transitive_method | dynamic_probe | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | hfhd/hf.py:1978:31 | `b_values.reshape(-1, 1)` | library / numpy | unknown / unknown | transitive_method | dynamic_probe | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
-| hfhd/sim.py:294:34 | `self.log_rets.cumsum(axis=0)` | library / numpy | local / local | transitive_method | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
+| hfhd/sim.py:294:34 | `self.log_rets.cumsum(axis=0)` | library / numpy | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
 | hfhd/sim.py:403:25 | `(log_rets - var / 2).cumsum(axis=0)` | library / numpy | unknown / unknown | transitive_method | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |

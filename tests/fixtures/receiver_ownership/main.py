@@ -92,14 +92,14 @@ def use_scipy_to_numpy():
 
 
 # ======================================================================
-# Group E: Receiver via parameter (harder — receiver traces to local)
+# Group E: Uncalled parameters have no concrete receiver evidence.
 # ======================================================================
 
 def process_frame(df_param):
-    df_param.dropna()                # pandas (receiver is pandas parameter)
+    df_param.dropna()                # unknown: no project call supplies a value
 
 def process_array(arr_param):
-    arr_param.reshape(-1, 1)         # numpy (receiver is numpy parameter)
+    arr_param.reshape(-1, 1)         # unknown: no project call supplies a value
 
 
 # ======================================================================

@@ -12,8 +12,8 @@
 
 ## Expected Kind
 
-- library: 37
-- python: 30
+- library: 35
+- python: 32
 - local: 3
 
 ## Verification Level Breakdown
@@ -28,15 +28,15 @@
 
 - builtin: 15
 - builtin_container_method: 1
-- builtin_string_method: 14
-- direct_import: 22
+- builtin_string_method: 16
+- direct_import: 20
 - local_call: 3
 - pandas_receiver_chain: 5
 - transitive_method: 10
 
 ## Top Libraries
 
-- pandas: 21
+- pandas: 19
 - networkx: 8
 - matplotlib: 5
 - wordcloud: 2

@@ -1,4 +1,4 @@
-# AIBO — Suspicious Records (11)
+# AIBO — Suspicious Records (9)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -12,7 +12,5 @@ matching suspicious criteria.
 | functions/push_utils.py:198:14 | `world.CreateStaticBody(position=(0, 0), shapes=b2PolygonS...` | library / Box2D | unknown / unknown | box2d_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>expected library, pcresolve=unknown |
 | functions/push_utils.py:211:14 | `world.CreateStaticBody(position=pos, shapes=b2PolygonShap...` | library / Box2D | unknown / unknown | box2d_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>expected library, pcresolve=unknown |
 | functions/rover_utils.py:44:17 | `params.reshape((-1, self.d))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
-| functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
-| functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | local / local | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=local<br>owner mismatch: expected=numpy pcresolve=local<br>expected library, pcresolve=local |
-| functions/rover_utils.py:247:59 | `costs.reshape((ngrid_points, -1))` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
-| run.py:41:8 | `f_class(dim=args.dim, foldername=f'{args.method}-{args.ba...` | local / local | unknown / unknown | dynamic_local_callable | manual_reasoned | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown<br>verification_level=manual_reasoned |
+| functions/rover_utils.py:164:16 | `lX.all(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |
+| functions/rover_utils.py:164:33 | `hX.all(axis=1)` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | kind mismatch: expected=library pcresolve=unknown<br>owner mismatch: expected=numpy pcresolve=unknown<br>expected library, pcresolve=unknown |

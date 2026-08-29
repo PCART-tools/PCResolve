@@ -1,4 +1,4 @@
-# allnews — Suspicious Records (51)
+# allnews — Suspicious Records (48)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -38,14 +38,11 @@ matching suspicious criteria.
 | allnews_am/wikiextractor/WikiExtractor.py:1837:15 | `param.split('=', 1)` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1838:29 | `pair[0].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1842:33 | `pair[1].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:1884:49 | `extr.expand(ifnex)` | local / local | unknown / unknown | local_method | static_context | kind mismatch: expected=local pcresolve=unknown<br>owner mismatch: expected=local pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1900:51 | `string.encode('utf-8')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1902:38 | `string.lower()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1906:38 | `string.upper()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1929:26 | `args[0].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:1929:43 | `args[1].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:2128:15 | `inner.find('\|')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:2137:23 | `inner.rfind('\|', curp, s1)` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2538:16 | `text.split('\n')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2571:13 | `line.startswith('++')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2610:19 | `line[i:].strip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
@@ -55,4 +52,4 @@ matching suspicious criteria.
 | allnews_am/wikiextractor/WikiExtractor.py:2808:19 | `line.lstrip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2808:19 | `line.lstrip().startswith('[[Category:')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2877:51 | `line.decode('utf-8')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/cirrus-extract.py:183:25 | `page.encode('utf-8')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |
+| allnews_am/wikiextractor/cirrus-extract.py:183:25 | `page.encode('utf-8')` | python / python | unknown / unknown | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |

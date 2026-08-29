@@ -141,3 +141,11 @@ def test_self_set_expire_still_local(calls_by_top):
                     if "set_expire" in c.expression]
     assert len(expire_local) == 3, \
         f"Expected 3 self.set_expire() as local, found {len(expire_local)}"
+
+
+def test_coroutine_injected_bytes_methods_are_unknown(result):
+    expressions = {
+        call.expression: call.top_library for call in result.all_api_calls
+    }
+    assert expressions["line.split()"] == "unknown"
+    assert expressions["obj[3].split('/')"] == "unknown"

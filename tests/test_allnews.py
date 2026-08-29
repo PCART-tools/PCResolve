@@ -139,7 +139,8 @@ def test_local_class_factory_receiver_is_local(result):
     }
 
     assert matches["template.subst(params, self)"].top_library == "local"
-    assert matches["extr.expand(ifnex)"].top_library == "unknown"
+    assert matches["extr.expand(ifnex)"].top_library == "local"
+    assert matches["extr.expand(ifnex)"].reason == "LOCAL_DEFINITION"
 
 
 def test_kwargs_backed_namespace_fields_are_python(result):

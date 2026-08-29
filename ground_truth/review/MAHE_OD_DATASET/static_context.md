@@ -36,7 +36,7 @@
 | utils.py:261:41 | `overlaps.squeeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:265:50 | `true_class_boxes.size(0)` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:269:15 | `max_overlap.item()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:295:15 | `recalls_above_t.any()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:295:15 | `recalls_above_t.any()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:296:32 | `cumul_precision[recalls_above_t].max()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:299:36 | `precisions.mean()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:302:29 | `average_precisions.mean()` | library / torch | library / torch | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
@@ -58,7 +58,7 @@
 | utils.py:503:22 | `overlap.squeeze(0)` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:506:15 | `overlap.max()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:506:15 | `overlap.max().item()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
-| utils.py:520:19 | `centers_in_crop.any()` | library / torch | local / local | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
+| utils.py:520:19 | `centers_in_crop.any()` | library / torch | unknown / unknown | torch_tensor_receiver | static_context | v: receiver is a torch Tensor by the function contract and surrounding tensor opera |
 | utils.py:546:16 | `FT.hflip(image)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
 | utils.py:569:16 | `FT.resize(image, dims)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
 | utils.py:608:24 | `d(new_image, adjust_factor)` | library / torchvision | library / torchvision | torchvision_callable | static_context | v: callable is imported from torchvision.transforms.functional |
@@ -126,7 +126,7 @@
 | preprocess.py:351:18 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
 | preprocess.py:359:18 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
 | preprocess.py:367:18 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
-| rescaling.py:88:10 | `image.copy()` | library / numpy | local / local | numpy_array_receiver | static_context | v: image is returned by cv2.imread as a numpy.ndarray |
+| rescaling.py:88:10 | `image.copy()` | library / numpy | unknown / unknown | numpy_array_receiver | static_context | v: image is returned by cv2.imread as a numpy.ndarray |
 | rescaling.py:115:14 | `transform(image=image, bboxes=bboxes, category_ids=category_ids)` | library / albumentations | library / albumentations | albumentations_callable | static_context | v: transform is created by albumentations.Compose |
 | annotation.py:32:9 | `file.split('/')` | python / python | python / python | builtin_string_method | static_context | v: receiver is a project string value |
 | annotation.py:37:9 | `ET.parse(file)` | library / xml | library / xml | xml_element_receiver | static_context | v: receiver is produced by xml.etree.ElementTree |

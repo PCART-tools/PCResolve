@@ -50,6 +50,9 @@ class FunctionSummary:
     ## Source(s) yielded by a generator function.
     #  None means the function has no statically collected yield contract.
     yields: object = None
+    ## Concrete return alternatives for receiver-protocol queries. Unlike
+    #  symbol provenance, these include scalar, None, and unresolved branches.
+    return_values: object = None
 
 
 ## Per-class summary collected during single-file analysis.
@@ -81,6 +84,11 @@ class CallEdge:
     callee_name: str = ""
     ## Structured callable source before ownership classification.
     callee_source: object = None
+    ## Possible exact targets selected from a literal mapping. None means
+    #  this edge has no mapping evidence; an empty tuple rejects stale lookup.
+    mapping_targets: object = None
+    ## Whether every selected alternative is an exact local callable.
+    mapping_targets_complete: bool = False
     ## Source of the receiver (for obj.method() calls).
     receiver_source: object = None
     ## Argument sources keyed by parameter name (best-effort).

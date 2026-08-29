@@ -7,7 +7,7 @@ from a 42-project fixture corpus. All 42 projects are locked. The set contains
 **Target corpus:** 42 real Python projects (`tests/fixtures/tested_projects/`)
 **Locked projects:** 42/42 (see `ground_truth/projects.json`)
 **Coverage:** 5,788/5,788 AST calls, 0 missing, 0 stale
-**Current result:** 5,547 primary hits, 241 primary misses, recall 0.958
+**Current result:** 5,543 primary hits, 245 primary misses, recall 0.958
 
 The core question: given a call expression, does PCResolve correctly
 identify its primary owner (`top_library`) as an import-backed library,
@@ -54,7 +54,27 @@ The generated [review index](../ground_truth/review/README.md) contains the
 current per-project call counts, evidence-level breakdown, and suspicious
 record counts. Canonical labels remain in `ground_truth/calls/*.jsonl`.
 
-The aggregate result is 5,547 primary hits from 5,788 calls, for recall
-0.958. Of the 241 misses, 178 remain in the 1.0.5 repair queue and 63 are
+The aggregate result is 5,543 primary hits from 5,788 calls, for recall
+0.958. Of the 245 misses, 69 remain in the 1.0.5 repair queue and 176 are
 accepted static-analysis boundaries. Accepted boundaries remain visible in
 the scored misses rather than being removed from evaluation.
+
+Verification levels alone do not justify a release waiver. A dynamic probe
+confirms runtime ownership, not static irrecoverability. The repair queue
+therefore includes records awaiting independent boundary review as well as
+confirmed analyzer gaps.
+
+Independent boundary decisions are stored in
+`ground_truth/verification/static-boundary-reviews.json`. Each decision names
+the exact call records and carries a digest over every Python source in the
+project. Source, call identity, expected owner, or analyzer-outcome drift makes
+the release gate fail until the boundary is reviewed again.
+
+PCResolve 1.0.5 is release-ready only when every mismatch is closed. Exact
+owners supported by project source must become primary hits. Evidence-limited
+records must be reviewed and reclassified as `accepted_unknown`. The final
+gate requires both `fix_1_0_5=0` and `ground_truth_correction=0`:
+
+```bash
+python scripts/classify_ground_truth_failures.py --release-check
+```

@@ -10,10 +10,10 @@ machine source of truth.
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|
-| [AIBO](AIBO/README.md) | 660 | locked | 0 | 489 | 167 | 0 | 4 | 11 |
+| [AIBO](AIBO/README.md) | 660 | locked | 0 | 489 | 167 | 0 | 4 | 9 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | locked | 0 | 460 | 527 | 0 | 26 | 51 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 460 | 527 | 0 | 26 | 48 |
 | [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
@@ -24,7 +24,7 @@ machine source of truth.
 | [Deep-Graph-Kernels](Deep-Graph-Kernels/README.md) | 80 | locked | 0 | 69 | 8 | 1 | 2 | 0 |
 | [django](django/README.md) | 44 | locked | 0 | 27 | 2 | 15 | 0 | 7 |
 | [EJPLab](EJPLab/README.md) | 56 | locked | 0 | 40 | 14 | 0 | 2 | 0 |
-| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 2 |
+| [simulation](simulation/README.md) | 208 | locked | 0 | 148 | 45 | 15 | 0 | 6 |
 | [final](final/README.md) | 314 | locked | 0 | 105 | 166 | 43 | 0 | 25 |
 | [flask1](flask1/README.md) | 7 | locked | 0 | 3 | 4 | 0 | 0 | 0 |
 | [flask2](flask2/README.md) | 73 | locked | 0 | 48 | 25 | 0 | 0 | 4 |
@@ -32,13 +32,13 @@ machine source of truth.
 | [galax](galax/README.md) | 26 | locked | 0 | 26 | 0 | 0 | 0 | 0 |
 | [gender](gender/README.md) | 10 | locked | 0 | 10 | 0 | 0 | 0 | 0 |
 | [gistable](gistable/README.md) | 10 | locked | 0 | 7 | 0 | 2 | 1 | 0 |
-| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 26 |
-| [hfhd](hfhd/README.md) | 444 | locked | 0 | 371 | 41 | 28 | 4 | 26 |
+| [greenbenchmark](greenbenchmark/README.md) | 489 | locked | 0 | 253 | 236 | 0 | 0 | 31 |
+| [hfhd](hfhd/README.md) | 444 | locked | 0 | 371 | 41 | 28 | 4 | 22 |
 | [machine-learning](machine-learning/README.md) | 43 | locked | 0 | 39 | 0 | 4 | 0 | 0 |
 | [MAHE_OD_DATASET](MAHE_OD_DATASET/README.md) | 480 | locked | 0 | 341 | 139 | 0 | 0 | 29 |
 | [mysql](mysql/README.md) | 21 | locked | 0 | 13 | 8 | 0 | 0 | 0 |
 | [polars-book-cn](polars-book-cn/README.md) | 18 | locked | 0 | 15 | 3 | 0 | 0 | 0 |
-| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 21 |
+| [polire](polire/README.md) | 421 | locked | 0 | 246 | 167 | 0 | 8 | 20 |
 | [political-polarisation](political-polarisation/README.md) | 70 | locked | 0 | 38 | 30 | 0 | 2 | 21 |
 | [psycopg2](psycopg2/README.md) | 39 | locked | 0 | 20 | 4 | 15 | 0 | 0 |
 | [Python-Workshop](Python-Workshop/README.md) | 174 | locked | 0 | 139 | 28 | 7 | 0 | 2 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **241** |
+| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **240** |
 
 ## Directory Layout
 

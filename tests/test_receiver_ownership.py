@@ -114,18 +114,31 @@ def test_cdist_mean_is_numpy(result):
 
 
 # ======================================================================
-# Group E: Parameter receiver (KNOWN FAILURE)
-#   These need parameter provenance propagation but are low-impact
-#   for the current round.
+# Group E: Uncalled parameters have no concrete receiver evidence.
 # ======================================================================
 
-@pytest.mark.xfail(reason="parameter receiver provenance needs call-graph propagation")
-def test_param_pandas_dropna(result):
-    assert _top(result.all_api_calls, "df_param.dropna(") == "pandas"
+def test_uncalled_frame_parameter_stays_unknown(result):
+    assert _top(result.all_api_calls, "df_param.dropna(") == "unknown"
 
-@pytest.mark.xfail(reason="parameter receiver provenance needs call-graph propagation")
-def test_param_numpy_reshape(result):
-    assert _top(result.all_api_calls, "arr_param.reshape(") == "numpy"
+def test_uncalled_array_parameter_stays_unknown(result):
+    assert _top(result.all_api_calls, "arr_param.reshape(") == "unknown"
+
+
+@pytest.mark.parametrize('producer,method,owner', [
+    ("pd.DataFrame({'x': [1, 2]})", 'dropna()', 'pandas'),
+    ('np.reshape([1, 2], (-1,))', 'reshape(-1, 1)', 'numpy'),
+])
+def test_parameter_owner_requires_a_proven_call_argument(
+        tmp_path, producer, method, owner):
+    (tmp_path / 'main.py').write_text('''
+import pandas as pd
+import numpy as np
+def consume(value):
+    value.%s
+consume(%s)
+''' % (method, producer), encoding='utf-8')
+    calls = analyze_project(str(tmp_path)).all_api_calls
+    assert _top(calls, 'value.' + method) == owner
 
 
 # ======================================================================

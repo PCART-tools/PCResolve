@@ -14,7 +14,8 @@
 
 - library: 292
 - python: 74
-- local: 78
+- local: 74
+- unknown: 4
 
 ## Verification Level Breakdown
 
@@ -23,7 +24,7 @@
 - [dynamic_probe](dynamic_probe.md): 28
 - [manual_reasoned](manual_reasoned.md): 4
 
-## [Suspicious Records](suspicious.md): 26
+## [Suspicious Records](suspicious.md): 22
 
 ## Category Breakdown
 
@@ -31,7 +32,8 @@
 - builtin_container_method: 2
 - conversion_boundary: 10
 - direct_import: 220
-- local_call: 78
+- local_call: 74
+- parameter_runtime_boundary: 4
 - transitive_method: 62
 
 ## Top Libraries

@@ -30,7 +30,7 @@ def _call(func_name, expression=None):
 
 
 def test_unconstrained_parameter_method_is_unknown():
-    call = _call("out.write")
+    call = _call("out.write", "out.write(value)")
     assert call.top_library == "unknown"
 
 
@@ -215,6 +215,31 @@ def test_dict_get_preserves_static_callback_identity():
     assert call.top_library == "local"
 
 
+def test_nested_callback_table_preserves_dictionary_receiver_shape():
+    call = _call("packed_options.get")
+    assert call.top_library == "python"
+
+
+def test_dynamic_callback_table_propagates_explicit_argument_across_star_args():
+    call = _call("worker.dynamic_expand")
+    assert call.top_library == "local"
+
+
+def test_dynamic_callback_table_propagates_explicit_argument_into_lambda():
+    call = _call("worker.lambda_expand")
+    assert call.top_library == "local"
+
+
+def test_assigned_lambda_propagates_explicit_argument_owner():
+    call = _call("worker.assigned_expand")
+    assert call.top_library == "local"
+
+
+def test_lambda_parameter_owner_requires_call_site_convergence():
+    call = _call("receiver.decode")
+    assert call.top_library == "unknown"
+
+
 def test_constructor_container_elements_propagate_local_owner():
     calls = _calls_named("item.ping")
     assert len(calls) == 1
@@ -224,6 +249,12 @@ def test_constructor_container_elements_propagate_local_owner():
 def test_constructor_container_elements_require_owner_convergence():
     call = _call("item.decode")
     assert call.top_library == "unknown"
+
+
+def test_same_named_class_in_another_module_does_not_supply_arguments():
+    call = _call("out.write", "out.write('target')")
+    assert call.top_library == "unknown"
+    assert _call("out.write", "out.write('caller')").top_library == "sys"
 
 
 def test_named_iterable_evidence_is_isolated_by_lexical_binding():

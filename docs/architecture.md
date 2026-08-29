@@ -44,6 +44,8 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
 | `symbol_refs` | `list[SymbolRef]` | Symbol references for provenance |
 | `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet for multi-return) |
+| `return_element_sources` | `dict[str, list]` | Qualified function name to returned-element sources, resolved under exact call contexts independently of container ownership |
+| `call_graph_return_values` | `dict[str, object]` | Qualified function name to concrete return alternatives for receiver-protocol queries, including scalar and unresolved branches |
 | `call_sites` | `dict[str, list[dict]]` | Function name → call-site parameter sources (for ad-hoc param tracing) |
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |
@@ -62,6 +64,11 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 6. **Library Usage**: `build_library_usage()` in `library_usage.py` aggregates calls and provenance by `top_library`.
 7. **Decorator evidence**: `build_decorator_index()` / `lookup_decorated_by()` in `decorator_provenance.py` populate `ApiCall.decorated_by`.
 8. **Call graph**: `call_graph.py` holds `FunctionSummary` / `ClassSummary` / `CallEdge` facts.
+   `FunctionSummary.return_values` retains concrete protocol evidence separately
+   from provenance-oriented `returns`, including possible implicit returns.
+   `mapping_facts.py` preserves local callable identities selected from literal
+   dictionaries. These private facts share lexical bindings, invalidate on
+   mutation or escape, and do not replace container ownership sources.
 
 Output: `ProjectAnalysis`
 

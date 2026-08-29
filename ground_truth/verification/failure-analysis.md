@@ -1,11 +1,11 @@
 # PCResolve 1.0.5 Ground Truth Failure Analysis
 
-Snapshot: 2026-08-28
+Snapshot: 2026-08-29
 
 ## Executive Summary
 
 The locked evaluation set contains 5,788 call records across 42 projects.
-PCResolve currently produces 5,546 primary hits and 242 primary mismatches,
+PCResolve currently produces 5,547 primary hits and 241 primary mismatches,
 for recall 0.958. AST call coverage is complete at 5,788/5,788. There are no
 missing, stale, or uncovered call predictions.
 
@@ -15,7 +15,7 @@ or runtime callable owner, while release disposition asks whether project
 source proves that owner under a pure-static contract.
 
 The generated [failure disposition report](failure-dispositions.md) currently
-places 179 records in the 1.0.5 repair queue and accepts 63 `unknown` results
+places 162 records in the 1.0.5 repair queue and accepts 79 `unknown` results
 as static-analysis boundaries. Accepted boundaries remain scored misses so
 the evaluation does not hide unavailable runtime information.
 
@@ -26,7 +26,8 @@ evidence through imports, lexical assignments, local returns, constructor
 bindings, container elements, or project call edges. It must retain
 `unknown` when the exact owner depends only on one of these conditions:
 
-- an uncalled function parameter or unreachable code
+- a parameter whose function has no project-source reference, or unreachable
+  code
 - dynamic dispatch with no statically enumerable target
 - a callback invoked only by an external framework
 - the result type or iteration protocol of an external library API
@@ -39,20 +40,20 @@ hardcoded library or method mappings in the analyzer.
 
 | Current reason | Records | Share | Meaning |
 |---|---:|---:|---|
-| `UNRESOLVED` | 219 | 90.5% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
+| `UNRESOLVED` | 218 | 90.5% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
 | `LOCAL_DEFINITION` | 13 | 5.4% | A local binding is selected although the reviewed runtime callable has another owner. |
 | `TRANSITIVE_IMPORT` | 6 | 2.5% | Producer or enclosing-object provenance leaks into the callable owner. |
 | `FLOW_MERGE` | 4 | 1.7% | Multiple static paths do not converge on the reviewed owner. |
-| **Total** | **242** | **100.0%** | |
+| **Total** | **241** | **100.0%** | |
 
 ## Expected Owner Kind
 
 | Expected kind | Records | Share |
 |---|---:|---:|
-| `library` | 150 | 62.0% |
-| `python` | 85 | 35.1% |
+| `library` | 150 | 62.2% |
+| `python` | 84 | 34.9% |
 | `local` | 7 | 2.9% |
-| **Total** | **242** | **100.0%** |
+| **Total** | **241** | **100.0%** |
 
 ## Highest Impact Families
 
@@ -73,16 +74,21 @@ hardcoded library or method mappings in the analyzer.
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 179 | Candidate repair supported by the current evidence taxonomy. |
-| `accepted_unknown` | 63 | Runtime owner is known, but project source does not prove it. |
+| `fix_1_0_5` | 162 | Candidate repair supported by the current evidence taxonomy. |
+| `accepted_unknown` | 79 | Runtime owner is known, but project source does not prove it. |
 | `ground_truth_correction` | 0 | No canonical GT correction is currently pending. |
-| **Total** | **242** | |
+| **Total** | **241** | |
 
-The repair queue is further divided into 94 bounded receiver-flow records,
-76 same-scope result or protocol records, eight conservative-identity
+The repair queue is further divided into 79 bounded receiver-flow records,
+74 same-scope result or protocol records, eight conservative-identity
 records, and one local-identity record. Before implementation, each group
 must be checked for actual project call evidence. A category label alone is
 not sufficient proof that its exact owner is statically recoverable.
+
+The source audit currently identifies 24 unbound parameter receivers whose
+functions have no references anywhere in the analyzed project. Sixteen of
+those records moved from the repair queue to `accepted_unknown`; the other
+eight were already accepted on runtime-evidence grounds.
 
 ## Current Repair Direction
 
@@ -114,3 +120,11 @@ The release target is not merely a higher aggregate recall. Every reduction
 must correspond to a reviewed source-supported owner, keep call coverage
 complete, preserve zero illegal keys, and avoid replacing `unknown` with an
 unsupported guess.
+
+The final stable-release gate is stricter than the per-batch freshness check:
+
+```bash
+python scripts/classify_ground_truth_failures.py --release-check
+```
+
+It must report zero `fix_1_0_5` and zero `ground_truth_correction` entries.

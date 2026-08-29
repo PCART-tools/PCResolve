@@ -32,7 +32,7 @@
 | hfhd/sim.py:215:13 | `sf.between_time('9:30', '16:00', include_start=True, include_end=True)` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .between_time( method on pandas Series/DataFrame |
 | hfhd/sim.py:218:13 | `sf.resample('1d')` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .resample( method on pandas Series/DataFrame |
 | hfhd/sim.py:218:13 | `sf.resample('1d').sum()` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .resample( method on pandas Series/DataFrame |
-| hfhd/sim.py:294:34 | `self.log_rets.cumsum(axis=0)` | library / numpy | local / local | transitive_method | static_context | gt: numpy .cumsum() on ndarray<br>v: ndarray.cumsum() is numpy method |
+| hfhd/sim.py:294:34 | `self.log_rets.cumsum(axis=0)` | library / numpy | unknown / unknown | transitive_method | static_context | gt: numpy .cumsum() on ndarray<br>v: ndarray.cumsum() is numpy method |
 | hfhd/sim.py:302:8 | `self.ms_noise.ravel()` | library / numpy | library / numpy | transitive_method | static_context | v: ndarray.ravel() is numpy method |
 | hfhd/sim.py:311:27 | `self.feature.cumsum(axis=0)` | library / numpy | library / numpy | transitive_method | static_context | v: ndarray.cumsum() is numpy method |
 | hfhd/sim.py:318:21 | `self.price.between_time('9:30', '16:00', include_start=True, includ...` | library / pandas | library / pandas | transitive_method | static_context | v: pandas .between_time( method on pandas Series/DataFrame |
