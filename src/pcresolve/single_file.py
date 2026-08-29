@@ -866,6 +866,11 @@ class SingleFileAnalyzer(ast.NodeVisitor):
         if binding is not None:
             attr = "container_item_kind" if item else "container_kind"
             return getattr(binding, attr, "") or None
+        # Compatibility maps are file-wide and can contain a same-name local
+        # from a previously visited function. Only module code may use their
+        # fallback; nested scopes require a lexical Binding as evidence.
+        if self.current_scope().kind != SCOPE_MODULE:
+            return None
         if item:
             return self.container_item_kinds.get(name)
         return self.container_kinds.get(name)
@@ -5274,9 +5279,187 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 self._target_to_source(item.optional_vars, source)
         self.generic_visit(node)
 
+    ## Seed Python shapes that can flow from one loop iteration to the next.
+    #
+    #  This is a bounded lexical fixed-point for builtin value shapes only.
+    #  Every assignment to a candidate name inside the loop must independently
+    #  prove the same PythonShape, and any conflicting preheader binding blocks
+    #  the seed. Import-backed owners and unresolved values are never inferred.
+    #  @param statements Statements in one loop body.
+    #  @param excluded_names Loop-target names that are rebound by iteration.
+    def _seed_loop_carried_python_shapes(self, statements,
+                                         excluded_names=None):
+        evidence = {}
+        self._collect_loop_shape_assignments(statements, evidence)
+        excluded = set(excluded_names or [])
+        for name, observations in evidence.items():
+            if name in excluded or not observations:
+                continue
+            if any(shape is None for shape, _ in observations):
+                continue
+            first_shape = observations[0][0]
+            if any(shape != first_shape for shape, _ in observations[1:]):
+                continue
+            binding = self.current_scope().lookup(
+                name, skip_parent_classes=True)
+            if binding is not None:
+                if (binding.container_kind != first_shape.kind
+                        or binding.container_item_kind
+                        != first_shape.item_kind):
+                    continue
+                continue
+            source_node = observations[0][1]
+            self._bind_target_name(
+                name, first_shape, source_node,
+                container_kind=first_shape.kind,
+                container_item_kind=first_shape.item_kind)
+
+    ## Collect same-loop assignment shapes without revisiting call nodes.
+    #
+    #  Nested lexical scopes are excluded. Control-flow bodies remain part of
+    #  the loop backedge, but one unknown assignment invalidates convergence.
+    #  @param statements Statements to scan.
+    #  @param evidence Mutable name -> [(PythonShape or None, node)] mapping.
+    def _collect_loop_shape_assignments(self, statements, evidence):
+        for statement in statements:
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                      ast.ClassDef)):
+                evidence.setdefault(statement.name, []).append(
+                    (None, statement))
+                header_nodes = list(statement.decorator_list)
+                if isinstance(statement, (ast.FunctionDef,
+                                          ast.AsyncFunctionDef)):
+                    header_nodes.extend(statement.args.defaults)
+                    header_nodes.extend(
+                        item for item in statement.args.kw_defaults
+                        if item is not None)
+                else:
+                    header_nodes.extend(statement.bases)
+                    header_nodes.extend(item.value
+                                        for item in statement.keywords)
+                for header_node in header_nodes:
+                    self._collect_loop_named_expr_bindings(
+                        header_node, evidence)
+                continue
+            self._collect_loop_named_expr_bindings(statement, evidence)
+            if isinstance(statement, ast.Assign):
+                shape = self._expression_python_shape(statement.value)
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        evidence.setdefault(target.id, []).append(
+                            (shape, statement))
+                    else:
+                        for name in self._assignment_target_names(target):
+                            evidence.setdefault(name, []).append(
+                                (None, statement))
+                continue
+            if isinstance(statement, ast.AnnAssign):
+                if isinstance(statement.target, ast.Name):
+                    shape = (
+                        self._expression_python_shape(statement.value)
+                        if statement.value is not None else None)
+                    evidence.setdefault(statement.target.id, []).append(
+                        (shape, statement))
+                else:
+                    for name in self._assignment_target_names(
+                            statement.target):
+                        evidence.setdefault(name, []).append(
+                            (None, statement))
+                continue
+            if isinstance(statement, ast.AugAssign):
+                target = statement.target
+                if isinstance(target, ast.Name):
+                    evidence.setdefault(target.id, []).append(
+                        (None, statement))
+                continue
+
+            if isinstance(statement, (ast.For, ast.AsyncFor)):
+                for name in self._assignment_target_names(statement.target):
+                    evidence.setdefault(name, []).append((None, statement))
+            elif isinstance(statement, (ast.With, ast.AsyncWith)):
+                for item in statement.items:
+                    if item.optional_vars is None:
+                        continue
+                    for name in self._assignment_target_names(
+                            item.optional_vars):
+                        evidence.setdefault(name, []).append(
+                            (None, statement))
+            elif isinstance(statement, ast.Try):
+                for handler in statement.handlers:
+                    if handler.name:
+                        evidence.setdefault(handler.name, []).append(
+                            (None, handler))
+            elif isinstance(statement, ast.Delete):
+                for target in statement.targets:
+                    for name in self._assignment_target_names(target):
+                        evidence.setdefault(name, []).append(
+                            (None, statement))
+            elif isinstance(statement, ast.Import):
+                for alias in statement.names:
+                    name = alias.asname or alias.name.split(".", 1)[0]
+                    evidence.setdefault(name, []).append((None, statement))
+            elif isinstance(statement, ast.ImportFrom):
+                for alias in statement.names:
+                    if alias.name == "*":
+                        continue
+                    name = alias.asname or alias.name
+                    evidence.setdefault(name, []).append((None, statement))
+
+            child_blocks = []
+            if isinstance(statement, ast.If):
+                child_blocks.extend((statement.body, statement.orelse))
+            elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+                child_blocks.extend((statement.body, statement.orelse))
+            elif isinstance(statement, (ast.With, ast.AsyncWith)):
+                child_blocks.append(statement.body)
+            elif isinstance(statement, ast.Try):
+                child_blocks.extend((statement.body, statement.orelse,
+                                     statement.finalbody))
+                child_blocks.extend(handler.body
+                                    for handler in statement.handlers)
+            for child_block in child_blocks:
+                self._collect_loop_shape_assignments(child_block, evidence)
+
+    ## Return lexical names bound by an assignment target.
+    #  Attribute and subscript writes mutate objects but do not rebind their
+    #  receiver names. Tuple, list, and starred targets are traversed.
+    #  @param target Assignment-target AST node.
+    #  @return Set of rebound lexical names.
+    def _assignment_target_names(self, target):
+        if isinstance(target, ast.Name):
+            return {target.id}
+        if isinstance(target, ast.Starred):
+            return self._assignment_target_names(target.value)
+        if isinstance(target, (ast.Tuple, ast.List)):
+            names = set()
+            for item in target.elts:
+                names.update(self._assignment_target_names(item))
+            return names
+        return set()
+
+    ## Record assignment expressions as unknown loop-local rebindings.
+    #  Named expressions may occur inside tests, call arguments, or container
+    #  expressions. Their value shape is deliberately not inferred here.
+    #  Nested lexical scopes do not share ordinary target bindings with the
+    #  surrounding loop. Comprehension targets are ignored automatically, but
+    #  assignment expressions inside comprehensions still bind outside them.
+    #  @param node AST subtree to inspect.
+    #  @param evidence Mutable loop-shape evidence mapping.
+    def _collect_loop_named_expr_bindings(self, node, evidence):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef, ast.Lambda)):
+            return
+        if isinstance(node, ast.NamedExpr):
+            for name in self._assignment_target_names(node.target):
+                evidence.setdefault(name, []).append((None, node))
+        for child in ast.iter_child_nodes(node):
+            self._collect_loop_named_expr_bindings(child, evidence)
+
     ## Visit a For node and bind the loop variable to the iterator source.
     #  @param node The For AST node.
     def visit_For(self, node):
+        target_names = self._assignment_target_names(node.target)
+        self._seed_loop_carried_python_shapes(node.body, target_names)
         yields = self._resolve_iterator_yields(node.iter, node.target)
         if yields is not None:
             for item in yields:
@@ -5304,6 +5487,12 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 container_kind=item_kind,
                 container_item_fields=item_fields)
         self._record_iteration_binding(node)
+        self.generic_visit(node)
+
+    ## Visit a While node with bounded loop-carried Python shape evidence.
+    #  @param node The While AST node.
+    def visit_While(self, node):
+        self._seed_loop_carried_python_shapes(node.body)
         self.generic_visit(node)
 
     ## Record a generator-loop fact for bounded cross-file propagation.
@@ -5487,6 +5676,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     ## Visit an AsyncFor node and bind the loop variable to the iterator source.
     #  @param node The AsyncFor AST node.
     def visit_AsyncFor(self, node):
+        target_names = self._assignment_target_names(node.target)
+        self._seed_loop_carried_python_shapes(node.body, target_names)
         source = self._iter_source(node.iter)
         self._target_to_source(node.target, source, "iteration")
         self.generic_visit(node)

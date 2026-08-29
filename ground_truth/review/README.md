@@ -13,7 +13,7 @@ machine source of truth.
 | [AIBO](AIBO/README.md) | 660 | locked | 0 | 489 | 167 | 0 | 4 | 11 |
 | [aiofiles1](aiofiles1/README.md) | 6 | locked | 0 | 4 | 2 | 0 | 0 | 0 |
 | [aiomqtt1](aiomqtt1/README.md) | 6 | locked | 0 | 6 | 0 | 0 | 0 | 0 |
-| [allnews](allnews/README.md) | 1013 | locked | 0 | 460 | 527 | 0 | 26 | 52 |
+| [allnews](allnews/README.md) | 1013 | locked | 0 | 460 | 527 | 0 | 26 | 51 |
 | [giantpopflucts](giantpopflucts/README.md) | 358 | locked | 0 | 308 | 43 | 7 | 0 | 0 |
 | [click1](click1/README.md) | 5 | locked | 0 | 4 | 1 | 0 | 0 | 0 |
 | [click2](click2/README.md) | 8 | locked | 0 | 7 | 1 | 0 | 0 | 0 |
@@ -52,7 +52,7 @@ machine source of truth.
 | [tensorflow2](tensorflow2/README.md) | 8 | locked | 0 | 8 | 0 | 0 | 0 | 0 |
 | [TSP](TSP/README.md) | 22 | locked | 0 | 18 | 1 | 3 | 0 | 0 |
 | [Youtube](Youtube/README.md) | 104 | locked | 0 | 81 | 14 | 9 | 0 | 6 |
-| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **242** |
+| **TOTAL** | **5788** | | **0** | **3739** | **1814** | **185** | **50** | **241** |
 
 ## Directory Layout
 

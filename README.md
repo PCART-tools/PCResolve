@@ -101,7 +101,7 @@ The current analyzer is validated against locked call-site ground truth from 42 
 
 ```text
 ground-truth records:  5,788
-primary hits:          5,546
+primary hits:          5,547
 primary recall:        0.958
 false positives:       0
 ```

@@ -22,8 +22,8 @@ verification evidence, and zero stale project snapshots.
 ```text
 Projects:          42
 GT records:        5,788
-Primary hits:      5,546
-Primary misses:      242
+Primary hits:      5,547
+Primary misses:      241
 Primary recall:    0.958
 False positives:       0
 AST coverage:      100%

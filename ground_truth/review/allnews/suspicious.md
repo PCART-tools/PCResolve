@@ -1,4 +1,4 @@
-# allnews — Suspicious Records (52)
+# allnews — Suspicious Records (51)
 
 Each record appears once.  The **Reasons** column lists all
 matching suspicious criteria.
@@ -54,6 +54,5 @@ matching suspicious criteria.
 | allnews_am/wikiextractor/WikiExtractor.py:2803:51 | `line.decode('utf-8')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2808:19 | `line.lstrip()` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2808:19 | `line.lstrip().startswith('[[Category:')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
-| allnews_am/wikiextractor/WikiExtractor.py:2811:24 | `catSet.add(mCat.group(1))` | python / python | unknown / unknown | builtin_container_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/WikiExtractor.py:2877:51 | `line.decode('utf-8')` | python / python | unknown / unknown | python_protocol_method | static_context | kind mismatch: expected=python pcresolve=unknown<br>owner mismatch: expected=python pcresolve=unknown |
 | allnews_am/wikiextractor/cirrus-extract.py:183:25 | `page.encode('utf-8')` | python / python | local / local | builtin_string_method | static_context | kind mismatch: expected=python pcresolve=local<br>owner mismatch: expected=python pcresolve=local |

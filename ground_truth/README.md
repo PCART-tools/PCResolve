@@ -272,7 +272,7 @@ Excluded from precision and recall; counted in coverage metrics.
 
 All 42 fixture projects are **locked** (2026-07-20). The set contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
-snapshot has 5,546 primary hits and 242 primary misses, for aggregate recall
+snapshot has 5,547 primary hits and 241 primary misses, for aggregate recall
 0.958. AST call coverage is 5,788/5,788.
 
 Evidence is distributed across 3,739 `static_obvious`, 1,814
@@ -352,7 +352,7 @@ It does NOT auto-change labels; review each flagged record.
 `suspicious.md` contains only GT versus PCResolve mismatches, including kind,
 primary owner, alternatives, decorated evidence, and missing candidates.
 Records are not included merely because they use contextual or dynamic
-evidence. The current locked set contains 408 suspicious records.
+evidence. The current locked set contains 241 suspicious records.
 
 ### Dynamic Probes
 
