@@ -6,7 +6,8 @@ Project-level Python static analysis for API ownership and library usage provena
 
 ## News
 
-- **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, lexical scope analysis, `--json` full output, and Windows-safe tooling.
+- **In development** - PCResolve 1.0.5 removes the legacy scope model and uses a single lexical scope analyzer.
+- **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
 
 ## What is PCResolve?
 
