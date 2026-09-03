@@ -1,6 +1,6 @@
 # TSP — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 22
+**Status:** locked  |  **Calls:** 22
 
 ## Annotation Status
 

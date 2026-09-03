@@ -1,6 +1,6 @@
 # Python-Workshop — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 174
+**Status:** locked  |  **Calls:** 174
 
 ## Annotation Status
 

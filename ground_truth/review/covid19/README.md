@@ -1,6 +1,6 @@
 # covid19 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 89
+**Status:** locked  |  **Calls:** 89
 
 ## Annotation Status
 

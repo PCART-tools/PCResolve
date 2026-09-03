@@ -1,6 +1,6 @@
 # political-polarisation — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 70
+**Status:** locked  |  **Calls:** 70
 
 ## Annotation Status
 

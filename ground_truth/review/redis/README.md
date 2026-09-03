@@ -1,6 +1,6 @@
 # redis — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 33
+**Status:** locked  |  **Calls:** 33
 
 ## Annotation Status
 

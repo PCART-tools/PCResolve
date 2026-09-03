@@ -1,6 +1,6 @@
 # EJPLab — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 56
+**Status:** locked  |  **Calls:** 56
 
 ## Annotation Status
 

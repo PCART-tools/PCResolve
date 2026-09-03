@@ -1,6 +1,6 @@
 # giantpopflucts — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 358
+**Status:** locked  |  **Calls:** 358
 
 ## Annotation Status
 

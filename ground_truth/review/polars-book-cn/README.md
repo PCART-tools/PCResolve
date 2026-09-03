@@ -1,6 +1,6 @@
 # polars-book-cn — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 18
+**Status:** locked  |  **Calls:** 18
 
 ## Annotation Status
 

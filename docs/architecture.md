@@ -41,12 +41,12 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | `symbols.direct` | `dict[str, object]` | Module-level name → source compatibility mapping |
 | `symbols.chains` | `dict[str, list]` | Name → resolution chain |
 | `api_calls` | `list[dict]` | Legacy call records (keyed by `api`, `top`, `base`, `chain`, ...) |
-| `call_site_objects` | `list[CallSite]` | New typed call-site IR (parallel to api_calls) |
+| `call_site_objects` | `list[CallSite]` | Typed call-site IR collected in parallel with `api_calls` |
 | `symbol_refs` | `list[SymbolRef]` | Symbol references for provenance |
 | `return_sources` | `dict[str, object]` | Function name → return expression source (SourceSet for multi-return) |
 | `return_element_sources` | `dict[str, list]` | Qualified function name to returned-element sources, resolved under exact call contexts independently of container ownership |
 | `call_graph_return_values` | `dict[str, object]` | Qualified function name to concrete return alternatives for receiver-protocol queries, including scalar and unresolved branches |
-| `call_sites` | `dict[str, list[dict]]` | Function name → call-site parameter sources (for ad-hoc param tracing) |
+| `call_sites` | `dict[str, list[dict]]` | Function name → context-sensitive call-site parameter sources |
 | `function_params` | `dict[str, list[str]]` | Function name → parameter name list |
 | `defined_functions` | `set[str]` | Names of locally defined functions |
 | `import_from_symbols` | `dict[str, str]` | Import alias → fully qualified name |
@@ -63,12 +63,16 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 5. **Provenance**: `_build_symbol_provenance()` traces each `SymbolRef` into a `SymbolProvenance`.
 6. **Library Usage**: `build_library_usage()` in `library_usage.py` aggregates calls and provenance by `top_library`.
 7. **Decorator evidence**: `build_decorator_index()` / `lookup_decorated_by()` in `decorator_provenance.py` populate `ApiCall.decorated_by`.
-8. **Call graph**: `call_graph.py` holds `FunctionSummary` / `ClassSummary` / `CallEdge` facts.
+8. **Bounded call graph**: `call_graph.py` holds `FunctionSummary` /
+   `ClassSummary` / `CallEdge` facts and supplies exact project-local call
+   contexts for parameter, return, receiver, and iterable-element propagation.
    `FunctionSummary.return_values` retains concrete protocol evidence separately
    from provenance-oriented `returns`, including possible implicit returns.
    `mapping_facts.py` preserves local callable identities selected from literal
    dictionaries. These private facts share lexical bindings, invalidate on
-   mutation or escape, and do not replace container ownership sources.
+   mutation or escape, and do not replace container ownership sources. These
+   call-graph facts are internal analysis evidence and are not a separate field
+   in `ProjectAnalysis` or the public JSON schema.
 
 Output: `ProjectAnalysis`
 
@@ -102,12 +106,17 @@ Compatibility surfaces still present in the codebase:
 | `api_calls` (dict list) | Still the primary single-file output | Typed `CallSite` collected in parallel |
 | `return_sources` (SourceSet) | Multi-return tracking via `SourceSet` + CallGraph | Current default |
 | `_base_top_source()` | Wraps `ClassificationPipeline.classify()` | Current default |
-| Instance attr propagation | Constructor arg → self.attr tracking | Full class-aware receiver resolution is future work |
+| Instance attr propagation | Constructor arg → self.attr tracking | Bounded local hierarchy support; no full Python MRO or dynamic descriptors |
 | `--json` (dataclass dump) | Replaced by full provenance schema | 1.0.4+ default |
 
-## Known Patch Zones
+## Resolution Boundaries
 
-- `_resolve_structured_source()` dispatches `container_item`, `instance_method`, `container_iter`, `call_result`.  `SourceSet` convergence is handled by `source_resolution.py::SourceSetResolver`.  The non-SourceSet branches still live inline here.
+- `_resolve_structured_source()` dispatches the typed Source IR, including
+  container items and iteration, tuple fields, instance methods and attributes,
+  parameter sources, Python shapes, `super()` methods, call results, and derived
+  results. `SourceSet` convergence is handled by
+  `source_resolution.py::SourceSetResolver`. The non-SourceSet branches still
+  live inline here.
 
 - `trace_symbol()` is the trace orchestration hotspot, mixing cross-module symbol lookup with wildcard import resolution and parameter back-tracing.  Call-graph facts (`call_graph.py`) feed into it for return-object and arg-source propagation.
 

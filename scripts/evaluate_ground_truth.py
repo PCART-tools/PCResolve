@@ -7,7 +7,7 @@
 #  precision/recall/ownership by expected_kind.
 #
 #  Usage:
-#    python scripts/evaluate_ground_truth.py                                    # locked pilots only
+#    python scripts/evaluate_ground_truth.py                                    # locked projects only
 #    python scripts/evaluate_ground_truth.py --include-draft                    # locked + reviewed/draft
 #    python scripts/evaluate_ground_truth.py --include-unlocked                 # same as --include-draft
 #    python scripts/evaluate_ground_truth.py --include-auto-labeled             # + auto_labeled in scoring

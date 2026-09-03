@@ -1,6 +1,6 @@
 # click1 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 5
+**Status:** locked  |  **Calls:** 5
 
 ## Annotation Status
 

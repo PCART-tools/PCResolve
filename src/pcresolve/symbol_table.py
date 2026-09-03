@@ -3,7 +3,7 @@
 #
 #  The SymbolTable class records direct symbol-to-source mappings and
 #  recursively traces each symbol through aliases, assignments, and imports
-#  to determine its top-level origin library.
+#  to determine its primary owner.
 
 import builtins
 from .sources import (CallResult, PythonShape, SourceSet, normalize_source,

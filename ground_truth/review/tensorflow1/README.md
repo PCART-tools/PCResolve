@@ -1,6 +1,6 @@
 # tensorflow1 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 15
+**Status:** locked  |  **Calls:** 15
 
 ## Annotation Status
 

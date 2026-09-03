@@ -1,111 +1,92 @@
 # PCResolve 1.0.5 Ground Truth Failure Analysis
 
-Snapshot: 2026-08-29
+Snapshot: 2026-09-03
 
 ## Executive Summary
 
 The locked evaluation set contains 5,788 call records across 42 projects.
-PCResolve currently produces 5,547 primary hits and 241 primary mismatches,
-for recall 0.958. AST call coverage is complete at 5,788/5,788. There are no
-missing, stale, or uncovered call predictions.
+PCResolve produces 5,548 primary hits and 240 primary mismatches, for recall
+0.959. AST call coverage is complete at 5,788/5,788. There are no missing,
+stale, or uncovered call predictions.
 
-The remaining records are ownership-classification mismatches. They do not
-all represent sound implementation targets. Ground truth records the semantic
-or runtime callable owner, while release disposition asks whether project
-source proves that owner under a pure-static contract.
+All 240 mismatches have an `accepted_unknown` release disposition. There are
+zero `fix_1_0_5` records and zero pending ground-truth corrections. Accepted
+unknowns remain scored misses so the evaluation continues to expose the
+limits of project-source-only analysis.
 
-The generated [failure disposition report](failure-dispositions.md) currently
-places 162 records in the 1.0.5 repair queue and accepts 79 `unknown` results
-as static-analysis boundaries. Accepted boundaries remain scored misses so
-the evaluation does not hide unavailable runtime information.
+The generated [failure disposition report](failure-dispositions.md) is the
+authoritative record for every mismatch and its source-backed justification.
 
 ## Static Evidence Boundary
 
 PCResolve may select an exact owner when project source provides convergent
 evidence through imports, lexical assignments, local returns, constructor
-bindings, container elements, or project call edges. It must retain
-`unknown` when the exact owner depends only on one of these conditions:
+bindings, container elements, or project call edges. It retains `unknown`
+when the exact owner depends only on conditions such as:
 
-- a parameter whose function has no project-source reference, or unreachable
-  code
-- dynamic dispatch with no statically enumerable target
-- a callback invoked only by an external framework
-- the result type or iteration protocol of an external library API
-- conflicting project call sites that do not converge on one owner
+- a parameter whose function has no project-source call site or is dead code;
+- dynamic dispatch with no statically enumerable target;
+- a callback invoked only by an external framework;
+- the result type or iteration protocol of an external library API;
+- conflicting project call sites that do not converge on one owner.
 
-Runtime probes validate ground-truth labels, but probe results do not become
-hardcoded library or method mappings in the analyzer.
+Runtime probes validate ground-truth ownership. They do not become hardcoded
+library, method, or return-type mappings in the analyzer.
 
 ## Current Analyzer Outcomes
 
 | Current reason | Records | Share | Meaning |
 |---|---:|---:|---|
-| `UNRESOLVED` | 218 | 90.5% | The analyzer preserves uncertainty at a receiver, return, attribute, item, or call edge. |
-| `LOCAL_DEFINITION` | 13 | 5.4% | A local binding is selected although the reviewed runtime callable has another owner. |
-| `TRANSITIVE_IMPORT` | 6 | 2.5% | Producer or enclosing-object provenance leaks into the callable owner. |
-| `FLOW_MERGE` | 4 | 1.7% | Multiple static paths do not converge on the reviewed owner. |
-| **Total** | **241** | **100.0%** | |
+| `UNRESOLVED` | 235 | 97.9% | Project source does not establish one exact owner. |
+| `FLOW_MERGE` | 5 | 2.1% | Multiple static paths do not converge on one owner. |
+| **Total** | **240** | **100.0%** | |
 
 ## Expected Owner Kind
 
 | Expected kind | Records | Share |
 |---|---:|---:|
-| `library` | 150 | 62.2% |
-| `python` | 84 | 34.9% |
-| `local` | 7 | 2.9% |
-| **Total** | **241** | **100.0%** |
+| `library` | 155 | 64.6% |
+| `python` | 84 | 35.0% |
+| `local` | 1 | 0.4% |
+| **Total** | **240** | **100.0%** |
 
 ## Highest Impact Families
 
 | Failure family | Records |
 |---|---:|
-| General transitive receiver methods | 50 |
-| Python protocol methods | 46 |
-| NumPy array receivers | 28 |
+| General transitive receiver methods | 54 |
+| Python protocol methods | 44 |
+| NumPy array receivers | 26 |
 | Torch tensor receivers | 26 |
-| Python string methods | 17 |
+| Python string methods | 19 |
+| Pandas receivers | 11 |
 | Matplotlib receivers | 11 |
 | Library result boundaries | 9 |
 | Conversion boundaries | 9 |
-| Pandas receivers | 8 |
-| Pandas receiver chains | 5 |
+
+## Review Evidence
+
+| Verification level | Records | Role |
+|---|---:|---|
+| `static_context` | 175 | Source context proves the GT owner and the static evidence boundary. |
+| `dynamic_probe` | 62 | Runtime inspection confirms the GT owner; source review separately justifies `unknown`. |
+| `manual_reasoned` | 3 | Manual semantic review establishes the GT label and boundary. |
+| **Total** | **240** | |
+
+Each accepted boundary is tied to exact GT call identities and a digest of the
+project's Python sources in `static-boundary-reviews.json`. Source, location,
+expected-owner, or analyzer-outcome drift invalidates the review.
 
 ## Release Disposition
 
 | Disposition | Records | Meaning |
 |---|---:|---|
-| `fix_1_0_5` | 162 | Candidate repair supported by the current evidence taxonomy. |
-| `accepted_unknown` | 79 | Runtime owner is known, but project source does not prove it. |
-| `ground_truth_correction` | 0 | No canonical GT correction is currently pending. |
-| **Total** | **241** | |
-
-The repair queue is further divided into 79 bounded receiver-flow records,
-74 same-scope result or protocol records, eight conservative-identity
-records, and one local-identity record. Before implementation, each group
-must be checked for actual project call evidence. A category label alone is
-not sufficient proof that its exact owner is statically recoverable.
-
-The source audit currently identifies 24 unbound parameter receivers whose
-functions have no references anywhere in the analyzed project. Sixteen of
-those records moved from the repair queue to `accepted_unknown`; the other
-eight were already accepted on runtime-evidence grounds.
-
-## Current Repair Direction
-
-1. Continue context-sensitive propagation only where all relevant project
-   call edges converge.
-2. Preserve structured parameter, subscript, tuple, and return sources across
-   local calls without promoting a producer to its result object.
-3. Reclassify dead-code and external-entry cases as accepted boundaries when
-   project source contains no owner evidence.
-4. Prefer an honest `unknown` over a library-name, method-name, or result-type
-   guess.
-5. Keep changes grouped by repair theme and amend follow-up corrections into
-   that theme before review.
+| `fix_1_0_5` | 0 | No source-supported analyzer repair remains open. |
+| `accepted_unknown` | 240 | The exact runtime owner is not established by project source. |
+| `ground_truth_correction` | 0 | No canonical GT correction remains open. |
+| **Total** | **240** | |
 
 ## Release Validation
-
-Every repair batch must preserve these checks:
 
 ```bash
 python -m pytest -q
@@ -113,18 +94,10 @@ python scripts/add_verification_levels.py --check
 python scripts/verify_ground_truth_calls.py --coverage-only
 python scripts/refresh_ground_truth_snapshots.py --all --check
 python scripts/evaluate_ground_truth.py --view all
-python scripts/classify_ground_truth_failures.py --check
-```
-
-The release target is not merely a higher aggregate recall. Every reduction
-must correspond to a reviewed source-supported owner, keep call coverage
-complete, preserve zero illegal keys, and avoid replacing `unknown` with an
-unsupported guess.
-
-The final stable-release gate is stricter than the per-batch freshness check:
-
-```bash
 python scripts/classify_ground_truth_failures.py --release-check
 ```
 
-It must report zero `fix_1_0_5` and zero `ground_truth_correction` entries.
+The release target is evidence-backed classification rather than perfect
+runtime reconstruction. Exact owners supported by project source must be
+primary hits. Evidence-limited calls remain explicit `unknown` results and
+visible GT misses. The current snapshot satisfies the stable-release gate.

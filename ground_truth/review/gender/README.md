@@ -1,6 +1,6 @@
 # gender — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 10
+**Status:** locked  |  **Calls:** 10
 
 ## Annotation Status
 

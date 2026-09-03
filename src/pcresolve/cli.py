@@ -179,7 +179,10 @@ def _print_json_full(result):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Trace API calls in a Python project to their origin libraries."
+        description=(
+            "Classify Python API call ownership and trace library usage "
+            "provenance."
+        )
     )
     parser.add_argument("project_root", nargs="?", default=None,
                         help="Absolute path to the project root directory.")

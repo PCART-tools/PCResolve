@@ -1,6 +1,6 @@
 # Deep-Graph-Kernels — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 80
+**Status:** locked  |  **Calls:** 80
 
 ## Annotation Status
 

@@ -1,6 +1,6 @@
 # Youtube — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 104
+**Status:** locked  |  **Calls:** 104
 
 ## Annotation Status
 

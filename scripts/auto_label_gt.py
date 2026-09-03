@@ -36,8 +36,8 @@
 #    - Unknown / empty pcresolve_reason
 #
 #  Usage:
-#    python scripts/auto_label_gt.py                        # draft pilots
-#    python scripts/auto_label_gt.py --all                   # all pilots
+#    python scripts/auto_label_gt.py                        # draft evaluation projects
+#    python scripts/auto_label_gt.py --all                   # all evaluation projects
 #    python scripts/auto_label_gt.py --project django        # single project
 #    python scripts/auto_label_gt.py --dry-run               # preview only
 
@@ -279,7 +279,7 @@ def main():
     pilot_names = [n for n, info in manifest.items()
                    if info.get("tier") == "pilot"]
     if not all_projects and not selected:
-        # Default: only draft pilots
+        # Default: only draft evaluation projects.
         target_names = [n for n in pilot_names
                         if manifest.get(n, {}).get("status") != "locked"]
     elif selected:

@@ -1,6 +1,6 @@
 # recommendation — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 60
+**Status:** locked  |  **Calls:** 60
 
 ## Annotation Status
 

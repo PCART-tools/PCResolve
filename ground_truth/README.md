@@ -1,7 +1,7 @@
 # PCResolve 1.0.5 Ground Truth Evaluation
 
-Real-project ground truth for evaluating PCResolve's library API
-call ownership accuracy (recall, precision, ownership accuracy).
+Real-project ground truth for evaluating PCResolve's API call ownership
+accuracy (recall, precision, ownership accuracy).
 
 ## Scope
 
@@ -77,9 +77,9 @@ blocker.
 
 For the stable 1.0.5 release, run
 `python scripts/classify_ground_truth_failures.py --release-check`. It also
-checks generated disposition artifacts and fails until the repair queue and
-GT-correction queue are both empty. Reviewed `accepted_unknown` records remain
-visible as scored misses but do not block release.
+checks generated disposition artifacts and fails until the open-fix and
+GT-correction queues are both empty. Reviewed `accepted_unknown` records
+remain visible as scored misses but do not block release.
 
 ### `verification_level` Semantics
 
@@ -191,18 +191,21 @@ payload via `in`, subscript, and `.get()`.
 
 The evaluator filters by `expected_kind`:
 
-- **All ownership**: `expected_kind in ("library", "python", "local")`
+- **All ownership**: `expected_kind in ("library", "python", "local", "unknown")`
 - **Library only**: `expected_kind == "library"`
 - **Python builtin only**: `expected_kind == "python"`
 - **Local evidence**: `expected_kind == "local"` (decorated_by scoring)
+- **Unknown only**: `expected_kind == "unknown"`
 
 No distinction between stdlib and PyPI libraries.
 
 ## Scoring Contract
 
 All scoring uses `pcresolve_*` for PCResolve output and
-`expected_*` for ground truth.  Fields are read from the joined
-record (matched by project/file/lineno/col_offset/expression).
+`expected_*` for ground truth. Records are grouped by project, file, line, and
+column, then matched one-to-one by normalized expression. A position fallback
+is allowed only when one unmatched GT record and one unmatched PCResolve call
+remain at that position.
 
 ### Primary Hit
 
@@ -229,9 +232,10 @@ AND every library in `expected_decorated_by` appears in
 ### Primary Miss
 
 `status == "positive"`
-AND (`pcresolve_kind != expected_kind`
-     OR `expected_top_library` not in
-     (`pcresolve_top_library`, `pcresolve_alternatives`))
+AND the exact primary-hit condition is not satisfied.
+
+An expected library found only in `pcresolve_alternatives` is a candidate hit
+and remains a primary miss.
 
 ### Decorated Evidence Miss
 
@@ -276,7 +280,7 @@ Excluded from precision and recall; counted in coverage metrics.
 
 ## Locked Evaluation Set
 
-All 42 fixture projects are **locked** (2026-07-20). The set contains
+All 42 fixture projects are **locked**. The 2026-09-03 release snapshot contains
 5,788 call records with 0 missing and 0 stale records. The current analyzer
 snapshot has 5,548 primary hits and 240 primary misses, for aggregate recall
 0.959. AST call coverage is 5,788/5,788.
@@ -292,8 +296,8 @@ The 240 records in generated `suspicious.md` views are independently justified
 unknowns. There are 0 open repair entries and 0 GT corrections. A
 `dynamic_probe` or `manual_reasoned` label alone does not close a record.
 Release triage uses the generated
-[failure dispositions](verification/failure-dispositions.md), not the earlier
-pilot-only miss counts.
+[failure dispositions](verification/failure-dispositions.md), not earlier
+round-specific miss counts.
 
 Independently reviewed boundaries are recorded in
 `verification/static-boundary-reviews.json`. The file binds each decision to
@@ -331,10 +335,10 @@ runtime semantics. All 240 unknowns remain visible in `suspicious.md` and in
 the raw recall denominator. Source changes invalidate the corresponding
 boundary reviews and require another audit.
 
-### Labeling Conventions (1.0.5 Pilot)
+### Labeling Conventions (1.0.5 Locked Corpus)
 
-These conventions emerged from click1/flask2/hfhd/Youtube annotation and are
-fixed for 1.0.5:
+These conventions were established during the initial project reviews and
+apply to the complete locked 1.0.5 corpus:
 
 **Decorated callable receiver.** `hello.main()` where `hello` is
 decorated by `@click.command()`: `expected_kind="local"`,
@@ -371,8 +375,8 @@ alone.
 
 ### AST Call Coverage Checker
 
-`scripts/verify_ground_truth_calls.py` extracts every `ast.Call` from pilot
-source files independently and compares against GT JSONL records.
+`scripts/verify_ground_truth_calls.py` extracts every `ast.Call` from the
+locked project source files independently and compares against GT JSONL records.
 
 Matching is **multiset**: records are grouped by `(file, lineno, col_offset)`,
 then matched within each position by **normalized expression**.  When
@@ -383,7 +387,7 @@ duplicate positions like `x.dropna()` / `x.dropna().to_numpy()`).
 Expression text differences are reported separately.  They do not affect
 coverage counts once records are successfully paired.
 
-**Locked baseline coverage (2026-07-20):** all 5,788 AST calls are covered by
+**Locked release coverage (2026-09-03):** all 5,788 AST calls are covered by
 5,788 GT records. There are 0 missing and 0 stale records. Expression text
 differences are reported separately and do not affect position-based
 multiset matching.
@@ -456,7 +460,7 @@ canonical JSONL.  JSONL files in `calls/` remain the machine source of truth;
 GT JSONL, rerun the render script and commit the updated review files.
 
 ```bash
-python scripts/render_ground_truth_review.py              # all pilots
+python scripts/render_ground_truth_review.py              # all projects
 python scripts/render_ground_truth_review.py --project hfhd
 ```
 
@@ -464,7 +468,7 @@ python scripts/render_ground_truth_review.py --project hfhd
 
 ```
 review/
-  README.md                       # pilot summary table (entry point)
+  README.md                       # locked project summary table (entry point)
   <project>/
     README.md                      # stats, kind/level/category breakdowns
     static_obvious.md             # records with verification_level=static_obvious
@@ -491,15 +495,18 @@ review/
 Matched `manual_reasoned` records remain visible in their evidence view but
 are not suspicious solely because of their verification level.
 
-### Verification Reports
-
-Generated by `scripts/verify_ground_truth_calls.py --markdown`:
+### Verification Evidence
 
 | File | Content |
 |------|---------|
 | `verification/failure-analysis.md` | Current 42-project mismatch taxonomy and root-cause analysis |
-| `verification/pilot_verification_report.md` | Full human-readable report (coverage + suspicious) |
-| `verification/coverage_check.json` | Machine-readable AST coverage data |
-| `verification/suspicious_selector.json` | Machine-readable suspicious record list |
+| `verification/failure-dispositions.md` | Generated release disposition summary and per-record decisions |
+| `verification/failure-dispositions.jsonl` | Machine-readable release dispositions |
+| `verification/static-boundary-reviews.json` | Source-bound independent reviews for accepted static boundaries |
 | `verification/hfhd_probe_output.txt` | hfhd dynamic probe output |
 | `verification/youtube_probe_output.txt` | Youtube dynamic probe output |
+
+`scripts/verify_ground_truth_calls.py --write` can generate a local
+`verification_report.md`, `coverage_check.json`, and
+`suspicious_selector.json`. These diagnostic views are reproducible and are
+not canonical or version-controlled.

@@ -13,8 +13,14 @@ enforce.
 | `NameSource` | Explicit name wrapper | `NameSource("functools")` |
 | `ContainerItem` | `container[index]` | `ContainerItem("items", 0)` |
 | `ContainerIter` | `for x in container` | `ContainerIter("rows")` |
+| `TupleSource` | Field sources for a tuple or list element shape | `TupleSource((src1, src2))` |
 | `InstanceMethod` | `receiver.method()` | `InstanceMethod("s", "get")` |
+| `ParameterSource` | Value forwarded through a project-local parameter | `ParameterSource("build", "value")` |
+| `InstanceAttribute` | Instance field resolved from local class and call-edge facts | `InstanceAttribute("Client", "self.session", "Client.get")` |
+| `PythonShape` | Concrete Python-provided value shape | `PythonShape("list", "str")` |
+| `SuperMethod` | `super().method()` with enclosing class context | `SuperMethod("Child", "Child", "get_config")` |
 | `CallResult` | `func()` return value | `CallResult("make")` |
+| `DerivedResult` | Result ownership derived from explicit operand semantics | `DerivedResult("element", (source,))` |
 | `SourceSet` | Ordered set of alternatives | `SourceSet((src1, src2))` |
 | `UnknownSource` | Unresolved with display | `UnknownSource("...")` |
 
@@ -28,9 +34,9 @@ The `origin` field on `SourceSet` is a hint that controls how
 
 | origin | set by | convergence rule |
 |--------|--------|------------------|
-| `""` (default) | `make_source_set()` without origin | strict: all candidates must converge to the same import-backed library with **no** local, unknown, or python sources present |
-| `"return"` | `visit_Return` in `single_file.py` | relaxed: a single import-backed candidate is accepted even when **local** sources are present, but **unknown** sources still block convergence |
-| `"dict_lookup"` | dynamic-key `dict[...]` in `single_file.py` | strict: same as default: no local, no unknown, single import-backed library only |
+| `""` (default) | `make_source_set()` without origin | strict: all candidates must converge to the same non-local owner with **no** local or unknown sources present |
+| `"return"` | `visit_Return` in `single_file.py` | relaxed: a single non-local owner is accepted even when **local** sources are present, but **unknown** sources still block convergence |
+| `"dict_lookup"` | dynamic-key `dict[...]` in `single_file.py` | strict: same as default: no local, no unknown, one convergent non-local owner only |
 | `"mixed"` | `make_source_set` flattening Sources with different origins | treated as default (strict) |
 
 Rationale:
@@ -38,8 +44,9 @@ Rationale:
 - **return flow** (`origin="return"`): a function like
   `def make(flag): return Local() if flag else requests.Session()`
   should surface `requests` as the primary so that `make(flag).get()`
-  is not hidden as `local`.  Confidence is lowered (0.5) and `local`
-  is retained in `alternatives`.
+  is not hidden as `local`. The call receives `FLOW_MERGE`, confidence
+  `0.85`, and the import-backed candidate remains visible in `alternatives`.
+  Local and Python labels are not emitted as library alternatives.
 
 - **dict lookup** (`origin="dict_lookup"`): `items[key]` with a
   dynamic key cannot know which item is accessed.  Guessing one
@@ -50,7 +57,7 @@ Rationale:
 - **multi-library**: when a `SourceSet` contains two different
   import-backed library candidates (e.g. `requests.Session()` and
   `np.array()`), no primary is chosen regardless of origin.
-  The system reports `top_library="local"` with alternatives
+  The system reports `top_library="unknown"` with alternatives
   containing both libraries.  Picking one arbitrarily would be
   a false positive.
 

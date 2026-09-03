@@ -24,5 +24,3 @@ def local_compare():
     a = 1
     b = 2
     return (a == b).any()
-
-

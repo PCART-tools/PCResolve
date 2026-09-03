@@ -1,6 +1,6 @@
 # qho — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 71
+**Status:** locked  |  **Calls:** 71
 
 ## Annotation Status
 

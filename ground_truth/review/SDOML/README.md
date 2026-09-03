@@ -1,6 +1,6 @@
 # SDOML — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 94
+**Status:** locked  |  **Calls:** 94
 
 ## Annotation Status
 

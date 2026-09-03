@@ -2,7 +2,7 @@
 ## @package scripts.verify_ground_truth_calls
 #  Independent AST call coverage checker and suspicious GT selector.
 #
-#  1. AST coverage: extracts every ast.Call from pilot project source files
+#  1. AST coverage: extracts every ast.Call from evaluation project source files
 #     and reports calls missing from GT or stale GT records.  Matching is
 #     multiset: records are grouped by (file, lineno, col_offset), then
 #     matched within each position by normalized expression.
@@ -11,7 +11,7 @@
 #     owner mismatch).  Does NOT auto-change labels.
 #
 #  Usage:
-#    python scripts/verify_ground_truth_calls.py                        # all pilots, stdout only
+#    python scripts/verify_ground_truth_calls.py                        # all evaluation projects, stdout only
 #    python scripts/verify_ground_truth_calls.py --markdown             # write full reports
 #    python scripts/verify_ground_truth_calls.py --project hfhd         # single project, stdout only
 #    python scripts/verify_ground_truth_calls.py --coverage-only
@@ -495,7 +495,7 @@ def print_suspicious_report(results, out):
 
 
 def _is_full_pilot_run(pilot_names, manifest):
-    """Check whether the selected projects cover all pilots."""
+    """Check whether the selected projects cover the full evaluation corpus."""
     all_pilots = set(n for n, info in manifest.items()
                      if info.get("tier") == "pilot")
     return set(pilot_names) == all_pilots
@@ -562,7 +562,7 @@ def main(argv=None):
         pilot_names = [n for n in pilot_names if n in ns.project]
 
     if not pilot_names:
-        print("ERROR: no pilot projects matched", file=sys.stderr)
+        print("ERROR: no evaluation projects matched", file=sys.stderr)
         return 1
 
     is_full = _is_full_pilot_run(pilot_names, manifest)
@@ -628,7 +628,7 @@ def main(argv=None):
         return 0
 
     # Write to files
-    md_path = os.path.join(VERIFICATION_DIR, "pilot_verification_report.md")
+    md_path = os.path.join(VERIFICATION_DIR, "verification_report.md")
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(report_text)
     print("\nReport written to: %s" % md_path)

@@ -9,7 +9,7 @@
 #  PCResolve missed.
 #
 #  Usage:
-#    python scripts/generate_ground_truth_candidates.py           # pilot only
+#    python scripts/generate_ground_truth_candidates.py           # evaluation projects only
 #    python scripts/generate_ground_truth_candidates.py --all     # all projects
 #    python scripts/generate_ground_truth_candidates.py --project click1
 
@@ -121,7 +121,7 @@ def main():
 
     print("Total: %d calls across %s" % (total,
           "selected projects" if selected else
-          "pilot projects" if not all_projects else "all projects"))
+          "evaluation projects" if not all_projects else "all projects"))
 
 
 if __name__ == "__main__":

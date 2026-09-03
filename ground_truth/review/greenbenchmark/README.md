@@ -1,6 +1,6 @@
 # greenbenchmark — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 489
+**Status:** locked  |  **Calls:** 489
 
 ## Annotation Status
 

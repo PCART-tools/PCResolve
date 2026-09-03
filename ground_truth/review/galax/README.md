@@ -1,6 +1,6 @@
 # galax — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 26
+**Status:** locked  |  **Calls:** 26
 
 ## Annotation Status
 

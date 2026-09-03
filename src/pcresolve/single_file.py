@@ -3,7 +3,7 @@
 #
 #  Contains the SingleFileAnalyzer class which visits every node in a
 #  Python file's AST and builds a symbol table + list of API calls with
-#  their resolved top-level origin libraries.
+#  their resolved primary owners and supporting provenance.
 
 import ast
 import builtins

@@ -1,6 +1,6 @@
 # hfhd — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 444
+**Status:** locked  |  **Calls:** 444
 
 ## Annotation Status
 

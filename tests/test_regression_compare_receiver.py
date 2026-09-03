@@ -94,5 +94,3 @@ def test_compare_all_not_duplicated():
     assert len(all_calls) == 1, (
         "Expected exactly 1 .all() call, got %d: %s"
         % (len(all_calls), [c.expression for c in all_calls]))
-
-

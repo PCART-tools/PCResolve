@@ -1,6 +1,6 @@
 # polire — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 421
+**Status:** locked  |  **Calls:** 421
 
 ## Annotation Status
 

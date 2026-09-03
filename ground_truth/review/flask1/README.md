@@ -1,6 +1,6 @@
 # flask1 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 7
+**Status:** locked  |  **Calls:** 7
 
 ## Annotation Status
 

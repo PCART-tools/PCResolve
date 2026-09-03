@@ -1,6 +1,6 @@
 # aiomqtt1 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 6
+**Status:** locked  |  **Calls:** 6
 
 ## Annotation Status
 

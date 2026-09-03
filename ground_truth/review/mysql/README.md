@@ -1,6 +1,6 @@
 # mysql — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 21
+**Status:** locked  |  **Calls:** 21
 
 ## Annotation Status
 

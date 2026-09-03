@@ -12,7 +12,7 @@
 #    unsupported      — beyond 1.0.5 static analysis scope
 #
 #  Usage:
-#    python scripts/add_verification_levels.py           # classify all pilots
+#    python scripts/add_verification_levels.py           # classify all evaluation projects
 #    python scripts/add_verification_levels.py --check   # only check lock readiness
 #    python scripts/add_verification_levels.py --dry-run  # classify but don't write
 
@@ -378,8 +378,8 @@ def add_levels(proj_name, dry_run=False):
 def check_lock(proj_name):
     """Check if a project meets lock readiness or locked integrity criteria.
 
-    For reviewed pilots: checks lock readiness (ready to transition).
-    For locked pilots:  checks integrity (still valid after lock).
+    For reviewed projects: checks lock readiness (ready to transition).
+    For locked projects: checks integrity (still valid after lock).
     Returns a dict with 'ok', 'status', 'blockers', etc.
     """
     path = os.path.join(CALLS_DIR, proj_name + ".jsonl")
@@ -579,13 +579,13 @@ def print_lock_check(lock_results):
 
     if all_ok:
         print("")
-        print("All pilots pass.  No blockers.")
+        print("All evaluation projects pass.  No blockers.")
         reviewed = [r for r in lock_results if r and r.get("state") == "reviewed"]
         if reviewed:
             print("Run with --lock to set annotation_status=locked.")
     else:
         print("")
-        print("Some pilots have blockers.  Fix above.")
+        print("Some evaluation projects have blockers.  Fix above.")
     return all_ok
 
 
@@ -648,7 +648,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Classify but do not write JSONL")
     parser.add_argument("--lock", action="store_true",
-                        help="Set annotation_status=locked for lockable pilots")
+                        help="Set annotation_status=locked for lockable evaluation projects")
     parser.add_argument("--project", action="append", default=[],
                         help="Only process this project (repeatable)")
     ns = parser.parse_args()
@@ -671,13 +671,13 @@ def main():
             return 1
         if non_pilot:
             for name in non_pilot:
-                print("ERROR: '%s' is not a pilot project (tier='%s')"
+                print("ERROR: '%s' is not an evaluation project (tier='%s')"
                       % (name, manifest[name].get("tier", "?")),
                       file=sys.stderr)
             return 1
         pilot_names = [n for n in pilot_names if n in ns.project]
         if not pilot_names:
-            print("ERROR: no pilot projects matched", file=sys.stderr)
+            print("ERROR: no evaluation projects matched", file=sys.stderr)
             return 1
 
     if not ns.check and not ns.lock:

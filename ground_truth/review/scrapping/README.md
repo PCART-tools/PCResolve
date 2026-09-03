@@ -1,6 +1,6 @@
 # scrapping — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 110
+**Status:** locked  |  **Calls:** 110
 
 ## Annotation Status
 

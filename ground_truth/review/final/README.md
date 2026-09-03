@@ -1,6 +1,6 @@
 # final — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 314
+**Status:** locked  |  **Calls:** 314
 
 ## Annotation Status
 

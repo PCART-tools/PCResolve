@@ -16,4 +16,3 @@ array_value.sum()
 
 series_value = transform(pd.Series([1, 2]))
 series_value.diff()
-

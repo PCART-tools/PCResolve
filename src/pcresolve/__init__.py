@@ -1,5 +1,6 @@
 ## @package pcresolve
-#  Static analysis tool for tracing Python API calls to their origin library.
+#  Project-level static analysis for Python API ownership and library usage
+#  provenance.
 #
 #  Usage:
 #    import pcresolve

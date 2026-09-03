@@ -29,4 +29,3 @@ def test_local_ufunc_return_uses_exact_pandas_call_argument():
 def test_uncalled_forwarded_ufunc_parameter_stays_unknown():
     call = _calls()[(11, "transformed.sum()")]
     assert call.top_library == "unknown"
-

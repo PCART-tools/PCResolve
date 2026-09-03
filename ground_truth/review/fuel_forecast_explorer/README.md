@@ -1,6 +1,6 @@
 # fuel_forecast_explorer — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 25
+**Status:** locked  |  **Calls:** 25
 
 ## Annotation Status
 

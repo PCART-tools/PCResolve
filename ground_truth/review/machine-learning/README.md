@@ -1,6 +1,6 @@
 # machine-learning — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 43
+**Status:** locked  |  **Calls:** 43
 
 ## Annotation Status
 

@@ -6,7 +6,7 @@ Human-audit views from canonical GT JSONL records.
 Canonical JSONL files in `ground_truth/calls/` remain the
 machine source of truth.
 
-## Pilot Summary
+## Locked Corpus Summary
 
 | Project | Calls | Status | Needs Annotation | static_obvious | static_context | dynamic_probe | manual_reasoned | Suspicious |
 |---------|-------|--------|-----------------|---------------|---------------|--------------|-----------------|------------|

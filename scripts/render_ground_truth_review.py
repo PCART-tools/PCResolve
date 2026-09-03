@@ -188,10 +188,8 @@ def _render_overview(proj_name, records, manifest_info):
     lines = []
     lines.append("# %s — Ground Truth Overview" % proj_name)
     lines.append("")
-    lines.append("**Status:** %s  |  **Tier:** %s  |  **Calls:** %d"
-                 % (manifest_info.get("status", "?"),
-                    manifest_info.get("tier", "?"),
-                    len(records)))
+    lines.append("**Status:** %s  |  **Calls:** %d"
+                 % (manifest_info.get("status", "?"), len(records)))
     lines.append("")
 
     # Annotation status distribution
@@ -350,7 +348,7 @@ def _render_index(project_results):
     lines.append("machine source of truth.")
     lines.append("")
 
-    lines.append("## Pilot Summary")
+    lines.append("## Locked Corpus Summary")
     lines.append("")
     lines.append("| Project | Calls | Status | Needs Annotation | static_obvious | "
                  "static_context | dynamic_probe | manual_reasoned | Suspicious |")
@@ -421,7 +419,7 @@ def main():
     with open(PROJECTS_FILE, encoding="utf-8") as f:
         manifest = json.load(f)["projects"]
 
-    # All pilots (reviewed, locked, or draft) for rendering.
+    # All evaluation projects (reviewed, locked, or draft) for rendering.
     # Draft projects are included so annotators have markdown views.
     all_pilot_names = [n for n, info in manifest.items()
                        if info.get("tier") == "pilot"
@@ -438,12 +436,12 @@ def main():
             return 1
         if non_pilot:
             for name in non_pilot:
-                print("ERROR: '%s' is not a pilot project (tier='%s')"
+                print("ERROR: '%s' is not an evaluation project (tier='%s')"
                       % (name, manifest[name].get("tier", "?")),
                       file=sys.stderr)
             return 1
         if not selected_names:
-            print("ERROR: no pilot projects selected", file=sys.stderr)
+            print("ERROR: no evaluation projects selected", file=sys.stderr)
             return 1
     else:
         selected_names = list(all_pilot_names)
@@ -451,7 +449,7 @@ def main():
         if os.path.exists(REVIEW_DIR):
             shutil.rmtree(REVIEW_DIR)
 
-    # Load ALL pilot records for README.md
+    # Load all evaluation records for README.md.
     all_project_results = []
     for name in all_pilot_names:
         path = os.path.join(CALLS_DIR, name + ".jsonl")
@@ -475,7 +473,7 @@ def main():
     # Ensure review dir exists
     os.makedirs(REVIEW_DIR, exist_ok=True)
 
-    # Generate review entry from ALL pilots (always).
+    # Generate review entry from all evaluation projects (always).
     readme_text = _render_index(all_project_results)
     with open(os.path.join(REVIEW_DIR, "README.md"), "w", encoding="utf-8") as f:
         f.write(readme_text)

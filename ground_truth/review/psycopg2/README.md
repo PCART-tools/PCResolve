@@ -1,6 +1,6 @@
 # psycopg2 — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 39
+**Status:** locked  |  **Calls:** 39
 
 ## Annotation Status
 

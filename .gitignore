@@ -8,3 +8,6 @@ build/
 .pytest_cache/
 .idea/
 
+ground_truth/verification/verification_report.md
+ground_truth/verification/coverage_check.json
+ground_truth/verification/suspicious_selector.json

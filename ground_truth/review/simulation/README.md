@@ -1,6 +1,6 @@
 # simulation — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 208
+**Status:** locked  |  **Calls:** 208
 
 ## Annotation Status
 

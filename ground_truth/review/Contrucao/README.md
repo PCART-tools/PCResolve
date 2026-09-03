@@ -1,6 +1,6 @@
 # Contrucao — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 52
+**Status:** locked  |  **Calls:** 52
 
 ## Annotation Status
 

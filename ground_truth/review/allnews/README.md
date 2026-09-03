@@ -1,6 +1,6 @@
 # allnews — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 1013
+**Status:** locked  |  **Calls:** 1013
 
 ## Annotation Status
 

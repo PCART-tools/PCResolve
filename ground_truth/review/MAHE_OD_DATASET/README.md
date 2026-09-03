@@ -1,6 +1,6 @@
 # MAHE_OD_DATASET — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 480
+**Status:** locked  |  **Calls:** 480
 
 ## Annotation Status
 

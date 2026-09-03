@@ -11,4 +11,3 @@ class Holder:
         self.values = values
         self.mixed = self.values + self.right
         self.mixed.reshape(1)
-

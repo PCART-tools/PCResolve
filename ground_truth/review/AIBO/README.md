@@ -1,6 +1,6 @@
 # AIBO — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 660
+**Status:** locked  |  **Calls:** 660
 
 ## Annotation Status
 

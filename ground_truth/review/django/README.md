@@ -1,6 +1,6 @@
 # django — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 44
+**Status:** locked  |  **Calls:** 44
 
 ## Annotation Status
 

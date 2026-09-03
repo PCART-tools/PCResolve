@@ -22,7 +22,7 @@
       "path": "tests/fixtures/tested_projects/allnews",
       "tier": "pilot",
       "status": "locked",
-      "notes": "Alternative large-project pilot; NLP, NER, WikiExtractor"
+      "notes": "Large project covering NLP, NER, and WikiExtractor"
     },
     "giantpopflucts": {
       "path": "tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",

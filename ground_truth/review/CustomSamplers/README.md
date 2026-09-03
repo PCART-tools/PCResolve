@@ -1,6 +1,6 @@
 # CustomSamplers — Ground Truth Overview
 
-**Status:** locked  |  **Tier:** pilot  |  **Calls:** 8
+**Status:** locked  |  **Calls:** 8
 
 ## Annotation Status
 
