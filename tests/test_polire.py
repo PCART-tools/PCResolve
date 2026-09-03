@@ -34,3 +34,13 @@ def test_setuptools(calls_by_top): assert "setuptools" in calls_by_top
 def test_local_vars_not_top(calls_by_top):
     leaked = [v for v in ["NSGP", "GP", "[local,GP]"] if v in calls_by_top]
     assert not leaked, f"Local vars leaked: {leaked}"
+
+
+def test_imported_local_constructor_keeps_nested_model_methods_local(result):
+    calls = [
+        call for call in result.all_api_calls
+        if call.file_path.endswith("sptial_features.py")
+        and call.expression.startswith("model.")
+    ]
+    assert calls
+    assert all(call.top_library == "local" for call in calls)

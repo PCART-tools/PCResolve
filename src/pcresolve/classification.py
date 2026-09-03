@@ -11,7 +11,7 @@ from .ir import (ClassificationResult,
                  REASON_BUILTIN, REASON_PARAMETER_PROPAGATION,
                  REASON_RETURN_PROPAGATION, REASON_FLOW_MERGE,
                  REASON_UNRESOLVED, REASON_TRANSITIVE_IMPORT)
-from .sources import (SourceSet, CallResult, normalize_source)
+from .sources import (InstanceMethod, SourceSet, CallResult, normalize_source)
 
 
 ## Determine confidence for a classification result.
@@ -45,7 +45,7 @@ def classify_confidence(reason, alternatives=None):
 #
 #  Rule priority (highest first):
 #   1. LOCAL_DEFINITION    — local function, method, or class
-#   2. BUILTIN             — Python builtin / stdlib
+#   2. BUILTIN             — Python-provided builtin API
 #   3. UNRESOLVED          — unknown or empty top
 #   4. DIRECT_IMPORT       — import alias or from-import
 #   5. FLOW_MERGE          — SourceSet base (multi-source)
@@ -90,11 +90,17 @@ class ClassificationPipeline:
                 confidence=1.0, alternatives=[], is_usage_library=False)
 
         if top == "unknown" or not top:
+            alternatives = []
+            if expand_origins:
+                alternatives = self._extract_alternatives(
+                    base, module, tracers)
+            reason = REASON_FLOW_MERGE if alternatives else REASON_UNRESOLVED
             return ClassificationResult(
-                library="unknown", reason=REASON_UNRESOLVED,
-                confidence=0.0, alternatives=[], is_usage_library=False)
+                library="unknown", reason=reason,
+                confidence=classify_confidence(reason, alternatives),
+                alternatives=alternatives, is_usage_library=False)
 
-        # Rules 4-7: third-party categories.
+        # Rules 4-7: import-backed library owner categories.
         reason = self._determine_reason(
             base, top, tracer, module, tracers, expand_origins)
 
@@ -126,10 +132,15 @@ class ClassificationPipeline:
             return REASON_FLOW_MERGE
 
         # Rule 6: RETURN_PROPAGATION — CallResult base
-        if isinstance(base_norm, CallResult):
+        result_base = base_norm
+        if (isinstance(base_norm, InstanceMethod)
+                and isinstance(
+                    normalize_source(base_norm.receiver), CallResult)):
+            result_base = normalize_source(base_norm.receiver)
+        if isinstance(result_base, CallResult):
             if expand_origins:
                 origins = self._origin_candidates(
-                    module, base_norm, tracers, include_local=False)
+                    module, result_base, tracers, include_local=False)
                 unique = [o for o in self._dedupe(origins)
                           if o not in ("", None, "unknown")]
                 if len(unique) > 1:

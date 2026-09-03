@@ -6,11 +6,11 @@
 
 These are distinct responsibilities with different stability guarantees.
 
-## Trace Pipeline (Ideal)
+## Trace Pipeline
 
 ```
 Source IR (single_file.py)
-  → TraceResult (cross_file.py: trace_symbol)
+  → source chains and candidate owners (cross_file.py)
   → Classification (classification.py: ClassificationPipeline)
   → ApiCall / SymbolProvenance (cross_file.py)
 ```
@@ -20,16 +20,19 @@ Source IR (single_file.py)
 1. Given a symbol or call expression, produce an ordered chain of source references from the definition site to the ultimate origin.
 2. Report when the trace is incomplete (e.g., recursion limit, unresolvable structured source).
 3. Provide all candidate origins when the trace splits (via `SourceSet`).
-4. Never assign a `top_library` directly — that is the classifier's job.
+4. Keep source resolution separate from final reason, confidence, and
+   alternatives assignment. Compatibility helpers may compute temporary top
+   owner values, but `ClassificationPipeline` creates the final classification.
 
 ### Classify Responsibilities
 
-1. Given a `TraceResult`, determine the `top_library` using `ClassificationPipeline.classify()`.
+1. Given the resolved base source and candidate top owner, determine the final
+   `top_library` using `ClassificationPipeline.classify()`.
 2. Assign `reason`, `confidence`, and `alternatives`.
-3. Handle ambiguous cases (multiple candidates, local + third-party mixed) explicitly.
-4. Unresolved cases produce `library = "unknown"` with `reason = "UNRESOLVED"`.
+3. Handle ambiguous cases (multiple candidates, local + import-backed mixed) explicitly.
+4. Unresolved cases produce `top_library = "unknown"` with `reason = "UNRESOLVED"`.
 
-## Current State (1.0.4)
+## Current State (1.0.5)
 
 `classify_source()` in `cross_file.py` delegates to `ClassificationPipeline.classify()`
 in `classification.py`, which applies priority-ordered rules:
@@ -41,29 +44,38 @@ in `classification.py`, which applies priority-ordered rules:
 | `get_calls()` (cross_file.py) | Collects and classifies every API call through the pipeline |
 | `ClassificationPipeline.classify()` (classification.py) | Priority-ordered reason, confidence, alternatives assignment |
 
-## TraceResult Fields
+## TraceResult Data Model
+
+`TraceResult` is the typed result model for a fully separated trace boundary.
+The 1.0.5 project pipeline still passes resolved `(base, top)` values directly
+to `ClassificationPipeline`, so this dataclass is not the sole runtime path.
 
 | Field | Source | Semantics |
 |-------|--------|-----------|
 | `source` | `SymbolRef.source` or `CallSite.base` | Original source object |
 | `chain` | `trace_symbol()` output | Ordered display chain, dedup'd |
-| `tops` | `extract_final_source()` | Current: single top string. Future: list with alternatives |
+| `tops` | `extract_final_source()` | Candidate top-level owners; may contain multiple alternatives |
 | `complete` | Trace outcome | Whether trace reached a terminal without errors |
 | `diagnostics` | Trace errors | Recursion limit, cycle detection, etc. |
 
 ## Classification Pipeline
 
-Rule priority order:
+Final classification priority order:
 
-1. Local function/method definition → `"local"`
-2. Python builtin / implicit builtin (no import required) → `"python"`
-3. Imported stdlib module (via import/from import) → top-level module name
-4. Imported third-party module (via import/from import) → top-level package name
-5. Cross-file re-export → library name
-6. Parameter propagation → library name, confidence < 1.0
-7. Return value propagation → library name, confidence < 1.0
-8. Branch/fork multi-source → alternatives, confidence < 1.0
-9. Unresolved → `"unknown"`, `REASON_UNRESOLVED`
+1. A resolved local definition produces `"local"`.
+2. A Python-provided builtin or value shape produces `"python"`.
+3. An empty or unresolved owner produces `"unknown"`.
+4. A direct import produces its import-backed top-level owner.
+5. A `SourceSet` base produces `FLOW_MERGE` and preserves import-backed
+   alternatives.
+6. A `CallResult`, including one used as an instance-method receiver, produces
+   `RETURN_PROPAGATION` unless multiple concrete owners require `FLOW_MERGE`.
+7. Other resolved import chains produce `TRANSITIVE_IMPORT`.
+
+Parameter tracing participates in candidate-owner resolution before this final
+step. `PARAMETER_PROPAGATION` remains a stable reason constant, while current
+1.0.5 call classifications commonly expose the terminal reason from the
+resolved import, return, or flow merge.
 
 Unresolved symbols are normalised to `"unknown"` with `REASON_UNRESOLVED`
 by `ClassificationPipeline.classify()`.
@@ -81,7 +93,7 @@ by `ClassificationPipeline.classify()`.
 | `FLOW_MERGE` | Multiple branches merged (if/else, try/except) |
 | `UNRESOLVED` | Trace could not reach a terminal |
 
-## Confidence Rules (First Edition)
+## Confidence Rules
 
 | Case | Confidence |
 |------|------------|
@@ -96,16 +108,102 @@ by `ClassificationPipeline.classify()`.
 
 ## Known Limitations
 
-- Parameter propagation uses `CallResult.call_lineno/call_col_offset` and receiver constructor call-site matching for disambiguation. Multi-call-site scenarios may still produce merged alternatives.
+- Parameter and return propagation uses exact call-site positions and a unique
+  project-local target. Ambiguous targets, conflicting owners, unsupported
+  argument binding, and recursive cycles remain `unknown`.
 - `return_sources` uses `SourceSet` for multi-return paths; alternatives classification handles ambiguous cases.
-- Constructor argument to `self.attr` propagation and wrapper-class instance method resolution uses `instance_attrs` and constructor call-site matching. Factory-returned instances are supported in 1.0.5 P1 via `_resolve_receiver_object_top`; complex factories with branches or unresolved returns remain conservative.
-- `nonlocal` is first-edition no-crash only.
+- Constructor argument to `self.attr` propagation and wrapper-class instance
+  method resolution uses `instance_attrs` and constructor call-site matching.
+  `_resolve_receiver_object_top` handles statically supported factory-returned
+  instances; complex factories with branches or unresolved returns remain
+  conservative.
+- `nonlocal` declarations are parsed without failure; assignment routing to an
+  enclosing function scope is not currently modeled.
+
+## Bounded Local Call Propagation
+
+PCResolve performs context-sensitive propagation across a unique
+project-local call edge. The context is identified by the caller module and
+the exact call line and column. Positional and keyword arguments can replace
+the callee's parameters while resolving:
+
+- a parameter used as a receiver inside a local function;
+- a local function result returned from one or more simple wrappers;
+- a constructor argument stored on `self` and returned by a local method;
+- the same local function called with different owners at different call
+  sites.
+
+Each context is evaluated independently. Reusing the same assignment name at
+later call sites does not change earlier results. A return summary with one
+owner produces `RETURN_PROPAGATION`; multiple concrete owners produce
+`FLOW_MERGE` with alternatives and an `unknown` primary owner.
+
+This is a bounded, context-sensitive project call graph, not complete Python
+runtime reconstruction. PCResolve does not guess through unresolved dynamic
+dispatch, unresolved callbacks, arbitrary mutation, external library
+implementations, or dead code without a statically supported value.
+
+### Literal Callback Tables
+
+Nested literal dictionaries retain local callable identities through aliases,
+subscripts and builtin `dict.get` selection:
+
+```python
+registry = {'module': {'run': consume}}
+callback = registry['module'].get('run')
+callback(options)
+```
+
+The selected callable can connect a local call edge and propagate arguments.
+It does not make the dictionary or its other values share that callable's
+owner. Unknown keys retain possible local targets, not a unique return
+context. Mixed or unresolved alternatives cannot establish an exact return
+context either.
+
+Mutation, escaping containers and deferred module rebindings invalidate the
+supporting facts, including aliases. Closure captures and mappings rebound
+across unsupported control-flow joins remain conservative. These are private
+analysis facts and add no fields to the public output contract.
+
+### Return Shapes in Parameter Forwarding
+
+Method queries through local parameter forwarding use concrete return-value
+facts separately from symbol provenance. Explicit scalar and `None` returns
+are retained alongside container returns. A possible fall-through return also
+prevents the remaining branch from being treated as an unconditional result.
+
+For example, passing a function result that can be either a dictionary or an
+integer to `consume(value)` does not prove that `value.get(...)` is a Python
+method. Every retained alternative must support the requested protocol.
+Cross-file wrappers and nested local functions preserve their exact call
+contexts; recursive or unresolved alternatives remain conservative.
+
+An `__init__` return does not describe the instance produced by a constructor.
+Likewise, a returned tuple and its unpacked items are distinct. These private
+facts neither change public JSON fields nor infer external return types.
+
+### Returned Iterable Elements
+
+The owner of a returned container is separate from the owners of its elements.
+For a local `pack(value): return [value]`, iteration over `pack(argument)`
+substitutes that call's argument into the returned-element source. This also
+applies across modules, local method calls, simple return wrappers, and wrappers
+returning a local generator. Generator elements come from `yield`, not `return`.
+
+Different call sites remain independent. Concrete Python element shapes are
+preserved so a returned string can support `strip()` without being assumed to
+support `append()`. Conflicting branches, unresolved elements, and recursive
+cycles remain `unknown`. Rebinding a loop variable ends the earlier evidence.
+This path does not infer an external iterable's element owner from its
+container owner.
 
 ## Class and Instance Method Resolution
 
 PCResolve handles common wrapper-class patterns using `InstanceMethod`,
-`CallResult.call_lineno/call_col_offset`, `return_sources`, and constructor
-call-site facts, without a full class hierarchy graph.
+`CallResult.call_lineno/call_col_offset`, `return_sources`, exact
+`FunctionId(module, qualname)` targets, and constructor call-site facts. The
+resolver follows bounded local inheritance without claiming a complete Python
+class hierarchy.
 
 ### Supported
 
@@ -116,20 +214,22 @@ call-site facts, without a full class hierarchy graph.
 | Multi-instance receiver-specific constructor matching | `a = Api(requests.Session()); b = Api(httpx.Client())` | `a.get()` → `requests`, `b.get()` → `httpx` |
 | Simple alias following | `c = b; c.get(...)` | follows to same constructor call-site |
 | `self.attr.method()` in method body | `self.session = param; ... return self.session.get(...)` | participates in return-source propagation |
+| Exact local `@classmethod` or `@staticmethod` target | `Worker.consume(value)` | aligns bound and explicit arguments with the method signature |
 | Pure-local method | no constructor-arg dependency | `"local"` |
 
 ### Conservative Boundaries
 
 - **Factory-returned instances**: simple local factories that return a
-  third-party object (e.g. `def make(): return requests.Session()`) are
-  supported in 1.0.5 P1.  Complex factories with branches, mutation,
-  same-name method collisions, or unresolved returns remain conservative.
-- **Method name collision / override**: `return_sources` is keyed by bare
-  method name (e.g. `"get"`).  Complex same-name methods, inheritance,
-  and overrides need `Class.method` / `FunctionId(module, qualname)`
-  (future work).
-- **Third-party base-class methods, `@classmethod`, `@staticmethod`,
-  descriptors / properties**: not in lite scope.
+  import-backed library-owned object (e.g. `def make(): return requests.Session()`) are
+  supported. Factories with unresolved branches, mutation, or ambiguous call
+  targets remain conservative.
+- **Method collisions and overrides**: exact local targets use
+  `FunctionId(module, qualname)`, and a nearest local inherited implementation
+  can be selected. Multiple-inheritance siblings remain explicit alternatives
+  when one target cannot be proven.
+- **Import-backed base classes**: a directly imported, statically named base can
+  establish the owner of an inherited method. Full external MRO, metaclasses,
+  dynamic descriptors, and properties are not modeled.
 
 ### Minimal Examples
 
@@ -147,11 +247,11 @@ class Api:
 
 a = Api(requests.Session())
 b = Api(httpx.Client())
-c = make(httpx.Client())          # factory return — supported in 1.0.5 P1
+c = make(httpx.Client())          # statically supported factory return
 
 a.get("x")   # → requests
 b.get("y")   # → httpx
-c.get("z")   # → httpx  (1.0.5 P1: factory return tracing)
+c.get("z")   # → httpx
 ```
 
 ### Relationship to Decorator Provenance
@@ -160,9 +260,10 @@ Class method resolution does **not** alter the decorator provenance contract:
 
 - Decorator evidence continues to be exposed via `decorated_by`.
 - A decorator never changes the primary identity of the decorated target.
-- `ApiCall.decorated_by` exact-match (file_path, scope, func_name) is
-  unchanged; method-call `decorated_by` depends on future full class-aware
-  receiver resolution.
+- `ApiCall.decorated_by` uses two-level matching:
+  exact `(file_path, scope_name, func_name)` with receiver-aware fallback
+  for dotted calls.  Instance methods on decorated classes still require
+  full class-aware resolution.
 
 ## Decorator Provenance Semantics
 
@@ -173,7 +274,7 @@ Decorators create two distinct kinds of evidence that must not be conflated:
 | Decorator expression call | `ApiCall.top_library` | The decorator `@lib.deco(args)` itself is a call to `lib` | Public, stable |
 | Decorated target call | `ApiCall.top_library` | A call to the decorated function/class is **always** `"local"` | Public, stable |
 | Decorator provenance evidence | `SymbolProvenance(kind="decorated_by")` | Records which libraries decorated the target | Public, stable |
-| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence onto matching calls by exact `(file_path, scope_name, func_name)` match | Public, additive-only; method calls require future class-aware resolution |
+| Decorator evidence on call | `ApiCall.decorated_by` | Mirrors `decorated_by` evidence via two-level match: exact `(file_path, scope_name, func_name)` then receiver-aware fallback for dotted calls | Public, additive-only |
 
 ### Core Invariant
 
@@ -199,41 +300,47 @@ To find all call sites potentially related to library `lib`:
 
 1. **Direct API calls**: `ApiCall.top_library == lib`
 2. **Decorated local calls**: `lib in ApiCall.decorated_by` AND `ApiCall.top_library == "local"`
-3. **Method calls**: currently only in `SymbolProvenance(kind="decorated_by")`; `ApiCall.decorated_by` for methods depends on future full class-aware receiver resolution
+3. **Method calls**: decorated callable receiver methods (e.g. `hello.main()`)
+   use receiver-aware lookup. Full class-aware receiver resolution for instance
+   methods on decorated classes is not currently modeled.
 
 ### `ApiCall.decorated_by` Contract
 
 - **Field type**: `list[str]`, default `[]`
 - **Stability**: additive-only (new evidence may appear, but existing entries never removed without schema version bump)
-- **Null/empty semantics**: `[]` means "no decorator evidence found on this call" (may be a false negative for method calls before full class-aware matching)
+- **Null/empty semantics**: `[]` means "no decorator evidence found on this call". Receiver-aware lookup supports dotted method calls (e.g. `hello.main()`); instance methods on decorated classes require full class-aware resolution.
 - **Filtered values**: `"local"`, `"python"`, `"unknown"` are excluded; only import-backed library names appear
-- **Matching**: exact match on `(file_path, scope_name, func_name)` where
-  `func_name` is the call's bare function name (e.g. `"index"` for `index()`)
-  and `scope_name` disambiguates module-level, nested, and class scopes.
-  Method calls still require full class-aware receiver resolution before
-  `decorated_by` can be attached reliably.
+- **Matching**: two-level lookup:
+  1. exact: `(file_path, scope_name, func_name)`
+  2. receiver-aware fallback: if `func_name` is dotted,
+     match the first dot-segment as the receiver in the decorator index
+  Supported: `hello.main()` where `hello` has `decorated_by` provenance.
+  Not yet supported: instance methods on decorated classes, MRO-based
+  receiver resolution, aliased receivers (e.g. `cmd = hello; cmd.main()`).
 
 ### Decorated Callable Receiver Methods
 
 Calls such as `hello.main()` where `hello` is a local function decorated by
-`@click.command()` are currently classified as `local`.  This is intentional:
+`@click.command()` are classified as `local`.  This is intentional:
 the decorated callable remains a same-project object, so decorator evidence
 must not replace the primary `top_library`.
 
-Decorator provenance is recorded on the decorated symbol.  Receiver-method
-calls such as `hello.main()` may require receiver-aware matching before
-that evidence can be mirrored into `ApiCall.decorated_by`.
+Receiver-aware `decorated_by` lookup applies when `func_name` is
+dotted (e.g. `hello.main`), `lookup_decorated_by` also checks the receiver
+part (`hello`) in the decorator index.  This means `hello.main().decorated_by`
+now contains `["click"]` while `top_library` stays `local`.
 
-Until that matching exists, consumers that need this association should
-inspect `SymbolProvenance(kind="decorated_by")` in addition to
-`ApiCall.decorated_by`.
+Receivers are identified by the first dot-segment of `func_name`; the
+lookup does NOT guess libraries from method names like `main`, `run`,
+or `callback`.
 
 Contract points:
 
 - `hello.main()` continues to report `top_library="local"`.
-- Decorated local callables are not reclassified as third-party primary calls.
-- The current boundary is that `decorated_by` is not propagated to receiver
-  method calls.
+- Decorated local callables are not reclassified as import-backed primary calls.
+- Receiver-aware lookup propagates `decorated_by` from the
+  decorated callable to its dotted method calls (e.g. `hello.main()`).
+- Full class-aware decorated instance methods are not currently modeled.
 - Downstream consumers should inspect both `SymbolProvenance(kind="decorated_by")`
   and `ApiCall.decorated_by`.
 
@@ -241,6 +348,11 @@ Contract points:
 
 - **SourceSet alternatives**: flow through `ClassificationPipeline` for multi-source resolution.
 - **CallGraph edges**: `call_graph.py` feeds param/return propagation into trace.
-- **Class method resolution**: `instance_attrs` handles constructor args; full class-aware receiver resolution (MRO, `@classmethod`, `@staticmethod`) is future work.
+- **Class method resolution**: `instance_attrs`, exact local function targets,
+  and bounded inheritance handle supported constructor and method flows. Full
+  Python MRO, metaclass behavior, and dynamic descriptors are not modeled.
 - **Classification**: `ClassificationPipeline.classify()` handles reason/confidence/alternatives.
-- **Method decorator evidence**: `ApiCall.decorated_by` matches by `(file_path, scope_name, func_name)`; class-aware receiver resolution is future work.
+- **Method decorator evidence**: `ApiCall.decorated_by` uses exact
+  `(file_path, scope_name, func_name)` matching plus receiver-aware fallback
+  for dotted decorated callable calls; full class-aware decorated instance
+  methods are not currently modeled.

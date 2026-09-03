@@ -1,0 +1,260 @@
+{
+  "projects": {
+    "AIBO": {
+      "path": "tests/fixtures/tested_projects/AIBO",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Large project stress test; SciPy/NumPy/matplotlib"
+    },
+    "aiofiles1": {
+      "path": "tests/fixtures/tested_projects/aiofiles1",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Async file I/O library usage"
+    },
+    "aiomqtt1": {
+      "path": "tests/fixtures/tested_projects/aiomqtt1",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Async MQTT client usage"
+    },
+    "allnews": {
+      "path": "tests/fixtures/tested_projects/allnews",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Large project covering NLP, NER, and WikiExtractor"
+    },
+    "giantpopflucts": {
+      "path": "tests/fixtures/tested_projects/giantpopflucts/barcoded_yeast_reanalysis",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Nested fixture; SciPy/statsmodels"
+    },
+    "click1": {
+      "path": "tests/fixtures/tested_projects/click1",
+      "tier": "pilot",
+      "status": "locked",
+      "calls_reviewed": 5,
+      "notes": "Decorator + decorated callable receiver evidence"
+    },
+    "click2": {
+      "path": "tests/fixtures/tested_projects/click2",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Click CLI patterns"
+    },
+    "click3": {
+      "path": "tests/fixtures/tested_projects/click3",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Low calls; may not be suitable for full GT"
+    },
+    "Contrucao": {
+      "path": "tests/fixtures/tested_projects/Contrucao/Tf-IDF",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Scientific; NumPy/SciPy.  Path is expanded project root (wrapper dir → Tf-IDF)."
+    },
+    "covid19": {
+      "path": "tests/fixtures/tested_projects/covid19",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Data analysis; pandas/NumPy"
+    },
+    "CustomSamplers": {
+      "path": "tests/fixtures/tested_projects/CustomSamplers",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML sampling; torch"
+    },
+    "Deep-Graph-Kernels": {
+      "path": "tests/fixtures/tested_projects/Deep-Graph-Kernels",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML; torch/sklearn"
+    },
+    "django": {
+      "path": "tests/fixtures/tested_projects/django",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Web framework patterns"
+    },
+    "EJPLab": {
+      "path": "tests/fixtures/tested_projects/EJPLab",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Scientific; NumPy/SciPy"
+    },
+    "simulation": {
+      "path": "tests/fixtures/tested_projects/simulation/ex_4_2",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Nested fixture; simulation"
+    },
+    "final": {
+      "path": "tests/fixtures/tested_projects/final",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "General-purpose"
+    },
+    "flask1": {
+      "path": "tests/fixtures/tested_projects/flask1",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Flask web app; route decorators"
+    },
+    "flask2": {
+      "path": "tests/fixtures/tested_projects/flask2",
+      "tier": "pilot",
+      "status": "locked",
+      "calls_reviewed": 73,
+      "notes": "Flask factory + test client + context/receiver"
+    },
+    "fuel_forecast_explorer": {
+      "path": "tests/fixtures/tested_projects/fuel_forecast_explorer",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Data analysis"
+    },
+    "galax": {
+      "path": "tests/fixtures/tested_projects/galax",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Astronomy; NumPy/SciPy"
+    },
+    "gender": {
+      "path": "tests/fixtures/tested_projects/gender",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Small data analysis"
+    },
+    "gistable": {
+      "path": "tests/fixtures/tested_projects/gistable",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "GitHub Gist API usage"
+    },
+    "greenbenchmark": {
+      "path": "tests/fixtures/tested_projects/greenbenchmark",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Energy benchmarking; pandas/matplotlib"
+    },
+    "hfhd": {
+      "path": "tests/fixtures/tested_projects/hfhd",
+      "tier": "pilot",
+      "status": "locked",
+      "calls_reviewed": 444,
+      "notes": "Pandas/NumPy conversion boundary, method chaining"
+    },
+    "machine-learning": {
+      "path": "tests/fixtures/tested_projects/machine-learning",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML; sklearn"
+    },
+    "MAHE_OD_DATASET": {
+      "path": "tests/fixtures/tested_projects/MAHE_OD_DATASET",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Outlier detection; NumPy/pandas"
+    },
+    "mysql": {
+      "path": "tests/fixtures/tested_projects/mysql",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Database connector usage"
+    },
+    "polars-book-cn": {
+      "path": "tests/fixtures/tested_projects/polars-book-cn",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Polars DataFrame examples"
+    },
+    "polire": {
+      "path": "tests/fixtures/tested_projects/polire",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML; NumPy/SciPy/sklearn/multiprocessing"
+    },
+    "political-polarisation": {
+      "path": "tests/fixtures/tested_projects/political-polarisation",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "NLP; pandas/NLTK"
+    },
+    "psycopg2": {
+      "path": "tests/fixtures/tested_projects/psycopg2",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Database connector usage"
+    },
+    "Python-Workshop": {
+      "path": "tests/fixtures/tested_projects/Python-Workshop",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Teaching materials; mixed import-backed libraries"
+    },
+    "qho": {
+      "path": "tests/fixtures/tested_projects/qho",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Quantum harmonic oscillator; NumPy/SciPy"
+    },
+    "recommendation": {
+      "path": "tests/fixtures/tested_projects/recommendation",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Recommendation system"
+    },
+    "redis": {
+      "path": "tests/fixtures/tested_projects/redis",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Redis client usage"
+    },
+    "scrapping": {
+      "path": "tests/fixtures/tested_projects/scrapping",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Web scraping; requests/BeautifulSoup"
+    },
+    "SDOML": {
+      "path": "tests/fixtures/tested_projects/SDOML",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Astronomy; NumPy/SciPy/sunpy/skimage"
+    },
+    "sg-restart-regridder": {
+      "path": "tests/fixtures/tested_projects/sg-restart-regridder",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Climate data; NumPy/xarray"
+    },
+    "tensorflow1": {
+      "path": "tests/fixtures/tested_projects/tensorflow1",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML; tensorflow/keras"
+    },
+    "tensorflow2": {
+      "path": "tests/fixtures/tested_projects/tensorflow2",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "ML; tensorflow"
+    },
+    "TSP": {
+      "path": "tests/fixtures/tested_projects/TSP/src",
+      "tier": "pilot",
+      "status": "locked",
+      "notes": "Traveling salesman; NumPy/matplotlib.  Path is expanded project root (wrapper dir → src)."
+    },
+    "Youtube": {
+      "path": "tests/fixtures/tested_projects/Youtube",
+      "tier": "pilot",
+      "status": "locked",
+      "calls_reviewed": 104,
+      "notes": "YouTube data analysis; NumPy/SciPy/pandas, list/iteration patterns"
+    }
+  }
+}

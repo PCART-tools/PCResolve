@@ -1,0 +1,1521 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "id": "django-tornado-stream-callback",
+      "project": "django",
+      "project_source_sha256": "9d8b7a397e4271e19073d5b908dc3be69396fc895ca3e99e5e7a11040acee990",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "stream enters only through Tornado's external handle_stream callback; project source passes that value onward but does not define its class or its socket attribute type",
+      "records": [
+        {
+          "file": "proxy.py",
+          "lineno": 30,
+          "col_offset": 4,
+          "expression": "stream.read_until(delimiter, cb)",
+          "expected_kind": "library",
+          "expected_top_library": "tornado"
+        },
+        {
+          "file": "proxy.py",
+          "lineno": 129,
+          "col_offset": 8,
+          "expression": "stream.set_close_callback(conn.on_disconnect)",
+          "expected_kind": "library",
+          "expected_top_library": "tornado"
+        },
+        {
+          "file": "proxy.py",
+          "lineno": 130,
+          "col_offset": 8,
+          "expression": "stream.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)",
+          "expected_kind": "library",
+          "expected_top_library": "socket"
+        },
+        {
+          "file": "proxy.py",
+          "lineno": 131,
+          "col_offset": 8,
+          "expression": "stream.socket.setsockopt(socket.IPPROTO_TCP, socket.SO_KEEPALIVE, 1)",
+          "expected_kind": "library",
+          "expected_top_library": "socket"
+        }
+      ]
+    },
+    {
+      "id": "django-tornado-coroutine-payload",
+      "project": "django",
+      "project_source_sha256": "9d8b7a397e4271e19073d5b908dc3be69396fc895ca3e99e5e7a11040acee990",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "line is produced by Tornado's external asynchronous read protocol; project source contains no return contract proving the payload or split element type",
+      "records": [
+        {
+          "file": "proxy.py",
+          "lineno": 93,
+          "col_offset": 22,
+          "expression": "line.split()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "proxy.py",
+          "lineno": 97,
+          "col_offset": 25,
+          "expression": "obj[3].split('/')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "mahe-albumentations-image-value",
+      "project": "MAHE_OD_DATASET",
+      "project_source_sha256": "1a7ee102d8f9fd0c2acbce0f858eefeba4f7d7bd7d21b86fe99299352dc1a7e3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "image is supplied from the image item of an external Albumentations transform result; project source does not define that item's concrete NumPy type",
+      "records": [
+        {
+          "file": "preprocess.py",
+          "lineno": 146,
+          "col_offset": 10,
+          "expression": "image.copy()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "rescaling.py",
+          "lineno": 88,
+          "col_offset": 10,
+          "expression": "image.copy()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "scrapping-beautifulsoup-attribute-value",
+      "project": "scrapping",
+      "project_source_sha256": "25f820519b4da7641a419f698dabe3589b84704ada845db530ab73601b70c1ac",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "link is returned by BeautifulSoup Tag.get from remote HTML; project source does not define or constrain the external attribute value type",
+      "records": [
+        {
+          "file": "jojo.py",
+          "lineno": 53,
+          "col_offset": 23,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo.py",
+          "lineno": 64,
+          "col_offset": 31,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo.py",
+          "lineno": 82,
+          "col_offset": 23,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo.py",
+          "lineno": 93,
+          "col_offset": 31,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo1.py",
+          "lineno": 53,
+          "col_offset": 23,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo1.py",
+          "lineno": 64,
+          "col_offset": 31,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo1.py",
+          "lineno": 82,
+          "col_offset": 23,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "jojo1.py",
+          "lineno": 93,
+          "col_offset": 31,
+          "expression": "link.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "simulation-porepy-grid-object",
+      "project": "simulation",
+      "project_source_sha256": "55d1baf6f56349fd10fba3a9bd457ee69afe979dc331e7c250bdfd29dff63344",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "g is selected from the result of PorePy's external mesh and GridBucket APIs; project source contains no Grid return-type contract",
+      "records": [
+        {
+          "file": "analytical.py",
+          "lineno": 44,
+          "col_offset": 8,
+          "expression": "g.bounding_box()",
+          "expected_kind": "library",
+          "expected_top_library": "porepy"
+        },
+        {
+          "file": "analytical.py",
+          "lineno": 45,
+          "col_offset": 8,
+          "expression": "g.bounding_box()",
+          "expected_kind": "library",
+          "expected_top_library": "porepy"
+        },
+        {
+          "file": "data.py",
+          "lineno": 153,
+          "col_offset": 8,
+          "expression": "g.bounding_box()",
+          "expected_kind": "library",
+          "expected_top_library": "porepy"
+        },
+        {
+          "file": "data.py",
+          "lineno": 154,
+          "col_offset": 8,
+          "expression": "g.bounding_box()",
+          "expected_kind": "library",
+          "expected_top_library": "porepy"
+        }
+      ]
+    },
+    {
+      "id": "simulation-porepy-tag-value",
+      "project": "simulation",
+      "project_source_sha256": "55d1baf6f56349fd10fba3a9bd457ee69afe979dc331e7c250bdfd29dff63344",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "the domain_boundary_faces item is read from an external PorePy Grid tags mapping; its NumPy value type is not defined by project source",
+      "records": [
+        {
+          "file": "analytical.py",
+          "lineno": 51,
+          "col_offset": 14,
+          "expression": "g.tags['domain_boundary_faces'].nonzero()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "data.py",
+          "lineno": 157,
+          "col_offset": 14,
+          "expression": "g.tags['domain_boundary_faces'].nonzero()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "tensorflow-external-base-config-result",
+      "project": "tensorflow1",
+      "project_source_sha256": "de4a127c2f967d3755e6623d6f154a14340300c91cd35399af1227ab072d98d3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "config is returned by TensorFlow Layer.get_config through super(); the external base implementation and its concrete mapping result type are outside project source",
+      "records": [
+        {
+          "file": "tf_decorator.py",
+          "lineno": 19,
+          "col_offset": 8,
+          "expression": "config.update({'units': self.units})",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-external-file-stream-values",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "line and page values enter through file, compression, JSON, or XML iterator protocols whose concrete yielded value types are not declared in project source",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {"file": "allnews_am/wikiextractor/WikiExtractor.py", "lineno": 2803, "col_offset": 51, "expression": "line.decode('utf-8')"},
+        {"file": "allnews_am/wikiextractor/WikiExtractor.py", "lineno": 2808, "col_offset": 19, "expression": "line.lstrip()"},
+        {"file": "allnews_am/wikiextractor/WikiExtractor.py", "lineno": 2808, "col_offset": 19, "expression": "line.lstrip().startswith('[[Category:')"},
+        {"file": "allnews_am/wikiextractor/WikiExtractor.py", "lineno": 2877, "col_offset": 51, "expression": "line.decode('utf-8')"},
+        {"file": "allnews_am/wikiextractor/cirrus-extract.py", "lineno": 183, "col_offset": 25, "expression": "page.encode('utf-8')"}
+      ]
+    },
+    {
+      "id": "greenbenchmark-pandas-runtime-value-semantics",
+      "project": "greenbenchmark",
+      "project_source_sha256": "18096c31c26b2ed8df8fc41093873a57be4de933ccf8b676a91382042a85d8dc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "the project proves an outer pandas value but these receivers cross pandas indexing, grouping iteration, transform callback, or subscript-result boundaries whose concrete runtime result types are defined outside the project",
+      "expected_kind": "library",
+      "expected_top_library": "pandas",
+      "records": [
+        {"file": "report_all_results.py", "lineno": 52, "col_offset": 11, "expression": "df_energy.loc[t1:t2, [power_feature, 'timestamp_delta']].product(axis=1)"},
+        {"file": "report_all_results.py", "lineno": 52, "col_offset": 11, "expression": "df_energy.loc[t1:t2, [power_feature, 'timestamp_delta']].product(axis=1).sum()"},
+        {"file": "report_all_results.py", "lineno": 79, "col_offset": 11, "expression": "sample1.var()"},
+        {"file": "report_all_results.py", "lineno": 80, "col_offset": 11, "expression": "sample2.var()"},
+        {"file": "report_all_results.py", "lineno": 81, "col_offset": 12, "expression": "sample2.mean()"},
+        {"file": "report_all_results.py", "lineno": 81, "col_offset": 29, "expression": "sample1.mean()"},
+        {"file": "report_all_results.py", "lineno": 97, "col_offset": 29, "expression": "group.mean()"},
+        {"file": "report_all_results.py", "lineno": 97, "col_offset": 52, "expression": "group.std()"},
+        {"file": "report_all_results.py", "lineno": 184, "col_offset": 29, "expression": "group[energy_feature].mean()"},
+        {"file": "report_all_results.py", "lineno": 185, "col_offset": 28, "expression": "group[energy_feature].std()"},
+        {"file": "report_all_results.py", "lineno": 192, "col_offset": 33, "expression": "group[energy_feature].mean()"}
+      ]
+    },
+    {
+      "id": "greenbenchmark-pandas-produced-element-values",
+      "project": "greenbenchmark",
+      "project_source_sha256": "18096c31c26b2ed8df8fc41093873a57be4de933ccf8b676a91382042a85d8dc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "experiment is iterated from a list built from pandas unique output; list construction proves the container but project source does not declare the external result element type as str",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {"file": "report_all_results.py", "lineno": 121, "col_offset": 29, "expression": "experiment.replace(experiment_pivot + '-lint-', '')"},
+        {"file": "report_all_results.py", "lineno": 122, "col_offset": 29, "expression": "experiment.replace('-', ' ')"},
+        {"file": "report_all_results.py", "lineno": 122, "col_offset": 29, "expression": "experiment.replace('-', ' ').title()"}
+      ]
+    },
+    {
+      "id": "greenbenchmark-pandas-plot-axis-return",
+      "project": "greenbenchmark",
+      "project_source_sha256": "18096c31c26b2ed8df8fc41093873a57be4de933ccf8b676a91382042a85d8dc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "ax is returned by pandas Series.plot; identifying that external method result as a matplotlib Axis requires a pandas-matplotlib runtime contract not declared by project source",
+      "expected_kind": "library",
+      "expected_top_library": "matplotlib",
+      "records": [
+        {"file": "report_all_results.py", "lineno": 217, "col_offset": 8, "expression": "ax.axvline(timestamp, color='darkblue', linestyle='--', alpha=0.5, linewidth=2)"},
+        {"file": "report_all_results.py", "lineno": 223, "col_offset": 4, "expression": "ax.annotate('t0 - InteractionStarted', xy=(df_event.loc['InteractionStarted'], arrowY), xytext=(df_event.loc['InteractionStarted'], textY), ha='left', arrowprops=arrowprops, bbox=bbox_props)"},
+        {"file": "report_all_results.py", "lineno": 226, "col_offset": 4, "expression": "ax.annotate('tn - InteractionEnded', xy=(df_event.loc['InteractionEnded'], arrowY), xytext=(df_event.loc['InteractionEnded'], textY), ha='right', arrowprops=arrowprops, bbox=bbox_props)"},
+        {"file": "report_all_results.py", "lineno": 233, "col_offset": 8, "expression": "ax.text(textX, textY, 'Area=%.2fJ' % energy_consumption, ha='center', va='center', size=15, bbox=bbox_props)"},
+        {"file": "report_all_results.py", "lineno": 234, "col_offset": 4, "expression": "ax.set_ylabel('Power (W)')"},
+        {"file": "report_all_results.py", "lineno": 235, "col_offset": 4, "expression": "ax.set_xlabel('Timestamp (s)')"},
+        {"file": "report_all_results.py", "lineno": 236, "col_offset": 4, "expression": "ax.get_xaxis()"},
+        {"file": "report_all_results.py", "lineno": 236, "col_offset": 4, "expression": "ax.get_xaxis().get_offset_text()"},
+        {"file": "report_all_results.py", "lineno": 236, "col_offset": 4, "expression": "ax.get_xaxis().get_offset_text().set_visible(False)"},
+        {"file": "report_all_results.py", "lineno": 239, "col_offset": 8, "expression": "ax.set_ylim([0, ymax])"},
+        {"file": "report_all_results.py", "lineno": 245, "col_offset": 4, "expression": "ax.fill_between(df_energy_to_fill.index, 0, df_energy_to_fill[power_feature], edgecolor='none', facecolor='lightgray')"}
+      ]
+    },
+    {
+      "id": "greenbenchmark-android-helper-parameters",
+      "project": "greenbenchmark",
+      "project_source_sha256": "18096c31c26b2ed8df8fc41093873a57be4de933ccf8b676a91382042a85d8dc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "the shared helper parameters receive a non-convergent set of imported ViewClient results, unresolved local values, and missing-argument dead paths; project source does not prove one runtime receiver owner for every helper body call",
+      "expected_kind": "library",
+      "expected_top_library": "com",
+      "records": [
+        {"file": "tests/test_helper.py", "lineno": 11, "col_offset": 4, "expression": "view.touch()"},
+        {"file": "tests/test_helper.py", "lineno": 13, "col_offset": 16, "expression": "view.getXY()"},
+        {"file": "tests/test_helper.py", "lineno": 14, "col_offset": 25, "expression": "view.getWidth()"},
+        {"file": "tests/test_helper.py", "lineno": 14, "col_offset": 46, "expression": "view.getHeight()"},
+        {"file": "tests/test_helper.py", "lineno": 23, "col_offset": 4, "expression": "device.shell('input keyevent KEYCODE_BACK')"},
+        {"file": "tests/test_helper.py", "lineno": 45, "col_offset": 4, "expression": "device.drag(s, e, 500, 20, -1)"}
+      ]
+    },
+    {
+      "id": "hfhd-pandas-parameter-and-external-results",
+      "project": "hfhd",
+      "project_source_sha256": "ae1f4f6e9f2ac73fef823631a0d383245e3a8e2617847d3691cdba5811734518",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "these receivers originate from uncalled public parameters, pandas indexing or grouping results, or arithmetic over those external values; docstrings and probes describe intended runtime behavior but project source does not force one concrete pandas receiver type",
+      "expected_kind": "library",
+      "expected_top_library": "pandas",
+      "records": [
+        {"file": "hfhd/hd.py", "lineno": 766, "col_offset": 19, "expression": "x.between_time(stp[j], stp[j + 1], True, True)"},
+        {"file": "hfhd/hd.py", "lineno": 768, "col_offset": 22, "expression": "x.between_time(stp[j + 1], stp[j], False, False)"},
+        {"file": "hfhd/hf.py", "lineno": 175, "col_offset": 30, "expression": "x.dropna()"},
+        {"file": "hfhd/hf.py", "lineno": 176, "col_offset": 20, "expression": "x.dropna()"},
+        {"file": "hfhd/hf.py", "lineno": 176, "col_offset": 20, "expression": "x.dropna().to_numpy(dtype='float64')"},
+        {"file": "hfhd/hf.py", "lineno": 299, "col_offset": 15, "expression": "data.to_numpy()"},
+        {"file": "hfhd/hf.py", "lineno": 301, "col_offset": 15, "expression": "data.to_numpy()"},
+        {"file": "hfhd/hf.py", "lineno": 407, "col_offset": 23, "expression": "x.dropna()"},
+        {"file": "hfhd/hf.py", "lineno": 408, "col_offset": 21, "expression": "x.dropna()"},
+        {"file": "hfhd/hf.py", "lineno": 408, "col_offset": 21, "expression": "x.dropna().to_numpy()"},
+        {"file": "hfhd/hf.py", "lineno": 433, "col_offset": 8, "expression": "np.log(price.dropna()).diff()"},
+        {"file": "hfhd/hf.py", "lineno": 433, "col_offset": 15, "expression": "price.dropna()"},
+        {"file": "hfhd/hf.py", "lineno": 434, "col_offset": 16, "expression": "y.mean()"},
+        {"file": "hfhd/hf.py", "lineno": 437, "col_offset": 25, "expression": "y_hat.mean()"},
+        {"file": "hfhd/hf.py", "lineno": 439, "col_offset": 11, "expression": "resid.cumsum()"},
+        {"file": "hfhd/hf.py", "lineno": 853, "col_offset": 11, "expression": "(sk - nk / nj * sj).to_numpy()"},
+        {"file": "hfhd/hf.py", "lineno": 1054, "col_offset": 27, "expression": "data.to_numpy()"},
+        {"file": "hfhd/hf.py", "lineno": 1519, "col_offset": 27, "expression": "data.to_numpy()"}
+      ]
+    },
+    {
+      "id": "hfhd-simulation-external-array-results",
+      "project": "hfhd",
+      "project_source_sha256": "ae1f4f6e9f2ac73fef823631a0d383245e3a8e2617847d3691cdba5811734518",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "self.log_rets combines arrays with unbound constructor-supplied factor_loadings, industry_loadings and feature_beta. In simulate(), log_rets is multiplied by np.linalg.cholesky(corr_matrix).T. The project defines neither those input value types nor the external factorization result attribute and operator semantics.",
+      "expected_kind": "library",
+      "expected_top_library": "numpy",
+      "records": [
+        {"file": "hfhd/sim.py", "lineno": 294, "col_offset": 34, "expression": "self.log_rets.cumsum(axis=0)"},
+        {"file": "hfhd/sim.py", "lineno": 403, "col_offset": 25, "expression": "(log_rets - var / 2).cumsum(axis=0)"}
+      ]
+    },
+    {
+      "id": "final-pandas-attribute-and-operation-results",
+      "project": "final",
+      "project_source_sha256": "b0a668cc776f10bd6eceeaa5eee07ecdb54a552d9b38a35e4961e80667639c1a",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "the project supplies pandas objects at several call sites, but each receiver crosses DataFrame attribute lookup, grouping, aggregation, arithmetic, or plotting result semantics implemented outside the project",
+      "expected_kind": "library",
+      "expected_top_library": "pandas",
+      "records": [
+        {"file": "explore.py", "lineno": 71, "col_offset": 31, "expression": "y_train.colonies_lost.mean()"},
+        {"file": "explore.py", "lineno": 73, "col_offset": 32, "expression": "y_train.colonies_lost.median()"},
+        {"file": "explore.py", "lineno": 75, "col_offset": 34, "expression": "y_validate.colonies_lost.mean()"},
+        {"file": "explore.py", "lineno": 77, "col_offset": 35, "expression": "y_validate.colonies_lost.median()"},
+        {"file": "explore.py", "lineno": 223, "col_offset": 4, "expression": "y_test.colonies_lost.hist(bins=1000)"},
+        {"file": "explore.py", "lineno": 241, "col_offset": 31, "expression": "y_train.colonies_lost.mean()"},
+        {"file": "explore.py", "lineno": 243, "col_offset": 32, "expression": "y_train.colonies_lost.median()"},
+        {"file": "explore.py", "lineno": 245, "col_offset": 34, "expression": "y_validate.colonies_lost.mean()"},
+        {"file": "explore.py", "lineno": 247, "col_offset": 35, "expression": "y_validate.colonies_lost.median()"},
+        {"file": "explore.py", "lineno": 292, "col_offset": 4, "expression": "train.colonies_lost.groupby([train.index.year, train.index.month])"},
+        {"file": "explore.py", "lineno": 292, "col_offset": 4, "expression": "train.colonies_lost.groupby([train.index.year, train.index.month]).sum()"},
+        {"file": "explore.py", "lineno": 292, "col_offset": 4, "expression": "train.colonies_lost.groupby([train.index.year, train.index.month]).sum().unstack(0)"},
+        {"file": "explore.py", "lineno": 292, "col_offset": 4, "expression": "train.colonies_lost.groupby([train.index.year, train.index.month]).sum().unstack(0).plot(figsize=(14, 10))"},
+        {"file": "explore.py", "lineno": 294, "col_offset": 15, "expression": "train.colonies_lost.groupby(train.index.month)"},
+        {"file": "explore.py", "lineno": 294, "col_offset": 15, "expression": "train.colonies_lost.groupby(train.index.month).sum()"},
+        {"file": "explore.py", "lineno": 297, "col_offset": 4, "expression": "mean_line.plot(label='Average', color='red', linewidth=4, legend=True)"},
+        {"file": "regression_models.py", "lineno": 51, "col_offset": 31, "expression": "y_train.colonies_lost.mean()"},
+        {"file": "regression_models.py", "lineno": 53, "col_offset": 32, "expression": "y_train.colonies_lost.median()"},
+        {"file": "regression_models.py", "lineno": 55, "col_offset": 34, "expression": "y_validate.colonies_lost.mean()"},
+        {"file": "regression_models.py", "lineno": 57, "col_offset": 35, "expression": "y_validate.colonies_lost.median()"}
+      ]
+    },
+    {
+      "id": "final-pandas-column-label-element",
+      "project": "final",
+      "project_source_sha256": "b0a668cc776f10bd6eceeaa5eee07ecdb54a552d9b38a35e4961e80667639c1a",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "col is iterated from a pandas columns object returned by an external DataFrame; project source does not provide an independent Python str element contract for that iterator",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {"file": "final.py", "lineno": 372, "col_offset": 56, "expression": "col.endswith('scaled')"}
+      ]
+    },
+    {
+      "id": "political-pandas-accessor-results",
+      "project": "political-polarisation",
+      "project_source_sha256": "f62badaa7dcd43c506f27ebd0b2945aefb5758852e6c61bd604a8243aeb6aabc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "trim_hashtag has no project call site; df_name is derived from a parameter through pandas subscript, str accessor and stack/reset_index results. The string dtype argument supplies intended runtime context but no project-defined return or accessor implementation.",
+      "expected_kind": "library",
+      "expected_top_library": "pandas",
+      "records": [
+        {"file": "analyze_hashtag.py", "lineno": 25, "col_offset": 20, "expression": "df['hashtag'].astype('string')"},
+        {"file": "analyze_hashtag.py", "lineno": 27, "col_offset": 14, "expression": "df_name.str.split(',', expand=True)"},
+        {"file": "analyze_hashtag.py", "lineno": 28, "col_offset": 14, "expression": "df_name.stack()"},
+        {"file": "analyze_hashtag.py", "lineno": 30, "col_offset": 14, "expression": "df_name.reset_index(level=1, drop=True)"},
+        {"file": "analyze_hashtag.py", "lineno": 30, "col_offset": 14, "expression": "df_name.reset_index(level=1, drop=True).to_numpy()"}
+      ]
+    },
+    {
+      "id": "political-external-text-elements",
+      "project": "political-polarisation",
+      "project_source_sha256": "f62badaa7dcd43c506f27ebd0b2945aefb5758852e6c61bd604a8243aeb6aabc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "item is iterated from to_numpy output, clean_list receives values from external pandas map callbacks, and row['mentions'] is selected from external iterrows output. Python string labels describe the intended text pipeline; neither external iteration nor callback element type is specified by executable project source.",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '')"},
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '').replace('{', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '').replace('{', '').replace('}', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '').replace(' ', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 33, "col_offset": 15, "expression": "item.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '').replace(' ', '').replace('#', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '').replace('}', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '').replace(' ', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '').replace(' ', '').replace('#', '')"},
+        {"file": "analyze_hashtag.py", "lineno": 53, "col_offset": 11, "expression": "x.replace(\"'\", '').replace('{', '').replace('}', '').replace('set()', '').replace(' ', '').replace('#', '').strip()"},
+        {"file": "analyze_hashtag.py", "lineno": 61, "col_offset": 23, "expression": "row['mentions'].strip()"},
+        {"file": "analyze_hashtag.py", "lineno": 61, "col_offset": 23, "expression": "row['mentions'].strip().split(',')"}
+      ]
+    },
+    {
+      "id": "political-split-element",
+      "project": "political-polarisation",
+      "project_source_sha256": "f62badaa7dcd43c506f27ebd0b2945aefb5758852e6c61bd604a8243aeb6aabc",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "mention is iterated from split on a value selected from pandas iterrows. The project does not independently prove that row['mentions'] is str; assuming a builtin split result from the method name alone would guess the receiver type.",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {"file": "analyze_hashtag.py", "lineno": 63, "col_offset": 34, "expression": "mention.strip()"}
+      ]
+    },
+    {
+      "id": "contrucao-beautifulsoup-call-iteration",
+      "project": "Contrucao",
+      "project_source_sha256": "14d0ba9d0b0d4af27eff6b78c1a403431be98710f48c767af899fcf2e92a43ef",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "soup is constructed with BeautifulSoup at the call site, but data is an element yielded by calling that external object. The project defines neither BeautifulSoup.__call__ nor the iterable result element type; assigning bs4 from the producer owner alone would conflate callable and result ownership.",
+      "expected_kind": "library",
+      "expected_top_library": "bs4",
+      "records": [
+        {"file": "main.py", "lineno": 10, "col_offset": 8, "expression": "data.decompose()"}
+      ]
+    },
+    {
+      "id": "python-workshop-polynomial-numeric-result",
+      "project": "Python-Workshop",
+      "project_source_sha256": "91112860c833659692112446435e823eca87a46bd69b7b29e41167d0f81c4448",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "res and dif depend on the result of calling a NumPy poly1d instance and arithmetic with y. y is returned through normalize using external mean/std operations, while polynomial coefficients reach callbacks through scipy.optimize.minimize. Existing dynamic probes establish the runtime ndarray owner but project source has no poly1d result or optimizer callback value contract.",
+      "expected_kind": "library",
+      "expected_top_library": "numpy",
+      "records": [
+        {"file": "myregr.py", "lineno": 16, "col_offset": 11, "expression": "res.dot(res)"},
+        {"file": "myregr.py", "lineno": 24, "col_offset": 17, "expression": "dif.dot(xp)"}
+      ]
+    },
+    {
+      "id": "mahe-tensor-input-arithmetic",
+      "project": "MAHE_OD_DATASET",
+      "project_source_sha256": "1a7ee102d8f9fd0c2acbce0f858eefeba4f7d7bd7d21b86fe99299352dc1a7e3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "find_intersection/find_jaccard_overlap receive boxes from calculate_mAP parameters and random_crop inputs. Slice, arithmetic and comparison results then become method receivers. calculate_mAP has no project call site, and the augmentation path does not supply a source-defined tensor result/element implementation. Docstrings identify intended tensors but do not exclude other protocol implementations at these parameter-dependent sites.",
+      "expected_kind": "library",
+      "expected_top_library": "torch",
+      "records": [
+        {"file": "utils.py", "lineno": 197, "col_offset": 33, "expression": "true_labels[i].size(0)"},
+        {"file": "utils.py", "lineno": 209, "col_offset": 32, "expression": "det_labels[i].size(0)"},
+        {"file": "utils.py", "lineno": 261, "col_offset": 41, "expression": "overlaps.squeeze(0)"},
+        {"file": "utils.py", "lineno": 295, "col_offset": 15, "expression": "recalls_above_t.any()"},
+        {"file": "utils.py", "lineno": 380, "col_offset": 56, "expression": "set_2[:, :2].unsqueeze(0)"},
+        {"file": "utils.py", "lineno": 381, "col_offset": 56, "expression": "set_2[:, 2:].unsqueeze(0)"},
+        {"file": "utils.py", "lineno": 404, "col_offset": 12, "expression": "areas_set_1.unsqueeze(1)"},
+        {"file": "utils.py", "lineno": 404, "col_offset": 39, "expression": "areas_set_2.unsqueeze(0)"},
+        {"file": "utils.py", "lineno": 503, "col_offset": 22, "expression": "overlap.squeeze(0)"},
+        {"file": "utils.py", "lineno": 506, "col_offset": 15, "expression": "overlap.max()"},
+        {"file": "utils.py", "lineno": 506, "col_offset": 15, "expression": "overlap.max().item()"},
+        {"file": "utils.py", "lineno": 520, "col_offset": 19, "expression": "centers_in_crop.any()"}
+      ]
+    },
+    {
+      "id": "mahe-unbound-model-output-and-gradient",
+      "project": "MAHE_OD_DATASET",
+      "project_source_sha256": "1a7ee102d8f9fd0c2acbce0f858eefeba4f7d7bd7d21b86fe99299352dc1a7e3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "accuracy and clip_gradient have no project callers. ind is a tuple element returned by scores.topk; later receivers are its method results. param is obtained through optimizer.param_groups and group['params'], and its grad.data attribute type is external. Neither the input objects nor their result/attribute types are defined in project source.",
+      "expected_kind": "library",
+      "expected_top_library": "torch",
+      "records": [
+        {"file": "utils.py", "lineno": 692, "col_offset": 17, "expression": "targets.size(0)"},
+        {"file": "utils.py", "lineno": 693, "col_offset": 13, "expression": "scores.topk(k, 1, True, True)"},
+        {"file": "utils.py", "lineno": 694, "col_offset": 21, "expression": "targets.view(-1, 1)"},
+        {"file": "utils.py", "lineno": 694, "col_offset": 21, "expression": "targets.view(-1, 1).expand_as(ind)"},
+        {"file": "utils.py", "lineno": 694, "col_offset": 14, "expression": "ind.eq(targets.view(-1, 1).expand_as(ind))"},
+        {"file": "utils.py", "lineno": 695, "col_offset": 20, "expression": "correct.view(-1)"},
+        {"file": "utils.py", "lineno": 695, "col_offset": 20, "expression": "correct.view(-1).float()"},
+        {"file": "utils.py", "lineno": 695, "col_offset": 20, "expression": "correct.view(-1).float().sum()"},
+        {"file": "utils.py", "lineno": 696, "col_offset": 11, "expression": "correct_total.item()"},
+        {"file": "utils.py", "lineno": 752, "col_offset": 16, "expression": "param.grad.data.clamp_(-grad_clip, grad_clip)"}
+      ]
+    },
+    {
+      "id": "mahe-uncalled-decimate-tensor-parameter",
+      "project": "MAHE_OD_DATASET",
+      "project_source_sha256": "1a7ee102d8f9fd0c2acbce0f858eefeba4f7d7bd7d21b86fe99299352dc1a7e3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "decimate is defined but never referenced by project source. Its tensor parameter has no default value or type annotation. The docstring states the intended tensor protocol, but no call edge supplies a concrete object, so dim, index_select and size cannot be assigned to Torch without treating documentation or method names as runtime type evidence.",
+      "expected_kind": "library",
+      "expected_top_library": "torch",
+      "records": [
+        {"file": "utils.py", "lineno": 166, "col_offset": 11, "expression": "tensor.dim()"},
+        {"file": "utils.py", "lineno": 167, "col_offset": 19, "expression": "tensor.dim()"},
+        {"file": "utils.py", "lineno": 169, "col_offset": 21, "expression": "tensor.index_select(dim=d, index=torch.arange(start=0, end=tensor.size(d), step=m[d]).long())"},
+        {"file": "utils.py", "lineno": 170, "col_offset": 73, "expression": "tensor.size(d)"}
+      ]
+    },
+    {
+      "id": "youtube-sparse-iteration-elements",
+      "project": "Youtube",
+      "project_source_sha256": "0e2a85453ffbc1ef839b6c3469c81ccb3e458a4dc41522619d640933b079f280",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "x and y are elements iterated from cdist_sparse parameters X and Y. The sparse branches are selected using scipy.sparse.issparse, whose predicate and iterator element semantics are external. The runtime probe supports SciPy ownership but the project does not define a sparse element type; an iterated element must not inherit its container library without that contract.",
+      "expected_kind": "library",
+      "expected_top_library": "scipy",
+      "records": [
+        {"file": "Kmeans.py", "lineno": 67, "col_offset": 26, "expression": "x.todense()"},
+        {"file": "Kmeans.py", "lineno": 70, "col_offset": 31, "expression": "y.todense()"},
+        {"file": "Kmeans.py", "lineno": 74, "col_offset": 32, "expression": "x.todense()"},
+        {"file": "Kmeans.py", "lineno": 74, "col_offset": 45, "expression": "y.todense()"}
+      ]
+    },
+    {
+      "id": "polire-custom-estimator-prediction-result",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "r is a local CustomInterpolator wrapping one of five external estimator constructors. predict_grid reaches CustomInterpolator._predict_grid and self.reg.predict(...). The wrapper forwards the external prediction unchanged; project source cannot prove the return type shared by those external model implementations.",
+      "expected_kind": "library",
+      "expected_top_library": "numpy",
+      "records": [
+        {"file": "usage3.py", "lineno": 32, "col_offset": 8, "expression": "r.predict_grid((0, 3), (0, 3)).reshape(100, 100)"}
+      ]
+    },
+    {
+      "id": "aibo-uncalled-obstacle-helper-parameter",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-30",
+      "reason": "add_obstacles is defined but never referenced or called by project source. Its b2world_interface parameter has no default, annotation or local binding, and world is read from that parameter's attribute. Other helpers receive the local b2WorldInterface class, but no such binding is supplied to add_obstacles; the matching attribute and method names are insufficient evidence.",
+      "expected_kind": "library",
+      "expected_top_library": "Box2D",
+      "records": [
+        {"file": "functions/push_utils.py", "lineno": 198, "col_offset": 14, "expression": "world.CreateStaticBody(position=(0, 0), shapes=b2PolygonShape(vertices=verts))"},
+        {"file": "functions/push_utils.py", "lineno": 211, "col_offset": 14, "expression": "world.CreateStaticBody(position=pos, shapes=b2PolygonShape(box=blen))"}
+      ]
+    },
+    {
+      "id": "aibo-uncalled-locomotion-objectives",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "Hopper and Ant are defined in functions/mujoco.py but have no project instantiation or objective call site. Their __call__(x) parameters have no default or concrete value binding. ndim, length and np.all checks describe an array protocol, not the class implementing x.reshape.",
+      "records": [
+        {
+          "file": "functions/mujoco.py",
+          "lineno": 40,
+          "col_offset": 12,
+          "expression": "x.reshape(self.policy_shape)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "functions/mujoco.py",
+          "lineno": 207,
+          "col_offset": 12,
+          "expression": "x.reshape(self.policy_shape)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "aibo-external-optimizer-objective-values",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "run.py constructs HalfCheetah and passes it as f to optimizer implementations outside this fixture, including unavailable AIBO/TuRBO code and scipy/nevergrad. Direct objective invocations also obtain their inputs from external sampling or optimizer results. The project defines the objective but not the concrete type supplied for x; shape assertions alone do not identify the reshape descriptor owner.",
+      "records": [
+        {
+          "file": "functions/mujoco.py",
+          "lineno": 115,
+          "col_offset": 12,
+          "expression": "x.reshape(self.policy_shape)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "aibo-box2d-monkey-patched-shape-dispatch",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "guiWorld.draw assigns local callables to b2PolygonShape.draw and b2CircleShape.draw, but body, fixture and fixture.shape enter through Box2D's external bodies and fixtures protocols. Project source does not prove that every runtime shape is one of those patched classes; the method name and the existence of two monkey patches do not select one local callable.",
+      "expected_kind": "local",
+      "expected_top_library": "local",
+      "records": [
+        {
+          "file": "functions/push_utils.py",
+          "lineno": 52,
+          "col_offset": 16,
+          "expression": "fixture.shape.draw(body, fixture)"
+        }
+      ]
+    },
+    {
+      "id": "flask2-framework-request-json-mapping",
+      "project": "flask2",
+      "project_source_sha256": "62a71f2aed2405b2bacfd5ab0f752ed196cdc9e42998e9b3e88583e3566dfe19",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "request is Flask's external context proxy and the route functions are invoked through framework dispatch. Tests pass dictionary literals through the external test client's json keyword, but project source does not define how that argument becomes request.json or declare the property's concrete return type. Membership and subscript operations establish mapping-like use only; selecting Python dict.get requires an external Flask or Werkzeug semantic contract.",
+      "expected_kind": "python",
+      "expected_top_library": "python",
+      "records": [
+        {
+          "file": "app.py",
+          "lineno": 66,
+          "col_offset": 27,
+          "expression": "request.json.get('description', '')"
+        },
+        {
+          "file": "app.py",
+          "lineno": 83,
+          "col_offset": 24,
+          "expression": "request.json.get('title', task['title'])"
+        },
+        {
+          "file": "app.py",
+          "lineno": 84,
+          "col_offset": 30,
+          "expression": "request.json.get('description', task['description'])"
+        },
+        {
+          "file": "app.py",
+          "lineno": 85,
+          "col_offset": 23,
+          "expression": "request.json.get('done', task['done'])"
+        }
+      ]
+    },
+    {
+      "id": "mahe-path-result-dictionary-key",
+      "project": "MAHE_OD_DATASET",
+      "project_source_sha256": "1a7ee102d8f9fd0c2acbce0f858eefeba4f7d7bd7d21b86fe99299352dc1a7e3",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "annotation.py binds path to os.path.abspath(...), builds image_path = path + '/' + image_name and inserts it as a dictionary key. Literal-key and write/alias tracking is now covered by regression tests, but abspath has no result-type contract in this analyzer or implementation in the project. Inferring key.split as builtin str from the producer's module name would require a new external result contract.",
+      "records": [
+        {
+          "file": "annotation.py",
+          "lineno": 63,
+          "col_offset": 8,
+          "expression": "key.split('/')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "youtube-sparse-distance-return-boundary",
+      "project": "Youtube",
+      "project_source_sha256": "0e2a85453ffbc1ef839b6c3469c81ccb3e458a4dc41522619d640933b079f280",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "kmeans assigns D from cdist_sparse and selects distances from D. cdist_sparse has a verified cdist-return branch, but its other normal return path constructs d using np.empty and returns d or 1-d. np.empty has no result contract or implementation in project scope. Its dense non-cosine branch additionally reads d before assignment and can raise; that erroneous path is not evidence of a concrete result. The verified cdist branch cannot establish the owner of all other return paths.",
+      "records": [
+        {
+          "file": "Kmeans.py",
+          "lineno": 39,
+          "col_offset": 15,
+          "expression": "D.argmin(axis=1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "Kmeans.py",
+          "lineno": 41,
+          "col_offset": 17,
+          "expression": "distances.mean()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "hfhd-external-stacked-value-items",
+      "project": "hfhd",
+      "project_source_sha256": "ae1f4f6e9f2ac73fef823631a0d383245e3a8e2617847d3691cdba5811734518",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "hayashi_yoshida assigns values = np.column_stack((np.zeros(p), values)) and forwards it to _hayashi_yoshida_pairwise. That function selects multidimensional rows/slices and passes them as a_values and b_values to _hayashi_yoshida. The project and current contracts do not establish column_stack's concrete return/item type. Docstrings specify intended ndarray inputs but do not bind runtime values; forwarding and slicing alone cannot prove both reshape receivers.",
+      "records": [
+        {
+          "file": "hfhd/hf.py",
+          "lineno": 1973,
+          "col_offset": 31,
+          "expression": "a_values.reshape(-1, 1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "hfhd/hf.py",
+          "lineno": 1978,
+          "col_offset": 31,
+          "expression": "b_values.reshape(-1, 1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "polire-polymorphic-grid-return-boundary",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "Base.predict_grid calls self._predict_grid across concrete local subclasses. One reachable subclass is CustomInterpolator, instantiated in usage3.py with external estimators; its implementation forwards self.reg.predict(...) unchanged. This is the same external-return boundary already reviewed at usage3.py:32. A known NumPy result in another subclass cannot prove the shared pred_y receiver across all callers.",
+      "records": [
+        {
+          "file": "polire/base/base.py",
+          "lineno": 118,
+          "col_offset": 15,
+          "expression": "pred_y.reshape(self.resolution, self.resolution)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "polire-uncalled-nsgp-input-and-kernel-results",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "The only NSGP construction in this fixture is in tests/polire_basic.py:test_nsgp, which is marked pytest.skip and whose NSGP import is commented out. No valid project call binds NSGP training/prediction inputs. _X/S and their items therefore lack concrete values. The _Kernel return additionally sums accumulators initialized by external np.zeros calls and populated using external learned-kernel results; those result types are not supplied by project code or current contracts. Neither the class name nor ndarray-shaped arithmetic proves these receiver owners.",
+      "records": [
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 65,
+          "col_offset": 42,
+          "expression": "((S - self._X) ** 2).sum(axis=1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 150,
+          "col_offset": 42,
+          "expression": "s_vec.sum()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 154,
+          "col_offset": 46,
+          "expression": "s_vec.sum()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 235,
+          "col_offset": 12,
+          "expression": "KX_test.dot(self._KX_inv)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 235,
+          "col_offset": 12,
+          "expression": "KX_test.dot(self._KX_inv).dot(self._y - self._y.mean())",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 239,
+          "col_offset": 44,
+          "expression": "KX_test.dot(self._KX_inv)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/nsgp/nsgp.py",
+          "lineno": 239,
+          "col_offset": 44,
+          "expression": "KX_test.dot(self._KX_inv).dot(KX_test.T)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "polire-uncalled-spatial-features-training-value",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "SpatialFeatures is defined and re-exported, but no project code constructs or invokes it. self.y is assigned only from fit's y parameter, and transform selects self.y[trn_mask] before repeat(). The np.ndarray annotation states the intended input contract but provides no concrete caller value or assignment. No library owner is inferred from an unbound annotated parameter.",
+      "records": [
+        {
+          "file": "polire/preprocessing/sptial_features.py",
+          "lineno": 103,
+          "col_offset": 19,
+          "expression": "self_y_local[:, None].repeat(lonlat.shape[0], 1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "allnews-unestablished-page-title-value",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "pages_from initializes title=None and sets it from input matches, but its yield condition does not require that a title was encountered. load_templates reads that yielded title, and Extractor also receives a title through jobs_queue.get()/tuple forwarding. Thus self.title and its pagename aliases do not have a uniformly established string binding. A malformed page or an opaque queued job is a concrete unproven path; another string-producing path cannot establish the owner for all calls.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 609,
+          "col_offset": 16,
+          "expression": "self.title.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 620,
+          "col_offset": 16,
+          "expression": "pagename.rfind('/')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 627,
+          "col_offset": 16,
+          "expression": "pagename.find('/')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 2758,
+          "col_offset": 24,
+          "expression": "title.find(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-optional-invoke-mapping-argument",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "callParserFunction's invoke branch initializes params=None when len(args)==2, searches the frame chain, and calls sharp_invoke even if no matching frame was found. Frame.__init__ also defaults args to []. sharp_invoke dispatches that value to functionParams/roman_main. The dictionary returned by templateParams covers a different branch only; neither None nor the empty-list default establishes a dict receiver for these four get calls.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1397,
+          "col_offset": 16,
+          "expression": "args.get(var)",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1399,
+          "col_offset": 20,
+          "expression": "args.get(str(index))",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1487,
+          "col_offset": 20,
+          "expression": "args.get('1')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1491,
+          "col_offset": 15,
+          "expression": "args.get('2', 'N/A')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-html-escape-output-items",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "Extractor.clean has an options.toHTML branch that returns cgi.escape(text). extract passes the clean result to compact, which calls split and then string methods on its pieces; write_output subsequently encodes the compacted lines (and a title-derived header). cgi.escape has no return-type contract in this analyzer or implementation in the project. The non-HTML branch and literal headers do not prove the type of every item from the HTML branch.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 592,
+          "col_offset": 27,
+          "expression": "line.encode('utf-8')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 2538,
+          "col_offset": 16,
+          "expression": "text.split('\\n')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 2571,
+          "col_offset": 13,
+          "expression": "line.startswith('++')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 2610,
+          "col_offset": 19,
+          "expression": "line[i:].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 2639,
+          "col_offset": 53,
+          "expression": "line.strip('.-')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "aibo-spline-noisy-parameter-return",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "PointBSpline.set_params receives params through RoverDomain.set_params as params + self.rnd_stream.normal(...). The optimizer argument and RandomState.normal result have no concrete type definition in this project. The other main() call passes start=np.zeros(2)+0.1 in this parameter position, not p.flatten(); zeros likewise has no result contract here. Constructor/call edges establish the path but cannot prove the resulting object's reshape owner.",
+      "records": [
+        {
+          "file": "functions/rover_utils.py",
+          "lineno": 44,
+          "col_offset": 17,
+          "expression": "params.reshape((-1, self.d))",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "aibo-geometry-external-spline-points",
+      "project": "AIBO",
+      "project_source_sha256": "35be74a6732882343b7d50519c702b6f8a6fa84a2d84f6c8c90f9c5497f262be",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "AABoxes.contains receives trajectory points through ConstObstacleCost/NegGeom/UnionGeom. PointBSpline.get_points returns np.vstack(si.splev(...)).T; AABoxes bounds are also external array-construction results. Project code establishes neither the vstack result type nor the comparison-result protocol. X.ndim == 1 is a dimensionality check, not a class guard. Thus lX/hX cannot be proven ndarray from project source without an external result contract.",
+      "records": [
+        {
+          "file": "functions/rover_utils.py",
+          "lineno": 164,
+          "col_offset": 16,
+          "expression": "lX.all(axis=1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "functions/rover_utils.py",
+          "lineno": 164,
+          "col_offset": 33,
+          "expression": "hX.all(axis=1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "polire-fit-input-external-array-values",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "Base.fit forwards X/y unchanged to IDW._fit, NaturalNeighbor._fit and SpatialAverage._fit. usage.py constructs X/y using np.array (including DataFrame selections), and tests/polire_basic.py uses np.random.rand; neither producer has a concrete result-type contract in this analyzer. The methods store those values as self.X/self.y; is_row_in_array receives self.X. IDW weights/mask additionally use uncontracted np.power/np.equal results. SpatialAverage's mask is independently proven NumPy and mask.sum was fixed, but multiplying it by unproven self.y cannot establish the operator result owner. Local forwarding and .shape assertions do not supply the missing external type.",
+      "records": [
+        {
+          "file": "polire/idw/idw.py",
+          "lineno": 83,
+          "col_offset": 17,
+          "expression": "(weights * self.y[:, None]).sum(axis=0)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/idw/idw.py",
+          "lineno": 89,
+          "col_offset": 28,
+          "expression": "(self.y * mask).sum()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/natural_neighbors/natural_neighbors.py",
+          "lineno": 16,
+          "col_offset": 24,
+          "expression": "arr.tolist()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/spatial/spatial.py",
+          "lineno": 64,
+          "col_offset": 15,
+          "expression": "(self.y * mask).sum(axis=1)",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    },
+    {
+      "id": "allnews-expanded-parameter-values",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "expandTemplate builds parameters with [self.transform(p) for p in parts[1:]] before calling templateParams, and the invoke branch does the same. transform -> transform1 -> expand -> expandTemplate can return self.magicWords[title]; extract populates that mapping with time.strftime results and a queue-derived page title. Those values have no project-defined concrete type or existing result contract. The expanded value is accumulated with overloaded +/+=, with no str() or join() conversion on this path. Consequently param.strip cannot be justified solely by the list comprehension; the regex-match branch establishes other values, not this unmatched branch.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 929,
+          "col_offset": 28,
+          "expression": "param.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-recursive-parser-argument-boundary",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "The parser recursion has an external-value entry, not only an unresolved call edge. extract stores time.strftime results and the queue-derived title in magicWords; expandTemplate returns a selected value (1001-1004) and expand concatenates it without an explicit string conversion. expandTemplate assigns the expanded title tail to parts[0] (1022) and callParserFunction forwards *args through parserFunctions. sharp_expr passes that first argument back to extr.expand (1767), so splitParts/expandTemplate and the parser callbacks can receive the unproven value again. Trailing parts and sharp_switch slices inherit this recursive input. Initial ''.join(lines), Template.subst's join, literal defaults and known str-only branches do not prove all values in this cycle. No method-name inference or new strftime/quote return contract is used; concrete GT remains unchanged.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 988,
+          "col_offset": 16,
+          "expression": "parts[0].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1152,
+          "col_offset": 14,
+          "expression": "paramsList[cur:s].split(sep)",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1168,
+          "col_offset": 10,
+          "expression": "paramsList[cur:].split(sep)",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1780,
+          "col_offset": 7,
+          "expression": "testValue.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1783,
+          "col_offset": 34,
+          "expression": "valueIfTrue.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1787,
+          "col_offset": 27,
+          "expression": "valueIfFalse.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1792,
+          "col_offset": 13,
+          "expression": "rvalue.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1795,
+          "col_offset": 11,
+          "expression": "lvalue.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1802,
+          "col_offset": 35,
+          "expression": "valueIfTrue.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1805,
+          "col_offset": 35,
+          "expression": "valueIfFalse.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1811,
+          "col_offset": 27,
+          "expression": "then.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1813,
+          "col_offset": 15,
+          "expression": "test.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1815,
+          "col_offset": 27,
+          "expression": "Else.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1829,
+          "col_offset": 14,
+          "expression": "primary.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1837,
+          "col_offset": 15,
+          "expression": "param.split('=', 1)",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1838,
+          "col_offset": 29,
+          "expression": "pair[0].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1842,
+          "col_offset": 33,
+          "expression": "pair[1].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1900,
+          "col_offset": 51,
+          "expression": "string.encode('utf-8')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1902,
+          "col_offset": 38,
+          "expression": "string.lower()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1906,
+          "col_offset": 38,
+          "expression": "string.upper()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1929,
+          "col_offset": 26,
+          "expression": "args[0].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1929,
+          "col_offset": 43,
+          "expression": "args[1].strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-expanded-title-normalization",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-08-31",
+      "reason": "fullyQualifiedTemplateTitle is called with title after self.expand(title), and ucfirst/lcfirst also receive parserFunctions callback arguments. The expanded value can originate in magicWords (time.strftime results or the queue-derived title) and is concatenated without an explicit string conversion, then forwarded via parts[0]. Regex group and literal-title callers prove only their own paths. Truthiness, slicing, and length checks do not prove a string class for every incoming value. This is the same externally fed parser cycle, not evidence that every startswith/upper/lower receiver is Python-owned.",
+      "records": [
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1674,
+          "col_offset": 15,
+          "expression": "string[0].upper()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1683,
+          "col_offset": 19,
+          "expression": "string[0].lower()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1685,
+          "col_offset": 19,
+          "expression": "string.lower()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 1695,
+          "col_offset": 7,
+          "expression": "templateTitle.startswith(':')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "allnews-unreferenced-function-parameters",
+      "project": "allnews",
+      "project_source_sha256": "5b5ad249dbc7fcf7713023383704db6f2936dc235f67b3bf8e805de267bbc0f4",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-09-01",
+      "reason": "training_model, tokenize, and normalizeTitle have no executable project-source call sites. Their receiver parameters have no defaults or type annotations; normalizeTitle's only apparent caller is commented out. Docstrings and the methods used inside each body describe intended behavior but do not establish the runtime owner of an otherwise unbound parameter. Therefore model.fit, s.strip, and title.strip remain unknown under project-source-only static analysis.",
+      "records": [
+        {
+          "file": "allnews_am/NER_models/ner.py",
+          "lineno": 112,
+          "col_offset": 12,
+          "expression": "model.fit(X_tr, np.array(y_tr), batch_size=BATCH_SIZE, epochs=EPOCHS, validation_split=0.1, validation_data=(X_te, np.array(y_te)), verbose=2)",
+          "expected_kind": "library",
+          "expected_top_library": "keras"
+        },
+        {
+          "file": "allnews_am/processing.py",
+          "lineno": 84,
+          "col_offset": 8,
+          "expression": "s.strip()",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        },
+        {
+          "file": "allnews_am/wikiextractor/WikiExtractor.py",
+          "lineno": 289,
+          "col_offset": 12,
+          "expression": "title.strip(' _')",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "django-unreferenced-log-message-parameter",
+      "project": "django",
+      "project_source_sha256": "9d8b7a397e4271e19073d5b908dc3be69396fc895ca3e99e5e7a11040acee990",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-09-01",
+      "reason": "SimpleEcho.log has no executable project-source call site. Its only apparent self.log call is commented out, and msg has no default or type annotation. The commented string argument and the use of format inside the dead method show intent but cannot establish the runtime owner of msg from executable project source.",
+      "records": [
+        {
+          "file": "proxy.py",
+          "lineno": 109,
+          "col_offset": 26,
+          "expression": "msg.format(*args, **kwargs)",
+          "expected_kind": "python",
+          "expected_top_library": "python"
+        }
+      ]
+    },
+    {
+      "id": "final-uncalled-rmse-dataframe-parameters",
+      "project": "final",
+      "project_source_sha256": "b0a668cc776f10bd6eceeaa5eee07ecdb54a552d9b38a35e4961e80667639c1a",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-09-01",
+      "reason": "get_RMSE has no project-source call site. The notebook calls the distinct get_baseline_RMSE function, so its pandas-backed arguments do not flow into get_RMSE. The y_train and y_validate parameters have no defaults or type annotations; column names and pandas method names express intent but do not prove their runtime owners.",
+      "records": [
+        {
+          "file": "regression_models.py",
+          "lineno": 78,
+          "col_offset": 31,
+          "expression": "y_train.colonies_lost.mean()",
+          "expected_kind": "library",
+          "expected_top_library": "pandas"
+        },
+        {
+          "file": "regression_models.py",
+          "lineno": 80,
+          "col_offset": 32,
+          "expression": "y_train.colonies_lost.median()",
+          "expected_kind": "library",
+          "expected_top_library": "pandas"
+        },
+        {
+          "file": "regression_models.py",
+          "lineno": 82,
+          "col_offset": 34,
+          "expression": "y_validate.colonies_lost.mean()",
+          "expected_kind": "library",
+          "expected_top_library": "pandas"
+        },
+        {
+          "file": "regression_models.py",
+          "lineno": 84,
+          "col_offset": 35,
+          "expression": "y_validate.colonies_lost.median()",
+          "expected_kind": "library",
+          "expected_top_library": "pandas"
+        }
+      ]
+    },
+    {
+      "id": "polire-unreferenced-gridding-parameters",
+      "project": "polire",
+      "project_source_sha256": "c5503da38019660b17cb110e30c6fe9f9ca588fe44eca45f4ebc222f2578e4e9",
+      "reviewed_by": "codex-static-source-audit",
+      "reviewed_at": "2026-09-01",
+      "reason": "make_grid has no project-source reference, and find_closest's only apparent call is commented out. Their x, y, and grid parameters have no defaults or type annotations. Array-like descriptions in docstrings and NumPy-style method names express intended usage but do not establish concrete receiver owners from executable project source.",
+      "records": [
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 33,
+          "col_offset": 12,
+          "expression": "y.min()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 34,
+          "col_offset": 12,
+          "expression": "y.max()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 35,
+          "col_offset": 12,
+          "expression": "x.min()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 36,
+          "col_offset": 12,
+          "expression": "x.max()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 67,
+          "col_offset": 9,
+          "expression": "grid[0].ravel()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        },
+        {
+          "file": "polire/utils/gridding.py",
+          "lineno": 67,
+          "col_offset": 26,
+          "expression": "grid[1].ravel()",
+          "expected_kind": "library",
+          "expected_top_library": "numpy"
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ## @package pcresolve.types
-#  Shared data types for API call chain tracing results.
+#  Shared data types for API ownership and provenance analysis results.
 #
 
 from dataclasses import dataclass, field
@@ -7,12 +7,13 @@ from dataclasses import dataclass, field
 
 ## Single API call record.
 #
-#  Captures an API call expression and its resolved top-level origin library.
+#  Captures an API call expression and its resolved primary owner.
 @dataclass
 class ApiCall:
     ## The full call expression, e.g. "requests.get(url, headers=h)".
     expression: str
-    ## The top-level library or origin: "requests", "python", "local", etc.
+    ## The primary owner: an import-backed top-level library, "python",
+    #  "local", or "unknown".
     top_library: str
     ## The root symbol from which the call was traced.
     base_symbol: str

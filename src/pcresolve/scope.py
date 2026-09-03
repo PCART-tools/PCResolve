@@ -27,6 +27,18 @@ class Binding:
     assignment_index: int = 0
     ## Binding version for future flow-sensitive analysis.
     version: int = 0
+    ## Concrete Python container kind carried by this binding, if known.
+    container_kind: str = ""
+    ## Concrete kind produced by subscripting this container, if known.
+    container_item_kind: str = ""
+    ## Field shapes carried by a known container element, if any.
+    container_item_fields: dict = field(default_factory=dict)
+    ## Qualified return_sources key when this binding is a local callable.
+    callable_key: str = ""
+    ## Binding role such as parameter, variable, import, or attribute.
+    binding_kind: str = ""
+    ## Private literal-mapping value for local callback identity only.
+    mapping_value: object = None
 
 
 ## A lexical scope with parent lookup.
@@ -47,22 +59,44 @@ class Scope:
     #  @param lineno Source line.
     #  @param col_offset Source column.
     #  @param assignment_index Monotonic assignment counter.
-    def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0):
+    #  @param container_kind Concrete receiver container kind, if known.
+    #  @param container_item_kind Concrete subscript result kind, if known.
+    #  @param callable_key Qualified return_sources key for local callables.
+    #  @param binding_kind Binding role used for flow-sensitive checks.
+    def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0,
+             container_kind="", container_item_kind="", callable_key="",
+             binding_kind="", container_item_fields=None):
         old = self.bindings.get(name)
         version = old.version + 1 if old is not None else 1
         self.bindings[name] = Binding(
             name, source, self.kind, lineno, col_offset,
-            assignment_index, version,
+            assignment_index, version, container_kind,
+            container_item_kind,
+            dict(container_item_fields or {}), callable_key, binding_kind,
         )
 
     ## Look up a name through lexical parents.
     #  @param name Symbol name.
+    #  @param skip_parent_classes If True, skip parent class-scope
+    #         bindings (Python does not resolve bare names through
+    #         enclosing class namespace — only self/attr).  The
+    #         starting scope's own bindings are always searched.
     #  @return Binding object or None.
-    def lookup(self, name):
-        if name in self.bindings:
-            return self.bindings[name]
-        if self.parent is not None:
-            return self.parent.lookup(name)
+    def lookup(self, name, skip_parent_classes=False):
+        scope = self
+        is_origin = True
+        while scope is not None:
+            should_search = (
+                is_origin
+                or not (
+                    skip_parent_classes
+                    and scope.kind == SCOPE_CLASS
+                )
+            )
+            if should_search and name in scope.bindings:
+                return scope.bindings[name]
+            is_origin = False
+            scope = scope.parent
         return None
 
     ## Return a shallow copy of current bindings (for branch snapshots).

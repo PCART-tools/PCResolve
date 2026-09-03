@@ -1,0 +1,12 @@
+# scrapping — dynamic_probe (8 records)
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| jojo.py:53:23 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo.py:64:31 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo.py:82:23 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo.py:93:31 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo1.py:53:23 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo1.py:64:31 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo1.py:82:23 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |
+| jojo1.py:93:31 | `link.find(':')` | python / python | unknown / unknown | library_result_boundary | dynamic_probe | gt: BeautifulSoup Tag.get owns the call but returns a builtin str href value<br>v: scrapping_probe.py confirms href result is str and find descriptor owner is buil |

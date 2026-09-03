@@ -6,8 +6,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pcresolve.sources import (
-    ContainerItem, ContainerIter, InstanceMethod, CallResult,
-    NameSource, UnknownSource,
+    ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
+    DerivedResult, InstanceAttribute, NameSource, ParameterSource, PythonShape,
+    SourceSet, TupleSource, UnknownSource,
     normalize_source, source_to_legacy, source_display, is_structured_source,
 )
 
@@ -66,6 +67,12 @@ def test_source_to_legacy_container_iter():
     assert source_to_legacy(ci) == ("container_iter", "lst", "*")
 
 
+def test_source_to_legacy_tuple_source_roundtrip():
+    source = TupleSource((PythonShape("str"), PythonShape("int")))
+    legacy = source_to_legacy(source)
+    assert normalize_source(legacy) == source
+
+
 def test_source_to_legacy_call_result():
     cr = CallResult("make")
     assert source_to_legacy(cr) == ("call_result", "make", None)
@@ -80,6 +87,73 @@ def test_source_to_legacy_roundtrip():
     original = ("container_item", "lst", 0)
     result = source_to_legacy(normalize_source(original))
     assert result == original
+
+
+def test_parameter_source_attribute_path_roundtrip():
+    source = ParameterSource(
+        "create_body", "wrapper", attributes=("world",))
+    legacy = source_to_legacy(source)
+
+    assert normalize_source(legacy) == source
+
+
+def test_parameter_source_slice_operation_roundtrip():
+    source = ParameterSource(
+        "forward", "value", derived=True, derived_operation="slice")
+    legacy = source_to_legacy(source)
+
+    assert legacy == (
+        "parameter_source", ("forward", True, (), "slice"), "value")
+    assert normalize_source(legacy) == source
+
+
+def test_instance_attribute_roundtrip_and_display():
+    source = InstanceAttribute("Base", "self.payload", "Base.consume")
+    legacy = source_to_legacy(source)
+
+    assert legacy == (
+        "instance_attribute", ("Base", "Base.consume"), "self.payload")
+    assert normalize_source(legacy) == source
+    assert source_display(source) == "Base:self.payload"
+
+
+def test_python_shape_roundtrip_and_display():
+    source = PythonShape("list", "str")
+    legacy = source_to_legacy(source)
+
+    assert legacy == ("python_shape", "list", "str")
+    assert normalize_source(legacy) == source
+    assert source_display(source) == "python:list[str]"
+
+
+def test_source_to_legacy_deep_sourceset_roundtrip_has_no_ir_objects():
+    original = CallResult(
+        SuperMethod("Child", "pkg.Child", "build"),
+        result_source=DerivedResult(
+            "element",
+            (SourceSet(("json", "os"), origin="builtin_element"),),
+        ),
+    )
+    legacy = source_to_legacy(original)
+
+    source_ir_types = (
+        ContainerItem, ContainerIter, InstanceMethod, SuperMethod,
+        CallResult, DerivedResult, InstanceAttribute, ParameterSource,
+        PythonShape, SourceSet,
+        UnknownSource, NameSource,
+    )
+
+    def contains_ir(value):
+        if isinstance(value, source_ir_types):
+            return True
+        if isinstance(value, (tuple, list)):
+            return any(contains_ir(item) for item in value)
+        if isinstance(value, dict):
+            return any(contains_ir(item) for item in value.values())
+        return False
+
+    assert contains_ir(legacy) is False
+    assert normalize_source(legacy) == original
 
 
 # ── source_display ──────────────────────────────────────────────────────
@@ -122,6 +196,12 @@ def test_source_display_name_source():
 def test_source_display_unknown_source():
     us = UnknownSource("???")
     assert source_display(us) == "???"
+
+
+def test_source_display_parameter_attribute_path():
+    source = ParameterSource(
+        "create_body", "wrapper", attributes=("world",))
+    assert source_display(source) == "create_body:wrapper.world"
 
 
 # ── is_structured_source ────────────────────────────────────────────────

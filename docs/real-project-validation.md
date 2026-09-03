@@ -1,104 +1,52 @@
-# PCResolve 1.0.4 Real-Project Validation
+# PCResolve Real-Project Validation
 
-42 real-world projects audited. 21 hard baselines with recorded
-regression/improvement/precision counts. Zero crashes, zero
-timeouts, zero illegal keys.
+PCResolve uses locked call-site ground truth from 42 real-world projects.
+The evaluation contains 5,788 call expressions with complete AST coverage.
+It measures primary callable or receiver ownership; standalone symbol
+provenance is evaluated only when it affects call classification.
 
-## Gate
-
-```bash
-python scripts/diff_v1_v2.py tests/fixtures/tested_projects
-```
-
-- Projects with a baseline JSON in `tests/fixtures/diff_baselines/`
-  must have `R <= baseline` and `illegal=0`.  Exceeding the baseline
-  fails the gate.
-- Projects without a baseline display `[PENDING]` and are
-  informational only (not a hard failure).
-
-## Audit
+## Evaluation
 
 ```bash
-python scripts/audit_tested_projects.py
+python scripts/evaluate_ground_truth.py --view all
+python scripts/verify_ground_truth_calls.py --coverage-only
+python scripts/add_verification_levels.py --check
+python scripts/refresh_ground_truth_snapshots.py --all --check
 ```
 
-Full report: `reports/tested-projects-audit.json` /
-`reports/tested-projects-audit.md`.
+The gate requires 100% AST call coverage, locked annotations, valid
+verification evidence, and zero stale project snapshots.
 
-## 1.0.4 Summary
+## Current Summary
 
 ```text
-Projects audited:    42
-Crashed/timeout:     0
-Illegal key projects: 0
-Hard baselines:      21 (all [OK])
-Total API calls:     ~5,700
-Unique libraries:    104
-Regressions:         303
-Improvements:        147
-Precision changes:    29
-Illegal keys:         0
+Projects:          42
+GT records:        5,788
+Primary hits:      5,548
+Primary misses:      240
+Primary recall:    0.959
+False positives:       0
+AST coverage:      100%
 ```
 
-## Hard Baselines (21 projects)
+The canonical labels live in `ground_truth/calls/`. Human-readable review
+views live in `ground_truth/review/`, and release dispositions for unresolved
+records live in `ground_truth/verification/`.
 
-| Project | Calls | Libs | R | I | P | Ecosystem |
-|---------|-------|------|---|---|---|-----------|
-| AIBO | 647 | 22 | 20 | 26 | 0 | scientific |
-| allnews | 986 | 30 | 80 | 22 | 14 | NLP |
-| barcoded_yeast_reanalysis | 328 | 11 | 2 | 6 | 0 | scientific |
-| click1 | 5 | 1 | 0 | 0 | 0 | CLI |
-| covid19 | 89 | 9 | 0 | 1 | 3 | data |
-| Deep-Graph-Kernels | 79 | 5 | 0 | 0 | 0 | ML |
-| django | 43 | 7 | 0 | 4 | 0 | web |
-| ex_4_2 | 207 | 8 | 0 | 0 | 0 | scientific |
-| final | 314 | 9 | 1 | 10 | 0 | web |
-| flask1 | 7 | 1 | 0 | 0 | 0 | web |
-| greenbenchmark | 489 | 13 | 150 | 3 | 0 | data |
-| hfhd | 444 | 7 | 4 | 20 | 1 | scientific |
-| MAHE_OD_DATASET | 480 | 17 | 19 | 5 | 10 | ML/vision |
-| polire | 421 | 16 | 5 | 17 | 1 | scientific |
-| political-polarisation | 69 | 6 | 12 | 2 | 0 | data |
-| Python-Workshop | 172 | 4 | 0 | 3 | 0 | edu |
-| qho | 71 | 4 | 0 | 0 | 0 | scientific |
-| scrapping | 110 | 3 | 0 | 16 | 0 | web |
-| SDOML | 94 | 10 | 2 | 0 | 0 | ML |
-| tensorflow1 | 15 | 1 | 0 | 0 | 0 | ML |
-| Youtube | 104 | 12 | 2 | 2 | 0 | web |
+## Evidence Boundary
 
-## Taxonomy (--taxonomy)
+Ground truth records semantic or runtime ownership. Release disposition asks
+whether that owner is recoverable from project source under PCResolve's
+pure-static contract. Runtime-only owners may remain scored misses when the
+honest static result is `unknown`; the analyzer does not add library-specific
+return-type guesses to force a hit.
 
-```text
-TOTAL regressions: 303
-  third_party_api_loss: 285
-    third-party -> local:   262
-    third-party -> unknown: 23
-  local -> unknown:        18
-TOTAL improvements: 147
-  local -> third-party:  147
-TOTAL precision changes: 29
-TOTAL illegal keys: 0
-```
+A `dynamic_probe` or `manual_reasoned` verification level does not by itself
+prove a static boundary. Each accepted unknown needs independent source
+evidence; value-flow and dispatch dependencies remain open until reviewed.
+Reviewed boundaries are tied to exact GT records and project-source digests in
+`ground_truth/verification/static-boundary-reviews.json`; they never change the
+raw evaluation score.
 
-## Regression Categories
-
-### Scope isolation (expected)
-v1 leaked function-local bindings into module-level symbol tables.
-v2 correctly isolates them. Method chains on local variables that
-v1 classified via scope pollution are now `local` or `unknown`.
-
-### Container/chained-method provenance
-Subscript and chained method calls on local variables holding
-third-party values cannot always be traced through the full
-propagation path.  SourceSet alternatives preserve the candidates.
-
-### Multi-third-party returns
-Functions returning different third-party objects from different
-branches produce conservative primaries with complete alternatives
-in `library_usage`.
-
-## Improvements
-
-v2 correctly resolves provenance that v1 missed: local function
-return-value propagation, constructor-arg → self.attr → method
-call, and decorator evidence tracking.
+See [Ground Truth Evaluation](./ground-truth-evaluation.md) for the annotation
+schema and review workflow.

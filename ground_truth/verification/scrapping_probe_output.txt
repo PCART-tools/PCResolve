@@ -1,0 +1,7 @@
+beautifulsoup version: 4.13.5
+tag type module: bs4.element
+Tag.get method module: bs4.element
+href result type module: builtins
+str.find descriptor owner: <class 'str'>
+find bound receiver: True
+all probes passed

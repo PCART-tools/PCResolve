@@ -1,0 +1,18 @@
+# EJPLab — static_context (14 records)
+
+| File:Line:Col | Expression | GT | PCResolve | Category | Level | Notes |
+|---------------|------------|----|-----------|----------|-------|-------|
+| extract_model_embeddings.py:46:15 | `hidden_states.cpu()` | library / torch | library / torch | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:46:15 | `hidden_states.cpu().numpy()` | library / torch | library / torch | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:49:24 | `dataset.map(lambda batch: tokenizer(batch['Sequence']), batched=True)` | library / datasets | library / datasets | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:49:50 | `tokenizer(batch['Sequence'])` | unknown / unknown | unknown / unknown | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:50:4 | `tokenized_dataset.set_format('torch', columns=['input_ids', 'attent...` | library / datasets | library / datasets | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:59:12 | `all_hidden_states.append(hidden_states)` | python / python | python / python | builtin_container_method | static_context | gt: callable belongs to an explicitly bound builtin container<br>v: receiver is explicitly initialized as a builtin list or dict in project source |
+| extract_model_embeddings.py:74:21 | `test_df['Sequence'].to_list()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:78:22 | `train_df['Sequence'].to_list()` | library / pandas | library / pandas | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:82:20 | `big_df['Sequence'].to_list()` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:84:13 | `big_df.with_columns(pl.lit(big_sequences).alias('Sequence'))` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:85:13 | `big_df.filter(~pl.col('Sequence').is_in(test_sequences))` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:86:13 | `big_df.with_columns(pl.lit([0 for i in range(63999999 - len(test_se...` | library / polars | library / polars | transitive_method | static_context | v: receiver ownership inferred through return-value propagation |
+| extract_model_embeddings.py:87:13 | `big_df.sample(frac=0.01)` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |
+| extract_model_embeddings.py:88:13 | `big_df.to_pandas()` | library / polars | library / polars | transitive_method | static_context | v: transitive method; receiver ownership inferred through return-value propagation  |

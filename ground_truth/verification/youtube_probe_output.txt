@@ -1,0 +1,77 @@
+PCResolve 1.0.5 — Youtube Dynamic Probes
+Purpose: Verify receiver object ownership for high-risk calls
+See: ground_truth/probes/youtube_probe.py
+
+============================================================
+Probe 1: scipy.sparse matrix .todense() — receiver owner
+============================================================
+  csr_matrix created: <class 'scipy.sparse._csr.csr_matrix'>
+  csr_matrix.__module__: scipy.sparse._csr
+  .todense method: <bound method spmatrix.todense of <2x2 sparse matrix of type '<class 'numpy.float64'>'
+	with 2 stored elements in Compressed Sparse Row format>>
+  .todense method __module__: scipy.sparse._base
+  .todense method __name__: todense
+  .todense bound receiver type: <class 'scipy.sparse._csr.csr_matrix'>
+  .todense bound receiver __module__: scipy.sparse._csr
+  .todense() result type: <class 'numpy.matrix'>
+  .todense() result __module__: numpy
+
+  >>> EVIDENCE:
+  .todense() method module: scipy.sparse._base
+  .todense() receiver is: scipy.sparse.csr_matrix
+  .todense() IS a scipy.sparse method → expected_top_library='scipy'
+
+============================================================
+Probe 2: ndarray .copy() — receiver owner
+============================================================
+  ndarray created: <class 'numpy.ndarray'>
+  ndarray.__module__: numpy
+  .copy method: <built-in method copy of numpy.ndarray object at 0x7fc3056c4450>
+  .copy method __module__: None
+  .copy() result type: <class 'numpy.ndarray'>
+  .copy() result __module__: numpy
+
+  >>> EVIDENCE:
+  ndarray.copy() __module__: numpy
+  If centres IS ndarray (else branch), .copy() is numpy method
+
+============================================================
+Probe 3: cdist() return → .argmin() receiver owner
+============================================================
+  cdist() result type: <class 'numpy.ndarray'>
+  cdist() result __module__: numpy
+  .argmin method: <built-in method argmin of numpy.ndarray object at 0x7fc304e98b10>
+  .argmin method __module__: None
+  .argmin method __name__: argmin
+  .argmin(axis=1) result type: <class 'numpy.ndarray'>
+  .argmin(axis=1) result __module__: numpy
+
+  >>> EVIDENCE:
+  cdist() returns: numpy.ndarray (NOT scipy object)
+  ndarray.argmin() __module__: numpy
+  .argmin() receiver is numpy.ndarray → expected_top_library='numpy'
+  PCResolve saying 'scipy' is WRONG_OWNER (inherited from cdist call)
+
+============================================================
+Probe 4: ndarray .mean() — receiver owner
+============================================================
+  ndarray created: <class 'numpy.ndarray'>
+  .mean method: <built-in method mean of numpy.ndarray object at 0x7fc304e98d50>
+  .mean method __module__: None
+  .mean() result type: <class 'numpy.float64'>
+
+  >>> EVIDENCE:
+  ndarray.mean() __module__: numpy
+  .mean() on ndarray is numpy method → expected_top_library='numpy'
+
+============================================================
+SUMMARY
+============================================================
+  Probe 1: .todense() on scipy.sparse matrix → scipy method
+           GT expects library/scipy; PCResolve says python/local (MISS)
+  Probe 2: .copy() on ndarray (else branch) → numpy method
+           GT expects library/numpy
+  Probe 3: cdist() returns ndarray → .argmin() is numpy, NOT scipy
+           GT expects library/numpy; PCResolve says scipy (WRONG_OWNER)
+  Probe 4: .mean() on ndarray → numpy method
+           GT expects library/numpy

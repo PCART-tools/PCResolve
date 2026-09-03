@@ -36,11 +36,11 @@ def test_make_return_call_classified(result):
 
 
 def test_value_get_has_multi_source(result):
-    """UPDATEPHASE5: value.get(...) traces to either requests or numpy.
-    Full alternatives support needs classification engine (Phase 8A)."""
+    """Conflicting return owners remain unknown with both alternatives."""
     value_calls = [c for c in result.all_api_calls if "get" in c.expression]
     assert len(value_calls) == 1
-    assert value_calls[0].top_library in ("requests", "numpy")
+    assert value_calls[0].top_library == "unknown"
+    assert set(value_calls[0].alternatives) == {"requests", "numpy"}
 
 
 def test_return_sources_is_sourceset():
@@ -81,25 +81,24 @@ def test_chained_call_through_return():
     assert "local" not in str(get_call).lower(), f"Expected not local, got {get_call}"
 
 
-def test_value_get_top_library_v2():
-    """value.get(...) must resolve to requests or numpy in v2 (regression check)."""
-    result_v2 = analyze_project(FIXTURE, scope_model="v2")
-    value_calls = [c for c in result_v2.all_api_calls if "get" in c.expression]
+def test_value_get_top_library_is_conservative():
+    """Conflicting return branches must not select one arbitrary owner."""
+    analysis = analyze_project(FIXTURE)
+    value_calls = [c for c in analysis.all_api_calls if "get" in c.expression]
     assert len(value_calls) == 1
-    assert value_calls[0].top_library in ("requests", "numpy"), \
-        f"Expected requests or numpy, got {value_calls[0].top_library}"
+    assert value_calls[0].top_library == "unknown"
+    assert set(value_calls[0].alternatives) == {"requests", "numpy"}
 
 
 def test_no_sourceset_leak_in_top_library():
     """No SourceSet dataclass repr must leak into top_library or library_usage keys."""
-    for scope_model in ("v1", "v2"):
-        result = analyze_project(FIXTURE, scope_model=scope_model)
-        for call in result.all_api_calls:
-            assert "SourceSet(" not in str(call.top_library), \
-                f"[{scope_model}] Leaked SourceSet in top_library: {call.top_library}"
-        for lib in result.library_usage:
-            assert "SourceSet(" not in str(lib), \
-                f"[{scope_model}] Leaked SourceSet in library_usage key: {lib}"
+    analysis = analyze_project(FIXTURE)
+    for call in analysis.all_api_calls:
+        assert "SourceSet(" not in str(call.top_library), \
+            f"Leaked SourceSet in top_library: {call.top_library}"
+    for lib in analysis.library_usage:
+        assert "SourceSet(" not in str(lib), \
+            f"Leaked SourceSet in library_usage key: {lib}"
 
 
 def test_make_chained_call_project_level():
@@ -116,28 +115,18 @@ def test_make_chained_call_project_level():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        for scope_model in ("v1", "v2"):
-            result = analyze_project(tmpdir, scope_model=scope_model)
-            get_calls = [c for c in result.all_api_calls if "get" in c.expression]
-            assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
-            # Conservative primary: do not arbitrarily pick one third-party.
-            assert get_calls[0].top_library in ("local", "unknown"), \
-                f"[{scope_model}] Expected local/unknown (conservative), got {get_calls[0].top_library}"
-            # Alternatives must list every third-party candidate.
-            alts = getattr(get_calls[0], "alternatives", []) or []
-            assert "requests" in alts, \
-                f"[{scope_model}] alternatives missing requests: {alts}"
-            assert "numpy" in alts, \
-                f"[{scope_model}] alternatives missing numpy: {alts}"
-            assert get_calls[0].confidence < 1.0, \
-                f"[{scope_model}] FLOW_MERGE confidence should be < 1.0, got {get_calls[0].confidence}"
-            # library_usage must aggregate alternatives.
-            assert "requests" in result.library_usage, \
-                f"[{scope_model}] requests missing from library_usage"
-            assert "numpy" in result.library_usage, \
-                f"[{scope_model}] numpy missing from library_usage"
-            assert "SourceSet(" not in str(get_calls[0].top_library), \
-                f"[{scope_model}] Leaked SourceSet in top_library"
+        analysis = analyze_project(tmpdir)
+        get_calls = [c for c in analysis.all_api_calls if "get" in c.expression]
+        assert len(get_calls) == 1
+        # Conservative primary: do not arbitrarily pick one library.
+        assert get_calls[0].top_library in ("local", "unknown")
+        alts = getattr(get_calls[0], "alternatives", []) or []
+        assert "requests" in alts
+        assert "numpy" in alts
+        assert get_calls[0].confidence < 1.0
+        assert "requests" in analysis.library_usage
+        assert "numpy" in analysis.library_usage
+        assert "SourceSet(" not in str(get_calls[0].top_library)
 
 
 def test_mixed_local_and_third_party_return():
@@ -154,13 +143,9 @@ def test_mixed_local_and_third_party_return():
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "main.py"), "w") as f:
             f.write(code)
-        for scope_model in ("v1", "v2"):
-            result = analyze_project(tmpdir, scope_model=scope_model)
-            get_calls = [c for c in result.all_api_calls if "get" in c.expression]
-            assert len(get_calls) == 1, f"[{scope_model}] Expected 1 get call, got {len(get_calls)}"
-            assert get_calls[0].top_library == "requests", \
-                f"[{scope_model}] Expected requests, got {get_calls[0].top_library}"
-            assert "SourceSet(" not in str(get_calls[0].top_library), \
-                f"[{scope_model}] Leaked SourceSet in top_library"
-            assert "requests" in result.library_usage, \
-                f"[{scope_model}] requests missing from library_usage"
+        analysis = analyze_project(tmpdir)
+        get_calls = [c for c in analysis.all_api_calls if "get" in c.expression]
+        assert len(get_calls) == 1
+        assert get_calls[0].top_library == "requests"
+        assert "SourceSet(" not in str(get_calls[0].top_library)
+        assert "requests" in analysis.library_usage

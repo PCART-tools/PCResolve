@@ -1,0 +1,20 @@
+seaborn version: 0.13.2
+matplotlib version: 3.10.6
+barplot axes type module: matplotlib.axes._axes
+barplot legend method module: matplotlib.axes._axes
+stripplot axes type module: matplotlib.axes._axes
+stripplot legend method module: matplotlib.axes._axes
+swarmplot axes type module: matplotlib.axes._axes
+swarmplot legend method module: matplotlib.axes._axes
+patch type module: matplotlib.patches
+get_x method module: matplotlib.patches
+get_width method module: matplotlib.patches
+get_height method module: matplotlib.patches
+numpy version: 2.3.5
+log result type module: numpy
+flatten bound receiver: True
+scipy version: 1.16.3
+distribution type module: scipy.stats._distn_infrastructure
+ppf method module: scipy.stats._distn_infrastructure
+ppf bound receiver: True
+all probes passed

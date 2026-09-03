@@ -18,7 +18,7 @@
         "alias_call": "requests",
         "partial_call": "requests",
         "client": "local",
-        "local_method_call": "local",
+        "local_method_call": "requests",
         "m_client": "local",
         "local_inherited_call": "local",
         "tp": "local",
@@ -93,8 +93,8 @@
         ],
         "local_method_call": [
           "local_method_call",
-          "LocalClient.get",
-          "local_lib"
+          "client.get()",
+          "requests"
         ],
         "m_client": [
           "m_client",
@@ -972,19 +972,20 @@
         {
           "symbol": "url",
           "kind": "parameter",
-          "top_library": "local",
+          "top_library": "python",
           "top_libraries": [
-            "local"
+            "python"
           ],
           "chain": [
             "url",
-            "local"
+            "fetch_data:url",
+            "python"
           ],
           "scope_name": "fetch_data",
           "file_path": "local_lib.py",
           "lineno": 5,
           "col_offset": 15,
-          "reason": "LOCAL_DEFINITION",
+          "reason": "BUILTIN",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -1049,20 +1050,21 @@
         {
           "symbol": "url",
           "kind": "parameter",
-          "top_library": "local",
+          "top_library": "unknown",
           "top_libraries": [
-            "local"
+            "unknown"
           ],
           "chain": [
             "url",
-            "local"
+            "get:url",
+            "unknown"
           ],
           "scope_name": "get",
           "file_path": "local_lib.py",
           "lineno": 12,
           "col_offset": 18,
-          "reason": "LOCAL_DEFINITION",
-          "confidence": 1.0,
+          "reason": "UNRESOLVED",
+          "confidence": 0.0,
           "alternatives": []
         },
         {
@@ -1164,19 +1166,20 @@
         {
           "symbol": "url",
           "kind": "parameter",
-          "top_library": "local",
+          "top_library": "python",
           "top_libraries": [
-            "local"
+            "python"
           ],
           "chain": [
             "url",
-            "local"
+            "wrapper:url",
+            "python"
           ],
           "scope_name": "wrapper",
           "file_path": "local_lib.py",
           "lineno": 29,
           "col_offset": 12,
-          "reason": "LOCAL_DEFINITION",
+          "reason": "BUILTIN",
           "confidence": 1.0,
           "alternatives": []
         },
@@ -2026,19 +2029,20 @@
     {
       "symbol": "url",
       "kind": "parameter",
-      "top_library": "local",
+      "top_library": "python",
       "top_libraries": [
-        "local"
+        "python"
       ],
       "chain": [
         "url",
-        "local"
+        "fetch_data:url",
+        "python"
       ],
       "scope_name": "fetch_data",
       "file_path": "local_lib.py",
       "lineno": 5,
       "col_offset": 15,
-      "reason": "LOCAL_DEFINITION",
+      "reason": "BUILTIN",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2103,20 +2107,21 @@
     {
       "symbol": "url",
       "kind": "parameter",
-      "top_library": "local",
+      "top_library": "unknown",
       "top_libraries": [
-        "local"
+        "unknown"
       ],
       "chain": [
         "url",
-        "local"
+        "get:url",
+        "unknown"
       ],
       "scope_name": "get",
       "file_path": "local_lib.py",
       "lineno": 12,
       "col_offset": 18,
-      "reason": "LOCAL_DEFINITION",
-      "confidence": 1.0,
+      "reason": "UNRESOLVED",
+      "confidence": 0.0,
       "alternatives": []
     },
     {
@@ -2218,19 +2223,20 @@
     {
       "symbol": "url",
       "kind": "parameter",
-      "top_library": "local",
+      "top_library": "python",
       "top_libraries": [
-        "local"
+        "python"
       ],
       "chain": [
         "url",
-        "local"
+        "wrapper:url",
+        "python"
       ],
       "scope_name": "wrapper",
       "file_path": "local_lib.py",
       "lineno": 29,
       "col_offset": 12,
-      "reason": "LOCAL_DEFINITION",
+      "reason": "BUILTIN",
       "confidence": 1.0,
       "alternatives": []
     },
@@ -2346,7 +2352,6 @@
   "stats": {
     "total_modules": 2,
     "parsed_modules": 2,
-    "skipped_modules": 0,
-    "scope_model": "v2"
+    "skipped_modules": 0
   }
 }

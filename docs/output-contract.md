@@ -1,27 +1,51 @@
-# PCResolve 1.0.4 Output Contract
+# PCResolve Output Contract
 
-PCResolve 1.0.4 is the first stable provenance contract release.
-JSON outputs before 1.0.4 are experimental and not guaranteed
-compatible.
+PCResolve 1.0.4 introduced the first stable provenance JSON contract.
+PCResolve 1.0.5 freezes the lexical-scope-only interface documented here.
+JSON outputs before 1.0.4 are experimental and not guaranteed compatible.
 
 ## CLI
 
 ```bash
-pcresolve project                  # human summary (v2 default)
+pcresolve project                  # human summary
 pcresolve project --json           # full provenance JSON
 pcresolve project --json-summary   # compact summary JSON (CI)
 pcresolve project --explain-library numpy
 pcresolve project --explain-symbol x
 pcresolve project --explain-call "np.array"
+pcresolve project --strict
+pcresolve project --usage-summary --top 20
+printf '/path/to/project\n' | pcresolve --stdin --json-summary
 ```
 
-- `scope_model` defaults to `v2` (lexical scopes).
-- `--scope-model v1` is still accepted for legacy compatibility.
+- Lexical scope analysis is the only supported scope semantics.
 - `--json` is the primary machine-consumption format.
 - `--json-full` and `--json-stable` are hidden aliases for `--json`.
 - `--json-summary` is the recommended CI format.
+- `--strict` exits non-zero when error diagnostics are present.
+- `--verbose`, `--usage-summary`, `--quiet`, and `--top` control text output.
+- `--stdin` reads the project root from standard input.
+
+## Python API
+
+The stable entry points use these signatures:
+
+```python
+analyze_project(project_root)
+analyze_source(source, file_path="<string>")
+ProjectAnalyzer(project_root)
+SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
+```
+
+PCResolve uses one lexical scope model. The removed `scope_model` selector and
+the former `stats.scope_model` field are not part of the 1.0.5 interface.
 
 ## Full provenance JSON (`--json`)
+
+`all_api_calls` is the primary consumption surface. `all_symbol_provenance`
+provides the explanation and evidence layer: it records which imports,
+aliases, assignments, parameters, returns, attributes, containers, and
+decorators support each call classification.
 
 ```json
 {
@@ -44,7 +68,7 @@ pcresolve project --explain-call "np.array"
 | `expression` | string | Full call expression text |
 | `func_name` | string | Function name without arguments |
 | `parameters` | string | Argument text |
-| `top_library` | string | Resolved top-level library |
+| `top_library` | string | Resolved primary owner: import-backed top-level library name, or `local`, `python`, `unknown`. PCResolve does not distinguish stdlib from PyPI: any import-backed owner keeps its top-level name (e.g. `json`, `pathlib`, `requests`, `numpy`). |
 | `base_symbol` | string | Root/base symbol used for resolution |
 | `reason` | string | DIRECT_IMPORT, RETURN_PROPAGATION, FLOW_MERGE, ... |
 | `confidence` | float | 0.0–1.0 |
@@ -69,7 +93,7 @@ guaranteed precise resolution:
   via `import_from_symbols`, `resolved_func` includes the class path
   (e.g. `requests.Session.get`, `flask.Flask.test_client`).
 - **Factory returns**: when the receiver traces through a local
-  function that returns a third-party object, the class info is
+  function that returns an import-backed library-owned object, the class info is
   typically not preserved.  PCResolve may produce a library-level
   function (e.g. `requests.get`) when the call path normalizes;
   otherwise the original receiver expression is preserved while
@@ -114,6 +138,10 @@ External paths use the `<external>/...` prefix.
 | FLOW_MERGE | Multiple branches/sources merged (if/else, multi-return, SourceSet) |
 | UNRESOLVED | Trace could not reach a terminal origin |
 
+`PARAMETER_PROPAGATION` remains a stable reason value. In 1.0.5, parameter
+evidence often resolves before final classification, so the resulting call may
+instead report `RETURN_PROPAGATION`, `FLOW_MERGE`, or `TRANSITIVE_IMPORT`.
+
 ## Confidence rules
 
 | Reason | Confidence |
@@ -126,11 +154,13 @@ External paths use the `<external>/...` prefix.
 | TRANSITIVE_IMPORT | 0.9 |
 | FLOW_MERGE (single) | 0.85 |
 | FLOW_MERGE (N alts) | max(1/N, 0.2) |
+| FLOW_MERGE with a conservative local primary | 0.5 |
 | UNRESOLVED | 0.0 |
 
-## Breaking changes (1.0.4)
+## Version History
 
-- Default `scope_model`: `v1` → `v2`.
-- `--json`: legacy dataclass dump → full provenance schema.
-- `--json-stable`: deprecated, hidden.
-- Pre-1.0.4 JSON: experimental, no compatibility guarantee.
+- **1.0.5:** lexical scope analysis is the only scope semantics; JSON `stats`
+  contains parsed, skipped, and total module counts only.
+- **1.0.4:** `--json` became the full provenance schema;
+  `--json-stable` became a deprecated hidden alias.
+- **Before 1.0.4:** JSON was experimental and has no compatibility guarantee.

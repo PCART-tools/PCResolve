@@ -160,14 +160,24 @@ def test_multi_level_attribute_chain_classified_as_thirdparty():
     assert False, "app.logger.info(...) call not found"
 
 
-def test_multi_level_attribute_chain_on_imported_name_is_thirdparty():
-    """request.headers.get(...) / request.json.get(...) where request is
-    directly imported from flask → flask."""
+def test_framework_public_attribute_without_item_evidence_keeps_owner():
+    """request.headers.get(...) retains the existing framework surface."""
     result = analyze_project(os.path.join(FIXTURES, "tested_projects", "flask2"))
     for f in result.files:
         if f.file_path.endswith("app.py"):
             for c in f.api_calls:
-                if "request." in c.expression and ".get(" in c.expression:
+                if "request.headers.get(" in c.expression:
                     assert c.top_library == "flask", (
                         f"Expected flask, got {c.top_library} for {c.expression[:60]}"
                     )
+
+
+def test_subscripted_runtime_attribute_method_is_unknown():
+    """request.json[...] does not prove the owner of request.json.get."""
+    result = analyze_project(os.path.join(FIXTURES, "tested_projects", "flask2"))
+    calls = [
+        call for call in result.all_api_calls
+        if "request.json.get(" in call.expression
+    ]
+    assert len(calls) == 4
+    assert all(call.top_library == "unknown" for call in calls)

@@ -473,35 +473,42 @@ async def fetch(url):
     )
 
 
-def test_async_for_loop_variable_bound():
-    """async for item in it: — loop variable bound to iterator source (v1)."""
+def test_async_for_bindings_stay_in_function_scope():
+    """Async iteration bindings are recorded without leaking to the module."""
     code = """import aiohttp
 async def iterate(it):
     async for item in it:
         val = item
     return val
 """
-    tracer = SingleFileAnalyzer(scope_model="v1")
+    tracer = SingleFileAnalyzer()
     tracer.visit(ast.parse(code))
-    # item is bound from the async for iterator source
-    assert "val" in tracer.symbols.direct, (
-        f"Expected 'val' symbol from async for, got {list(tracer.symbols.direct)}"
-    )
+    scoped = {
+        (ref.symbol, ref.scope_name, ref.kind)
+        for ref in tracer.symbol_refs
+    }
+    assert ("item", "iterate", "iteration") in scoped
+    assert ("val", "iterate", "variable") in scoped
+    assert "item" not in tracer.symbols.direct
+    assert "val" not in tracer.symbols.direct
 
 
-def test_async_with_context_variable_bound():
-    """async with ... as var: — context variable bound to context source (v1)."""
+def test_async_with_binding_stays_in_function_scope():
+    """Async context bindings retain their source in the function scope."""
     code = """import aiohttp
 async def fetch(url):
     async with aiohttp.ClientSession() as session:
         return session
 """
-    tracer = SingleFileAnalyzer(scope_model="v1")
+    tracer = SingleFileAnalyzer()
     tracer.visit(ast.parse(code))
-    # session should be bound to aiohttp.ClientSession's source
-    assert "session" in tracer.symbols.direct, (
-        f"Expected 'session' in direct from async with, got {list(tracer.symbols.direct)}"
-    )
+    session_refs = [
+        ref for ref in tracer.symbol_refs
+        if ref.symbol == "session" and ref.scope_name == "fetch"
+    ]
+    assert len(session_refs) == 1
+    assert session_refs[0].kind == "variable"
+    assert "session" not in tracer.symbols.direct
 
 
 # ── Edge case: self.attr.method() via attribute assignment ────────────

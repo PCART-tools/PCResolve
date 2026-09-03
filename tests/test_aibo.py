@@ -20,7 +20,7 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "tested_projects",
 
 @pytest.fixture(scope="module")
 def result():
-    return analyze_project(FIXTURE, scope_model="v1")
+    return analyze_project(FIXTURE)
 
 
 @pytest.fixture(scope="module")
@@ -140,9 +140,42 @@ def test_box2d_wildcard_imports_resolve_to_box2d(calls_by_top):
     assert not leaked, f"Box2D wildcard names leaked: {leaked}"
 
 
+def test_wildcard_import_receiver_attribute_keeps_box2d_owner():
+    """A wildcard-imported constructor stays external through self attrs."""
+    analysis = analyze_project(FIXTURE)
+    matches = [
+        call for call in analysis.all_api_calls
+        if call.func_name == "self.world.Step"
+    ]
+    assert len(matches) == 1
+    assert matches[0].top_library == "Box2D"
+
+
 def test_baselines_is_third_party(calls_by_top):
     """baselines (OpenAI Baselines) is a third-party library."""
     assert "baselines" in calls_by_top
+
+
+def test_union_geometry_items_keep_local_method_identity():
+    """Constructor list elements prove g.contains() is project-local."""
+    analysis = analyze_project(FIXTURE)
+    matches = [
+        call for call in analysis.all_api_calls
+        if call.func_name == "g.contains"
+    ]
+    assert len(matches) == 1
+    assert matches[0].top_library == "local"
+
+
+def test_ambiguous_monkey_patched_method_is_unknown():
+    """A library receiver with multiple patched classes is not guessable."""
+    analysis = analyze_project(FIXTURE)
+    matches = [
+        call for call in analysis.all_api_calls
+        if call.func_name == "fixture.shape.draw"
+    ]
+    assert len(matches) == 1
+    assert matches[0].top_library == "unknown"
 
 
 def test_local_variables_are_not_top_library(calls_by_top):

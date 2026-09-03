@@ -11,11 +11,11 @@ import pytest
 from pcresolve import analyze_project
 
 
-def _run_code(code, scope_model="v2"):
+def _run_code(code):
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        return analyze_project(td, scope_model=scope_model)
+        return analyze_project(td)
 
 
 # ── Test 1: self.method() must not enter library_usage ──────────────────
@@ -59,6 +59,27 @@ def test_local_function_is_local():
     for c in helper_calls:
         assert c.top_library == "local", f"helper() not local: {c.top_library}"
     assert "helper" not in r.library_usage
+
+
+def test_class_qualified_local_field_stays_local():
+    """A class-qualified singleton field must not create a library owner."""
+    code = ("class Worker:\n"
+            "    def run(self):\n"
+            "        pass\n"
+            "class Local:\n"
+            "    __instance = None\n"
+            "    def __new__(cls):\n"
+            "        if cls.__instance is None:\n"
+            "            cls.__instance = object.__new__(cls)\n"
+            "            cls.__instance.worker = Worker()\n"
+            "        return cls.__instance\n"
+            "    def run(self):\n"
+            "        self.worker.run()\n"
+            "Local().run()\n")
+    r = _run_code(code)
+    calls = [c for c in r.all_api_calls if c.expression == "self.worker.run()"]
+    assert len(calls) == 1
+    assert calls[0].top_library == "local"
 
 
 # ── Test 4: parameter receiver must not enter library_usage ────────────
@@ -144,7 +165,7 @@ def test_mixed_local_third_party_alternatives():
         f"Mixed alternatives should have confidence < 1.0, got {get_calls[0].confidence}"
 
 
-# ── Test 9: v1 mode should still pass all existing tests ───────────────
+# ── Test 9: local function identity ────────────────────────────────────
 
 # ── Phase 8C: decorator provenance ────────────────────────────────────
 
@@ -396,8 +417,8 @@ def test_module_level_decorator_not_leak_into_nested_scope():
 
 
 def test_local_class_multi_instance_different_libraries():
-    """Two instances of the same wrapper class with different external
-    constructor args must resolve to their respective libraries."""
+    """Two instances of the same wrapper class — get() is explicitly
+    defined local method. self.session.get(url) inside it stays library."""
     code = ("import requests\n"
             "import httpx\n"
             "class Api:\n"
@@ -412,11 +433,11 @@ def test_local_class_multi_instance_different_libraries():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "a.get" in c.expression:
-            assert c.top_library == "requests", \
-                f"a.get() should be requests, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"a.get() is explicitly defined local method, got {c.top_library}"
         if "b.get" in c.expression:
-            assert c.top_library == "httpx", \
-                f"b.get() should be httpx, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"b.get() is explicitly defined local method, got {c.top_library}"
 
 
 # ── Phase 7B-lite PR 1: receiver provenance regression tests ────────────
@@ -452,8 +473,8 @@ def test_attribute_chain_receiver_uses_root_binding():
                 f"attribute-chain receiver should trace to ext, got {c.top_library}"
 
 
-def test_local_object_attribute_chain_not_misattributed():
-    """Local object attribute must not be misattributed to a third-party."""
+def test_unconstrained_attribute_chain_is_unknown():
+    """A local root does not prove ownership of an unconstrained attribute."""
     code = ("class Local:\n"
             "    def method(self): pass\n"
             "def f(x):\n"
@@ -462,8 +483,8 @@ def test_local_object_attribute_chain_not_misattributed():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "method" in c.expression:
-            assert c.top_library == "local", \
-                f"local object method must be local, got {c.top_library}"
+            assert c.top_library == "unknown", \
+                f"unconstrained child method must be unknown, got {c.top_library}"
 
 
 # ── Phase 7B hardening (4 categories) ────────────────────────────────────
@@ -473,8 +494,8 @@ def test_local_object_attribute_chain_not_misattributed():
 #  (4) pure-local:      test_7b_pure_local_method_stays_local
 
 def test_7b_alias_receiver_follows_to_external():
-    """(2) alias receiver — c = b; c.get(...) where b = Api(httpx.Client())
-    must still trace to httpx through the alias."""
+    """(2) alias receiver — c = b; c.get(...) where b = Api(httpx.Client()).
+    get() is explicitly defined local method (P0 identity)."""
     code = ("import requests\n"
             "import httpx\n"
             "class Api:\n"
@@ -489,8 +510,8 @@ def test_7b_alias_receiver_follows_to_external():
     r = _run_code(code)
     for c in r.all_api_calls:
         if "c.get" in c.expression:
-            assert c.top_library == "httpx", \
-                f"c.get() via alias should be httpx, got {c.top_library}"
+            assert c.top_library == "local", \
+                f"c.get() is explicitly defined local method, got {c.top_library}"
 
 
 def test_self_attr_dotted_callee_traces_to_library():
@@ -585,15 +606,16 @@ def test_7b_pure_local_method_stays_local():
                 f"Calc.add() should be local, got {c.top_library}"
 
 
-def test_v1_still_works_for_local_functions():
+def test_local_functions_use_local_owner():
     code = ("def helper():\n"
             "    pass\n"
             "helper()\n")
-    r = _run_code(code, scope_model="v1")
+    r = _run_code(code)
     helper_calls = [c for c in r.all_api_calls if "helper" in c.expression]
     assert len(helper_calls) >= 1
     for c in helper_calls:
-        assert c.top_library == "local", f"v1 helper() not local: {c.top_library}"
+        assert c.top_library == "local", \
+            f"helper() should be local, got {c.top_library}"
 
 
 # ── Test 10: dotted import descendant must be library ─────────────────
@@ -622,7 +644,7 @@ def test_deep_dotted_import_descendant_is_library():
 
 
 def test_assigned_chained_call_result_inherits_library():
-    """predictions = self.model.predict(X)[0].reshape(...); predictions.ravel() -> GPy."""
+    """A verified GPy prediction item remains NumPy through reshape()."""
     code = (
         "import GPy\n"
         "class Wrapper:\n"
@@ -637,12 +659,12 @@ def test_assigned_chained_call_result_inherits_library():
     calls = [c for c in r.all_api_calls if "ravel" in c.expression]
     assert calls, "predictions.ravel() not collected"
     for c in calls:
-        assert c.top_library == "GPy", \
-            f"predictions.ravel() should be GPy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "numpy", \
+            f"predictions.ravel() should be numpy, got {c.top_library} ({c.chain})"
 
 
 def test_tuple_unpack_assigned_result_inherits_library():
-    """a, b = self.model.predict(X); a.ravel() -> GPy."""
+    """a, b = self.model.predict(X); a.ravel() -> numpy."""
     code = (
         "import GPy\n"
         "class Wrapper:\n"
@@ -657,8 +679,8 @@ def test_tuple_unpack_assigned_result_inherits_library():
     calls = [c for c in r.all_api_calls if "ravel" in c.expression]
     assert calls, "a.ravel() not collected"
     for c in calls:
-        assert c.top_library == "GPy", \
-            f"a.ravel() should be GPy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "numpy", \
+            f"a.ravel() should be numpy, got {c.top_library} ({c.chain})"
 
 
 def test_local_self_attr_not_polluted_to_library():
@@ -675,8 +697,8 @@ def test_local_self_attr_not_polluted_to_library():
             f"local self.y method should stay local, got {c.top_library}"
 
 
-def test_non_import_backed_receiver_stays_local():
-    """Local variable assigned from non-import source stays local."""
+def test_local_alias_of_builtin_container_keeps_python_owner():
+    """A local alias does not change a builtin container's method owner."""
     code = (
         "class A:\n"
         "    def __init__(self):\n"
@@ -690,8 +712,8 @@ def test_non_import_backed_receiver_stays_local():
     calls = [c for c in r.all_api_calls if "count" in c.expression]
     assert calls, "x.count() not collected"
     for c in calls:
-        assert c.top_library == "local", \
-            f"local x.count() should stay local, got {c.top_library}"
+        assert c.top_library == "python", \
+            f"list x.count() should be python, got {c.top_library}"
 
 
 # ── Phase 7B-full gap tests (xfail — pending CallGraph return-object tracking) ─
@@ -756,8 +778,9 @@ def test_factory_returned_instance_method_traces_to_library():
             f"kernel.K() should be GPy, got {c.top_library} ({c.chain})"
 
 
-def test_local_model_factory_method_call_traces_to_constructor_library():
-    """model = NSGP(); model.fit(X, y) traces to sklearn via constructor self.gp attr (7B-full PR3)."""
+def test_local_model_factory_method_call_is_local():
+    """model = NSGP(); model.fit(X, y) is local — fit is explicitly defined in NSGP (P0 local method identity).
+    The internal self.gp.fit(X, y) call remains sklearn."""
     code = (
         "import numpy as np\n"
         "from sklearn.gaussian_process import GaussianProcessRegressor\n"
@@ -770,11 +793,18 @@ def test_local_model_factory_method_call_traces_to_constructor_library():
         "model.fit([[1]], [1])\n"
     )
     r = _run_code(code)
+    # model.fit() — explicitly defined local method → local
     calls = [c for c in r.all_api_calls if "fit" in c.expression and "self.gp" not in c.expression]
     assert calls, "model.fit() not collected"
     for c in calls:
+        assert c.top_library == "local", \
+            f"model.fit() should be local (explicitly defined method), got {c.top_library}"
+    # self.gp.fit() inside fit method → sklearn
+    gp_calls = [c for c in r.all_api_calls if "self.gp.fit" in c.expression]
+    assert gp_calls, "self.gp.fit() not collected"
+    for c in gp_calls:
         assert c.top_library == "sklearn", \
-            f"model.fit() should be sklearn, got {c.top_library}"
+            f"self.gp.fit() should be sklearn, got {c.top_library}"
 
 
 def test_method_result_object_keeps_library_for_followup_call():
@@ -801,13 +831,13 @@ def test_method_result_object_keeps_library_for_followup_call():
 # ── Phase 7B-full PR1: call-graph fact integrity ───────────────────────
 
 
-def _run_code_with_cg(code, scope_model="v2"):
+def _run_code_with_cg(code):
     """Analyze code and return (result, project_cg)."""
     from pcresolve.cross_file import ProjectAnalyzer
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
-        pa = ProjectAnalyzer(td, scope_model=scope_model)
+        pa = ProjectAnalyzer(td)
         result = pa.analyze()
         return result, pa.project_cg
 
@@ -937,6 +967,64 @@ def test_local_function_return_propagates_library_to_caller():
             f"x.sum() should be numpy, got {c.top_library}"
 
 
+def test_local_method_return_owns_direct_chained_call():
+    """self.make().find() follows the local method's explicit return."""
+    code = (
+        "from bs4 import BeautifulSoup\n"
+        "class Parser:\n"
+        "    def make(self):\n"
+        "        return BeautifulSoup('<div></div>', 'html.parser')\n"
+        "    def run(self):\n"
+        "        return self.make().find('div')\n"
+        "Parser().run()\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.make().find('div')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "bs4"
+
+
+def test_unresolved_local_method_return_does_not_claim_local_receiver():
+    """An unresolved local method result cannot prove the next owner local."""
+    code = (
+        "class Wrapper:\n"
+        "    def make(self):\n"
+        "        return self.missing()\n"
+        "    def run(self):\n"
+        "        return self.make().find('x')\n"
+        "Wrapper().run()\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.make().find('x')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library == "unknown"
+
+
+def test_parameter_return_does_not_guess_direct_chain_owner():
+    """A local identity method does not promote its parameter's owner."""
+    code = (
+        "class Wrapper:\n"
+        "    def identity(self, value):\n"
+        "        return value\n"
+        "    def run(self, value):\n"
+        "        return self.identity(value).find('x')\n"
+        "Wrapper().run(object())\n"
+    )
+    result = _run_code(code)
+    calls = [
+        call for call in result.all_api_calls
+        if call.expression == "self.identity(value).find('x')"
+    ]
+    assert len(calls) == 1
+    assert calls[0].top_library in ("local", "unknown")
+
+
 def test_same_name_function_across_modules_not_polluted():
     """a.py: make_arr -> numpy; b.py: make_arr -> local list; b calls own, must not become numpy."""
     from pcresolve.cross_file import ProjectAnalyzer
@@ -956,7 +1044,7 @@ def test_same_name_function_across_modules_not_polluted():
                 "x = make_arr()\n"
                 "x.count(1)\n"
             )
-        pa = ProjectAnalyzer(td, scope_model="v2")
+        pa = ProjectAnalyzer(td)
         result = pa.analyze()
         count_calls = [c for c in result.all_api_calls if "count" in c.expression]
         assert count_calls, "x.count() not collected in b.py"
@@ -991,7 +1079,8 @@ def test_unrelated_import_attr_not_leaked_to_method():
 
 
 def test_method_gets_right_attr_not_wrong_one():
-    """c.shape() gets numpy from self.arr, not requests from self.session."""
+    """c.shape() is local — shape is explicitly defined in C (P0 local method identity).
+    self.arr.reshape() inside shape method remains numpy."""
     code = (
         "import requests\n"
         "import numpy as np\n"
@@ -1005,12 +1094,13 @@ def test_method_gets_right_attr_not_wrong_one():
         "c.shape()\n"
     )
     r = _run_code(code)
+    # c.shape() — explicitly defined local method → local
     shape_calls = [c for c in r.all_api_calls
                    if "shape" in c.expression and "reshape" not in c.expression]
     assert shape_calls, "c.shape() not collected"
     for c in shape_calls:
-        assert c.top_library == "numpy", \
-            f"c.shape() should be numpy, got {c.top_library} ({c.chain})"
+        assert c.top_library == "local", \
+            f"c.shape() should be local (explicitly defined method), got {c.top_library} ({c.chain})"
 
 
 # ── Phase 7B-full PR4-fix: arg-source must not leak through CallResult ──
@@ -1098,7 +1188,7 @@ def test_multi_return_source_set_not_pick_first():
     assert calls, "y.sum() not collected"
     for c in calls:
         assert c.top_library == "numpy", \
-            f"v2 should resolve sole SourceSet candidate to numpy, got {c.top_library}"
+            f"Expected sole SourceSet candidate numpy, got {c.top_library}"
         assert "numpy" in (getattr(c, "alternatives", []) or []), \
             f"alternatives should include numpy, got {getattr(c, 'alternatives', [])}"
         assert getattr(c, "reason", "") == "RETURN_PROPAGATION", \

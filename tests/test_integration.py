@@ -101,19 +101,21 @@ def test_tests7_dict_subscript_single_file():
 # ── tests8: partial and lambda ────────────────────────────────────────
 
 def test_tests8_partial_and_lambda():
-    """functools.partial and lambda wrapping of third-party functions."""
+    """Partial stays transparent while lambda callables remain local."""
     result = analyze_project(os.path.join(FIXTURES, "tests8"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     # direct partial(requests.post, ...) → requests
     assert tops_by_expr.get("post_data('https://api.example.com/data', json={'key': 'value'})") == "requests"
     # direct partial(np.sqrt) → numpy
     assert tops_by_expr.get("sqrt_arr([1, 4, 9])") == "numpy"
-    # lambda wrapping requests.get → requests
-    assert tops_by_expr.get("http_get('https://example.com')") == "requests"
-    # lambda wrapping np.sum → numpy
-    assert tops_by_expr.get("array_sum([1, 2, 3, 4, 5])") == "numpy"
-    # lambda wrapping Session().get → requests
-    assert tops_by_expr.get("make_request('https://example.com/api')") == "requests"
+    # A lambda is a project-local callable. Calls in its body are collected
+    # separately with their import-backed owners.
+    assert tops_by_expr.get("http_get('https://example.com')") == "local"
+    assert tops_by_expr.get("array_sum([1, 2, 3, 4, 5])") == "local"
+    assert tops_by_expr.get("make_request('https://example.com/api')") == "local"
+    assert tops_by_expr.get("requests.get(url, timeout=10)") == "requests"
+    assert tops_by_expr.get("np.sum(arr)") == "numpy"
+    assert tops_by_expr.get("requests.Session().get(url)") == "requests"
 
 
 def test_tests8_partial_via_alias_known_issue():
@@ -153,7 +155,7 @@ def test_tests9_container_subscript_cross_file():
 
 def test_tests10_class_method_and_return():
     """Class methods on local classes, return-flow, and chained calls."""
-    result = analyze_project(os.path.join(FIXTURES, "tests10"), scope_model="v2")
+    result = analyze_project(os.path.join(FIXTURES, "tests10"))
     tops_by_expr = {c.expression: c.top_library for c in result.all_api_calls}
     # local class instantiation
     assert tops_by_expr.get("UserClient('https://api.example.com')") == "local"

@@ -73,6 +73,41 @@ def test_pymysql_calls(calls_by_top):
     assert "pymysql" in calls_by_top
 
 
+def test_pymysql_singleton_receiver_calls(result):
+    """Class-qualified singleton fields preserve pymysql receiver ownership."""
+    matches = {
+        call.expression: call
+        for call in result.all_api_calls
+        if call.file_path.endswith("allnews_am\\db.py")
+    }
+    for expression in (
+            "self.connection.cursor()",
+            "cursor.execute(sql, (offset, limit))",
+            "cursor.fetchall()"):
+        assert matches[expression].top_library == "pymysql", (
+            "%s should resolve through MySQL.__instance.connection" % expression)
+
+
+def test_tuple_comprehension_regex_receivers_preserve_re(result):
+    """Tuple fields from a module-level pattern comprehension keep re owner."""
+    calls = [
+        call for call in result.all_api_calls
+        if call.file_path.endswith("wikiextractor\\WikiExtractor.py")
+    ]
+    assert any(
+        call.lineno == 786
+        and call.expression == "pattern.finditer(text)"
+        and call.top_library == "re"
+        for call in calls
+    )
+    assert any(
+        call.lineno == 787
+        and call.expression == "match.group()"
+        and call.top_library == "re"
+        for call in calls
+    )
+
+
 # ── Local function classification ──────────────────────────────────────
 
 def test_local_classes_are_local(calls_by_top):
@@ -84,6 +119,72 @@ def test_local_classes_are_local(calls_by_top):
     ]
     found = sum(1 for e in local_exprs for ind in indicators if ind in e)
     assert found > 0, "Expected local class instantiations classified as local"
+
+
+def test_imported_local_class_method_chain_stays_local(result):
+    """An imported local class constructor proves its local method chain."""
+    matches = [
+        call for call in result.all_api_calls
+        if call.expression == "t.segmentation().tokenization()"
+    ]
+    assert len(matches) == 1
+    assert matches[0].top_library == "local"
+
+
+def test_local_class_factory_receiver_is_local(result):
+    matches = {
+        call.expression: call
+        for call in result.all_api_calls
+        if call.file_path.endswith("WikiExtractor.py")
+    }
+
+    assert matches["template.subst(params, self)"].top_library == "local"
+    assert matches["extr.expand(ifnex)"].top_library == "local"
+    assert matches["extr.expand(ifnex)"].reason == "LOCAL_DEFINITION"
+
+
+def test_kwargs_backed_namespace_fields_are_python(result):
+    matches = {
+        call.expression: call
+        for call in result.all_api_calls
+        if call.file_path.endswith("WikiExtractor.py")
+    }
+
+    for expression in (
+            "options.ignored_tag_patterns.append((left, right))",
+            "options.knownNamespaces.get(ns, '0')",
+            "options.redirects.get(title)",
+            "options.filter_category_exclude.add(line.lstrip('^'))",
+            "options.filter_category_include.add(line)"):
+        assert matches[expression].top_library == "python"
+
+
+def test_attribute_tuple_container_preserves_regex_receivers(result):
+    matches = {
+        (call.lineno, call.expression): call
+        for call in result.all_api_calls
+        if call.file_path.endswith("WikiExtractor.py")
+        and call.lineno in (767, 768, 769, 770)
+    }
+
+    for key in (
+            (767, "left.finditer(text)"),
+            (768, "m.start()"),
+            (768, "m.end()"),
+            (769, "right.finditer(text)"),
+            (770, "m.start()"),
+            (770, "m.end()")):
+        assert matches[key].top_library == "re"
+
+
+def test_nested_callback_lookup_preserves_local_callable(result):
+    matches = [
+        call for call in result.all_api_calls
+        if call.func_name == "funct"
+        and call.expression == "funct(args)"
+    ]
+    assert len(matches) == 1
+    assert matches[0].top_library == "local"
 
 
 # ── Stdlib modules (need import → correctly third-party) ──────────────

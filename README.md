@@ -2,22 +2,27 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pcresolve)](https://pypi.org/project/pcresolve/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+Project-level Python static analysis for API ownership and library usage provenance.
+
 ## News
 
+- **2026-09-03** - PCResolve 1.0.5 standardizes on lexical scope analysis and
+  expands context-sensitive parameter, return, call, and receiver provenance.
 - **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
 
 ## What is PCResolve?
 
-PCResolve is a Python project-level third-party library usage provenance analyzer. It is an explainable static analysis tool for tracing Python API call expressions to their most likely origin library.
+PCResolve is a project-level Python static analyzer for API ownership and library usage provenance. It classifies Python API call expressions and traces the symbols that feed them to their owner: an import-backed library, Python-provided API, project-local definition, or unknown.
 
 It answers questions such as:
 
-- Which third-party libraries does this project call?
-- Which call expression belongs to `numpy`, `requests`, `flask`, `sklearn`, or another top-level library?
-- How did a local symbol, return value, attribute, parameter, or container element acquire third-party provenance?
+- Which import-backed libraries and Python APIs does this project call?
+- Which call expression belongs to `numpy`, `requests`, `json`, `pathlib`, `flask`, or another top-level library owner?
+- Which calls are library-owned, Python-provided, local, or unknown?
+- How did a local symbol, return value, attribute, parameter, or container element acquire library provenance?
 - Where is the analysis certain, and where are there multiple possible origins?
 
-PCResolve is designed for CI pipelines, audit workflows, IDE integration, and large-scale codebase scanning. It has zero runtime third-party dependencies and supports Python 3.9+.
+PCResolve is designed for CI pipelines, audit workflows, IDE integration, and large-scale codebase scanning. It has zero runtime dependencies and supports Python 3.9+.
 
 ## Quick Start
 
@@ -60,7 +65,7 @@ for call in result.all_api_calls:
 
 ## Output
 
-PCResolve 1.0.4 is the first stable provenance contract release. The default scope model is `v2`, and `--json` returns the full provenance schema.
+PCResolve 1.0.4 is the first stable provenance contract release. `--json` returns the full provenance schema.
 
 The main output sections are:
 
@@ -75,7 +80,10 @@ For the complete JSON contract, see [docs/output-contract.md](./docs/output-cont
 
 ## Analysis Capabilities
 
-PCResolve tracks both API call provenance and symbol provenance.
+PCResolve reports two connected views: API call ownership and symbol provenance.
+API calls are the primary classification target. Symbol provenance explains the
+imports, aliases, assignments, parameters, returns, attributes, containers, and
+decorators that support each classification.
 
 Supported patterns include:
 
@@ -91,19 +99,21 @@ Supported patterns include:
 
 ## Validation
 
-The 1.0.4 release was validated with:
+The current analyzer is validated against locked call-site ground truth from 42 real-world projects:
 
 ```text
-pytest:          557 passed
-hard baselines:  21 projects, 0 exceeded
-full audit:      42 real-world projects, 0 crashes, 0 illegal keys
+ground-truth records:  5,788
+primary hits:          5,548
+primary misses:          240
+primary recall:        0.959
+false positives:       0
 ```
 
-The regression gate checks that library keys stay clean, golden JSON output remains stable, and real-project baseline counts do not exceed the recorded contract.
+The regression gate checks complete AST call coverage, locked annotations, stable snapshots, clean library keys, and golden JSON output.
 
 ## Limitations
 
-PCResolve is static by design. It does not execute project code and does not model arbitrary runtime reflection, monkey patching, dynamic imports, descriptors, or full third-party library internals.
+PCResolve is static by design. It does not execute project code and does not model arbitrary runtime reflection, monkey patching, dynamic imports, descriptors, or full library internals.
 
 When a single origin cannot be determined confidently, PCResolve reports conservative results and preserves alternative evidence rather than choosing an unsupported library owner.
 
@@ -114,14 +124,16 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 - [Trace Contract](./docs/trace-contract.md)
 - [Source Semantics](./docs/source-semantics.md)
 - [Real-Project Validation](./docs/real-project-validation.md)
+- [Ground Truth Evaluation](./docs/ground-truth-evaluation.md)
 
 ## Development
 
 ```bash
 pip install -e .
 python -m pytest tests/ -v
-python scripts/diff_v1_v2.py tests/fixtures/tested_projects/
-python scripts/audit_tested_projects.py
+python scripts/evaluate_ground_truth.py --view all
+python scripts/verify_ground_truth_calls.py --coverage-only
+python scripts/refresh_ground_truth_snapshots.py --all --check
 ```
 
 PCResolve uses only the Python standard library at runtime. Tests use pytest.
