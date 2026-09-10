@@ -10,7 +10,7 @@ ROOT = Path(__file__).parent / 'fixtures' / 'value_flow'
 
 
 def invoke(*args):
-    return subprocess.run([sys.executable, '-m', 'pcresolve', *map(str, args)],
+    return subprocess.run([sys.executable, '-X', 'utf8', '-m', 'pcresolve', *map(str, args)],
                           capture_output=True, text=True, encoding='utf-8')
 
 

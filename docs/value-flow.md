@@ -292,7 +292,8 @@ boundary records distinguish `builtin_boundary`, `receiver_unresolved`,
 `flow_not_analyzed`, and missing definitions. Boundaries include callee spelling.
 
 `receiver_sources` records method receivers independently of explicit arguments.
-Undecorated same-class methods on the unchanged first receiver parameter can be
+Undecorated same-class methods on the unchanged first receiver parameter or its
+direct aliases can be
 expanded as `lexical_method_candidate` targets, with an implicit receiver binding
 in `argument_sources`. `dynamic_method_override_possible` remains explicit:
 these are conditional lexical candidates, not guaranteed runtime dispatch.
@@ -343,6 +344,24 @@ Ownership can later consume verified flow evidence, but value dependence alone
 does not imply owner preservation (for example, conversion through `str`).
 
 ## Exception paths and nested functions
+
+### Guarded string receivers and evidence performance
+
+Within a positive, unshadowed `isinstance(value, str)` branch, direct name
+receivers support a derived receiver-to-result dependency for `split`, `rsplit`,
+`strip`, `lstrip`, `rstrip`, `startswith`, and `endswith`. The target is marked
+`python_protocol`; `string_subclass_override_possible` records that an
+overriding subclass method is not ruled out. This is a conditional builtin
+implementation summary, not exact runtime dispatch. Reassignment discards the
+old refinement and derived operations do not automatically retain it. Unknown
+receivers do not receive contracts just because their method names match.
+
+Evidence extraction indexes UTF-8 source lines and caches snippets by source
+span. AST column offsets are byte offsets, including for Unicode identifiers.
+It no longer rescans the entire module for each piece of evidence. Deep expansion
+can still cost substantially more than depth one; call budgets and iteration
+limits remain relevant, and terminal rendering of large evidence output can add
+latency. Use `--json --output result.json` to avoid terminal rendering costs.
 
 Normal completion of `try` enters `else`; raised exits are dispatched to possible
 handlers. Potential expression exceptions retain the environment before the

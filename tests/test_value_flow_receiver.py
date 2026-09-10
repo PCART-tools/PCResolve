@@ -36,6 +36,18 @@ def test_same_class_receiver_binding():
     assert result.trace_parameter('value')['return_paths']
 
 
+def test_receiver_alias_preserves_lexical_candidate():
+    result = run('Worker.alias')
+    assert result.calls[0].target.qualname == 'Worker.identity'
+    assert result.trace_parameter('value')['return_paths']
+
+
+def test_mixed_or_changed_receiver_is_not_bound_to_self_class():
+    for name in ('Worker.mixed', 'Worker.changed'):
+        result = run(name)
+        assert result.calls[0].target is None
+
+
 def test_unanalyzed_calls_still_collected():
     call = run('uncovered').calls[0]
     assert call.callee_name == 'print'
