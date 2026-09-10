@@ -28,6 +28,11 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 
 ## Python API
 
+Experimental value-flow analysis is available separately with `--value-flow
+--entry MODULE:QUALNAME`. In that mode, `--json` emits the `flow-0.1` schema,
+not the ownership schema below. See the [value-flow CLI and pandas example](value-flow.md).
+Commands without `--value-flow` retain the existing contract.
+
 The stable entry points use these signatures:
 
 ```python
