@@ -34,3 +34,16 @@ class Worker:
 
     def identity(self, data):
         return data
+
+    def alias(self, value):
+        receiver = self
+        return receiver.identity(value)
+
+    def mixed(self, other, value, flag):
+        receiver = self if flag else other
+        return receiver.identity(value)
+
+    def changed(self, other, value):
+        receiver = self
+        receiver = other
+        return receiver.identity(value)

@@ -219,6 +219,7 @@ class FlowAnalyzer:
     def _index(self):
         self.definitions = []
         self.imports = {}
+        self.module_bindings = {}
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
@@ -250,6 +251,11 @@ class FlowAnalyzer:
                     for alias in node.names:
                         aliases[alias.asname or alias.name] = prefix + '.' + alias.name
             self.imports[module] = aliases
+            self.module_bindings[module] = {
+                n.id for statement in tree.body
+                if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+                for target in (statement.targets if isinstance(statement, ast.Assign) else [statement.target])
+                for n in ast.walk(target) if isinstance(n, ast.Name)}
             def collect(body, prefix=''):
                 for node in body:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -382,16 +388,35 @@ class _Summary:
         self.remaining = remaining
         self.evaluated_calls = set()
         self.loops = []
+        self.source_lines = [line.encode('utf-8') for line in
+                             self.analyzer.texts[ref.file_path].split('\n')]
+        self.evidence_cache = {}
 
     def evidence(self, node):
-        return {'file_path': self.ref.file_path, 'lineno': node.lineno,
+        key = (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+        if key in self.evidence_cache:
+            return self.evidence_cache[key]
+        first, start, last, end = key
+        if first == last:
+            snippet = self.source_lines[first - 1][start:end]
+        else:
+            snippet = b'\n'.join([self.source_lines[first - 1][start:]] +
+                                  self.source_lines[first:last - 1] +
+                                  [self.source_lines[last - 1][:end]])
+        value = {'file_path': self.ref.file_path, 'lineno': node.lineno,
                 'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
                 'end_col_offset': node.end_col_offset,
-                'source_text': ast.get_source_segment(self.analyzer.texts[self.ref.file_path], node)}
+                'source_text': snippet.decode('utf-8')}
+        self.evidence_cache[key] = value
+        return value
 
     def marked(self, values, node, relation=None):
-        return [dict(v, relation=relation or v['relation'], evidence=v['evidence'] + [self.evidence(node)],
-                     conditions=v.get('conditions', []) + list(self.conditions)) for v in values]
+        result = [dict(v, relation=relation or v['relation'], evidence=v['evidence'] + [self.evidence(node)],
+                       conditions=v.get('conditions', []) + list(self.conditions)) for v in values]
+        if relation and relation != 'direct':
+            for value in result:
+                value.pop('python_shape', None)
+        return result
 
     def expression(self, node, env):
         if node is None:
@@ -428,8 +453,10 @@ class _Summary:
             function_names = {r.qualname for r, _ in self.analyzer.definitions if r.module == self.ref.module}
             if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
                     and owner and owner not in function_names
-                    and self.node.args.args and node.func.value.id == self.node.args.args[0].arg
-                    and receiver_sources and all(v['kind'] == 'parameter' and v['source'] == node.func.value.id for v in receiver_sources)):
+                    and (self.node.args.posonlyargs or self.node.args.args)
+                    and receiver_sources and all(v['kind'] == 'parameter' and v['relation'] == 'direct'
+                        and v['source'] == (self.node.args.posonlyargs + self.node.args.args)[0].arg
+                        for v in receiver_sources)):
                 matches = [d for d in self.analyzer.definitions if d[0].module == self.ref.module
                            and d[0].qualname == owner + '.' + node.func.attr]
                 if len(matches) == 1 and not self.node.decorator_list:
@@ -461,6 +488,18 @@ class _Summary:
                                   'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
                                   else 'builtin_boundary' if binding is None and hasattr(builtins, name)
                                   else 'definition_unavailable')
+            if (target is None and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.attr in ('split', 'rsplit', 'strip', 'lstrip', 'rstrip', 'startswith', 'endswith')
+                    and receiver_sources and all(v.get('python_shape') == 'str' for v in receiver_sources)):
+                call.target_status = 'python_protocol'
+                call.argument_sources.append({'argument': {'receiver': True}, 'parameter': '$receiver',
+                                              'sources': receiver_sources})
+                call.return_dependencies = [{'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
+                    'evidence': [{'provenance': 'Guarded str receiver dependency; builtin method implementation assumed'}],
+                    'conditions': list(self.conditions)}]
+                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                                               'reason': 'string_subclass_override_possible'})
             if target and bound_receiver:
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
                                                'reason': 'dynamic_method_override_possible'})
@@ -582,7 +621,9 @@ class _Summary:
             self.expression(node.test, env)
             before = list(self.conditions)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
-            left = self.block(node.body, copy.deepcopy(env))
+            positive = copy.deepcopy(env)
+            self.refine_guard(node.test, positive)
+            left = self.block(node.body, positive)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': False}]
             right = self.block(node.orelse, copy.deepcopy(env))
             self.conditions = before
@@ -676,6 +717,22 @@ class _Summary:
                 self.assign_target(element, projected, env, node)
         else:
             self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_assignment', 'evidence': self.evidence(node)})
+
+    def refine_guard(self, test, env):
+        if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And):
+            for operand in test.values:
+                self.refine_guard(operand, env)
+        if (isinstance(test, ast.Call) and isinstance(test.func, ast.Name)
+                and test.func.id == 'isinstance' and len(test.args) == 2 and not test.keywords
+                and isinstance(test.args[0], ast.Name) and isinstance(test.args[1], ast.Name)
+                and test.args[1].id == 'str'
+                and all(name not in env and name not in self.analyzer.imports.get(self.ref.module, {})
+                        and name not in self.analyzer.module_bindings.get(self.ref.module, set())
+                        and self.analyzer._resolve(self.ref, name) is None for name in ('str', 'isinstance'))):
+            name = test.args[0].id
+            env[name] = [dict(v, python_shape='str',
+                              conditions=v.get('conditions', []) + list(self.conditions))
+                         for v in env.get(name, [])]
 
     def try_statement(self, node, env):
         outcomes = self.block(node.body, copy.deepcopy(env))
