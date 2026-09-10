@@ -185,6 +185,10 @@ def _flow_text(result):
         lines.append('\n%s:%d:%d %s' % (call.caller.file_path, call.lineno,
                                          call.col_offset, call.callee_name))
         lines.append('  Parameter flows:')
+        lines.append('  Analysis: %s; target: %s' % (call.analysis_status, call.target_status))
+        if call.receiver_sources:
+            lines.append('  Receiver flows: %s' % ', '.join(
+                '%s (%s)' % (v['source'], v['relation']) for v in call.receiver_sources))
         for flow in call.parameter_flows:
             lines.append('    %s -> %s -> %s (%s)' % (
                 flow['source_parameter'], flow['argument'],
