@@ -169,6 +169,26 @@ def _merge_env(environments):
     return {k: _unique([v for e in environments for v in e.get(k, [])]) for k in keys}
 
 
+def _loop_key(value):
+    return repr({k: v for k, v in value.items() if k not in ('evidence', 'conditions')})
+
+
+def _loop_signature(env):
+    return {k: frozenset(_loop_key(v) for v in values) for k, values in env.items()}
+
+
+def _loop_env(env):
+    # Keep one finite witness per abstract dependency. This is a may-flow
+    # fixed point, not enumeration of all iteration counts or path conditions.
+    result = {}
+    for name, values in env.items():
+        witnesses = {}
+        for value in values:
+            witnesses.setdefault(_loop_key(value), value)
+        result[name] = list(witnesses.values())
+    return result
+
+
 ## Analyze explicit Python source sets without executing analyzed code.
 class FlowAnalyzer:
     ## Configure available sources; import roots do not enlarge the source set.
@@ -360,6 +380,8 @@ class _Summary:
         self.returns = []
         self.conditions = []
         self.remaining = remaining
+        self.evaluated_calls = set()
+        self.loops = []
 
     def evidence(self, node):
         return {'file_path': self.ref.file_path, 'lineno': node.lineno,
@@ -388,10 +410,13 @@ class _Summary:
             self.conditions = before
             return left + right
         if isinstance(node, ast.Call):
-            if self.remaining <= 0:
+            location = (node.lineno, node.col_offset)
+            if location not in self.evaluated_calls and self.remaining <= 0:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'budget_exceeded', 'evidence': self.evidence(node)})
                 return []
-            self.remaining -= 1
+            if location not in self.evaluated_calls:
+                self.remaining -= 1
+                self.evaluated_calls.add(location)
             name = ast.unparse(node.func)
             binding = env.get(name.split('.')[0])
             target = self.analyzer._resolve(self.ref, name) if binding is None else None
@@ -565,19 +590,37 @@ class _Summary:
         if isinstance(node, ast.Try):
             return self.try_statement(node, env)
         if isinstance(node, (ast.For, ast.While)):
-            self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'loop_approximation',
-                                           'evidence': self.evidence(node)})
             before = copy.deepcopy(env)
+            head = copy.deepcopy(env)
+            exits = []
             if isinstance(node, ast.For):
-                values = self.marked(self.expression(node.iter, env), node.iter, 'derived')
-                self.assign_target(node.target, values, env, node)
+                iterable = self.marked(self.expression(node.iter, env), node.iter, 'derived')
+            converged = False
+            for iteration in range(16):
+                body_env = copy.deepcopy(head)
+                if isinstance(node, ast.For):
+                    self.assign_target(node.target, iterable, body_env, node)
+                else:
+                    self.expression(node.test, body_env)
+                outcomes = self.block(node.body, body_env)
+                exits.extend(o for o in outcomes if o[0] not in ('normal', 'continue'))
+                continuing = [before] + [e for k, e, _, _ in outcomes if k in ('normal', 'continue')]
+                updated = _loop_env(_merge_env(continuing))
+                if _loop_signature(updated) == _loop_signature(head):
+                    head = updated
+                    converged = True
+                    break
+                head = updated
             else:
-                self.expression(node.test, env)
-            outcomes = self.block(node.body, env)
-            continuing = [before] + [e for k, e, _, _ in outcomes if k in ('normal', 'continue')]
-            completed = self.block(node.orelse, _merge_env(continuing))
-            completed += [('normal', e, [], None) for k, e, _, _ in outcomes if k == 'break']
-            completed += [o for o in outcomes if o[0] not in ('normal', 'break', 'continue')]
+                self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'loop_iteration_limit',
+                                               'evidence': self.evidence(node)})
+            self.loops.append({'lineno': node.lineno, 'col_offset': node.col_offset,
+                               'iterations': iteration + 1,
+                               'status': 'converged' if converged else 'bounded',
+                               'semantics': 'may-flow; one witness per dependency'})
+            completed = self.block(node.orelse, head)
+            completed += [('normal', e, [], None) for k, e, _, _ in exits if k == 'break']
+            completed += [o for o in exits if o[0] != 'break']
             return completed
         if isinstance(node, (ast.Break, ast.Continue)):
             return [('break' if isinstance(node, ast.Break) else 'continue', env, [], None)]
@@ -736,5 +779,6 @@ class _Summary:
                                  if v['kind'] == 'call_result' and v['source'] == call.id]
         self.result.functions.append({'function': asdict(self.ref),
                                       'parameters': [a.arg for a in parameters],
+                                      'loops': self.loops,
                                       'returns': self.returns})
         self.result.calls.extend(self.calls)
