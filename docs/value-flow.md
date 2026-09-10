@@ -138,10 +138,11 @@ call with these bindings (unrelated fields omitted):
 ]
 ```
 
-The verified direct parameter-flow roots are `arg -> arg` and
-`errors -> errors`. One helper-result-to-entry-return path is retained.
-This establishes conditional direct forwarding, not that every execution
-reaches the helper or that all possible derived `arg` paths were analyzed.
+The verified parameter-flow roots are `arg -> arg` (direct and derived) and
+`errors -> errors` (direct). The origin-adjustment try blocks now preserve
+derived dependencies. One helper-result-to-entry-return path is retained.
+This establishes conditional dependencies, not that every execution reaches
+the helper or that all possible runtime paths are feasible.
 
 | JSON field | Meaning in this example |
 |------------|-------------------------|
@@ -149,6 +150,8 @@ reaches the helper or that all possible derived `arg` paths were analyzed.
 | `initial_call.target` | Helper definition, including module, file, and line |
 | `parameter_bindings` | Call argument slots mapped to helper formal parameters |
 | `parameter_flows` | Entry parameter roots reaching those argument slots |
+| `argument_flows` | All tracked roots reaching argument slots, including other call results |
+| `capture_bindings` | Call-time bindings of enclosing variables read by a nested function |
 | `return_flows` | This call's result reaching a return in `to_datetime` |
 | `evidence` | Ordered source snippets with file and start/end positions |
 | `conditions` | Collected syntactic branch conditions, not feasibility proofs |
@@ -159,8 +162,12 @@ reaches the helper or that all possible derived `arg` paths were analyzed.
 
 The distinction between the last two flow queries matters: proving that the
 helper's **result** is returned does not prove that the helper's **input** flows
-into its result. That requires its body summary. The current helper analysis
-is partial and stops at unsupported control flow, so expansion does **not**
+into its result. That requires its body summary or an explicit trusted contract.
+The four `_convert_listlike` calls now resolve to the nested function, with
+separate explicit-argument and closure bindings. The `Series` call exposes the
+inner call result in `argument_flows` for position 0; this alone does not prove
+that `Series` preserves that input in its result. The helper analysis remains
+partial at unsupported constructs such as loops, so expansion does **not**
 collect all calls or all return paths inside it. In particular, do not interpret
 the printed child-call list as an exhaustive list from the Python AST.
 
@@ -228,12 +235,13 @@ not runtime path-feasibility proofs. A found path does not promise execution.
 
 This first implementation supports named functions, explicit imports and simple
 re-exports, positional/keyword/default binding, parameter aliases, expressions,
-ordinary assignments, if/else merges, explicit returns, and bounded cross-call
-return substitution. Rebound callable variables and decorated targets are not
+ordinary assignments, if/else merges, try/except/else/finally, explicit returns,
+lexically nested definitions, direct closure bindings, definition-time nested
+defaults, and bounded cross-call return substitution. Rebound callable variables and decorated targets are not
 resolved to a guessed definition. Dynamic argument unpacking is left unresolved.
 
-Loops, try/with, comprehensions, destructuring/heap writes, closures with captured
-value substitution, method receiver binding, and dynamic dispatch are not yet
+Loops, with, comprehensions, destructuring/heap writes, escaping closures,
+nonlocal mutation, method receiver binding, and dynamic dispatch are not yet
 complete. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
 boundaries remain unresolved. Objects passed into calls may be mutated; heap
@@ -249,3 +257,53 @@ enumeration and a public selected-chain query are not provided yet.
 
 Ownership can later consume verified flow evidence, but value dependence alone
 does not imply owner preservation (for example, conversion through `str`).
+
+## Exception paths and nested functions
+
+Normal completion of `try` enters `else`; raised exits are dispatched to possible
+handlers. Potential expression exceptions retain the environment before the
+statement, rather than using the final environment of the entire try body.
+Explicit known exception names exclude unrelated known builtin handlers;
+unknown exception types and custom inheritance are conservatively considered.
+This is not a complete exception-type system. `finally` executes over pending
+normal, return, and exceptional exits. A return or raise in finally replaces
+the pending exit; an ordinary assignment does not change a previously evaluated
+return value.
+
+Nested functions are resolved in lexical order. Their free variables use
+`capture_bindings`, separate from formal arguments. Captures use the available
+call-time environment; nested defaults are captured at definition time. These
+facts support direct local invocation, not arbitrary escaping closure objects.
+
+## Optional trusted return summaries
+
+Opaque calls are not assumed to forward their arguments. A consumer can opt in
+to a documented return dependency when it has independently verified one:
+
+```python
+analyzer = FlowAnalyzer(
+    project_root=root,
+    return_summaries={
+        "vendor.wrap": {
+            "parameters": ["data"],
+            "returns": [{"parameter": "data", "relation": "contained"}],
+            "provenance": "Consumer-verified vendor.wrap contract, version 1",
+        },
+    },
+)
+```
+
+This is an illustrative contract, not a bundled rule for any actual library.
+Keys are exact module-qualified imported callable names. The initial contract
+format describes ordered positional-or-keyword parameters; advanced signatures
+are not supported by this format. A contract is used only when a concrete body
+target is unavailable and the callable has not been rebound. A resolved body
+takes precedence. Relations are `direct`, `derived`, or `contained`; combining
+paths preserves containment unless a derived operation is present.
+
+Contracts are copied into `inputs.return_summaries`, and each dependency carries
+the supplied provenance in its evidence. PCResolve does not verify these claims.
+`return_dependencies` on the call exposes the applied contract. Missing body
+definitions remain boundaries even when such a contract supplies a return
+dependency; a contract does not make the implementation available for expansion.
+Changing contracts requires a new `analyze()` snapshot before expansion.
