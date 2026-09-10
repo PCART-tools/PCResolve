@@ -330,6 +330,40 @@ class FlowAnalyzer:
                         collect(node.body, name + '.')
             collect(tree.body)
 
+    def _inherited_method(self, module, owner, method, seen=()):
+        identity = (module, owner)
+        if identity in seen:
+            return None
+        classes = [(r, n) for r, n in self.classes if r.module == module and r.qualname == owner]
+        if len(classes) != 1:
+            return None
+        cls = classes[0][1]
+        if cls.decorator_list or cls.keywords or len(cls.bases) != 1:
+            return None
+        if any(isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and n.id == method
+               for statement in cls.body if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+               for n in ast.walk(statement)):
+            return None
+        if any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in
+               (method, '__getattr__', '__getattribute__') for n in cls.body):
+            return None
+        name = ast.unparse(cls.bases[0])
+        first, dot, rest = name.partition('.')
+        if first in self.module_bindings.get(module, set()):
+            return None
+        alias = self.imports.get(module, {}).get(first)
+        qualified = alias + dot + rest if alias else module + '.' + name
+        bases = [(r, n) for r, n in self.classes if r.module + '.' + r.qualname == qualified]
+        if len(bases) != 1 or bases[0][1].decorator_list or bases[0][1].keywords:
+            return None
+        ref, cls = bases[0]
+        if any(isinstance(n, ast.FunctionDef) and n.name in ('__getattr__', '__getattribute__') for n in cls.body):
+            return None
+        matches = [d for d in self.definitions if d[0].module == ref.module and d[0].qualname == ref.qualname + '.' + method]
+        if len(matches) == 1:
+            return matches[0]
+        return self._inherited_method(ref.module, ref.qualname, method, seen + (identity,))
+
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
         classes = [(r, n) for r, n in self.classes if r.module == ref.module and r.qualname == owner]
@@ -546,7 +580,7 @@ class _Summary:
                 keys.append({'kind': 'key', 'source': repr(slot), 'key': slot})
                 if isinstance(node, ast.Dict) and slot != '*':
                     items = [v for v in items if v.get('output_path', [None])[0] != slot]
-                values = self.materialize(self.expression(element, env), env)
+                values = self.expression(element, env)
                 items.extend(dict(v, output_path=[slot] + v.get('output_path', [])) for v in values)
             env[key] = items
             env[key + '$keys'] = keys
@@ -555,8 +589,53 @@ class _Summary:
         if isinstance(node, ast.Subscript):
             values = self.expression(node.value, env)
             self.expression(node.slice, env)
+            if isinstance(node.slice, (ast.Slice, ast.UnaryOp)):
+                selected = []
+                for value in values:
+                    keys = env.get(value['source'] + '$keys', [])
+                    slots = [k['key'] for k in keys]
+                    if value.get('container_shape') not in ('list', 'tuple') or slots != list(range(len(slots))):
+                        selected.extend(self.project([value], '*', env))
+                        continue
+                    try:
+                        if isinstance(node.slice, ast.Slice):
+                            bounds = [ast.literal_eval(n) if n is not None else None
+                                      for n in (node.slice.lower, node.slice.upper, node.slice.step)]
+                            indices = list(range(len(slots)))[slice(*bounds)]
+                            for position, index in enumerate(indices):
+                                selected.extend(dict(v, output_path=[position] + v.get('output_path', []))
+                                                for v in self.project([value], index, env))
+                        else:
+                            index = ast.literal_eval(node.slice)
+                            index = list(range(len(slots)))[index]
+                            selected.extend(self.project([value], index, env))
+                    except IndexError:
+                        pass
+                    except (ValueError, TypeError):
+                        selected.extend(self.project([value], '*', env))
+                return self.marked(selected, node)
             index = node.slice.value if isinstance(node.slice, ast.Constant) else '*'
             return self.marked(self.project(values, index, env), node)
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp)) and not any(g.is_async for g in node.generators):
+            local = copy.deepcopy(env)
+            for generator in node.generators:
+                iterable = self.expression(generator.iter, local)
+                if iterable and all(v['kind'] == 'container' and
+                                    local.get(v['source'] + '$keys') == [] for v in iterable):
+                    return []
+                values = self.project(iterable, '*', local)
+                self.assign_target(generator.target, values, local, generator.target)
+                for condition in generator.ifs:
+                    self.expression(condition, local)
+                    if isinstance(condition, ast.Constant) and not condition.value:
+                        return []
+                    self.refine_guard(condition, local)
+            elements = [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
+            values = [v for element in elements for v in self.materialize(self.expression(element, local), local)]
+            for key in set(env) | set(local):
+                if key.startswith('$heap:'):
+                    env[key] = _unique(env.get(key, []) + local.get(key, []))
+            return self.marked([dict(v, output_path=['*'] + v.get('output_path', [])) for v in values], node, 'contained')
         if isinstance(node, ast.IfExp):
             self.expression(node.test, env)
             before = list(self.conditions)
@@ -612,6 +691,9 @@ class _Summary:
                         for v in receiver_sources)):
                 matches = [d for d in self.analyzer.definitions if d[0].module == self.ref.module
                            and d[0].qualname == owner + '.' + node.func.attr]
+                if not matches:
+                    inherited = self.analyzer._inherited_method(self.ref.module, owner, node.func.attr)
+                    matches = [inherited] if inherited else []
                 if len(matches) == 1 and not self.node.decorator_list:
                     target = matches[0]
                     bound_receiver = True
@@ -701,8 +783,15 @@ class _Summary:
                                               'sources': receiver_sources})
                 positional = positional[1:]
             arguments = [({'position': i}, arg) for i, arg in enumerate(node.args)]
-            arguments += [({'keyword': kw.arg}, kw.value) for kw in node.keywords]
+            for kw in node.keywords:
+                if (kw.arg is None and isinstance(kw.value, ast.Dict)
+                        and all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in kw.value.keys)
+                        and len({k.value for k in kw.value.keys}) == len(kw.value.keys)):
+                    arguments.extend(({'keyword': k.value}, v) for k, v in zip(kw.value.keys, kw.value.values))
+                else:
+                    arguments.append(({'keyword': kw.arg}, kw.value))
             expanded = False
+            actual_values = {}
             for slot, arg in arguments:
                 if isinstance(arg, ast.Starred) or slot.get('keyword', '') is None:
                     expanded = True
@@ -718,7 +807,9 @@ class _Summary:
                         parameter = key if key in allowed else (params.kwarg.arg if params.kwarg else None)
                 call.parameter_bindings.append({'argument': slot, 'parameter': parameter,
                                                 'status': 'exact' if parameter else 'unresolved'})
-                values = self.marked(self.materialize(self.expression(arg, env), env), arg)
+                raw_values = self.expression(arg, env)
+                actual_values[parameter] = raw_values
+                values = self.marked(self.materialize(raw_values, env), arg)
                 call.argument_sources.append({'argument': slot, 'parameter': parameter, 'sources': values})
                 for value in values:
                     call.argument_flows.append(dict(value, target_parameter=parameter,
@@ -747,6 +838,8 @@ class _Summary:
                         if binding and all(v['kind'] == 'callable' for v in binding):
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
+            if target:
+                self.apply_container_effect(target[1], actual_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env)
             self.calls.append(call)
             if container_result is not None:
@@ -763,14 +856,17 @@ class _Summary:
         relation = 'contained' if isinstance(node, (ast.List, ast.Tuple, ast.Set, ast.Dict)) else 'derived'
         return self.marked(values, node, relation)
 
-    def materialize(self, values, env):
+    def materialize(self, values, env, visited=()):
         result = []
         for value in values:
             if value['kind'] != 'container':
                 result.append(value)
                 continue
-            for item in env.get(value['source'], []):
+            if value['source'] in visited:
+                continue
+            for item in self.materialize(env.get(value['source'], []), env, visited + (value['source'],)):
                 result.append(dict(item, relation='contained',
+                    output_path=value.get('output_path', []) + item.get('output_path', []),
                     evidence=item['evidence'] + value['evidence']))
         return result
 
@@ -828,8 +924,34 @@ class _Summary:
                 values = self.marked(call.argument_sources[0]['sources'], node)
                 inserted = [dict(v, output_path=['*'] + v.get('output_path', [])) for v in values]
                 env[ref['source']] = _loop_env({'items': env.get(ref['source'], []) + inserted})['items']
+                env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
                 call.mutation_flows.extend(dict(v, target_container=ref['source']) for v in inserted)
         return []  # Mutators return None; their argument flows only into content.
+
+    def apply_container_effect(self, target, actuals, call, env, node):
+        # A deliberately narrow body summary: one unconditional append statement.
+        if not isinstance(target, ast.FunctionDef):
+            return
+        body = [s for s in target.body if not (isinstance(s, ast.Expr)
+                and isinstance(s.value, ast.Constant) and isinstance(s.value.value, str))]
+        if len(body) != 1 or not isinstance(body[0], ast.Expr):
+            return
+        effect = body[0].value
+        if (not isinstance(effect, ast.Call) or not isinstance(effect.func, ast.Attribute)
+                or effect.func.attr != 'append' or not isinstance(effect.func.value, ast.Name)
+                or len(effect.args) != 1 or effect.keywords or not isinstance(effect.args[0], ast.Name)):
+            return
+        receivers = actuals.get(effect.func.value.id, [])
+        values = actuals.get(effect.args[0].id, [])
+        if not receivers or not all(v.get('container_shape') == 'list' for v in receivers):
+            return
+        for ref in receivers:
+            inserted = [dict(v, output_path=['*'] + v.get('output_path', []))
+                        for v in self.marked(values, node)]
+            env[ref['source']] = _loop_env({'items': env.get(ref['source'], []) + inserted})['items']
+            env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
+            call.mutation_flows.extend(dict(v, target_container=ref['source'],
+                effect_summary='unconditional_append') for v in self.materialize(inserted, env))
 
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
