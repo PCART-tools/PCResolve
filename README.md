@@ -119,6 +119,7 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 
 ## Documentation
 
+- [Experimental Value Flow API and pandas Example](./docs/value-flow.md)
 - [Output Contract](./docs/output-contract.md)
 - [Architecture](./docs/architecture.md)
 - [Trace Contract](./docs/trace-contract.md)

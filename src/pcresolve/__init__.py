@@ -14,8 +14,13 @@ from .symbol_table import SymbolTable
 from .single_file import SingleFileAnalyzer, analyze_source
 from .cross_file import ProjectAnalyzer, analyze_project
 from .types import ApiCall, SymbolChain, FileAnalysis, ProjectAnalysis
+from .flow import FlowAnalyzer, FunctionRef, FlowAnalysis, FlowCall
 
 __all__ = [
+    "FlowAnalyzer",
+    "FunctionRef",
+    "FlowAnalysis",
+    "FlowCall",
     "analyze_project",
     "analyze_source",
     "scan_directory",
