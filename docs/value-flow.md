@@ -284,6 +284,35 @@ not runtime path-feasibility proofs. A found path does not promise execution.
 
 ## Current supported subset and boundaries
 
+The analyzer now separates syntactic call coverage from flow evaluation.
+Calls behind unsupported statements or unreachable exits are retained with
+`analysis_status="not_analyzed"`; they do not claim executable flow paths.
+Collection remains subject to the call-site budget. `target_status` and
+boundary records distinguish `builtin_boundary`, `receiver_unresolved`,
+`flow_not_analyzed`, and missing definitions. Boundaries include callee spelling.
+
+`receiver_sources` records method receivers independently of explicit arguments.
+Undecorated same-class methods on the unchanged first receiver parameter can be
+expanded as `lexical_method_candidate` targets, with an implicit receiver binding
+in `argument_sources`. `dynamic_method_override_possible` remains explicit:
+these are conditional lexical candidates, not guaranteed runtime dispatch.
+
+Conditional expressions preserve the two value branches separately from their
+test. Tuple/list destructuring records element projections; matching literal
+tuple/list assignments preserve individual elements. General projections still
+represent a dependency on the aggregate, not a fully resolved element type.
+
+For/while loops use a bounded zero/one-iteration approximation with
+`loop_approximation` boundaries, including break/continue and loop else handling.
+This exposes iterable dependencies and calls but does not solve loop-carried
+dependencies to a fixed point or prove feasibility. Unknown methods such as
+`append` still have no heap-effect summary.
+
+One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
+calls carry a builtin derived-result dependency. This is input dependence, not
+identity or owner preservation. Arbitrary receiver methods do not inherit this
+rule; external return contracts remain opt-in.
+
 This first implementation supports named functions, explicit imports and simple
 re-exports, positional/keyword/default binding, parameter aliases, expressions,
 ordinary assignments, if/else merges, try/except/else/finally, explicit returns,
@@ -291,8 +320,8 @@ lexically nested definitions, direct closure bindings, definition-time nested
 defaults, and bounded cross-call return substitution. Rebound callable variables and decorated targets are not
 resolved to a guessed definition. Dynamic argument unpacking is left unresolved.
 
-Loops, with, comprehensions, destructuring/heap writes, escaping closures,
-nonlocal mutation, method receiver binding, and dynamic dispatch are not yet
+Loop fixed points, with, comprehensions, starred destructuring/heap writes, escaping closures,
+nonlocal mutation, general receiver binding, and dynamic dispatch are not yet
 complete. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
 boundaries remain unresolved. Objects passed into calls may be mutated; heap

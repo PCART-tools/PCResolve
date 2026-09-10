@@ -46,6 +46,9 @@ class FlowCall:
     argument_flows: list = field(default_factory=list)
     capture_bindings: list = field(default_factory=list)
     return_dependencies: list = field(default_factory=list)
+    receiver_sources: list = field(default_factory=list)
+    analysis_status: str = 'analyzed'
+    target_status: str = 'definition_unavailable'
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
@@ -321,7 +324,8 @@ class FlowAnalyzer:
             calls = summary.calls
         for call in calls:
             if call.target is None:
-                result.boundaries.append({'call_id': call.id, 'reason': 'definition_unavailable'})
+                result.boundaries.append({'call_id': call.id, 'callee_name': call.callee_name,
+                                          'reason': call.target_status})
             elif depth > 1:
                 result.boundaries = [b for b in result.boundaries if not (b.get('call_id') == call.id and b['reason'] == 'depth_limit')]
                 target = next(d for d in self.definitions if d[0] == call.target)
@@ -374,6 +378,15 @@ class _Summary:
             return [v for v in env.get(node.id, []) if v['kind'] not in ('callable', 'import')]
         if isinstance(node, ast.Constant):
             return []
+        if isinstance(node, ast.IfExp):
+            self.expression(node.test, env)
+            before = list(self.conditions)
+            self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
+            left = self.marked(self.expression(node.body, env), node.body)
+            self.conditions = before + [{'test': self.evidence(node.test), 'branch': False}]
+            right = self.marked(self.expression(node.orelse, env), node.orelse)
+            self.conditions = before
+            return left + right
         if isinstance(node, ast.Call):
             if self.remaining <= 0:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'budget_exceeded', 'evidence': self.evidence(node)})
@@ -383,6 +396,20 @@ class _Summary:
             binding = env.get(name.split('.')[0])
             target = self.analyzer._resolve(self.ref, name) if binding is None else None
             canonical = self.ref.module + '.' + name
+            receiver_sources = (self.expression(node.func.value, env)
+                                if isinstance(node.func, ast.Attribute) else [])
+            bound_receiver = False
+            owner = self.ref.qualname.rpartition('.')[0]
+            function_names = {r.qualname for r, _ in self.analyzer.definitions if r.module == self.ref.module}
+            if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+                    and owner and owner not in function_names
+                    and self.node.args.args and node.func.value.id == self.node.args.args[0].arg
+                    and receiver_sources and all(v['kind'] == 'parameter' and v['source'] == node.func.value.id for v in receiver_sources)):
+                matches = [d for d in self.analyzer.definitions if d[0].module == self.ref.module
+                           and d[0].qualname == owner + '.' + node.func.attr]
+                if len(matches) == 1 and not self.node.decorator_list:
+                    target = matches[0]
+                    bound_receiver = True
             if binding and all(v['kind'] == 'import' for v in binding):
                 imported = {v['source'] for v in binding}
                 if len(imported) == 1:
@@ -404,12 +431,28 @@ class _Summary:
                 target = None
             call_id = '%s:%s:%s' % (self.ref.file_path, node.lineno, node.col_offset)
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset, target[0] if target else None)
+            call.receiver_sources = receiver_sources
+            call.target_status = ('lexical_method_candidate' if target and bound_receiver else
+                                  'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
+                                  else 'builtin_boundary' if binding is None and hasattr(builtins, name)
+                                  else 'definition_unavailable')
+            if target and bound_receiver:
+                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                                               'reason': 'dynamic_method_override_possible'})
             if target:
                 for capture in self.analyzer._captures(*target):
                     call.capture_bindings.append({'capture': capture,
                         'sources': copy.deepcopy(env.get(capture, []))})
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
+            if (contract is None and target is None and binding is None
+                    and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set')
+                    and canonical == self.ref.module + '.' + name
+                    and len(node.args) == 1 and not node.keywords
+                    and not isinstance(node.args[0], ast.Starred)):
+                contract = {'parameters': ['object'], 'returns': [
+                    {'parameter': 'object', 'relation': 'derived'}],
+                    'provenance': 'Python builtin result dependency (not owner preservation)'}
             if contract and (binding is None or all(v['kind'] == 'import' for v in binding)):
                 params = ast.arguments(posonlyargs=[], args=[ast.arg(arg=n) for n in contract['parameters']],
                                        vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[])
@@ -418,6 +461,10 @@ class _Summary:
                      'evidence': [{'provenance': contract['provenance'], 'callable': canonical}], 'conditions': []}
                     for d in contract.get('returns', [])]
             positional = params.posonlyargs + params.args if params else []
+            if bound_receiver and target and positional:
+                call.argument_sources.append({'argument': {'receiver': True}, 'parameter': positional[0].arg,
+                                              'sources': receiver_sources})
+                positional = positional[1:]
             arguments = [({'position': i}, arg) for i, arg in enumerate(node.args)]
             arguments += [({'keyword': kw.arg}, kw.value) for kw in node.keywords]
             expanded = False
@@ -517,16 +564,39 @@ class _Summary:
             return exceptional + left + right
         if isinstance(node, ast.Try):
             return self.try_statement(node, env)
+        if isinstance(node, (ast.For, ast.While)):
+            self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'loop_approximation',
+                                           'evidence': self.evidence(node)})
+            before = copy.deepcopy(env)
+            if isinstance(node, ast.For):
+                values = self.marked(self.expression(node.iter, env), node.iter, 'derived')
+                self.assign_target(node.target, values, env, node)
+            else:
+                self.expression(node.test, env)
+            outcomes = self.block(node.body, env)
+            continuing = [before] + [e for k, e, _, _ in outcomes if k in ('normal', 'continue')]
+            completed = self.block(node.orelse, _merge_env(continuing))
+            completed += [('normal', e, [], None) for k, e, _, _ in outcomes if k == 'break']
+            completed += [o for o in outcomes if o[0] not in ('normal', 'break', 'continue')]
+            return completed
+        if isinstance(node, (ast.Break, ast.Continue)):
+            return [('break' if isinstance(node, ast.Break) else 'continue', env, [], None)]
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], (ast.Tuple, ast.List))
+                    and isinstance(node.value, (ast.Tuple, ast.List))
+                    and len(node.targets[0].elts) == len(node.value.elts)
+                    and not any(isinstance(n, ast.Starred) for n in node.targets[0].elts + node.value.elts)):
+                elements = [self.expression(v, env) for v in node.value.elts]
+                for target, values in zip(node.targets[0].elts, elements):
+                    self.assign_target(target, values, env, node)
+                return exceptional + normal(env)
             values = self.expression(node.value, env)
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             if isinstance(node, ast.AugAssign):
                 values = self.marked(self.expression(node.target, env) + values, node, 'derived')
             for target in targets:
-                if isinstance(target, ast.Name):
-                    env[target.id] = self.marked(values, node)
-                else:
-                    self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_assignment', 'evidence': self.evidence(node)})
+                self.assign_target(target, values, env, node)
             return exceptional + normal(env)
         if isinstance(node, ast.Return):
             return exceptional + [('return', env, self.marked(self.expression(node.value, env), node), None)]
@@ -553,6 +623,16 @@ class _Summary:
             return normal(env)
         self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_statement', 'evidence': self.evidence(node)})
         return [('unknown', env, [], None)]
+
+    def assign_target(self, target, values, env, node):
+        if isinstance(target, ast.Name):
+            env[target.id] = self.marked(values, node)
+        elif isinstance(target, (ast.Tuple, ast.List)) and not any(isinstance(t, ast.Starred) for t in target.elts):
+            for index, element in enumerate(target.elts):
+                projected = [dict(v, relation='derived', projection=v.get('projection', []) + [index]) for v in values]
+                self.assign_target(element, projected, env, node)
+        else:
+            self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_assignment', 'evidence': self.evidence(node)})
 
     def try_statement(self, node, env):
         outcomes = self.block(node.body, copy.deepcopy(env))
@@ -632,9 +712,25 @@ class _Summary:
                 previous = merged[call.id]
                 if previous.target != call.target:
                     previous.target = None
-                for attribute in ('parameter_bindings', 'parameter_flows', 'argument_sources', 'argument_flows', 'capture_bindings'):
+                for attribute in ('parameter_bindings', 'parameter_flows', 'argument_sources', 'argument_flows', 'capture_bindings', 'receiver_sources'):
                     setattr(previous, attribute, _unique(getattr(previous, attribute) + getattr(call, attribute)))
         self.calls = list(merged.values())
+        def collect(node):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                return
+            if isinstance(node, ast.Call):
+                call_id = '%s:%s:%s' % (self.ref.file_path, node.lineno, node.col_offset)
+                if call_id not in merged and self.remaining > 0:
+                    self.remaining -= 1
+                    call = FlowCall(call_id, self.ref, ast.unparse(node.func), node.lineno, node.col_offset,
+                                    analysis_status='not_analyzed', target_status='flow_not_analyzed')
+                    self.calls.append(call)
+                    merged[call_id] = call
+            for child in ast.iter_child_nodes(node):
+                collect(child)
+        for statement in self.node.body:
+            collect(statement)
+        self.calls.sort(key=lambda c: (c.lineno, c.col_offset))
         for call in self.calls:
             call.return_flows = [dict(v, status='flow_found') for v in self.returns
                                  if v['kind'] == 'call_result' and v['source'] == call.id]
