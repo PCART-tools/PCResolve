@@ -1,0 +1,463 @@
+{
+  "manifest_version": 1,
+  "case_count": 12,
+  "max_depth": 3,
+  "dimensions": {
+    "binding": {
+      "matched": 4,
+      "checks": 4,
+      "expected_positive": 0,
+      "expected_negative": 0
+    },
+    "call_return": {
+      "positive_found": 1,
+      "negative_no_path": 2,
+      "checks": 3,
+      "expected_positive": 1,
+      "expected_negative": 2
+    },
+    "entry_return": {
+      "positive_found": 10,
+      "negative_no_path": 7,
+      "checks": 17,
+      "expected_positive": 10,
+      "expected_negative": 7
+    },
+    "parameter_flow": {
+      "negative_no_path": 3,
+      "positive_found": 4,
+      "checks": 7,
+      "expected_positive": 4,
+      "expected_negative": 3
+    },
+    "target": {
+      "matched": 3,
+      "checks": 3,
+      "expected_positive": 0,
+      "expected_negative": 0
+    }
+  },
+  "results": [
+    {
+      "entry": "keywords",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "entry_return",
+      "name": "y",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "target",
+      "name": "choose",
+      "expected": "helpers:choose",
+      "actual": "helpers:choose",
+      "outcome": "matched"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "binding",
+      "name": "right",
+      "expected": "right",
+      "actual": "right",
+      "outcome": "matched"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "binding",
+      "name": "left",
+      "expected": "left",
+      "actual": "left",
+      "outcome": "matched"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "parameter_flow",
+      "name": "x->left",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "parameter_flow",
+      "name": "x->right",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "parameter_flow",
+      "name": "y->left",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "parameter_flow",
+      "name": "y->right",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "call_return",
+      "name": "choose",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "discarded",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "discarded",
+      "dimension": "target",
+      "name": "identity",
+      "expected": "helpers:identity",
+      "actual": "helpers:identity",
+      "outcome": "matched"
+    },
+    {
+      "entry": "discarded",
+      "dimension": "binding",
+      "name": "0",
+      "expected": "value",
+      "actual": "value",
+      "outcome": "matched"
+    },
+    {
+      "entry": "discarded",
+      "dimension": "parameter_flow",
+      "name": "x->value",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "discarded",
+      "dimension": "call_return",
+      "name": "identity",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "entry_return",
+      "name": "y",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "target",
+      "name": "identity",
+      "expected": "helpers:identity",
+      "actual": "helpers:identity",
+      "outcome": "matched"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "binding",
+      "name": "0",
+      "expected": "value",
+      "actual": "value",
+      "outcome": "matched"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "parameter_flow",
+      "name": "x->value",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "parameter_flow",
+      "name": "y->value",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "overwritten",
+      "dimension": "call_return",
+      "name": "identity",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "control_only",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "control_only",
+      "dimension": "entry_return",
+      "name": "y",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "unpack_keywords",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "comprehension",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "nested_alias",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "external_mutation",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "negative_index",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "negative_index",
+      "dimension": "entry_return",
+      "name": "y",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "sliced",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "sliced",
+      "dimension": "entry_return",
+      "name": "y",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    },
+    {
+      "entry": "rebound",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
+    },
+    {
+      "entry": "Child.run",
+      "dimension": "entry_return",
+      "name": "x",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
+    }
+  ],
+  "diagnostics": [
+    {
+      "entry": "keywords",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        },
+        "y": {
+          "status": "unknown",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "discarded",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "overwritten",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        },
+        "y": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "control_only",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        },
+        "y": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "unpack_keywords",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "comprehension",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "nested_alias",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "external_mutation",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {
+        "receiver_unresolved": 1
+      }
+    },
+    {
+      "entry": "negative_index",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        },
+        "y": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "sliced",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        },
+        "y": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {}
+    },
+    {
+      "entry": "rebound",
+      "queries": {
+        "x": {
+          "status": "unknown",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {
+        "unsupported_expression": 1,
+        "definition_unavailable": 1
+      }
+    },
+    {
+      "entry": "Child.run",
+      "queries": {
+        "x": {
+          "status": "flow_found",
+          "summary_status": "converged"
+        }
+      },
+      "boundaries": {
+        "dynamic_method_override_possible": 1
+      }
+    }
+  ]
+}

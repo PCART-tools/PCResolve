@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cases": [
+    {"entry": "keywords", "returns": {"x": true, "y": false}, "call": {"name": "choose", "target": "helpers:choose", "bindings": {"right": "right", "left": "left"}, "flows": [["x", "right"], ["y", "left"]], "returns": true}},
+    {"entry": "discarded", "returns": {"x": false}, "call": {"name": "identity", "target": "helpers:identity", "bindings": {"0": "value"}, "flows": [["x", "value"]], "returns": false}},
+    {"entry": "overwritten", "returns": {"x": false, "y": true}, "call": {"name": "identity", "target": "helpers:identity", "bindings": {"0": "value"}, "flows": [["x", "value"]], "returns": false}},
+    {"entry": "control_only", "returns": {"x": false, "y": true}},
+    {"entry": "unpack_keywords", "returns": {"x": true}},
+    {"entry": "comprehension", "returns": {"x": true}},
+    {"entry": "nested_alias", "returns": {"x": true}},
+    {"entry": "external_mutation", "returns": {"x": true}},
+    {"entry": "negative_index", "returns": {"x": false, "y": true}},
+    {"entry": "sliced", "returns": {"x": false, "y": true}},
+    {"entry": "rebound", "returns": {"x": false}},
+    {"entry": "Child.run", "returns": {"x": true}}
+  ]
+}
