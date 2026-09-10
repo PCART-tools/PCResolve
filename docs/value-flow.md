@@ -25,6 +25,57 @@ source sets; rerun analysis after adding or editing files.
 
 ## Complete example: pandas 0.21.0 `to_datetime`
 
+### Command line
+
+Analyze the entry's direct calls using the whole checkout as available source:
+
+```bash
+pcresolve C:/sources/pandas-0.21.0 --value-flow --entry pandas.core.tools.datetimes:to_datetime --depth 1
+```
+
+Write the complete experimental flow JSON to a UTF-8 file:
+
+```bash
+pcresolve C:/sources/pandas-0.21.0 --value-flow --entry pandas.core.tools.datetimes:to_datetime --depth 1 --json --output datetime-flow.json
+```
+
+Limit available source to the single definition file:
+
+```bash
+pcresolve --value-flow --source-file C:/sources/pandas-0.21.0/pandas/core/tools/datetimes.py --import-root C:/sources/pandas-0.21.0 --entry pandas.core.tools.datetimes:to_datetime --depth 1 --json --output datetime-flow.json
+```
+
+`python -m pcresolve` is equivalent to `pcresolve`. Paths are relative to the
+current working directory unless absolute. Use either the positional project
+directory or repeated `--source-file` options, not both. `--import-root` is
+repeatable and controls module naming only. With explicit files and no import
+root, module names default to each file's basename.
+
+| Option | Meaning |
+|--------|---------|
+| `--value-flow` | Select experimental flow analysis instead of ownership |
+| `--entry MODULE:QUALNAME` | Required entry; nested qualnames use dots |
+| `--depth N` | Call-edge depth, default 1 |
+| `--max-functions N` | Distinct function summary budget, default 500 |
+| `--max-call-contexts N` | Collected call-site budget, default 2000 |
+| `--json` | Emit `FlowAnalysis.to_dict()`, including evidence and boundaries |
+| `--output PATH` | Write the selected text/JSON format to a UTF-8 file instead of stdout |
+
+Output files are overwritten; their parent directory must already exist.
+Without `--json`, the CLI prints per-call parameter flows, return-flow evidence,
+and boundaries. Empty flow lists are not proofs of absence. A successful partial
+analysis exits 0; invalid arguments, missing explicit files, unresolved entry
+selection, and output errors exit 2. Individual parse failures remain recorded
+analysis boundaries when the entry can still be analyzed.
+
+`--stdin` can supply the project directory. Ownership-specific display and
+explain options are not supported in flow mode. Existing commands without
+`--value-flow` keep their ownership output. Selected incremental expansion,
+trusted return summaries, and composed parameter queries currently use the
+Python API; the CLI performs a single analysis at the requested depth.
+
+### Python API
+
 This example analyzes the call from `to_datetime` to
 `_assemble_from_unit_mappings` in
 `pandas/core/tools/datetimes.py`. Use the **v0.21.0** source checkout: other

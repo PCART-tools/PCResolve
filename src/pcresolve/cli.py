@@ -177,6 +177,75 @@ def _print_json_full(result):
 
 # ── main ─────────────────────────────────────────────────────────────────
 
+def _flow_text(result):
+    lines = ['Value flow (experimental %s)' % result.schema_version,
+             'Entry: %s:%s' % (result.entry.module, result.entry.qualname),
+             'Functions: %d; call sites: %d' % (len(result.functions), len(result.calls))]
+    for call in result.calls:
+        lines.append('\n%s:%d:%d %s' % (call.caller.file_path, call.lineno,
+                                         call.col_offset, call.callee_name))
+        lines.append('  Parameter flows:')
+        for flow in call.parameter_flows:
+            lines.append('    %s -> %s -> %s (%s)' % (
+                flow['source_parameter'], flow['argument'],
+                flow['target_parameter'] or '<unresolved formal>', flow['relation']))
+        if not call.parameter_flows:
+            lines.append('    No flow found (not a proof of absence).')
+        lines.append('  Return flows: %d path(s) to caller return' % len(call.return_flows))
+        for flow in call.return_flows:
+            lines.append('    %s: %s' % (flow['relation'], ' -> '.join(
+                e.get('source_text', '') for e in flow['evidence'])))
+    lines.append('\nBoundaries: %d' % len(result.boundaries))
+    for boundary in result.boundaries:
+        lines.append('  ' + json.dumps(boundary, ensure_ascii=False))
+    return '\n'.join(lines)
+
+
+def _run_value_flow(parser, args, project_root):
+    from .flow import FlowAnalyzer, FunctionRef
+
+    if (args.json_summary or args.json_full or args.json_stable or args.debug_dump
+            or args.verbose or args.strict or args.usage_summary or args.quiet
+            or args.explain_library or args.explain_symbol or args.explain_call
+            or args.top != 20):
+        parser.error('Ownership output options cannot be combined with --value-flow; use --json.')
+    if not args.entry or args.entry.count(':') != 1:
+        parser.error('--value-flow requires --entry MODULE:QUALNAME')
+    module, qualname = args.entry.split(':')
+    if not module or not qualname or not all(p.isidentifier() for p in (module + '.' + qualname).split('.')):
+        parser.error('--entry must be MODULE:QUALNAME with dotted Python identifiers')
+    if bool(project_root) == bool(args.source_file):
+        parser.error('Specify either project_root or one or more --source-file paths')
+    if project_root and not os.path.isdir(project_root):
+        parser.error('Project root is not a directory: %s' % project_root)
+    for path in args.source_file or []:
+        if not os.path.isfile(path) or not path.endswith(('.py', '.pyi')):
+            parser.error('Source must be an existing .py or .pyi file: %s' % path)
+    for root in args.import_root or []:
+        if not os.path.isdir(root):
+            parser.error('Import root is not a directory: %s' % root)
+    depth = args.depth if args.depth is not None else 1
+    functions = args.max_functions if args.max_functions is not None else 500
+    calls = args.max_call_contexts if args.max_call_contexts is not None else 2000
+    if min(depth, functions, calls) < 1:
+        parser.error('Depth and budgets must be positive integers')
+    try:
+        analyzer = FlowAnalyzer(project_root=project_root,
+                                source_files=args.source_file, import_roots=args.import_root)
+        result = analyzer.analyze(FunctionRef(module=module, qualname=qualname),
+                                  max_depth=depth, max_functions=functions,
+                                  max_call_contexts=calls)
+        payload = json.dumps(result.to_dict(), ensure_ascii=False, indent=2) if args.json else _flow_text(result)
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as stream:
+                stream.write(payload + '\n')
+        else:
+            print(payload)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+
+
+## Run ownership analysis or the opt-in experimental value-flow CLI.
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -187,7 +256,7 @@ def main():
     parser.add_argument("project_root", nargs="?", default=None,
                         help="Absolute path to the project root directory.")
     parser.add_argument("--json", action="store_true",
-                        help="Full provenance JSON output (1.0.4+).")
+                        help="Full provenance JSON, or flow JSON with --value-flow.")
     parser.add_argument("--json-summary", action="store_true",
                         help="Summary JSON profile (small, stable, for CI).")
     parser.add_argument("--json-full", action="store_true",
@@ -214,11 +283,27 @@ def main():
                         help="Explain one symbol's provenance.")
     parser.add_argument("--explain-call", default=None,
                         help="Explain matching call expressions.")
+    flow = parser.add_argument_group('experimental value flow')
+    flow.add_argument('--value-flow', action='store_true', help='Analyze parameter and return value flows.')
+    flow.add_argument('--entry', help='Entry function as MODULE:QUALNAME (value flow only).')
+    flow.add_argument('--source-file', action='append', help='Explicit Python source file; repeat instead of project_root.')
+    flow.add_argument('--import-root', action='append', help='Module mapping root; repeat as needed (does not add sources).')
+    flow.add_argument('--depth', type=int, help='Call-edge depth, default 1 (value flow only).')
+    flow.add_argument('--max-functions', type=int, help='Function summary budget, default 500.')
+    flow.add_argument('--max-call-contexts', type=int, help='Collected call-site budget, default 2000.')
+    flow.add_argument('--output', help='Write flow output to a UTF-8 file instead of stdout; overwrites existing file.')
     args = parser.parse_args()
 
     project_root = args.project_root
     if args.stdin:
         project_root = sys.stdin.readline().strip()
+
+    if args.value_flow:
+        _run_value_flow(parser, args, project_root)
+        return
+    if any(value is not None for value in (args.entry, args.source_file, args.import_root,
+           args.depth, args.max_functions, args.max_call_contexts, args.output)):
+        parser.error('Value-flow options require --value-flow')
 
     if not project_root:
         parser.print_help()
