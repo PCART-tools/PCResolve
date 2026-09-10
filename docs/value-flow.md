@@ -378,6 +378,82 @@ Nested functions are resolved in lexical order. Their free variables use
 call-time environment; nested defaults are captured at definition time. These
 facts support direct local invocation, not arbitrary escaping closure objects.
 
+## Constructor fields, containers, and recursive return queries
+
+A direct constructor assignment such as `self.mapper = Mapper()` can supply a
+candidate for `self.mapper.resolve(...)`. The current rule requires a unique
+field write, a direct top-level assignment in an undecorated `__init__`, and an
+available class and method definition. Conflicting writes and known dynamic
+attribute hooks reject the candidate. Calls expose
+`target_status="constructor_field_candidate"` and a
+`constructor_field_assumption` boundary with assignment evidence. This is
+conditional on normal initialization and dispatch; it does not prove the runtime
+class of every possible receiver. Existing dynamic dispatch boundaries remain.
+
+Local literal containers have allocation identities, so aliases share modeled
+contents. Supported effects include list `append`, container `clear`, dictionary
+item assignment, and dictionary `get`. `mutation_flows` records appended value
+dependencies separately from the call's return: `append` returns `None`.
+An unambiguous clear removes content dependencies; an ambiguous receiver uses a
+weak update. Known dictionary keys select matching values and suppress a default
+only when the key is known to be present. Unsupported local container methods
+report `container_effect_unknown`. This is not a general heap or alias analysis:
+arbitrary nested mutable objects, escaping aliases, and callee side effects are
+not fully modeled.
+
+Conditional expressions merge the possible container effects of both branches;
+short-circuit expressions preserve the effects of evaluated prefixes. A pending
+return retains the local container identity through `finally`: appending or
+clearing changes its returned contents, while rebinding the local variable does
+not replace the previously selected return object. Dictionary `get` retains a
+call-result endpoint and exposes its selected receiver/default dependencies in
+`return_dependencies`.
+
+Return dependencies can carry `output_path` (the containing result element) and
+`projection` (the selected input element). These preserve selections through
+expanded calls. For example, if `pair(x, y)` returns `(x, y)`, then
+`a, b = pair(x, y); return b` carries `y` to the return without also carrying `x`.
+Unknown indices remain conservative; general sequence operations and shape
+inference are not complete. Literal string `join` consumes iterable element
+dependencies. Positive string guards in short-circuit `and` expressions can
+refine subsequent operands.
+
+`trace_parameter()` computes return dependencies over the functions already
+present in the snapshot using a bounded fixed point. This supports recursive
+parameter permutation and nested return selection; it does not expand additional
+source functions. Query results include `summary_status` (`converged` or
+`bounded`) and `summary_iterations`. The solver retains one evidence witness per
+abstract dependency, with limits of 32 iterations and 2,048 dependencies per
+summary. Recursive container nesting can keep growing and reach these limits.
+In that case the query adds `return_summary_limit` to its own boundaries without
+mutating the analysis snapshot. `converged` means convergence of the modeled
+dependencies, not completeness of Python semantics or exhaustive path evidence.
+An empty result remains `unknown`, not a proof of no flow.
+
+For the repository example:
+
+```python
+analysis = FlowAnalyzer(project_root="src").analyze(
+    FunctionRef(module="pcresolve.cross_file",
+                qualname="ProjectAnalyzer.trace_symbol"),
+    max_depth=1,
+)
+for call in analysis.find_calls(
+        callee_name="self.module_mapper.resolve_module_name"):
+    print(call.target, call.target_status)
+for call in analysis.find_calls(callee_name="tops.append"):
+    print(call.mutation_flows)
+query = analysis.trace_parameter("symbol")
+print(query["summary_status"], query["return_paths"], query["boundaries"])
+```
+
+Boundary counts depend on revision, expansion budgets, and available sources.
+Successful builtin/local container protocol classifications are not themselves
+boundaries; genuine assumptions and truncations remain visible. Identical
+boundary records are deduplicated. More than one distinct boundary may still
+refer to a single call. Ownership classification is unchanged by these value-flow
+features.
+
 ## Optional trusted return summaries
 
 Opaque calls are not assumed to forward their arguments. A consumer can opt in
