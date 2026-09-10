@@ -24,7 +24,7 @@ def test_unpack_preserves_projection():
 def test_loop_preserves_iterable_dependency_with_boundary():
     result = run('loop')
     assert result.trace_parameter('items')['return_paths']
-    assert any(b['reason'] == 'loop_approximation' for b in result.boundaries)
+    assert not any(b['reason'] == 'loop_iteration_limit' for b in result.boundaries)
 
 
 def test_same_class_receiver_binding():

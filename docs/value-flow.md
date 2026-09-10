@@ -302,10 +302,14 @@ test. Tuple/list destructuring records element projections; matching literal
 tuple/list assignments preserve individual elements. General projections still
 represent a dependency on the aggregate, not a fully resolved element type.
 
-For/while loops use a bounded zero/one-iteration approximation with
-`loop_approximation` boundaries, including break/continue and loop else handling.
-This exposes iterable dependencies and calls but does not solve loop-carried
-dependencies to a fixed point or prove feasibility. Unknown methods such as
+For/while loops compute a bounded may-flow fixed point, including break/continue
+and loop else handling. Loop entry sources join normal/continue back edges until
+abstract dependencies stabilize, with a maximum of 16 passes. Function summaries
+include `loops` records with iterations and `converged`/`bounded` status.
+Non-convergence produces `loop_iteration_limit`. One witness is retained per
+dependency; this does not enumerate iteration counts or prove feasibility.
+Repeated evaluation of a call site does not spend the call budget repeatedly.
+Unknown methods such as
 `append` still have no heap-effect summary.
 
 One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
@@ -320,7 +324,7 @@ lexically nested definitions, direct closure bindings, definition-time nested
 defaults, and bounded cross-call return substitution. Rebound callable variables and decorated targets are not
 resolved to a guessed definition. Dynamic argument unpacking is left unresolved.
 
-Loop fixed points, with, comprehensions, starred destructuring/heap writes, escaping closures,
+Unbounded loop reasoning, with, comprehensions, starred destructuring/heap writes, escaping closures,
 nonlocal mutation, general receiver binding, and dynamic dispatch are not yet
 complete. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
