@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "containers.nested_index",
+      "category": "containers/selection",
+      "module": "cases",
+      "entry": "nested_index",
+      "rationale": "The nested selection evaluates exactly to y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "containers.negative_index",
+      "category": "containers/selection",
+      "module": "cases",
+      "entry": "negative_index",
+      "rationale": "Index -2 of three elements selects only y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true,
+        "z": false
+      }
+    },
+    {
+      "id": "containers.reverse_stride",
+      "category": "containers/selection",
+      "module": "cases",
+      "entry": "reverse_stride",
+      "rationale": "The reversed stride yields [z, x], excluding y.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false,
+        "z": true
+      }
+    },
+    {
+      "id": "containers.slice_then_index",
+      "category": "containers/selection",
+      "module": "cases",
+      "entry": "slice_then_index",
+      "rationale": "Slicing produces [y, z]; its new index zero is y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true,
+        "z": false
+      }
+    },
+    {
+      "id": "containers.caught_out_of_range",
+      "category": "containers/selection",
+      "module": "cases",
+      "entry": "caught_out_of_range",
+      "rationale": "The invalid literal index raises; the handler returns fallback, never x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "fallback": true
+      }
+    },
+    {
+      "id": "containers.returned_dictionary",
+      "category": "containers/dictionaries",
+      "module": "cases",
+      "entry": "returned_dictionary",
+      "rationale": "The returned dictionary explicitly contains the supplied key and value.",
+      "max_depth": 3,
+      "returns": {
+        "key": true,
+        "value": true
+      }
+    },
+    {
+      "id": "containers.overwritten_dynamic_key",
+      "category": "containers/dictionaries",
+      "module": "cases",
+      "entry": "overwritten_dynamic_key",
+      "rationale": "The final chosen entry is y even if the earlier dynamic key equals chosen; lookup never returns key or x.",
+      "max_depth": 3,
+      "returns": {
+        "key": false,
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "containers.missing_dictionary_default",
+      "category": "containers/dictionaries",
+      "module": "cases",
+      "entry": "missing_dictionary_default",
+      "rationale": "The missing literal key makes get return fallback; the unrelated stored x is not selected.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "fallback": true
+      }
+    },
+    {
+      "id": "containers.unpacked_dictionary_overwrite",
+      "category": "containers/dictionaries",
+      "module": "cases",
+      "entry": "unpacked_dictionary_overwrite",
+      "rationale": "The later key entry overwrites the unpacked x with y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "containers.dictionary_alias_write",
+      "category": "heap/aliases",
+      "module": "cases",
+      "entry": "dictionary_alias_write",
+      "rationale": "The alias refers to the same dictionary; its write replaces x with y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "containers.nested_alias_clear",
+      "category": "heap/aliases",
+      "module": "cases",
+      "entry": "nested_alias_clear",
+      "rationale": "The selected alias is the inner list itself; clearing it removes x from the returned outer list.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      }
+    },
+    {
+      "id": "containers.detached_rebinding",
+      "category": "heap/aliases",
+      "module": "cases",
+      "entry": "detached_rebinding",
+      "rationale": "The outer list still holds the original inner list containing x after the local is rebound to [y].",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      }
+    },
+    {
+      "id": "containers.cyclic_selected_element",
+      "category": "heap/cycles",
+      "module": "cases",
+      "entry": "cyclic_selected_element",
+      "rationale": "The first list element is a self-reference, while the selected second element is exactly x.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      }
+    },
+    {
+      "id": "containers.append_result",
+      "category": "protocol/mutation_returns",
+      "module": "cases",
+      "entry": "append_result",
+      "rationale": "list.append always returns None, despite storing x as a side effect.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "values.append",
+          "occurrence": 0,
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "containers.conditional_append",
+      "category": "heap/branches",
+      "module": "cases",
+      "entry": "conditional_append",
+      "rationale": "When flag is true the result contains x; flag is only a branch condition.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "containers.conditional_clear",
+      "category": "heap/branches",
+      "module": "cases",
+      "entry": "conditional_clear",
+      "rationale": "When flag is false the result retains x; neither branch stores flag.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "containers.unconditional_branch_clear",
+      "category": "heap/branches",
+      "module": "cases",
+      "entry": "unconditional_branch_clear",
+      "rationale": "Both normal branch exits return an empty list, so neither parameter contributes content.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "flag": false
+      }
+    },
+    {
+      "id": "containers.cross_call_append",
+      "category": "heap/interprocedural",
+      "module": "cases",
+      "entry": "cross_call_append",
+      "rationale": "push_value stores x into the caller's list; its implicit None return is discarded.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "push_value",
+          "occurrence": 0,
+          "target": "helpers:push_value",
+          "bindings": {
+            "0": "values",
+            "1": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ],
+            [
+              "x",
+              "values",
+              false
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    },
+    {
+      "id": "containers.cross_call_clear",
+      "category": "heap/interprocedural",
+      "module": "cases",
+      "entry": "cross_call_clear",
+      "rationale": "clear_values removes x from the returned list; x nevertheless reaches the callee values parameter before the mutation.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "clear_values",
+          "occurrence": 0,
+          "target": "helpers:clear_values",
+          "bindings": {
+            "0": "values"
+          },
+          "flows": [
+            [
+              "x",
+              "values",
+              true
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    },
+    {
+      "id": "containers.dictionary_comprehension",
+      "category": "comprehensions/dictionaries",
+      "module": "cases",
+      "entry": "dictionary_comprehension",
+      "rationale": "The one-iteration comprehension puts both key and value into the returned mapping.",
+      "max_depth": 3,
+      "returns": {
+        "key": true,
+        "value": true
+      }
+    },
+    {
+      "id": "containers.filtered_comprehension",
+      "category": "comprehensions/filters",
+      "module": "cases",
+      "entry": "filtered_comprehension",
+      "rationale": "Selected items come from values; predicate only decides membership and is never stored.",
+      "max_depth": 3,
+      "returns": {
+        "values": true,
+        "predicate": false
+      }
+    },
+    {
+      "id": "containers.empty_comprehension",
+      "category": "comprehensions/empty",
+      "module": "cases",
+      "entry": "empty_comprehension",
+      "rationale": "Iteration over an empty tuple yields an empty list without storing x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      }
+    },
+    {
+      "id": "containers.comprehension_scope",
+      "category": "comprehensions/scope",
+      "module": "cases",
+      "entry": "comprehension_scope",
+      "rationale": "The enclosing item remains outside because comprehension variables have their own scope; its result is discarded.",
+      "max_depth": 3,
+      "returns": {
+        "values": false,
+        "outside": true
+      }
+    },
+    {
+      "id": "containers.joined_values",
+      "category": "protocol/strings",
+      "module": "cases",
+      "entry": "joined_values",
+      "rationale": "For successful string arguments, join derives its returned string from both iterable elements.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": true
+      }
+    },
+    {
+      "id": "containers.popped_element",
+      "category": "protocol/mutation_returns",
+      "module": "cases",
+      "entry": "popped_element",
+      "rationale": "pop(0) returns only the first element x; y remains in the local list and is discarded.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      },
+      "calls": [
+        {
+          "name": "values.pop",
+          "occurrence": 0,
+          "return_flow": true
+        }
+      ]
+    }
+  ]
+}

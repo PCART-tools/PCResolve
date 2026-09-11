@@ -1,0 +1,46 @@
+{
+  "origin": "Locally installed CPython standard library, Anaconda distribution",
+  "modifications": "Only exact selected FunctionDef source segments retained; header added. No behavior edits. Not a whole-project analysis.",
+  "sources": [
+    {
+      "original_module": "posixpath",
+      "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+      "original_file_sha256": "3922414bca33db7add2a31ba09e2d47e10ec3716eae0a0f93ae4b93d7bbf7668",
+      "excerpt_file": "path_excerpt.py",
+      "functions": [
+        {
+          "name": "_get_sep",
+          "original_lineno": 42,
+          "original_end_lineno": 46,
+          "sha256": "3ceeabed5b9fb1ad2cf396974593ffa3fb0d0a2f7303d80f1bd3337b1b64fd3f"
+        }
+      ]
+    },
+    {
+      "original_module": "urllib.parse",
+      "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+      "original_file_sha256": "e6af7f475262f1de335bb2e41e26adb94d6103977cf5fe1ddc430dc6a3b1623f",
+      "excerpt_file": "url_excerpt.py",
+      "functions": [
+        {
+          "name": "_splituser",
+          "original_lineno": 1142,
+          "original_end_lineno": 1145,
+          "sha256": "793536ac4b1aa4a9ef3500f8e580c9ed5bbcf9c1052eca9fb128d6e1ec1b9429"
+        },
+        {
+          "name": "_splitnport",
+          "original_lineno": 1191,
+          "original_end_lineno": 1205,
+          "sha256": "1390c9a12dd7cf79cb04592f48be5f9ea5fc658d129310f61e57ccf05b945739"
+        },
+        {
+          "name": "_splitvalue",
+          "original_lineno": 1259,
+          "original_end_lineno": 1262,
+          "sha256": "2b9760e334d2f4725cf4e7e2731665ecbd16a193192d92d92a28a620452bda3c"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "analyzer_revision": "b1545c294cd134421f0bf7227a1019573e0d0adf",
+  "gaps": {
+    "binding.variadic_argument/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "Variadic positional elements are flattened; selecting rest[1] incorrectly retains x."
+    },
+    "binding.variadic_keyword/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "Variadic keyword container loses key-specific selection."
+    },
+    "binding.literal_star/entry_return/y": {
+      "outcome": "positive_missing",
+      "reason": "Known tuple star expansion does not bind the individual formal slots."
+    },
+    "binding.literal_star/parameter_flow/positional#0:x->first": {
+      "outcome": "unresolved",
+      "reason": "Known tuple star expansion does not bind the individual formal slots."
+    },
+    "binding.literal_star/parameter_flow/positional#0:x->second": {
+      "outcome": "unresolved",
+      "reason": "Known tuple star expansion does not bind the individual formal slots."
+    },
+    "binding.literal_star/parameter_flow/positional#0:y->second": {
+      "outcome": "unresolved",
+      "reason": "Known tuple star expansion does not bind the individual formal slots."
+    },
+    "binding.literal_star/parameter_flow/positional#0:y->first": {
+      "outcome": "unresolved",
+      "reason": "Known tuple star expansion does not bind the individual formal slots."
+    },
+    "binding.star_and_keyword/entry_return/y": {
+      "outcome": "positive_missing",
+      "reason": "Unknown positional expansion unnecessarily blocks an independent explicit keyword binding."
+    },
+    "binding.star_and_keyword/binding/after_star#0:kw:result": {
+      "outcome": "unresolved",
+      "reason": "Unknown positional expansion unnecessarily blocks an independent explicit keyword binding."
+    },
+    "binding.star_and_keyword/parameter_flow/after_star#0:y->result": {
+      "outcome": "unresolved",
+      "reason": "Unknown positional expansion unnecessarily blocks an independent explicit keyword binding."
+    },
+    "binding.star_and_keyword/parameter_flow/after_star#0:items->result": {
+      "outcome": "unresolved",
+      "reason": "Unknown positional expansion unnecessarily blocks an independent explicit keyword binding."
+    },
+    "binding.local_alias/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "A local alias of an imported callable does not preserve target binding."
+    },
+    "binding.local_alias/target/chosen#0": {
+      "outcome": "unresolved",
+      "reason": "A local alias of an imported callable does not preserve target binding."
+    },
+    "binding.local_alias/binding/chosen#0:0": {
+      "outcome": "unresolved",
+      "reason": "A local alias of an imported callable does not preserve target binding."
+    },
+    "binding.local_alias/parameter_flow/chosen#0:x->data": {
+      "outcome": "unresolved",
+      "reason": "A local alias of an imported callable does not preserve target binding."
+    },
+    "binding.static_descriptor/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Builtin staticmethod descriptor dispatch/signature is unresolved."
+    },
+    "binding.static_descriptor/target/Descriptors.static_echo#0": {
+      "outcome": "unresolved",
+      "reason": "Builtin staticmethod descriptor dispatch/signature is unresolved."
+    },
+    "binding.static_descriptor/binding/Descriptors.static_echo#0:0": {
+      "outcome": "unresolved",
+      "reason": "Builtin staticmethod descriptor dispatch/signature is unresolved."
+    },
+    "binding.static_descriptor/parameter_flow/Descriptors.static_echo#0:x->data": {
+      "outcome": "unresolved",
+      "reason": "Builtin staticmethod descriptor dispatch/signature is unresolved."
+    },
+    "binding.class_descriptor/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.class_descriptor/target/Descriptors.class_echo#0": {
+      "outcome": "unresolved",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.class_descriptor/binding/Descriptors.class_echo#0:receiver": {
+      "outcome": "unresolved",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.class_descriptor/binding/Descriptors.class_echo#0:0": {
+      "outcome": "unresolved",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.class_descriptor/parameter_flow/Descriptors.class_echo#0:x->data": {
+      "outcome": "unresolved",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.class_descriptor/receiver_flow/Descriptors.class_echo#0:x->cls": {
+      "outcome": "unresolved",
+      "reason": "Builtin classmethod descriptor and implicit class receiver are unresolved."
+    },
+    "binding.super_parent/call_inventory/lexical_calls": {
+      "outcome": "mismatch",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/call_presence/super().echo#0": {
+      "outcome": "mismatch",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/target/super().echo#0": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/binding/super().echo#0:receiver": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/binding/super().echo#0:0": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/parameter_flow/super().echo#0:x->data": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/receiver_flow/super().echo#0:self->self": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/receiver_flow/super().echo#0:x->self": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.super_parent/call_return/super().echo#0": {
+      "outcome": "unresolved",
+      "reason": "Nested super and outer method calls collide at the same start position; super dispatch is also unresolved."
+    },
+    "binding.decorated_replacement/target/replaced_identity#0": {
+      "outcome": "unresolved",
+      "reason": "Decorator replacement callable and its signature are not resolved."
+    },
+    "binding.decorated_replacement/binding/replaced_identity#0:0": {
+      "outcome": "unresolved",
+      "reason": "Decorator replacement callable and its signature are not resolved."
+    },
+    "binding.decorated_replacement/parameter_flow/replaced_identity#0:x->data": {
+      "outcome": "unresolved",
+      "reason": "Decorator replacement callable and its signature are not resolved."
+    },
+    "containers.returned_dictionary/entry_return/key": {
+      "outcome": "positive_missing",
+      "reason": "Dictionary key values are omitted from returned container dependencies."
+    },
+    "containers.overwritten_dynamic_key/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "A later exact key does not exclude an earlier unknown-key value at that key."
+    },
+    "containers.unpacked_dictionary_overwrite/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "Dictionary unpacking loses overwrite-specific element selection."
+    },
+    "containers.append_result/call_return/values.append#0": {
+      "outcome": "positive_missing",
+      "reason": "Modeled None-returning mutator omits its call-result endpoint."
+    },
+    "containers.cross_call_clear/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "Cross-call clear effect is not modeled; stale contents survive."
+    },
+    "containers.popped_element/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Local list pop has no element-selection return summary."
+    },
+    "control.nonlocal_write/entry_return/x": {
+      "outcome": "negative_flow_reported",
+      "reason": "Nested nonlocal assignment is not propagated to the enclosing environment."
+    },
+    "control.nonlocal_write/entry_return/y": {
+      "outcome": "positive_missing",
+      "reason": "Nested nonlocal assignment is not propagated to the enclosing environment."
+    },
+    "control.lambda_call/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Direct local lambda target/return summary is unavailable."
+    },
+    "control.consumed_generator/entry_return/x": {
+      "outcome": "positive_missing",
+      "reason": "Yield-to-next value composition is unsupported."
+    },
+    "stdlib.splituser/entry_return/host": {
+      "outcome": "positive_missing",
+      "reason": "Documented str argument is unrefined; rpartition return dependency is unavailable."
+    },
+    "stdlib.splitvalue/entry_return/attr": {
+      "outcome": "positive_missing",
+      "reason": "Documented str argument is unrefined; partition return dependency is unavailable."
+    },
+    "stdlib.splitnport/entry_return/host": {
+      "outcome": "positive_missing",
+      "reason": "String rpartition and integer-conversion composition cannot be followed."
+    }
+  }
+}
