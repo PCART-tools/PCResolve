@@ -1,8 +1,13 @@
 # Experimental value-flow API
 
-The `flow-0.1` contract is experimental. It is separate from the stable
+The `flow-0.2` contract is experimental. It is separate from the stable
 ownership output. `FlowAnalyzer` does not execute analyzed code or import its
 dependencies. Existing `analyze_project()` behavior is unchanged.
+
+`flow-0.2` gives call IDs a complete source range, adds end positions and
+effect records to calls, records element paths for variadic bindings, marks
+generator summaries, and records trusted parameter-shape inputs. Consumers of
+`flow-0.1` call IDs must rediscover calls with `find_calls()` after upgrading.
 
 ```python
 from pcresolve import FlowAnalyzer, FunctionRef
@@ -197,13 +202,14 @@ the helper or that all possible runtime paths are feasible.
 
 | JSON field | Meaning in this example |
 |------------|-------------------------|
-| `initial_call.id` | Exact helper call location; not a function identifier |
+| `initial_call.id` | Opaque call-site identifier using the complete source range; not a function identifier |
 | `initial_call.target` | Helper definition, including module, file, and line |
 | `parameter_bindings` | Call argument slots mapped to helper formal parameters |
 | `parameter_flows` | Entry parameter roots reaching those argument slots |
 | `argument_flows` | All tracked roots reaching argument slots, including other call results |
 | `capture_bindings` | Call-time bindings of enclosing variables read by a nested function |
 | `return_flows` | This call's result reaching a return in `to_datetime` |
+| `effects` | Exact supported writes through parameters or nonlocal captures |
 | `evidence` | Ordered source snippets with file and start/end positions |
 | `conditions` | Collected syntactic branch conditions, not feasibility proofs |
 | `analysis.functions` | Function summaries actually generated |
@@ -255,7 +261,8 @@ the maximum depth after selected expansions.
 For downstream type-change analysis, use these facts to locate candidate
 propagation paths, then apply your own type/conversion rules. Value dependence
 is not proof of a type change. Missing paths or empty lists are not negative
-proofs when boundaries remain. Side effects are outside this version's scope.
+proofs when boundaries remain. Inspect `effects` and `mutation_flows` before
+following a mutable value across a resolved call.
 
 ## Depth and identity
 
@@ -263,8 +270,9 @@ Depth one summarizes the entry body, including its direct calls and available
 callee signatures. Depth two also summarizes their bodies. `expand` starts at
 the selected call target and analyzes the requested number of layers below it.
 Function summaries are shared; call-result substitution retains call-site
-identity. Call IDs are file/line/column locations, stable only for unchanged
-source snapshots. Function selectors may include a definition line to resolve
+identity. Call IDs are opaque identifiers built from the complete source range
+and are stable only for unchanged source snapshots. Function selectors may
+include a definition line to resolve
 duplicate definitions.
 
 ## Facts
@@ -298,6 +306,13 @@ expanded as `lexical_method_candidate` targets, with an implicit receiver bindin
 in `argument_sources`. `dynamic_method_override_possible` remains explicit:
 these are conditional lexical candidates, not guaranteed runtime dispatch.
 
+Unshadowed builtin `staticmethod` and `classmethod` decorators use their Python
+descriptor binding rules. A nominal zero-argument `super()` call can resolve a
+method on one statically available base. A simple local decorator that accepts
+one function and returns one nested callable can resolve to that replacement.
+Other descriptors, multiple inheritance, decorator factories, and dynamic
+replacement remain boundaries.
+
 Conditional expressions preserve the two value branches separately from their
 test. Tuple/list destructuring records element projections; matching literal
 tuple/list assignments preserve individual elements. General projections still
@@ -310,28 +325,35 @@ include `loops` records with iterations and `converged`/`bounded` status.
 Non-convergence produces `loop_iteration_limit`. One witness is retained per
 dependency; this does not enumerate iteration counts or prove feasibility.
 Repeated evaluation of a call site does not spend the call budget repeatedly.
-Unknown methods such as
-`append` still have no heap-effect summary.
+Known local list/dict/set protocols include bounded `append`, `clear`, `get`,
+and list `pop` behavior. Resolved, straight-line callees can expose exact
+`append`, `clear`, and `nonlocal` write effects. Other heap effects remain
+explicit boundaries or unknown behavior.
 
 One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
 calls carry a builtin derived-result dependency. This is input dependence, not
 identity or owner preservation. Arbitrary receiver methods do not inherit this
 rule; external return contracts remain opt-in.
 
-This first implementation supports named functions, explicit imports and simple
+This implementation supports named functions, direct lambda values, local
+callable aliases, explicit imports and simple
 re-exports, positional/keyword/default binding, parameter aliases, expressions,
 ordinary assignments, if/else merges, try/except/else/finally, explicit returns,
 lexically nested definitions, direct closure bindings, definition-time nested
-defaults, and bounded cross-call return substitution. Rebound callable variables and decorated targets are not
-resolved to a guessed definition. Dynamic argument unpacking is left unresolved.
+defaults, literal argument expansion, path-sensitive variadic captures, and
+bounded cross-call return substitution. Builtin static/class descriptors,
+nominal zero-argument `super()`, and a narrow statically returned replacement
+decorator are resolved when their definitions are unambiguous. Unknown dynamic
+argument expansion remains a `dynamic_argument_expansion` boundary while
+independent explicit keyword bindings are retained.
 
-Unbounded loop reasoning, with, comprehensions, starred destructuring/heap writes, escaping closures,
-nonlocal mutation, general receiver binding, and dynamic dispatch are not yet
+Unbounded loop reasoning, `with`, starred destructuring/heap writes, escaping
+closures, general receiver binding, multiple inheritance, and dynamic dispatch are not yet
 complete. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
-boundaries remain unresolved. Objects passed into calls may be mutated; heap
-effects are not modeled. In particular, discarded results do not prove absence
-of side effects. Recursion records a boundary rather than unrolling forever.
+boundaries remain unresolved. Effects outside the exact local summaries remain
+unknown; discarded results therefore do not prove absence of side effects.
+Recursion records a boundary rather than unrolling forever.
 
 Missing targets, unsupported constructs, depth limits, and budget cutoffs are
 explicit `boundaries`. `trace_parameter()` returns `unknown` when no path is
@@ -355,6 +377,16 @@ overriding subclass method is not ruled out. This is a conditional builtin
 implementation summary, not exact runtime dispatch. Reassignment discards the
 old refinement and derived operations do not automatically retain it. Unknown
 receivers do not receive contracts just because their method names match.
+
+`partition` and `rpartition` receive a three-slot result contract when the
+receiver has a guarded or trusted `str` shape. Each output slot derives from the
+receiver. Syntax such as three-target unpacking does not itself establish the
+receiver type, so the same call on an unconstrained parameter remains unresolved.
+
+Resolved generator functions summarize `yield`/`yield from` values as iterator
+elements. The unshadowed one-argument `next()` protocol projects one such
+element. Creating a generator does not apply its body effects; scheduling and
+general iterator state are outside this summary.
 
 Evidence extraction indexes UTF-8 source lines and caches snippets by source
 span. AST column offsets are byte offsets, including for Unicode identifiers.
@@ -391,15 +423,18 @@ conditional on normal initialization and dispatch; it does not prove the runtime
 class of every possible receiver. Existing dynamic dispatch boundaries remain.
 
 Local literal containers have allocation identities, so aliases share modeled
-contents. Supported effects include list `append`, container `clear`, dictionary
-item assignment, and dictionary `get`. `mutation_flows` records appended value
+contents. Supported effects include list `append`/`pop`, container `clear`,
+dictionary item assignment/unpacking, and dictionary `get`. Dictionary keys are
+part of whole-container results but excluded from value lookup; later exact-key
+writes mask matching wildcard paths. `mutation_flows` records appended value
 dependencies separately from the call's return: `append` returns `None`.
 An unambiguous clear removes content dependencies; an ambiguous receiver uses a
 weak update. Known dictionary keys select matching values and suppress a default
 only when the key is known to be present. Unsupported local container methods
-report `container_effect_unknown`. This is not a general heap or alias analysis:
-arbitrary nested mutable objects, escaping aliases, and callee side effects are
-not fully modeled.
+report `container_effect_unknown`. Exact straight-line local callees can apply
+parameter-based append/clear effects and direct `nonlocal` assignments. This is
+not a general heap or alias analysis: arbitrary nested mutable objects, escaping
+aliases, conditional effects, and other callee side effects are not fully modeled.
 
 Conditional expressions merge the possible container effects of both branches;
 short-circuit expressions preserve the effects of evaluated prefixes. A pending
@@ -486,3 +521,28 @@ the supplied provenance in its evidence. PCResolve does not verify these claims.
 definitions remain boundaries even when such a contract supplies a return
 dependency; a contract does not make the implementation available for expansion.
 Changing contracts requires a new `analyze()` snapshot before expansion.
+
+## Optional trusted parameter shapes
+
+Source code does not always contain enough information to select a builtin
+protocol. A consumer can attach a reviewed shape contract to a defined function:
+
+```python
+analyzer = FlowAnalyzer(
+    project_root=root,
+    parameter_shapes={
+        "url_excerpt._splituser": {
+            "parameters": {"host": "str"},
+            "provenance": "Reviewed CPython _splituser input contract",
+        },
+    },
+)
+```
+
+Keys are exact `module.qualname` definitions. Contracts and provenance are
+copied into `inputs.parameter_shapes`; affected function summaries expose their
+`parameter_shapes`. The current protocol consumer recognizes `str` for the
+documented string methods above. Other nonempty shape names are retained for
+future consumers without changing value-flow semantics. PCResolve does not
+verify the supplied claim. Changing it requires a new analysis snapshot before
+expansion.

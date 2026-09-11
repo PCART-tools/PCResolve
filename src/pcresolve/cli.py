@@ -195,6 +195,9 @@ def _flow_text(result):
                 flow['target_parameter'] or '<unresolved formal>', flow['relation']))
         if not call.parameter_flows:
             lines.append('    No flow found (not a proof of absence).')
+        if call.effects:
+            lines.append('  Effects: %s' % ', '.join(
+                effect['kind'] for effect in call.effects))
         lines.append('  Return flows: %d path(s) to caller return' % len(call.return_flows))
         for flow in call.return_flows:
             lines.append('    %s: %s' % (flow['relation'], ' -> '.join(
