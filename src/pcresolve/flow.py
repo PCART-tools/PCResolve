@@ -21,6 +21,35 @@ def _may_raise(node):
                               ast.Subscript, ast.Compare)) for n in ast.walk(node))
 
 
+def _contains_yield(node):
+    found = False
+
+    def visit(item):
+        nonlocal found
+        if found:
+            return
+        if item is not node and isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                   ast.ClassDef, ast.Lambda)):
+            return
+        if isinstance(item, (ast.Yield, ast.YieldFrom)):
+            found = True
+            return
+        for child in ast.iter_child_nodes(item):
+            visit(child)
+
+    visit(node)
+    return found
+
+
+def _call_key(path, node):
+    return '%s:%s:%s:%s:%s' % (path, node.lineno, node.col_offset,
+                                node.end_lineno, node.end_col_offset)
+
+
+def _call_span(node):
+    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+
+
 ## A source function selector; definition location disambiguates duplicates.
 @dataclass(frozen=True)
 class FunctionRef:
@@ -38,6 +67,8 @@ class FlowCall:
     callee_name: str
     lineno: int
     col_offset: int
+    end_lineno: int = 0
+    end_col_offset: int = 0
     target: object = None
     parameter_bindings: list = field(default_factory=list)
     parameter_flows: list = field(default_factory=list)
@@ -50,6 +81,7 @@ class FlowCall:
     analysis_status: str = 'analyzed'
     target_status: str = 'definition_unavailable'
     mutation_flows: list = field(default_factory=list)
+    effects: list = field(default_factory=list)
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
@@ -60,7 +92,7 @@ class FlowAnalysis:
     functions: list = field(default_factory=list)
     calls: list = field(default_factory=list)
     boundaries: list = field(default_factory=list)
-    schema_version: str = 'flow-0.1'
+    schema_version: str = 'flow-0.2'
 
     ## Find calls by caller and exact syntactic callee spelling.
     #  @param caller Optional function selector.
@@ -134,7 +166,10 @@ class FlowAnalysis:
                     for argument in bindings:
                         if argument.get('capture', argument.get('parameter')) != inner['source']:
                             continue
-                        selected = _select_flows(argument['sources'], inner.get('projection', []))
+                        target_path = argument.get('target_path', [])
+                        values = [dict(source, output_path=target_path + source.get('output_path', []))
+                                  for source in argument['sources']] if target_path else argument['sources']
+                        selected = _select_flows(values, inner.get('projection', []))
                         for outer in sources(selected, stack + (call.id,)):
                             path = value.get('output_path', []) + inner.get('output_path', []) + outer.get('output_path', [])
                             combined = dict(outer,
@@ -191,7 +226,8 @@ def _scope_names(node):
             bound.update(a.asname or a.name.split('.')[0] for a in item.names)
         for child in ast.iter_child_nodes(item):
             visit(child)
-    for statement in node.body:
+    body = [node.body] if isinstance(node, ast.Lambda) else node.body
+    for statement in body:
         visit(statement)
     return loaded, bound
 
@@ -213,11 +249,23 @@ def _select_flows(values, projection):
         return values
     result = []
     for value in values:
+        excluded = value.get('excluded_paths', [])
+        if (projection and '*' not in projection
+                and any(len(path) <= len(projection)
+                        and path == projection[:len(path)] for path in excluded)):
+            continue
         path = value.get('output_path', [])
         if path:
             if not all(a == b or a == '*' or b == '*' for a, b in zip(path, projection)):
                 continue
             selected = dict(value, output_path=path[len(projection):])
+            remaining_exclusions = [item[len(projection):] for item in excluded
+                                    if len(item) > len(projection)
+                                    and item[:len(projection)] == projection]
+            if remaining_exclusions:
+                selected['excluded_paths'] = remaining_exclusions
+            else:
+                selected.pop('excluded_paths', None)
             if len(projection) > len(path):
                 selected['projection'] = value.get('projection', []) + projection[len(path):]
             result.append(selected)
@@ -258,7 +306,9 @@ class FlowAnalyzer:
     #  @param import_roots Roots used to derive module names.
     #  @param project_root Optional project directory scanned with FileScanner.
     #  @param return_summaries Opt-in exact callable summaries with provenance.
-    def __init__(self, source_files=None, import_roots=None, project_root=None, return_summaries=None):
+    #  @param parameter_shapes Opt-in trusted parameter shape contracts.
+    def __init__(self, source_files=None, import_roots=None, project_root=None,
+                 return_summaries=None, parameter_shapes=None):
         if (source_files is None) == (project_root is None):
             raise ValueError('Specify exactly one of source_files or project_root')
         self.files = set()
@@ -270,6 +320,16 @@ class FlowAnalyzer:
                 if (dependency.get('parameter') not in contract['parameters']
                         or dependency.get('relation') not in ('direct', 'derived', 'contained')):
                     raise ValueError('Invalid return dependency')
+        self.parameter_shapes = copy.deepcopy(parameter_shapes or {})
+        for callable_name, contract in self.parameter_shapes.items():
+            parameters = contract.get('parameters') if isinstance(contract, dict) else None
+            if (not isinstance(callable_name, str) or not callable_name
+                    or not isinstance(contract, dict) or not contract.get('provenance')
+                    or not isinstance(parameters, dict)
+                    or any(not isinstance(name, str) or not name
+                           or not isinstance(shape, str) or not shape
+                           for name, shape in parameters.items())):
+                raise ValueError('Parameter shape contracts require parameters and provenance')
         self.roots = [os.path.abspath(p) for p in (import_roots or ([project_root] if project_root else []))]
         self.add_files(FileScanner().scan(str(project_root)) if project_root else source_files)
 
@@ -328,6 +388,18 @@ class FlowAnalyzer:
                         else:
                             self.classes.append((FunctionRef(module, name, path, node.lineno), node))
                         collect(node.body, name + '.')
+                    else:
+                        def collect_lambdas(item):
+                            if isinstance(item, ast.Lambda):
+                                name = prefix + '<lambda>@%s:%s' % (item.lineno, item.col_offset)
+                                self.definitions.append((FunctionRef(module, name, path, item.lineno), item))
+                                collect_lambdas(item.body)
+                                return
+                            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                                return
+                            for child in ast.iter_child_nodes(item):
+                                collect_lambdas(child)
+                        collect_lambdas(node)
             collect(tree.body)
 
     def _inherited_method(self, module, owner, method, seen=()):
@@ -403,6 +475,65 @@ class FlowAnalyzer:
                   if r.module == target_class[0].module and r.qualname == target_class[0].qualname + '.' + method]
         return (target[0], assignment) if len(target) == 1 and not target[0][1].decorator_list else None
 
+    def _descriptor_kind(self, target):
+        ref, node = target
+        decorators = getattr(node, 'decorator_list', [])
+        if len(decorators) != 1 or not isinstance(decorators[0], ast.Name):
+            return None
+        name = decorators[0].id
+        if name not in ('staticmethod', 'classmethod'):
+            return None
+        if (name in self.imports.get(ref.module, {})
+                or name in self.module_bindings.get(ref.module, set())
+                or any(candidate.module == ref.module and candidate.qualname == name
+                       for candidate, _ in self.definitions)):
+            return None
+        owner = ref.qualname.rpartition('.')[0]
+        cls = next((node for candidate, node in self.classes
+                    if candidate.module == ref.module and candidate.qualname == owner), None)
+        if cls is None:
+            return None
+        for statement in cls.body:
+            if statement is node:
+                break
+            if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Import,
+                                      ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef)):
+                names = {item.id for item in ast.walk(statement)
+                         if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Store)}
+                if name in names or getattr(statement, 'name', None) == name:
+                    return None
+        return name
+
+    def _decorated_target(self, target):
+        ref, node = target
+        decorators = getattr(node, 'decorator_list', [])
+        if len(decorators) != 1 or isinstance(decorators[0], ast.Call):
+            return None
+        decorator = self._resolve(ref, ast.unparse(decorators[0]))
+        if decorator is None or getattr(decorator[1], 'decorator_list', []):
+            return None
+        arguments = decorator[1].args
+        positional = arguments.posonlyargs + arguments.args
+        if (len(positional) != 1 or arguments.vararg or arguments.kwonlyargs
+                or arguments.kwarg or arguments.defaults):
+            return None
+        body = [statement for statement in decorator[1].body
+                if not (isinstance(statement, ast.Expr)
+                        and isinstance(statement.value, ast.Constant)
+                        and isinstance(statement.value.value, str))]
+        if (len(body) != 2 or not isinstance(body[0], (ast.FunctionDef, ast.AsyncFunctionDef))
+                or body[0].decorator_list or not isinstance(body[1], ast.Return)
+                or not isinstance(body[1].value, ast.Name)
+                or body[1].value.id != body[0].name):
+            return None
+        qualname = decorator[0].qualname + '.' + body[0].name
+        matches = [candidate for candidate in self.definitions
+                   if candidate[0].module == decorator[0].module
+                   and candidate[0].qualname == qualname]
+        if len(matches) != 1 or self._captures(*matches[0]):
+            return None
+        return matches[0]
+
     def _resolve(self, caller, name):
         # Nearest lexical definition wins before module imports. Class scopes
         # are deliberately excluded from implicit lexical method resolution.
@@ -440,6 +571,18 @@ class FlowAnalyzer:
 
     def _captures(self, ref, node):
         loaded, bound = _scope_names(node)
+        declared_nonlocal = set()
+
+        def collect_nonlocal(item):
+            if item is not node and isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                       ast.ClassDef, ast.Lambda)):
+                return
+            if isinstance(item, ast.Nonlocal):
+                declared_nonlocal.update(item.names)
+            for child in ast.iter_child_nodes(item):
+                collect_nonlocal(child)
+
+        collect_nonlocal(node)
         outer = set()
         parent = ref.qualname.rpartition('.')[0]
         while parent:
@@ -448,7 +591,7 @@ class FlowAnalyzer:
             if definition:
                 outer.update(_scope_names(definition)[1])
             parent = parent.rpartition('.')[0]
-        return sorted((loaded - bound) & outer)
+        return sorted(((loaded | declared_nonlocal) - (bound - declared_nonlocal)) & outer)
 
     ## Analyze reachable summaries up to a bounded number of call edges.
     #  @param entry FunctionRef identifying the starting definition.
@@ -466,6 +609,7 @@ class FlowAnalyzer:
         result = FlowAnalysis(matches[0][0], {'source_files': sorted(self.files), 'sha256': dict(self.hashes),
                               'import_roots': list(self.roots), 'max_depth': max_depth,
                               'return_summaries': copy.deepcopy(self.return_summaries),
+                              'parameter_shapes': copy.deepcopy(self.parameter_shapes),
                               'coverage': 'explicit value dependencies and limited local container effects; no general heap or path feasibility proof'})
         result.boundaries.extend(self.index_boundaries)
         self._walk(result, matches[0], max_depth, (), max_functions, max_call_contexts)
@@ -509,7 +653,8 @@ class FlowAnalyzer:
             raise ValueError('additional_depth must be positive')
         self._index()
         if (self.hashes != result.inputs['sha256'] or sorted(self.files) != result.inputs['source_files']
-                or self.return_summaries != result.inputs.get('return_summaries', {})):
+                or self.return_summaries != result.inputs.get('return_summaries', {})
+                or self.parameter_shapes != result.inputs.get('parameter_shapes', {})):
             raise ValueError('Sources changed; call analyze again before expand')
         call = next(c for c in result.calls if c.id == call_id)
         updated = copy.deepcopy(result)
@@ -529,22 +674,30 @@ class _Summary:
         self.remaining = remaining
         self.evaluated_calls = set()
         self.loops = []
+        self.yields = []
         self.source_lines = [line.encode('utf-8') for line in
                              self.analyzer.texts[ref.file_path].split('\n')]
         self.evidence_cache = {}
 
     def evidence(self, node):
-        key = (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+        return self.evidence_at(self.ref, node)
+
+    def evidence_at(self, ref, node):
+        key = (ref.file_path, node.lineno, node.col_offset,
+               node.end_lineno, node.end_col_offset)
         if key in self.evidence_cache:
             return self.evidence_cache[key]
-        first, start, last, end = key
+        _, first, start, last, end = key
+        source_lines = (self.source_lines if ref.file_path == self.ref.file_path else
+                        [line.encode('utf-8') for line in
+                         self.analyzer.texts[ref.file_path].split('\n')])
         if first == last:
-            snippet = self.source_lines[first - 1][start:end]
+            snippet = source_lines[first - 1][start:end]
         else:
-            snippet = b'\n'.join([self.source_lines[first - 1][start:]] +
-                                  self.source_lines[first:last - 1] +
-                                  [self.source_lines[last - 1][:end]])
-        value = {'file_path': self.ref.file_path, 'lineno': node.lineno,
+            snippet = b'\n'.join([source_lines[first - 1][start:]] +
+                                  source_lines[first:last - 1] +
+                                  [source_lines[last - 1][:end]])
+        value = {'file_path': ref.file_path, 'lineno': node.lineno,
                 'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
                 'end_col_offset': node.end_col_offset,
                 'source_text': snippet.decode('utf-8')}
@@ -559,13 +712,121 @@ class _Summary:
                 value.pop('python_shape', None)
         return result
 
+    def callable_value(self, target, node, defaults=None):
+        return {'kind': 'callable', 'source': target.qualname, 'module': target.module,
+                'defaults': defaults or {}, 'relation': 'direct',
+                'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}
+
+    def bind_call_arguments(self, node, params, positional, call_id):
+        records = []
+        position = 0
+        uncertain_position = False
+
+        def positional_record(argument, slot, expanded=False):
+            nonlocal position
+            parameter = None
+            target_path = []
+            if not uncertain_position and position < len(positional):
+                parameter = positional[position].arg
+            elif params.vararg and (not uncertain_position or position >= len(positional)):
+                parameter = params.vararg.arg
+                target_path = [position - len(positional)] if not uncertain_position else ['*']
+            status = 'exact' if parameter else 'unresolved'
+            records.append({'argument': slot, 'node': argument, 'parameter': parameter,
+                            'target_path': target_path, 'status': status,
+                            'binding_kind': 'starred' if expanded else 'explicit'})
+            position += 1
+
+        for source_position, argument in enumerate(node.args):
+            if isinstance(argument, ast.Starred):
+                if isinstance(argument.value, (ast.Tuple, ast.List)):
+                    for star_index, element in enumerate(argument.value.elts):
+                        positional_record(element, {'position': position,
+                            'expanded_from': source_position, 'star_index': star_index}, True)
+                else:
+                    parameter = (params.vararg.arg if params.vararg and position >= len(positional)
+                                 else None)
+                    records.append({'argument': {'position': source_position, 'starred': True},
+                        'node': argument.value, 'parameter': parameter,
+                        'target_path': ['*'] if parameter else [],
+                        'status': 'exact' if parameter else 'unresolved',
+                        'binding_kind': 'dynamic_starred'})
+                    uncertain_position = True
+                    self.result.boundaries.append({'call_id': call_id,
+                                                   'reason': 'dynamic_argument_expansion'})
+                continue
+            positional_record(argument, {'position': position})
+
+        keyword_arguments = []
+        for keyword in node.keywords:
+            if (keyword.arg is None and isinstance(keyword.value, ast.Dict)
+                    and all(isinstance(key, ast.Constant) and isinstance(key.value, str)
+                            for key in keyword.value.keys)
+                    and len({key.value for key in keyword.value.keys}) == len(keyword.value.keys)):
+                keyword_arguments.extend((key.value, value, True)
+                                         for key, value in zip(keyword.value.keys, keyword.value.values))
+            else:
+                keyword_arguments.append((keyword.arg, keyword.value, False))
+        allowed = {argument.arg for argument in params.args if argument in positional}
+        allowed.update(argument.arg for argument in params.kwonlyargs)
+        for key, argument, expanded in keyword_arguments:
+            if key is None:
+                parameter = params.kwarg.arg if params.kwarg and not allowed else None
+                target_path = ['*'] if parameter else []
+                self.result.boundaries.append({'call_id': call_id,
+                                               'reason': 'dynamic_argument_expansion'})
+            else:
+                parameter = key if key in allowed else (params.kwarg.arg if params.kwarg else None)
+                target_path = [key] if params.kwarg and parameter == params.kwarg.arg else []
+            records.append({'argument': {'keyword': key}, 'node': argument,
+                'parameter': parameter, 'target_path': target_path,
+                'status': 'exact' if parameter else 'unresolved',
+                'binding_kind': 'expanded_keyword' if expanded else 'explicit'})
+        if any(record['status'] == 'unresolved'
+               and record['binding_kind'] in ('explicit', 'starred', 'expanded_keyword')
+               for record in records):
+            self.result.boundaries.append({'call_id': call_id,
+                                           'reason': 'invalid_argument_binding'})
+        return records
+
     def expression(self, node, env):
         if node is None:
             return []
         if isinstance(node, ast.Name):
-            return [v for v in env.get(node.id, []) if v['kind'] not in ('callable', 'import')]
+            if node.id in env:
+                return env[node.id]
+            target = self.analyzer._resolve(self.ref, node.id)
+            if target:
+                return [self.callable_value(target[0], node)]
+            imported = self.analyzer.imports.get(self.ref.module, {}).get(node.id)
+            if imported:
+                return [{'kind': 'import', 'source': imported, 'relation': 'direct',
+                         'evidence': [self.evidence(node)],
+                         'conditions': list(self.conditions)}]
+            return []
         if isinstance(node, ast.Constant):
             return []
+        if isinstance(node, (ast.Yield, ast.YieldFrom)):
+            values = self.expression(node.value, env)
+            if isinstance(node, ast.YieldFrom):
+                values = self.project(values, '*', env)
+            values = self.materialize(values, env)
+            self.yields.extend(self.marked([
+                dict(value, output_path=['*'] + value.get('output_path', []))
+                for value in values], node, 'contained'))
+            return []
+        if isinstance(node, ast.Lambda):
+            positional = node.args.posonlyargs + node.args.args
+            defaults = list(zip(positional[len(positional) - len(node.args.defaults):],
+                                node.args.defaults))
+            defaults += [(argument, default) for argument, default in
+                         zip(node.args.kwonlyargs, node.args.kw_defaults) if default is not None]
+            values = {argument.arg: self.expression(default, env)
+                      for argument, default in defaults}
+            target = FunctionRef(self.ref.module,
+                self.ref.qualname + '.<lambda>@%s:%s' % (node.lineno, node.col_offset),
+                self.ref.file_path, node.lineno)
+            return [self.callable_value(target, node, values)]
         if isinstance(node, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
             key = '$heap:%s:%s:%s' % (self.ref.file_path, node.lineno, node.col_offset)
             items = []
@@ -573,13 +834,44 @@ class _Summary:
             elements = list(zip(node.keys, node.values)) if isinstance(node, ast.Dict) else list(enumerate(node.elts))
             for index, element in elements:
                 if isinstance(node, ast.Dict):
+                    if index is None:
+                        mapping = self.expression(element, env)
+                        copied = False
+                        for reference in mapping:
+                            if (reference.get('kind') == 'container'
+                                    and reference.get('container_shape') == 'dict'):
+                                items.extend(copy.deepcopy(env.get(reference['source'], [])))
+                                keys.extend(copy.deepcopy(env.get(reference['source'] + '$keys', [])))
+                                copied = True
+                        if not copied:
+                            values = self.marked(self.materialize(mapping, env), element, 'contained')
+                            items.extend(dict(v, output_path=['*'] + v.get('output_path', []))
+                                         for v in values)
+                            keys.append({'kind': 'key', 'source': '*', 'key': '*'})
+                        continue
                     slot = index.value if isinstance(index, ast.Constant) and isinstance(index.value, (str, int)) else '*'
-                    self.expression(index, env)
+                    key_values = self.marked(self.materialize(self.expression(index, env), env),
+                                             index, 'contained')
                 else:
                     slot = index if not isinstance(node, ast.Set) else '*'
                 keys.append({'kind': 'key', 'source': repr(slot), 'key': slot})
                 if isinstance(node, ast.Dict) and slot != '*':
-                    items = [v for v in items if v.get('output_path', [None])[0] != slot]
+                    updated = []
+                    for value in items:
+                        path = value.get('output_path', [None])
+                        if path[0] == slot:
+                            continue
+                        if path[0] == '*':
+                            value = dict(value, excluded_paths=_unique(
+                                value.get('excluded_paths', []) + [[slot]]))
+                        updated.append(value)
+                    items = updated
+                    for marker in keys[:-1]:
+                        if marker['key'] == '*':
+                            marker.setdefault('excluded_keys', []).append(slot)
+                if isinstance(node, ast.Dict):
+                    items.extend(dict(v, output_path=[slot] + v.get('output_path', []),
+                                      container_role='key') for v in key_values)
                 values = self.expression(element, env)
                 items.extend(dict(v, output_path=[slot] + v.get('output_path', [])) for v in values)
             env[key] = items
@@ -665,7 +957,7 @@ class _Summary:
             self.conditions = before
             return values
         if isinstance(node, ast.Call):
-            location = (node.lineno, node.col_offset)
+            location = _call_span(node)
             if location not in self.evaluated_calls and self.remaining <= 0:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'budget_exceeded', 'evidence': self.evidence(node)})
                 return []
@@ -680,6 +972,7 @@ class _Summary:
                                 if isinstance(node.func, ast.Attribute) else [])
             receiver_sources = self.materialize(receiver_values, env)
             bound_receiver = False
+            dispatch_kind = None
             field_evidence = None
             owner = self.ref.qualname.rpartition('.')[0]
             function_names = {r.qualname for r, _ in self.analyzer.definitions if r.module == self.ref.module}
@@ -694,11 +987,13 @@ class _Summary:
                 if not matches:
                     inherited = self.analyzer._inherited_method(self.ref.module, owner, node.func.attr)
                     matches = [inherited] if inherited else []
-                if len(matches) == 1 and not self.node.decorator_list:
+                if len(matches) == 1 and not getattr(self.node, 'decorator_list', []):
                     target = matches[0]
                     bound_receiver = True
+                    dispatch_kind = 'instance_method'
             if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Attribute)
-                    and isinstance(node.func.value.value, ast.Name) and not self.node.decorator_list):
+                    and isinstance(node.func.value.value, ast.Name)
+                    and not getattr(self.node, 'decorator_list', [])):
                 args = self.node.args.posonlyargs + self.node.args.args
                 bases = env.get(node.func.value.value.id, [])
                 if args and bases and all(v['kind'] == 'parameter' and v['source'] == args[0].arg
@@ -707,6 +1002,22 @@ class _Summary:
                     if candidate:
                         target, field_evidence = candidate
                         bound_receiver = True
+                        dispatch_kind = 'field_method'
+            is_zero_super = (isinstance(node.func, ast.Attribute)
+                             and isinstance(node.func.value, ast.Call)
+                             and isinstance(node.func.value.func, ast.Name)
+                             and node.func.value.func.id == 'super'
+                             and not node.func.value.args and not node.func.value.keywords)
+            if is_zero_super and owner and not getattr(self.node, 'decorator_list', []):
+                inherited = self.analyzer._inherited_method(
+                    self.ref.module, owner, node.func.attr)
+                args = self.node.args.posonlyargs + self.node.args.args
+                if inherited and args:
+                    target = inherited
+                    bound_receiver = True
+                    dispatch_kind = 'super_method'
+                    receiver_values = env.get(args[0].arg, [])
+                    receiver_sources = self.materialize(receiver_values, env)
             if binding and all(v['kind'] == 'import' for v in binding):
                 imported = {v['source'] for v in binding}
                 if len(imported) == 1:
@@ -720,16 +1031,32 @@ class _Summary:
                 if imported:
                     canonical = imported + (dot + rest if dot else '')
             if binding and all(v['kind'] == 'callable' for v in binding):
-                targets = {v['source'] for v in binding}
+                targets = {(v.get('module', self.ref.module), v['source']) for v in binding}
                 if len(targets) == 1:
+                    module, qualname = next(iter(targets))
                     target = next((d for d in self.analyzer.definitions
-                                   if d[0].module == self.ref.module and d[0].qualname in targets), None)
-            if target and target[1].decorator_list:
-                target = None
-            call_id = '%s:%s:%s' % (self.ref.file_path, node.lineno, node.col_offset)
-            call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset, target[0] if target else None)
+                                   if d[0].module == module and d[0].qualname == qualname), None)
+            descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
+            if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
+                replacement = self.analyzer._decorated_target(target)
+                if replacement:
+                    target = replacement
+                    dispatch_kind = 'decorator_replacement'
+                else:
+                    target = None
+            elif descriptor_kind == 'staticmethod':
+                dispatch_kind = 'staticmethod'
+            elif descriptor_kind == 'classmethod':
+                bound_receiver = True
+                dispatch_kind = 'classmethod'
+                receiver_values = []
+                receiver_sources = []
+            call_id = _call_key(self.ref.file_path, node)
+            call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
+                            node.end_lineno, node.end_col_offset, target[0] if target else None)
             call.receiver_sources = receiver_sources
-            call.target_status = ('lexical_method_candidate' if target and bound_receiver else
+            call.target_status = (dispatch_kind if target and dispatch_kind else
+                                  'lexical_method_candidate' if target and bound_receiver else
                                   'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
                                   else 'builtin_boundary' if binding is None and hasattr(builtins, name)
                                   else 'definition_unavailable')
@@ -737,29 +1064,56 @@ class _Summary:
                 call.target_status = 'constructor_field_candidate'
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
                     'reason': 'constructor_field_assumption', 'evidence': self.evidence(field_evidence)})
-            if (target is None and isinstance(node.func, ast.Attribute)
-                    and isinstance(node.func.value, ast.Name)
-                    and node.func.attr in ('split', 'rsplit', 'strip', 'lstrip', 'rstrip', 'startswith', 'endswith')
-                    and receiver_sources and all(v.get('python_shape') == 'str' for v in receiver_sources)):
+            string_arity = {'split': (0, 2), 'rsplit': (0, 2),
+                            'strip': (0, 1), 'lstrip': (0, 1), 'rstrip': (0, 1),
+                            'startswith': (1, 3), 'endswith': (1, 3),
+                            'partition': (1, 1), 'rpartition': (1, 1)}
+            method = node.func.attr if isinstance(node.func, ast.Attribute) else ''
+            limits = string_arity.get(method)
+            string_protocol = (target is None and isinstance(node.func, ast.Attribute)
+                               and isinstance(node.func.value, ast.Name)
+                               and limits is not None and limits[0] <= len(node.args) <= limits[1]
+                               and not node.keywords
+                               and not any(isinstance(argument, ast.Starred)
+                                           for argument in node.args)
+                               and receiver_sources
+                               and all(v.get('python_shape') == 'str'
+                                       for v in receiver_sources))
+            if string_protocol:
                 call.target_status = 'python_protocol'
                 call.argument_sources.append({'argument': {'receiver': True}, 'parameter': '$receiver',
                                               'sources': receiver_sources})
-                call.return_dependencies = [{'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
-                    'evidence': [{'provenance': 'Guarded str receiver dependency; builtin method implementation assumed'}],
-                    'conditions': list(self.conditions)}]
-                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
-                                               'reason': 'string_subclass_override_possible'})
+                if method in ('partition', 'rpartition'):
+                    call.return_dependencies = [
+                        {'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
+                         'output_path': [index],
+                         'evidence': [{'provenance':
+                            'Guarded or trusted str partition result dependency'}],
+                         'conditions': list(self.conditions)} for index in range(3)]
+                else:
+                    call.return_dependencies = [{
+                        'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
+                        'evidence': [{'provenance':
+                            'Guarded str receiver dependency; builtin method implementation assumed'}],
+                        'conditions': list(self.conditions)}]
+                    self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                                                   'reason': 'string_subclass_override_possible'})
+                if method in ('partition', 'rpartition'):
+                    self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                                                   'reason': 'string_subclass_override_possible'})
             literal_join = (target is None and isinstance(node.func, ast.Attribute)
                             and isinstance(node.func.value, ast.Constant) and isinstance(node.func.value.value, str)
                             and node.func.attr == 'join' and len(node.args) == 1 and not node.keywords
                             and not isinstance(node.args[0], ast.Starred))
-            if target and bound_receiver:
+            if target and bound_receiver and dispatch_kind in ('instance_method', 'field_method'):
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
                                                'reason': 'dynamic_method_override_possible'})
+            capture_values = {}
             if target:
                 for capture in self.analyzer._captures(*target):
+                    capture_values[capture] = copy.deepcopy(env.get(capture, []))
                     call.capture_bindings.append({'capture': capture,
-                        'sources': copy.deepcopy(env.get(capture, []))})
+                        'sources': capture_values[capture]})
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
             if (contract is None and target is None and binding is None
@@ -770,11 +1124,21 @@ class _Summary:
                 contract = {'parameters': ['object'], 'returns': [
                     {'parameter': 'object', 'relation': 'derived'}],
                     'provenance': 'Python builtin result dependency (not owner preservation)'}
+                call.target_status = 'python_protocol'
+            if (contract is None and target is None and binding is None and name == 'next'
+                    and canonical == self.ref.module + '.next'
+                    and len(node.args) == 1 and not node.keywords
+                    and not isinstance(node.args[0], ast.Starred)):
+                contract = {'parameters': ['iterator'], 'returns': [
+                    {'parameter': 'iterator', 'projection': ['*'], 'relation': 'direct'}],
+                    'provenance': 'Python next returns an element produced by its iterator'}
+                call.target_status = 'python_protocol'
             if contract and (binding is None or all(v['kind'] == 'import' for v in binding)):
                 params = ast.arguments(posonlyargs=[], args=[ast.arg(arg=n) for n in contract['parameters']],
                                        vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[])
                 call.return_dependencies = [
                     {'kind': 'parameter', 'source': d['parameter'], 'relation': d['relation'],
+                     'projection': d.get('projection', []),
                      'evidence': [{'provenance': contract['provenance'], 'callable': canonical}], 'conditions': []}
                     for d in contract.get('returns', [])]
             positional = params.posonlyargs + params.args if params else []
@@ -782,41 +1146,45 @@ class _Summary:
                 call.argument_sources.append({'argument': {'receiver': True}, 'parameter': positional[0].arg,
                                               'sources': receiver_sources})
                 positional = positional[1:]
-            arguments = [({'position': i}, arg) for i, arg in enumerate(node.args)]
-            for kw in node.keywords:
-                if (kw.arg is None and isinstance(kw.value, ast.Dict)
-                        and all(isinstance(k, ast.Constant) and isinstance(k.value, str) for k in kw.value.keys)
-                        and len({k.value for k in kw.value.keys}) == len(kw.value.keys)):
-                    arguments.extend(({'keyword': k.value}, v) for k, v in zip(kw.value.keys, kw.value.values))
-                else:
-                    arguments.append(({'keyword': kw.arg}, kw.value))
-            expanded = False
+            records = self.bind_call_arguments(node, params, positional, call_id) if params else [
+                {'argument': {'position': i}, 'node': arg.value if isinstance(arg, ast.Starred) else arg,
+                 'parameter': None, 'target_path': [], 'status': 'unresolved',
+                 'binding_kind': 'dynamic_starred' if isinstance(arg, ast.Starred) else 'explicit'}
+                for i, arg in enumerate(node.args)] + [
+                {'argument': {'keyword': kw.arg}, 'node': kw.value, 'parameter': None,
+                 'target_path': [], 'status': 'unresolved', 'binding_kind': 'explicit'}
+                for kw in node.keywords]
+            invalid_binding = bool(params) and any(
+                record['status'] == 'unresolved'
+                and record['binding_kind'] in ('explicit', 'starred', 'expanded_keyword')
+                for record in records)
             actual_values = {}
-            for slot, arg in arguments:
-                if isinstance(arg, ast.Starred) or slot.get('keyword', '') is None:
-                    expanded = True
-                    self.result.boundaries.append({'call_id': call_id, 'reason': 'dynamic_argument_expansion'})
-                parameter = None
-                if params and not expanded:
-                    if 'position' in slot:
-                        i = slot['position']
-                        parameter = positional[i].arg if i < len(positional) else (params.vararg.arg if params.vararg else None)
-                    else:
-                        key = slot['keyword']
-                        allowed = [a.arg for a in params.args + params.kwonlyargs]
-                        parameter = key if key in allowed else (params.kwarg.arg if params.kwarg else None)
-                call.parameter_bindings.append({'argument': slot, 'parameter': parameter,
-                                                'status': 'exact' if parameter else 'unresolved'})
+            for record in records:
+                slot, arg = record['argument'], record['node']
+                parameter, target_path = record['parameter'], record['target_path']
+                binding_record = {'argument': slot, 'parameter': parameter,
+                                  'status': record['status']}
+                if target_path:
+                    binding_record['target_path'] = target_path
+                if record['binding_kind'] != 'explicit':
+                    binding_record['binding_kind'] = record['binding_kind']
+                call.parameter_bindings.append(binding_record)
                 raw_values = self.expression(arg, env)
-                actual_values[parameter] = raw_values
+                actual_values[parameter] = _unique(actual_values.get(parameter, []) + raw_values)
                 values = self.marked(self.materialize(raw_values, env), arg)
-                call.argument_sources.append({'argument': slot, 'parameter': parameter, 'sources': values})
+                argument_record = {'argument': slot, 'parameter': parameter, 'sources': values}
+                if target_path:
+                    argument_record['target_path'] = target_path
+                call.argument_sources.append(argument_record)
                 for value in values:
                     call.argument_flows.append(dict(value, target_parameter=parameter,
-                                                    argument=slot, status='flow_found'))
+                                                    target_path=target_path, argument=slot,
+                                                    status='flow_found'))
                     if value['kind'] == 'parameter':
                         call.parameter_flows.append(dict(value, source_parameter=value['source'],
-                                                         target_parameter=parameter, argument=slot, status='flow_found'))
+                                                         target_parameter=parameter,
+                                                         target_path=target_path,
+                                                         argument=slot, status='flow_found'))
             if literal_join:
                 call.target_status = 'python_protocol'
                 call.argument_sources[0]['parameter'] = 'iterable'
@@ -827,21 +1195,29 @@ class _Summary:
                     'relation': 'derived', 'evidence': [{'provenance': 'Python str.join iterable elements'}],
                     'conditions': list(self.conditions)}]
             if params:
-                supplied = {b['parameter'] for b in call.parameter_bindings}
+                supplied = {b['parameter'] for b in call.parameter_bindings if b['status'] == 'exact'}
                 defaults = list(zip(positional[len(positional) - len(params.defaults):], params.defaults))
                 defaults += [(a, d) for a, d in zip(params.kwonlyargs, params.kw_defaults) if d is not None]
                 for param, default in defaults:
-                    if param.arg not in supplied and not expanded:
+                    unknown_keywords = any(keyword.arg is None and not isinstance(keyword.value, ast.Dict)
+                                           for keyword in node.keywords)
+                    unknown_positions = any(isinstance(argument, ast.Starred)
+                                            and not isinstance(argument.value, (ast.Tuple, ast.List))
+                                            for argument in node.args)
+                    possibly_expanded = unknown_keywords or (unknown_positions and param in positional)
+                    if param.arg not in supplied and not possibly_expanded:
                         call.parameter_bindings.append({'argument': None, 'parameter': param.arg,
                                                         'binding_kind': 'default', 'status': 'exact',
                                                         'source_text': ast.unparse(default)})
                         if binding and all(v['kind'] == 'callable' for v in binding):
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
-            if target:
-                self.apply_container_effect(target[1], actual_values, call, env, node)
+            if target and not invalid_binding:
+                self.apply_effects(target, actual_values, capture_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env)
             self.calls.append(call)
+            if invalid_binding:
+                return []
             if container_result is not None:
                 return container_result
             return [{'kind': 'call_result', 'source': call_id, 'relation': 'direct',
@@ -865,16 +1241,23 @@ class _Summary:
             if value['source'] in visited:
                 continue
             for item in self.materialize(env.get(value['source'], []), env, visited + (value['source'],)):
-                result.append(dict(item, relation='contained',
-                    output_path=value.get('output_path', []) + item.get('output_path', []),
-                    evidence=item['evidence'] + value['evidence']))
+                prefix = value.get('output_path', [])
+                materialized = dict(item, relation='contained',
+                    output_path=prefix + item.get('output_path', []),
+                    evidence=item['evidence'] + value['evidence'])
+                if item.get('excluded_paths'):
+                    materialized['excluded_paths'] = [prefix + path
+                                                      for path in item['excluded_paths']]
+                result.append(materialized)
         return result
 
     def project(self, values, index, env):
         result = []
         for value in values:
             if value['kind'] == 'container':
-                result.extend(_select_flows(env.get(value['source'], []), [index]))
+                content = [item for item in env.get(value['source'], [])
+                           if item.get('container_role') != 'key']
+                result.extend(_select_flows(content, [index]))
             else:
                 result.extend(_select_flows([value], [index]))
         return result
@@ -886,13 +1269,15 @@ class _Summary:
         method = node.func.attr
         valid = ((method == 'append' and shapes == {'list'} and len(node.args) == 1)
                  or (method == 'clear' and shapes <= {'list', 'set', 'dict'} and not node.args)
-                 or (method == 'get' and shapes == {'dict'} and len(node.args) in (1, 2)))
+                 or (method == 'get' and shapes == {'dict'} and len(node.args) in (1, 2))
+                 or (method == 'pop' and shapes == {'list'} and len(node.args) in (0, 1)))
         if not valid or node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
             self.result.boundaries.append({'call_id': call.id, 'callee_name': call.callee_name,
                                            'reason': 'container_effect_unknown'})
             return None
         call.target_status = 'local_container_protocol'
-        parameters = ('key', 'default') if method == 'get' else ('object',)
+        parameters = (('key', 'default') if method == 'get' else
+                      ('index',) if method == 'pop' else ('object',))
         for index, argument in enumerate(call.argument_sources):
             argument['parameter'] = parameters[index]
             call.parameter_bindings[index].update(parameter=parameters[index], status='exact')
@@ -903,7 +1288,8 @@ class _Summary:
         if method == 'get':
             index = node.args[0].value if isinstance(node.args[0], ast.Constant) else '*'
             known = all(any(k['key'] == index for k in env.get(v['source'] + '$keys', []))
-                        and not any(k['key'] == '*' for k in env.get(v['source'] + '$keys', []))
+                        and not any(k['key'] == '*' and index not in k.get('excluded_keys', [])
+                                    for k in env.get(v['source'] + '$keys', []))
                         for v in receiver) and index != '*'
             call.argument_sources.append({'argument': 'receiver', 'parameter': 'self',
                                           'sources': self.materialize(receiver, env)})
@@ -915,6 +1301,48 @@ class _Summary:
                     'relation': 'direct', 'evidence': [self.evidence(node)],
                     'conditions': list(self.conditions)})
             return None  # Preserve the call-result endpoint as well as its dependencies.
+        if method == 'pop':
+            requested = -1
+            if node.args:
+                try:
+                    requested = ast.literal_eval(node.args[0])
+                except (ValueError, TypeError):
+                    requested = '*'
+                if not isinstance(requested, int):
+                    requested = '*'
+            index = requested
+            valid_index = True
+            if requested != '*' and len({value['source'] for value in receiver}) == 1:
+                reference = receiver[0]
+                keys = [key['key'] for key in env.get(reference['source'] + '$keys', [])]
+                if keys == list(range(len(keys))):
+                    try:
+                        index = list(range(len(keys)))[requested]
+                    except IndexError:
+                        valid_index = False
+            call.argument_sources.append({'argument': 'receiver', 'parameter': 'self',
+                                          'sources': copy.deepcopy(self.materialize(receiver, env))})
+            if not valid_index:
+                return []
+            call.return_dependencies = [{'kind': 'parameter', 'source': 'self',
+                'projection': [index], 'relation': 'direct',
+                'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}]
+            if index != '*' and len({v['source'] for v in receiver}) == 1:
+                for ref in receiver:
+                    keys = [key['key'] for key in env.get(ref['source'] + '$keys', [])]
+                    remaining = []
+                    for value in env.get(ref['source'], []):
+                        path = value.get('output_path', [])
+                        if path and path[0] == index:
+                            continue
+                        if path and isinstance(path[0], int) and path[0] > index:
+                            value = dict(value, output_path=[path[0] - 1] + path[1:])
+                        remaining.append(value)
+                    env[ref['source']] = remaining
+                    env[ref['source'] + '$keys'] = [
+                        {'kind': 'key', 'source': repr(position), 'key': position}
+                        for position in range(len(keys) - 1)]
+            return None
         for ref in receiver:
             if method == 'clear':
                 if len({v['source'] for v in receiver}) == 1:
@@ -926,32 +1354,86 @@ class _Summary:
                 env[ref['source']] = _loop_env({'items': env.get(ref['source'], []) + inserted})['items']
                 env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
                 call.mutation_flows.extend(dict(v, target_container=ref['source']) for v in inserted)
-        return []  # Mutators return None; their argument flows only into content.
+        return None  # Preserve the mutator's call-result endpoint (the runtime value is None).
 
-    def apply_container_effect(self, target, actuals, call, env, node):
-        # A deliberately narrow body summary: one unconditional append statement.
-        if not isinstance(target, ast.FunctionDef):
+    def apply_effects(self, definition, actuals, captures, call, env, node):
+        # Apply only unconditional, statically bound writes. Unsupported body
+        # statements leave the caller environment unchanged.
+        target_ref, target = definition
+        if not isinstance(target, ast.FunctionDef) or _contains_yield(target):
             return
         body = [s for s in target.body if not (isinstance(s, ast.Expr)
                 and isinstance(s.value, ast.Constant) and isinstance(s.value.value, str))]
-        if len(body) != 1 or not isinstance(body[0], ast.Expr):
+        nonlocal_names = {name for statement in body if isinstance(statement, ast.Nonlocal)
+                          for name in statement.names}
+        operations = []
+        for statement in body:
+            if isinstance(statement, ast.Nonlocal):
+                continue
+            if (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+                    and isinstance(statement.value.func, ast.Attribute)
+                    and isinstance(statement.value.func.value, ast.Name)
+                    and not statement.value.keywords):
+                effect = statement.value
+                receiver_name = effect.func.value.id
+                if (effect.func.attr == 'append' and len(effect.args) == 1
+                        and isinstance(effect.args[0], ast.Name)):
+                    operations.append(('append', receiver_name, effect.args[0].id, statement))
+                    continue
+                if effect.func.attr == 'clear' and not effect.args:
+                    operations.append(('clear', receiver_name, None, statement))
+                    continue
+            if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and statement.targets[0].id in nonlocal_names
+                    and isinstance(statement.value, ast.Name)):
+                operations.append(('nonlocal', statement.targets[0].id,
+                                   statement.value.id, statement))
+                continue
             return
-        effect = body[0].value
-        if (not isinstance(effect, ast.Call) or not isinstance(effect.func, ast.Attribute)
-                or effect.func.attr != 'append' or not isinstance(effect.func.value, ast.Name)
-                or len(effect.args) != 1 or effect.keywords or not isinstance(effect.args[0], ast.Name)):
-            return
-        receivers = actuals.get(effect.func.value.id, [])
-        values = actuals.get(effect.args[0].id, [])
-        if not receivers or not all(v.get('container_shape') == 'list' for v in receivers):
-            return
-        for ref in receivers:
-            inserted = [dict(v, output_path=['*'] + v.get('output_path', []))
-                        for v in self.marked(values, node)]
-            env[ref['source']] = _loop_env({'items': env.get(ref['source'], []) + inserted})['items']
-            env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
-            call.mutation_flows.extend(dict(v, target_container=ref['source'],
-                effect_summary='unconditional_append') for v in self.materialize(inserted, env))
+        values_by_name = dict(captures)
+        values_by_name.update(actuals)
+        for kind, target_name, source_name, statement in operations:
+            if kind == 'nonlocal':
+                values = values_by_name.get(source_name, [])
+                env[target_name] = self.marked(values, node)
+                call.effects.append({'kind': 'nonlocal_write', 'target': target_name,
+                                     'source': source_name, 'status': 'exact',
+                                     'evidence': [self.evidence_at(target_ref, statement)]})
+                call.mutation_flows.extend(dict(value, target_binding=target_name,
+                                                effect_summary='nonlocal_write')
+                                           for value in self.materialize(values, env))
+                continue
+            receivers = values_by_name.get(target_name, [])
+            expected_shape = 'list' if kind == 'append' else None
+            if (not receivers or not all(value.get('kind') == 'container'
+                    and (expected_shape is None or value.get('container_shape') == expected_shape)
+                    for value in receivers)
+                    or len({value['source'] for value in receivers}) != 1):
+                continue
+            if kind == 'clear':
+                for reference in receivers:
+                    env[reference['source']] = []
+                    env[reference['source'] + '$keys'] = [
+                        {'kind': 'key', 'source': '<cleared>', 'key': '*'}]
+                call.effects.append({'kind': 'container_clear', 'target': target_name,
+                                     'status': 'exact',
+                                     'evidence': [self.evidence_at(target_ref, statement)]})
+                continue
+            values = values_by_name.get(source_name, [])
+            for reference in receivers:
+                inserted = [dict(value, output_path=['*'] + value.get('output_path', []))
+                            for value in self.marked(values, node)]
+                env[reference['source']] = _loop_env({
+                    'items': env.get(reference['source'], []) + inserted})['items']
+                env[reference['source'] + '$keys'] = [
+                    {'kind': 'key', 'source': '*', 'key': '*'}]
+                call.mutation_flows.extend(dict(value, target_container=reference['source'],
+                    effect_summary='unconditional_append')
+                    for value in self.materialize(inserted, env))
+            call.effects.append({'kind': 'container_append', 'target': target_name,
+                                 'source': source_name, 'status': 'exact',
+                                 'evidence': [self.evidence_at(target_ref, statement)]})
 
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
@@ -985,7 +1467,9 @@ class _Summary:
             defaults = list(zip(positional[len(positional) - len(node.args.defaults):], node.args.defaults))
             defaults += [(a, d) for a, d in zip(node.args.kwonlyargs, node.args.kw_defaults) if d is not None]
             values = {a.arg: self.expression(d, env) for a, d in defaults}
-            env[node.name] = [{'kind': 'callable', 'source': self.ref.qualname + '.' + node.name, 'defaults': values}]
+            target = FunctionRef(self.ref.module, self.ref.qualname + '.' + node.name,
+                                 self.ref.file_path, node.lineno)
+            env[node.name] = [self.callable_value(target, node, values)]
             return normal(env)
         if isinstance(node, ast.ClassDef):
             env[node.name] = []
@@ -1048,8 +1532,8 @@ class _Summary:
                 for target, values in zip(node.targets[0].elts, elements):
                     self.assign_target(target, values, env, node)
                 return exceptional + normal(env)
-            values = self.expression(node.value, env)
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            values = self.expression(node.value, env)
             if isinstance(node, ast.AugAssign):
                 values = self.marked(self.expression(node.target, env) + values, node, 'derived')
             for target in targets:
@@ -1067,13 +1551,20 @@ class _Summary:
             return [('raise', env, [], exception)]
         if isinstance(node, ast.Import):
             for alias in node.names:
-                env[alias.asname or alias.name.split('.')[0]] = [{'kind': 'import', 'source': alias.name if alias.asname else alias.name.split('.')[0]}]
+                env[alias.asname or alias.name.split('.')[0]] = [{
+                    'kind': 'import',
+                    'source': alias.name if alias.asname else alias.name.split('.')[0],
+                    'relation': 'direct', 'evidence': [self.evidence(node)],
+                    'conditions': list(self.conditions)}]
             return normal(env)
         if isinstance(node, ast.ImportFrom):
             if node.level:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'relative_local_import', 'evidence': self.evidence(node)})
             for alias in node.names:
-                env[alias.asname or alias.name] = ([{'kind': 'import', 'source': (node.module or '') + '.' + alias.name}]
+                env[alias.asname or alias.name] = ([{'kind': 'import',
+                    'source': (node.module or '') + '.' + alias.name,
+                    'relation': 'direct', 'evidence': [self.evidence(node)],
+                    'conditions': list(self.conditions)}]
                                                   if not node.level else [])
             return normal(env)
         if isinstance(node, ast.Pass):
@@ -1096,11 +1587,24 @@ class _Summary:
                 for ref in receiver:
                     previous = env.get(ref['source'], [])
                     if index != '*' and len({v['source'] for v in receiver}) == 1:
-                        previous = [v for v in previous if v.get('output_path', [None])[0] != index]
+                        updated = []
+                        for value in previous:
+                            path = value.get('output_path', [None])
+                            if path[0] == index:
+                                continue
+                            if path[0] == '*':
+                                value = dict(value, excluded_paths=_unique(
+                                    value.get('excluded_paths', []) + [[index]]))
+                            updated.append(value)
+                        previous = updated
                     inserted = [dict(v, output_path=[index] + v.get('output_path', []))
                                 for v in self.marked(self.materialize(values, env), node)]
                     env[ref['source']] = _loop_env({'items': previous + inserted})['items']
-                    env[ref['source'] + '$keys'] = _unique(env.get(ref['source'] + '$keys', []) +
+                    keys = env.get(ref['source'] + '$keys', [])
+                    for marker in keys:
+                        if marker['key'] == '*' and index != '*':
+                            marker.setdefault('excluded_keys', []).append(index)
+                    env[ref['source'] + '$keys'] = _unique(keys +
                         [{'kind': 'key', 'source': repr(index), 'key': index}])
             else:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_assignment', 'evidence': self.evidence(node)})
@@ -1184,14 +1688,28 @@ class _Summary:
         parameters += [a for a in (args.vararg, args.kwarg) if a]
         env = {a.arg: [{'kind': 'parameter', 'source': a.arg, 'relation': 'direct',
                         'evidence': [self.evidence(a)], 'conditions': []}] for a in parameters}
+        shape_contract = self.analyzer.parameter_shapes.get(
+            self.ref.module + '.' + self.ref.qualname, {})
+        shapes = shape_contract.get('parameters', {})
+        for name, shape in shapes.items():
+            if name in env:
+                env[name] = [dict(value, python_shape=shape,
+                                  shape_provenance=shape_contract['provenance'])
+                             for value in env[name]]
         for local in _scope_names(self.node)[1]:
             env.setdefault(local, [])
         for capture in self.analyzer._captures(self.ref, self.node):
             env[capture] = [{'kind': 'capture', 'source': capture, 'relation': 'direct',
                              'evidence': [], 'conditions': []}]
-        for kind, state, values, _ in self.block(self.node.body, env):
-            if kind == 'return':
+        outcomes = ([('return', env,
+                      self.marked(self.expression(self.node.body, env), self.node.body), None)]
+                    if isinstance(self.node, ast.Lambda) else self.block(self.node.body, env))
+        generator = _contains_yield(self.node)
+        for kind, state, values, _ in outcomes:
+            if kind == 'return' and not generator:
                 self.returns.extend(self.materialize(values, state))
+        if generator:
+            self.returns.extend(self.yields)
         self.returns = _unique(self.returns)
         merged = {}
         for call in self.calls:
@@ -1202,23 +1720,26 @@ class _Summary:
                 if previous.target != call.target:
                     previous.target = None
                 for attribute in ('parameter_bindings', 'parameter_flows', 'argument_sources', 'argument_flows',
-                                  'capture_bindings', 'receiver_sources', 'mutation_flows', 'return_dependencies'):
+                                  'capture_bindings', 'receiver_sources', 'mutation_flows',
+                                  'return_dependencies', 'effects'):
                     setattr(previous, attribute, _unique(getattr(previous, attribute) + getattr(call, attribute)))
         self.calls = list(merged.values())
         def collect(node):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
                 return
             if isinstance(node, ast.Call):
-                call_id = '%s:%s:%s' % (self.ref.file_path, node.lineno, node.col_offset)
+                call_id = _call_key(self.ref.file_path, node)
                 if call_id not in merged and self.remaining > 0:
                     self.remaining -= 1
                     call = FlowCall(call_id, self.ref, ast.unparse(node.func), node.lineno, node.col_offset,
+                                    node.end_lineno, node.end_col_offset,
                                     analysis_status='not_analyzed', target_status='flow_not_analyzed')
                     self.calls.append(call)
                     merged[call_id] = call
             for child in ast.iter_child_nodes(node):
                 collect(child)
-        for statement in self.node.body:
+        body = [self.node.body] if isinstance(self.node, ast.Lambda) else self.node.body
+        for statement in body:
             collect(statement)
         self.calls.sort(key=lambda c: (c.lineno, c.col_offset))
         for call in self.calls:
@@ -1226,6 +1747,8 @@ class _Summary:
                                  if v['kind'] == 'call_result' and v['source'] == call.id]
         self.result.functions.append({'function': asdict(self.ref),
                                       'parameters': [a.arg for a in parameters],
+                                      'parameter_shapes': copy.deepcopy(shapes),
+                                      'generator': generator,
                                       'loops': self.loops,
                                       'returns': self.returns})
         self.result.calls.extend(self.calls)

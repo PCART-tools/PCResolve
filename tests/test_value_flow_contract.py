@@ -26,6 +26,15 @@ def test_nonpositive_analysis_budget_rejected(project, option, value):
         FlowAnalyzer(project_root=project).analyze(selector(), **{option: value})
 
 
+def test_parameter_shape_contract_requires_parameters_and_provenance(project):
+    with pytest.raises(ValueError):
+        FlowAnalyzer(project_root=project, parameter_shapes={
+            'entry.entry': {'parameters': {'value': 'str'}}})
+    with pytest.raises(ValueError):
+        FlowAnalyzer(project_root=project, parameter_shapes={
+            'entry.entry': {'parameters': {'value': ''}, 'provenance': 'test'}})
+
+
 def test_explicit_sources_match_project_scan(project):
     a = FlowAnalyzer(project_root=project).analyze(selector(), max_depth=2)
     b = FlowAnalyzer(source_files=reversed(sorted(project.glob('*.py'))), import_roots=[project]).analyze(
@@ -103,5 +112,14 @@ def test_changed_trusted_contract_invalidates_expand(project):
     analyzer.return_summaries['vendor.wrap'] = {
         'parameters': ['value'], 'returns': [{'parameter': 'value', 'relation': 'direct'}],
         'provenance': 'test-only contract'}
+    with pytest.raises(ValueError, match='Sources changed'):
+        analyzer.expand(result, result.calls[0].id)
+
+
+def test_changed_parameter_shape_contract_invalidates_expand(project):
+    analyzer = FlowAnalyzer(project_root=project, parameter_shapes={
+        'entry.entry': {'parameters': {'value': 'str'}, 'provenance': 'test'}})
+    result = analyzer.analyze(selector())
+    analyzer.parameter_shapes['entry.entry']['parameters']['value'] = 'bytes'
     with pytest.raises(ValueError, match='Sources changed'):
         analyzer.expand(result, result.calls[0].id)

@@ -34,6 +34,9 @@ def load_cases(root=FIXTURES):
                 raise ValueError('Duplicate case id: ' + case['id'])
             if any(type(v) is not bool for v in case.get('returns', {}).values()):
                 raise ValueError('Return expectations must be booleans: ' + case['id'])
+            if any(not isinstance(name, str) or not isinstance(shape, str)
+                   for name, shape in case.get('parameter_shapes', {}).items()):
+                raise ValueError('Parameter shapes must be strings: ' + case['id'])
             for call in case.get('calls', []):
                 occurrence = call.get('occurrence', 0)
                 if type(occurrence) is not int or occurrence < 0:
@@ -128,8 +131,14 @@ def evaluate_case(project, case):
     start = time.perf_counter()
     try:
         source_files = case.get('files')
-        analyzer = (FlowAnalyzer(source_files=[project / p for p in source_files], import_roots=[project])
-                    if source_files is not None else FlowAnalyzer(project_root=project))
+        shape_contracts = ({case['module'] + '.' + case['entry']: {
+            'parameters': case['parameter_shapes'],
+            'provenance': 'Reviewed matrix contract: ' + case['id']}}
+            if case.get('parameter_shapes') else None)
+        analyzer = (FlowAnalyzer(source_files=[project / p for p in source_files],
+                                 import_roots=[project], parameter_shapes=shape_contracts)
+                    if source_files is not None else FlowAnalyzer(
+                        project_root=project, parameter_shapes=shape_contracts))
         result = analyzer.analyze(FunctionRef(module=case['module'], qualname=case['entry']),
                                   max_depth=case.get('max_depth', 3),
                                   max_functions=case.get('max_functions', 500),
