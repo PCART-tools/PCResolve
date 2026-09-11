@@ -1,0 +1,495 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "control.reassignment",
+      "category": "scalar",
+      "module": "cases",
+      "entry": "reassignment",
+      "rationale": "A later unconditional assignment kills the earlier value; the result contains y only.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "control.control_only",
+      "category": "control",
+      "module": "cases",
+      "entry": "control_only",
+      "rationale": "flag controls execution but is never used as a produced value; both branches return x.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "control.conditional",
+      "category": "control",
+      "module": "cases",
+      "entry": "conditional",
+      "rationale": "Either data operand may be returned; selecting an operand is control dependence, so flag is excluded.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "control.short_circuit",
+      "category": "control",
+      "module": "cases",
+      "entry": "short_circuit",
+      "rationale": "Python and returns an operand: a falsy flag itself or x, so both have actual value flow.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "flag": true
+      }
+    },
+    {
+      "id": "control.loop_zero_or_one",
+      "category": "loop",
+      "module": "cases",
+      "entry": "loop_zero_or_one",
+      "rationale": "A skipped loop returns x; one taken iteration assigns y then breaks. flag affects control only.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "control.continue_skips_assignment",
+      "category": "loop",
+      "module": "cases",
+      "entry": "continue_skips_assignment",
+      "rationale": "Unconditional continue makes the following assignment unreachable; iteration over y does not modify the returned x.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      }
+    },
+    {
+      "id": "control.break_or_else",
+      "category": "loop",
+      "module": "cases",
+      "entry": "break_or_else",
+      "rationale": "A taken break returns x and suppresses loop else; otherwise loop else selects y. flag is not data in the result.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": true,
+        "flag": false
+      }
+    },
+    {
+      "id": "control.matching_exception",
+      "category": "exception",
+      "module": "cases",
+      "entry": "matching_exception",
+      "rationale": "The explicitly raised ValueError is caught by the second handler, never the TypeError handler.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      }
+    },
+    {
+      "id": "control.finally_overrides_return",
+      "category": "exception",
+      "module": "cases",
+      "entry": "finally_overrides_return",
+      "rationale": "The finally return replaces the pending identity(x) result; x still flows into the call but its result is discarded.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "identity",
+          "occurrence": 0,
+          "target": "cases:identity",
+          "bindings": {
+            "0": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ],
+            [
+              "y",
+              "value",
+              false
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    },
+    {
+      "id": "control.finally_rebinds_local",
+      "category": "exception",
+      "module": "cases",
+      "entry": "finally_rebinds_local",
+      "rationale": "Returning a scalar evaluates value before finally; rebinding the local variable does not change the pending result.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      }
+    },
+    {
+      "id": "control.raised_exit",
+      "category": "exception",
+      "module": "cases",
+      "entry": "raised_exit",
+      "rationale": "An unconditional raise prevents the later return from executing; no input has a normal return path.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      }
+    },
+    {
+      "id": "control.closure_late_binding",
+      "category": "closure",
+      "module": "cases",
+      "entry": "closure_late_binding",
+      "rationale": "The nested closure reads the shared binding at invocation, after value was replaced by y.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "inner",
+          "occurrence": 0,
+          "target": "cases:closure_late_binding.inner",
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.default_snapshot",
+      "category": "closure",
+      "module": "cases",
+      "entry": "default_snapshot",
+      "rationale": "The default evaluates x at nested function definition; later rebinding x to y does not update the saved default.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      },
+      "calls": [
+        {
+          "name": "inner",
+          "occurrence": 0,
+          "target": "cases:default_snapshot.inner",
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.nonlocal_write",
+      "category": "closure",
+      "module": "cases",
+      "entry": "nonlocal_write",
+      "rationale": "Calling replace assigns y to the enclosing value binding through nonlocal, replacing x before return.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      }
+    },
+    {
+      "id": "control.lambda_call",
+      "category": "closure",
+      "module": "cases",
+      "entry": "lambda_call",
+      "rationale": "A direct local lambda call returns its argument unchanged.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      }
+    },
+    {
+      "id": "control.discarded_by_callee",
+      "category": "interprocedural",
+      "module": "cases",
+      "entry": "discarded_by_callee",
+      "rationale": "x reaches discard.value, but discard returns a constant. Callee result still reaches the caller return.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "discard",
+          "occurrence": 0,
+          "target": "cases:discard",
+          "bindings": {
+            "0": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ]
+          ],
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.discarded_call_result",
+      "category": "interprocedural",
+      "module": "cases",
+      "entry": "discarded_call_result",
+      "rationale": "identity receives x but its result is discarded; only y reaches the caller return.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "identity",
+          "occurrence": 0,
+          "target": "cases:identity",
+          "bindings": {
+            "0": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ],
+            [
+              "y",
+              "value",
+              false
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    },
+    {
+      "id": "control.chained_calls",
+      "category": "interprocedural",
+      "module": "cases",
+      "entry": "chained_calls",
+      "rationale": "The inner identity result is the outer identity argument, and both calls preserve x.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      }
+    },
+    {
+      "id": "control.mutual_left",
+      "category": "recursion",
+      "module": "cases",
+      "entry": "mutual_left",
+      "rationale": "For nonnegative integer remaining, recursion terminates and swaps a/b on each edge; both are possible results. remaining only controls termination.",
+      "max_depth": 3,
+      "returns": {
+        "a": true,
+        "b": true,
+        "remaining": false
+      },
+      "calls": [
+        {
+          "name": "mutual_right",
+          "occurrence": 0,
+          "target": "cases:mutual_right",
+          "bindings": {
+            "0": "a",
+            "1": "b",
+            "2": "remaining"
+          },
+          "flows": [
+            [
+              "b",
+              "a",
+              true
+            ],
+            [
+              "a",
+              "b",
+              true
+            ],
+            [
+              "a",
+              "a",
+              false
+            ],
+            [
+              "remaining",
+              "remaining",
+              true
+            ]
+          ],
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.recursion_without_result",
+      "category": "recursion",
+      "module": "cases",
+      "entry": "recursion_without_result",
+      "rationale": "No base case produces a normal result; recursively passing x must not invent an x-to-return path.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      }
+    },
+    {
+      "id": "control.return_projection",
+      "category": "projection",
+      "module": "cases",
+      "entry": "return_projection",
+      "rationale": "Selecting the second item of the callee tuple forwards y and excludes the first item x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "make_pair",
+          "occurrence": 0,
+          "target": "cases:make_pair",
+          "bindings": {
+            "0": "x",
+            "1": "y"
+          },
+          "flows": [
+            [
+              "x",
+              "x",
+              true
+            ],
+            [
+              "y",
+              "y",
+              true
+            ]
+          ],
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.awaited_call",
+      "category": "async",
+      "module": "cases",
+      "entry": "awaited_call",
+      "rationale": "Awaiting async_identity executes its body and produces x as the result of the enclosing coroutine.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "async_identity",
+          "occurrence": 0,
+          "target": "cases:async_identity",
+          "bindings": {
+            "0": "x"
+          },
+          "flows": [
+            [
+              "x",
+              "x",
+              true
+            ]
+          ],
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "control.unawaited_effect",
+      "category": "async",
+      "module": "cases",
+      "entry": "unawaited_effect",
+      "rationale": "Calling async_append only creates an unawaited coroutine, so its list mutation never executes and result stays empty.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "async_append",
+          "occurrence": 0,
+          "target": "cases:async_append",
+          "bindings": {
+            "0": "target",
+            "1": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    },
+    {
+      "id": "control.consumed_generator",
+      "category": "generator",
+      "module": "cases",
+      "entry": "consumed_generator",
+      "rationale": "Advancing generate_one with next obtains its first yielded x; generation and consumption form a real value path.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      }
+    },
+    {
+      "id": "control.unconsumed_generator_effect",
+      "category": "generator",
+      "module": "cases",
+      "entry": "unconsumed_generator_effect",
+      "rationale": "Creating a generator does not execute the body. Without iteration its append does not run, so result is empty.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "generator_append",
+          "occurrence": 0,
+          "target": "cases:generator_append",
+          "bindings": {
+            "0": "target",
+            "1": "value"
+          },
+          "flows": [
+            [
+              "x",
+              "value",
+              true
+            ]
+          ],
+          "return_flow": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cases": [
+    {"id":"contract.depth_one","category":"boundary","module":"cases","entry":"entry","rationale":"Depth one retains call-site binding and return edge while marking unexpanded implementation.","max_depth":1,"calls":[{"name":"helper","target":"helper:helper","bindings":{"0":"value"},"flows":[["value","value",true]],"return_flow":true}],"boundaries":{"required":["depth_limit"]}},
+    {"id":"contract.depth_two","category":"boundary","module":"cases","entry":"entry","rationale":"With helper implementation expanded the parameter reaches the caller return.","max_depth":2,"returns":{"value":true},"boundaries":{"forbidden":["depth_limit","definition_unavailable"]}},
+    {"id":"contract.missing_file","category":"boundary","module":"cases","entry":"entry","rationale":"Restricted file set has the call expression but no callee definition. Return endpoint still exists; no formal binding oracle is asserted.","files":["cases.py"],"calls":[{"name":"helper","target":null,"return_flow":true}],"boundaries":{"required":["definition_unavailable"]}},
+    {"id":"contract.function_budget","category":"boundary","module":"cases","entry":"entry","rationale":"One-function budget stops expansion with an explicit budget boundary.","max_functions":1,"boundaries":{"required":["budget_exceeded"]}},
+    {"id":"contract.call_budget","category":"boundary","module":"cases","entry":"twice","rationale":"One-call budget cannot cover both syntactic calls; it must report truncation.","max_call_contexts":1,"boundaries":{"required":["budget_exceeded"]}}
+  ]
+}

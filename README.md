@@ -120,6 +120,7 @@ When a single origin cannot be determined confidently, PCResolve reports conserv
 ## Documentation
 
 - [Experimental Value Flow API and pandas Example](./docs/value-flow.md)
+- [Value Flow Evaluation Matrix and Tests](./docs/value-flow-testing.md)
 - [Output Contract](./docs/output-contract.md)
 - [Architecture](./docs/architecture.md)
 - [Trace Contract](./docs/trace-contract.md)

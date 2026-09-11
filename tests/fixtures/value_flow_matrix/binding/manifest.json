@@ -1,0 +1,888 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "binding.positional_only",
+      "category": "binding/positional",
+      "module": "cases",
+      "entry": "positional_only",
+      "rationale": "The slash makes first and second positional-only. Argument 0 binds first, argument 1 binds second; only second is returned.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "positional",
+          "occurrence": 0,
+          "target": "helpers:positional",
+          "return_flow": true,
+          "bindings": {
+            "0": "first",
+            "1": "second"
+          },
+          "flows": [
+            [
+              "x",
+              "first",
+              true
+            ],
+            [
+              "x",
+              "second",
+              false
+            ],
+            [
+              "y",
+              "second",
+              true
+            ],
+            [
+              "y",
+              "first",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.keyword_only",
+      "category": "binding/keyword",
+      "module": "cases",
+      "entry": "keyword_only",
+      "rationale": "Keyword spelling, not source order, maps y to right and x to left. Only right is returned.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "keywords",
+          "occurrence": 0,
+          "target": "helpers:keywords",
+          "return_flow": true,
+          "bindings": {
+            "kw:right": "right",
+            "kw:left": "left"
+          },
+          "flows": [
+            [
+              "x",
+              "left",
+              true
+            ],
+            [
+              "y",
+              "right",
+              true
+            ],
+            [
+              "x",
+              "right",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.default_argument",
+      "category": "binding/default",
+      "module": "cases",
+      "entry": "default_argument",
+      "rationale": "The explicit x binds data and the omitted ignored parameter uses its None default. The unused entry parameter y has no data path.",
+      "max_depth": 3,
+      "returns": {
+        "x": true,
+        "y": false
+      },
+      "calls": [
+        {
+          "name": "defaulted",
+          "occurrence": 0,
+          "target": "helpers:defaulted",
+          "return_flow": true,
+          "bindings": {
+            "0": "data",
+            "default:ignored": "ignored"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ],
+            [
+              "y",
+              "data",
+              false
+            ],
+            [
+              "x",
+              "ignored",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.variadic_argument",
+      "category": "binding/varargs",
+      "module": "cases",
+      "entry": "variadic_argument",
+      "rationale": "The head is constant; x and y bind distinct elements of rest. rest[1] returns y and excludes x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "variadic",
+          "occurrence": 0,
+          "target": "helpers:variadic",
+          "return_flow": true,
+          "bindings": {
+            "0": "head",
+            "1": "rest",
+            "2": "rest"
+          },
+          "flows": [
+            [
+              "x",
+              "rest",
+              true
+            ],
+            [
+              "y",
+              "rest",
+              true
+            ],
+            [
+              "x",
+              "head",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.variadic_keyword",
+      "category": "binding/kwargs",
+      "module": "cases",
+      "entry": "variadic_keyword",
+      "rationale": "Both named arguments are collected in values, retaining their keys. Selecting right returns y and excludes x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "keyword_variadic",
+          "occurrence": 0,
+          "target": "helpers:keyword_variadic",
+          "return_flow": true,
+          "bindings": {
+            "kw:left": "values",
+            "kw:right": "values"
+          },
+          "flows": [
+            [
+              "x",
+              "values",
+              true
+            ],
+            [
+              "y",
+              "values",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.literal_star",
+      "category": "binding/expansion",
+      "module": "cases",
+      "entry": "literal_star",
+      "rationale": "Expanding a two-element tuple binds x to first and y to second. The exact tuple shape is available without executing code.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "positional",
+          "occurrence": 0,
+          "target": "helpers:positional",
+          "return_flow": true,
+          "flows": [
+            [
+              "x",
+              "first",
+              true
+            ],
+            [
+              "x",
+              "second",
+              false
+            ],
+            [
+              "y",
+              "second",
+              true
+            ],
+            [
+              "y",
+              "first",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.star_and_keyword",
+      "category": "binding/expansion",
+      "module": "cases",
+      "entry": "star_and_keyword",
+      "rationale": "Unknown-length positional expansion fills ignored only; the explicit result keyword independently binds y. No positional element is returned.",
+      "max_depth": 3,
+      "returns": {
+        "items": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "after_star",
+          "occurrence": 0,
+          "target": "helpers:after_star",
+          "return_flow": true,
+          "bindings": {
+            "kw:result": "result"
+          },
+          "flows": [
+            [
+              "y",
+              "result",
+              true
+            ],
+            [
+              "items",
+              "result",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.literal_keywords",
+      "category": "binding/expansion",
+      "module": "cases",
+      "entry": "literal_keywords",
+      "rationale": "A literal dictionary with unique known string keys expands exactly: x binds left and y binds right.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "keywords",
+          "occurrence": 0,
+          "target": "helpers:keywords",
+          "return_flow": true,
+          "bindings": {
+            "kw:left": "left",
+            "kw:right": "right"
+          },
+          "flows": [
+            [
+              "x",
+              "left",
+              true
+            ],
+            [
+              "y",
+              "right",
+              true
+            ],
+            [
+              "x",
+              "right",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.module_alias",
+      "category": "binding/imports",
+      "module": "cases",
+      "entry": "module_alias",
+      "rationale": "toolkit is an unmodified module import alias; its identity attribute resolves to helpers.identity and preserves x.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "toolkit.identity",
+          "occurrence": 0,
+          "target": "helpers:identity",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.function_alias",
+      "category": "binding/imports",
+      "module": "cases",
+      "entry": "function_alias",
+      "rationale": "imported_identity is an unmodified from-import alias for helpers.identity.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "imported_identity",
+          "occurrence": 0,
+          "target": "helpers:identity",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.reexport_chain",
+      "category": "binding/imports",
+      "module": "cases",
+      "entry": "reexport_chain",
+      "rationale": "The explicit imports cases -> facade -> bridge -> helpers identify one underlying function definition; no source file is missing.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "exported",
+          "occurrence": 0,
+          "target": "helpers:identity",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.local_alias",
+      "category": "binding/alias",
+      "module": "cases",
+      "entry": "local_alias",
+      "rationale": "chosen receives the imported function object without rebinding or branching, preserving its signature and return dependency.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "chosen",
+          "occurrence": 0,
+          "target": "helpers:identity",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.rebound_import",
+      "category": "binding/unknown",
+      "module": "cases",
+      "entry": "rebound_import",
+      "rationale": "The local assignment shadows the module import. callback has no known definition; importing helpers.identity must not create a false target. Its call result is returned, but input-to-result dependence is unknown.",
+      "max_depth": 3,
+      "returns": {},
+      "calls": [
+        {
+          "name": "imported_identity",
+          "occurrence": 0,
+          "target": null,
+          "return_flow": true
+        }
+      ]
+    },
+    {
+      "id": "binding.repeated_calls",
+      "category": "binding/context",
+      "module": "cases",
+      "entry": "repeated_calls",
+      "rationale": "The first identity result is discarded. Only the second call occurrence contributes its return, preserving y and excluding x.",
+      "max_depth": 3,
+      "returns": {
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "toolkit.identity",
+          "occurrence": 0,
+          "target": "helpers:identity",
+          "return_flow": false,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ],
+            [
+              "y",
+              "data",
+              false
+            ]
+          ]
+        },
+        {
+          "name": "toolkit.identity",
+          "occurrence": 1,
+          "target": "helpers:identity",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "y",
+              "data",
+              true
+            ],
+            [
+              "x",
+              "data",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.instance_receiver",
+      "category": "dispatch/receiver",
+      "module": "cases",
+      "entry": "Worker.direct",
+      "rationale": "Under nominal Worker instance dispatch, self supplies the implicit receiver and x supplies data. echo returns data without returning its receiver.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "self.echo",
+          "occurrence": 0,
+          "target": "cases:Worker.echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "self",
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ],
+            [
+              "self",
+              "data",
+              false
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "self",
+              "self",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.receiver_alias",
+      "category": "dispatch/receiver",
+      "module": "cases",
+      "entry": "Worker.alias",
+      "rationale": "receiver aliases self without mutation. Nominal Worker dispatch retains the same implicit receiver and explicit data mapping.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "receiver.echo",
+          "occurrence": 0,
+          "target": "cases:Worker.echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "self",
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ],
+            [
+              "self",
+              "data",
+              false
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "self",
+              "self",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.static_descriptor",
+      "category": "dispatch/descriptor",
+      "module": "cases",
+      "entry": "static_descriptor",
+      "rationale": "The unshadowed builtin staticmethod descriptor does not prepend self or cls. The only explicit argument binds data.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "Descriptors.static_echo",
+          "occurrence": 0,
+          "target": "cases:Descriptors.static_echo",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.class_descriptor",
+      "category": "dispatch/descriptor",
+      "module": "cases",
+      "entry": "class_descriptor",
+      "rationale": "The unshadowed builtin classmethod descriptor supplies Descriptors as cls; x binds data, not cls.",
+      "max_depth": 3,
+      "returns": {
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "Descriptors.class_echo",
+          "occurrence": 0,
+          "target": "cases:Descriptors.class_echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "cls",
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "x",
+              "cls",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.inherited_method",
+      "category": "dispatch/inheritance",
+      "module": "cases",
+      "entry": "Inherited.run",
+      "rationale": "Under nominal Inherited instance dispatch, its sole base supplies echo. No local echo shadows Base.echo.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "self.echo",
+          "occurrence": 0,
+          "target": "cases:Base.echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "self",
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "self",
+              "self",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.overridden_method",
+      "category": "dispatch/inheritance",
+      "module": "cases",
+      "entry": "Override.run",
+      "rationale": "Override.echo takes precedence over Base.echo under nominal Override instance dispatch. The second explicit value y is returned; x is discarded.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": false,
+        "y": true
+      },
+      "calls": [
+        {
+          "name": "self.echo",
+          "occurrence": 0,
+          "target": "cases:Override.echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "self",
+            "0": "first",
+            "1": "second"
+          },
+          "flows": [
+            [
+              "x",
+              "first",
+              true
+            ],
+            [
+              "y",
+              "second",
+              true
+            ],
+            [
+              "x",
+              "second",
+              false
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "self",
+              "self",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.explicit_parent",
+      "category": "dispatch/inheritance",
+      "module": "cases",
+      "entry": "ParentDispatch.explicit",
+      "rationale": "Base.echo is retrieved explicitly from the defining class and called unbound. Explicit argument 0 is self and argument 1 is data.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "Base.echo",
+          "occurrence": 0,
+          "target": "cases:Base.echo",
+          "return_flow": true,
+          "bindings": {
+            "0": "self",
+            "1": "data"
+          },
+          "flows": [
+            [
+              "self",
+              "self",
+              true
+            ],
+            [
+              "x",
+              "data",
+              true
+            ],
+            [
+              "x",
+              "self",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.super_parent",
+      "category": "dispatch/inheritance",
+      "module": "cases",
+      "entry": "ParentDispatch.via_super",
+      "rationale": "Zero-argument super in the nominal ParentDispatch method searches its sole Base. The resulting bound echo receives self implicitly and x as data.",
+      "max_depth": 3,
+      "returns": {
+        "self": false,
+        "x": true
+      },
+      "calls": [
+        {
+          "name": "super().echo",
+          "occurrence": 0,
+          "target": "cases:Base.echo",
+          "return_flow": true,
+          "bindings": {
+            "receiver": "self",
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ],
+          "receiver_flows": [
+            [
+              "self",
+              "self",
+              true
+            ],
+            [
+              "x",
+              "self",
+              false
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.decorated_replacement",
+      "category": "dispatch/decorator",
+      "module": "cases",
+      "entry": "decorated_replacement",
+      "rationale": "replace executes during definition and replaces the original identity body with replace.replacement, which ignores data and returns None. The stale original body must not invent x-to-return flow.",
+      "max_depth": 3,
+      "returns": {
+        "x": false
+      },
+      "calls": [
+        {
+          "name": "replaced_identity",
+          "occurrence": 0,
+          "target": "cases:replace.replacement",
+          "return_flow": true,
+          "bindings": {
+            "0": "data"
+          },
+          "flows": [
+            [
+              "x",
+              "data",
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding.unavailable_definition",
+      "category": "binding/unknown",
+      "module": "cases",
+      "entry": "unavailable_definition",
+      "rationale": "The external module is intentionally absent. Its definition and formal names are unknown, while the result of this call directly reaches the entry return. No input-to-return oracle is asserted.",
+      "max_depth": 3,
+      "returns": {},
+      "calls": [
+        {
+          "name": "external",
+          "occurrence": 0,
+          "target": null,
+          "return_flow": true
+        }
+      ]
+    }
+  ]
+}

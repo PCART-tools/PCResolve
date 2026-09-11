@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "cases": [
+    {"id": "stdlib.splituser", "category": "real_code", "module": "url_excerpt", "entry": "_splituser", "rationale": "CPython str host contract: both result substrings derive from host; None on a delimiter-free path does not erase the other may-flow paths.", "returns": {"host": true}},
+    {"id": "stdlib.splitvalue", "category": "real_code", "module": "url_excerpt", "entry": "_splitvalue", "rationale": "CPython attr=value partition returns substrings derived from attr; documented input is str.", "returns": {"attr": true}},
+    {"id": "stdlib.splitnport", "category": "real_code", "module": "url_excerpt", "entry": "_splitnport", "rationale": "Host survives rpartition and/or integer conversion; defport is returned on the missing or empty port branch. Both parameters have normal-execution value paths.", "returns": {"host": true, "defport": true}},
+    {"id": "stdlib.get_sep", "category": "real_code", "module": "path_excerpt", "entry": "_get_sep", "rationale": "The parameter only selects between constant str/bytes separators. There is control dependence but no explicit parameter value propagation.", "returns": {"path": false}}
+  ]
+}

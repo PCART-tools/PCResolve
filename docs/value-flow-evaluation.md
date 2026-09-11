@@ -1,5 +1,9 @@
 # Independent value-flow probes
 
+For the broader 83-entry evaluation and generated regression tests, see
+[Value-flow evaluation matrix](value-flow-testing.md). This page preserves the
+earlier 12-case development baseline.
+
 This first evaluation set contains 12 manually written synthetic functions in
 `tests/fixtures/value_flow_eval`. It is independent of `trace_symbol` and the
 existing implementation fixtures, but is **not** a held-out real-project study
