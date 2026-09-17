@@ -12,6 +12,9 @@ from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES
 from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
 from .scope_facts import FLOW_SCOPE, function_scope_facts
+from .return_resolution import (CallBinding, ReturnCall,
+                                resolve_return_dependencies,
+                                select_dependencies)
 
 
 def _exception_class(name):
@@ -128,80 +131,36 @@ class FlowAnalysis:
             return (value['file_path'], value['qualname'], value['lineno'])
 
         functions = {function_key(f['function']): f for f in self.functions}
-        calls = {c.id: c for c in self.calls}
         entry_key = function_key(self.entry)
         if parameter not in functions[entry_key]['parameters']:
             raise ValueError('Unknown entry parameter: ' + parameter)
-        resolved = {key: [] for key in functions}
-        status = 'bounded'
-        limited = False
-
-        def dependency_key(value):
-            return repr({k: v for k, v in value.items()
-                         if k not in ('evidence', 'conditions', 'call_context')})
-
-        def compact(values):
-            nonlocal limited
-            unique = {}
-            for value in values:
-                key = dependency_key(value)
-                if key not in unique:
-                    if len(unique) >= 2048:
-                        limited = True
-                        break
-                    unique[key] = value
-            return list(unique.values())
-
-        def sources(values, stack):
-            found = []
-            for value in values:
-                if value['kind'] in ('parameter', 'capture'):
-                    found.append(dict(value, call_context=[]))
-                    continue
-                call = calls.get(value['source'])
-                if call is None or call.id in stack:
-                    continue
-                inner_values = (resolved.get(function_key(call.target), [])
-                                if call.target is not None else call.return_dependencies)
-                for inner in _select_flows(inner_values, value.get('projection', [])):
-                    bindings = call.capture_bindings if inner['kind'] == 'capture' else call.argument_sources
-                    for argument in bindings:
-                        if argument.get('capture', argument.get('parameter')) != inner['source']:
-                            continue
-                        target_path = argument.get('target_path', [])
-                        values = [dict(source, output_path=target_path + source.get('output_path', []))
-                                  for source in argument['sources']] if target_path else argument['sources']
-                        selected = _select_flows(values, inner.get('projection', []))
-                        for outer in sources(selected, stack + (call.id,)):
-                            path = value.get('output_path', []) + inner.get('output_path', []) + outer.get('output_path', [])
-                            combined = dict(outer,
-                                relation=_relation([v['relation'] for v in (value, inner, outer)]),
-                                evidence=outer['evidence'] + inner['evidence'] + value['evidence'],
-                                conditions=outer.get('conditions', []) + inner.get('conditions', []) + value.get('conditions', []),
-                                call_context=outer['call_context'] + [call.id] + inner.get('call_context', []))
-                            if path:
-                                combined['output_path'] = path
-                            else:
-                                combined.pop('output_path', None)
-                            found.append(combined)
-            return compact(found)
-
-        for iteration in range(32):
-            updated = {key: compact(resolved[key] + sources(summary['returns'], ()))
-                       for key, summary in functions.items()}
-            if all({dependency_key(v) for v in updated[k]} ==
-                   {dependency_key(v) for v in resolved[k]} for k in functions):
-                resolved = updated
-                status = 'bounded' if limited else 'converged'
-                break
-            resolved = updated
-        paths = [v for v in resolved[entry_key] if v['source'] == parameter and v['kind'] == 'parameter']
+        calls = {}
+        for call in self.calls:
+            bindings = [
+                CallBinding('capture', item.get('capture'),
+                            tuple(item.get('sources', ())),
+                            tuple(item.get('target_path', ())))
+                for item in call.capture_bindings]
+            bindings.extend(
+                CallBinding('parameter', item.get('parameter'),
+                            tuple(item.get('sources', ())),
+                            tuple(item.get('target_path', ())))
+                for item in call.argument_sources)
+            calls[call.id] = ReturnCall(
+                call.id, function_key(call.target) if call.target is not None else None,
+                tuple(bindings), tuple(call.return_dependencies))
+        resolution = resolve_return_dependencies(
+            entry_key, parameter,
+            {key: summary['returns'] for key, summary in functions.items()},
+            calls)
         boundaries = copy.deepcopy(self.boundaries)
-        if status != 'converged':
-            boundaries.append({'reason': 'return_summary_limit', 'iterations': iteration + 1})
-        return {'parameter': parameter, 'return_paths': paths,
-                'status': 'flow_found' if paths else 'unknown',
-                'summary_status': status, 'summary_iterations': iteration + 1,
+        if resolution.status != 'converged':
+            boundaries.append({'reason': 'return_summary_limit',
+                               'iterations': resolution.iterations})
+        return {'parameter': parameter, 'return_paths': list(resolution.paths),
+                'status': 'flow_found' if resolution.paths else 'unknown',
+                'summary_status': resolution.status,
+                'summary_iterations': resolution.iterations,
                 'boundaries': boundaries}
 
 
@@ -218,40 +177,6 @@ def _unique(values):
     for value in values:
         if value not in result:
             result.append(value)
-    return result
-
-
-def _relation(relations):
-    return 'derived' if 'derived' in relations else 'contained' if 'contained' in relations else 'direct'
-
-
-def _select_flows(values, projection):
-    if not projection:
-        return values
-    result = []
-    for value in values:
-        excluded = value.get('excluded_paths', [])
-        if (projection and '*' not in projection
-                and any(len(path) <= len(projection)
-                        and path == projection[:len(path)] for path in excluded)):
-            continue
-        path = value.get('output_path', [])
-        if path:
-            if not all(a == b or a == '*' or b == '*' for a, b in zip(path, projection)):
-                continue
-            selected = dict(value, output_path=path[len(projection):])
-            remaining_exclusions = [item[len(projection):] for item in excluded
-                                    if len(item) > len(projection)
-                                    and item[:len(projection)] == projection]
-            if remaining_exclusions:
-                selected['excluded_paths'] = remaining_exclusions
-            else:
-                selected.pop('excluded_paths', None)
-            if len(projection) > len(path):
-                selected['projection'] = value.get('projection', []) + projection[len(path):]
-            result.append(selected)
-        else:
-            result.append(dict(value, relation='derived', projection=value.get('projection', []) + projection))
     return result
 
 
@@ -1161,9 +1086,9 @@ class _Summary:
             if value['kind'] == 'container':
                 content = [item for item in env.get(value['source'], [])
                            if item.get('container_role') != 'key']
-                result.extend(_select_flows(content, [index]))
+                result.extend(select_dependencies(content, [index]))
             else:
-                result.extend(_select_flows([value], [index]))
+                result.extend(select_dependencies([value], [index]))
         return result
 
     def container_call(self, node, receiver, call, env):

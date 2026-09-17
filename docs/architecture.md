@@ -18,6 +18,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    types.py           call_graph.py
                                                       call_resolution.py
                                                       scope_facts.py
+                                                      return_resolution.py
                                    diagnostics.py
 ```
 
@@ -33,6 +34,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
 | Shared definition lookup | `call_resolution.py` | Adapter-collected definitions and call occurrences | Ordered candidate index and parent-linked call contexts |
 | Shared lexical facts | `scope_facts.py` | Function/lambda AST or one statement body | Immutable loaded, bound, global, and nonlocal name sets |
+| Shared return substitution | `return_resolution.py` | Normalized call bindings and adapter-owned dependency records | Bounded, composed return dependencies |
 | Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
@@ -188,6 +190,34 @@ complete Python compiler symbol table. Correcting either policy requires an
 independent precision change with ground truth. Flow caches facts by AST node
 within one source generation and clears that cache whenever `_index()` reads a
 new snapshot. Neither facts nor cache state appear in public results.
+
+## Shared call bindings and return substitution: fifth migration
+
+`return_resolution.py` normalizes the values supplied to one formal parameter
+or lexical capture as immutable `CallBinding` facts. `ReturnCall` connects those
+bindings to one exact call occurrence and an optional local function summary.
+The shared solver then substitutes parameter and capture dependencies through
+local return summaries until the result converges or reaches an explicit
+budget. Output paths, exclusions, relation precedence, evidence order,
+conditions, and call-context IDs retain the existing `flow-0.2` behavior.
+
+The layer is owner-neutral. Dependency payloads remain dictionaries owned by
+the value-flow adapter. The solver routes their dependency kind, source,
+relation, and element paths and concatenates opaque evidence, condition, and
+call-context sequences without interpreting their contents. It does not
+collect returns, infer effects, resolve a callee, classify a library, or decide
+the owner of a value. Flow adapts its existing `FlowCall` records to
+`ReturnCall` and preserves the public `trace_parameter()` result schema. Its
+fixed-point limits remain 32 rounds and 2,048 distinct dependencies per
+function; reaching either limit remains an explicit `return_summary_limit`
+boundary.
+
+Ownership uses the same normalized binding fact when selecting the first
+bounded-context value for a formal parameter. It continues to create its own
+opaque source payloads and applies its existing first-value policy in
+`cross_file.py`. Ownership does not invoke the return solver or `FlowAnalyzer`,
+and return ownership remains part of the ownership adapter. This keeps shared
+mechanics separate from the two analyzers' different questions and contracts.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for

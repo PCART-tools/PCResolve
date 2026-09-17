@@ -92,6 +92,7 @@ from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
 from .source_resolution import SourceSetResolver
+from .return_resolution import CallBinding, first_bound_value
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
 
@@ -5138,7 +5139,8 @@ class ProjectAnalyzer:
             summary.signature, parameter, edge.arg_sources.get('pos', {}),
             edge.arg_sources.get('kw', {}), getattr(edge, 'star_arg_sources', {}),
             getattr(edge, 'star_kwarg_sources', []), ContainerItem, CONTEXT_BINDING)
-        return values[0] if values else None
+        bindings = (CallBinding('parameter', parameter, tuple(values)),) if values else ()
+        return first_bound_value(bindings, 'parameter', parameter)
 
     ## Resolve one positional parameter from a starred call argument.
     #  @param edge Call graph edge.
