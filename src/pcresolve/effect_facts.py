@@ -60,7 +60,10 @@ def container_method_effect(method, receiver_shapes, positional_count):
     return None
 
 
-def _contains_yield(node):
+## Determine whether a body yields without entering nested definitions.
+#  @param node Root function, lambda, or expression AST.
+#  @return True when the root execution contains Yield or YieldFrom.
+def contains_yield(node):
     found = False
 
     def visit(item):
@@ -87,7 +90,7 @@ def _contains_yield(node):
 #  @param node Candidate function definition.
 #  @return FunctionEffect tuple, or None when the whole body is unsupported.
 def function_effects(node):
-    if not isinstance(node, ast.FunctionDef) or _contains_yield(node):
+    if not isinstance(node, ast.FunctionDef) or contains_yield(node):
         return None
     body = [statement for statement in node.body
             if not (isinstance(statement, ast.Expr)

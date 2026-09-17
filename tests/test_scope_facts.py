@@ -7,6 +7,7 @@ from pathlib import Path
 from pcresolve import FlowAnalyzer, FunctionRef
 from pcresolve.mapping_facts import bound_names
 from pcresolve.scope_facts import (FLOW_SCOPE, MAPPING_SCOPE,
+                                   LexicalScopeFacts, captured_names,
                                    function_scope_facts,
                                    statement_scope_facts)
 
@@ -72,6 +73,16 @@ def test_scope_facts_are_immutable_and_repeatable():
     second = function_scope_facts(node, FLOW_SCOPE)
     assert first == second
     assert isinstance(first.loaded, frozenset) and isinstance(first.bound, frozenset)
+
+
+def test_capture_selection_retains_free_and_declared_nonlocal_names():
+    facts = LexicalScopeFacts(
+        frozenset(['free', 'shadowed', 'declared']),
+        frozenset(['shadowed', 'declared', 'local']),
+        frozenset(), frozenset(['declared']))
+    assert captured_names(
+        facts, {'free', 'shadowed', 'declared', 'unread'}) == (
+            'declared', 'free')
 
 
 def test_flow_uses_shared_capture_facts_for_nonlocal_and_nested_lambda_names():

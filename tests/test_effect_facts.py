@@ -3,7 +3,7 @@
 
 import ast
 
-from pcresolve.effect_facts import (container_method_effect,
+from pcresolve.effect_facts import (container_method_effect, contains_yield,
                                     function_effects)
 
 
@@ -64,3 +64,18 @@ def update(values):
     assert function_effects(conditional) is None
     assert function_effects(generator) is None
     assert function_effects(unsupported) is None
+
+
+def test_yield_detection_stops_at_nested_definition_boundaries():
+    direct = _function('''
+def values():
+    yield 1
+''')
+    nested = _function('''
+def values():
+    def deferred():
+        yield 1
+    return deferred
+''')
+    assert contains_yield(direct)
+    assert not contains_yield(nested)

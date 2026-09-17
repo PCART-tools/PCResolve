@@ -11,11 +11,12 @@ from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES
 from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
-from .scope_facts import FLOW_SCOPE, function_scope_facts
+from .scope_facts import FLOW_SCOPE, captured_names, function_scope_facts
 from .return_resolution import (CallBinding, ReturnCall,
                                 resolve_return_dependencies,
                                 select_dependencies)
-from .effect_facts import container_method_effect, function_effects
+from .effect_facts import (container_method_effect, contains_yield,
+                           function_effects)
 from .import_facts import import_facts, resolve_relative_module
 
 
@@ -27,26 +28,6 @@ def _exception_class(name):
 def _may_raise(node):
     return any(isinstance(n, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Attribute,
                               ast.Subscript, ast.Compare)) for n in ast.walk(node))
-
-
-def _contains_yield(node):
-    found = False
-
-    def visit(item):
-        nonlocal found
-        if found:
-            return
-        if item is not node and isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                                   ast.ClassDef, ast.Lambda)):
-            return
-        if isinstance(item, (ast.Yield, ast.YieldFrom)):
-            found = True
-            return
-        for child in ast.iter_child_nodes(item):
-            visit(child)
-
-    visit(node)
-    return found
 
 
 def _call_key(path, node):
@@ -465,8 +446,6 @@ class FlowAnalyzer:
 
     def _captures(self, ref, node):
         facts = self._scope_facts(node)
-        loaded, bound = facts.loaded, facts.bound
-        declared_nonlocal = facts.nonlocals
         outer = set()
         parent = ref.qualname.rpartition('.')[0]
         while parent:
@@ -475,7 +454,7 @@ class FlowAnalyzer:
             if definition:
                 outer.update(self._scope_facts(definition).bound)
             parent = parent.rpartition('.')[0]
-        return sorted(((loaded | declared_nonlocal) - (bound - declared_nonlocal)) & outer)
+        return list(captured_names(facts, outer))
 
     ## Analyze reachable summaries up to a bounded number of call edges.
     #  @param entry FunctionRef identifying the starting definition.
@@ -1510,7 +1489,7 @@ class _Summary:
         outcomes = ([('return', env,
                       self.marked(self.expression(self.node.body, env), self.node.body), None)]
                     if isinstance(self.node, ast.Lambda) else self.block(self.node.body, env))
-        generator = _contains_yield(self.node)
+        generator = contains_yield(self.node)
         for kind, state, values, _ in outcomes:
             if kind == 'return' and not generator:
                 self.returns.extend(self.materialize(values, state))

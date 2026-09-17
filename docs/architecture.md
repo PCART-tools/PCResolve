@@ -81,17 +81,19 @@ This migration preserves existing policy differences:
   argument validation is not expanded by this refactor.
 
 Public entry points and ownership / `flow-0.2` schemas are unchanged. Ownership
-does not invoke `FlowAnalyzer`. Import resolution, target resolution, lexical
-facts, return substitution, captures, and effects are migrated independently;
-later sections describe completed stages.
+does not invoke `FlowAnalyzer`. Import syntax, target candidates, lexical facts,
+return substitution, captures, and effects have been migrated independently;
+the following sections describe the completed stages.
 
 ## Shared source snapshots and module index: second migration
 
 `source_snapshot.py` supplies source versions and module naming to both
 analyzers. `ProjectAnalyzer` and `FlowAnalyzer` each own a `SourceStore` for their
 session. The layer has no dependency on analysis summaries or classification.
-A future shared analysis session can supply one store to both internal adapters;
-this migration adds no public constructor option or output field.
+A future shared analysis session could supply one store to both internal
+adapters. That is an optional performance feature rather than part of this
+facts-layer migration, and no public constructor option or output field is
+introduced here.
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -267,6 +269,31 @@ wildcard, scope-binding, symbol provenance, and owner policies. The shared layer
 does not decide whether an imported module is local or external, resolve a
 wildcard export, choose a callee, or emit analysis boundaries. Public outputs
 remain unchanged.
+
+## Migration closure and dependency invariants
+
+The shared program-fact layer now consists of `program_facts.py`,
+`source_snapshot.py`, `call_resolution.py`, `scope_facts.py`,
+`return_resolution.py`, `effect_facts.py`, and `import_facts.py`. These modules
+may depend on one another and on the Python standard library. They must
+not import the ownership adapters, `flow.py`, classification, CLI, or view
+layers. `tests/test_shared_layer_boundaries.py` enforces this direction and also
+checks that both analyzer sides consume the complete shared layer through
+explicit imports.
+
+Two remaining syntax operations were consolidated during closure. Yield
+detection now comes from `effect_facts.contains_yield()` for both generator
+summaries and effect eligibility. Lexical capture selection now comes from
+`scope_facts.captured_names()`; Flow still supplies its definition index and
+call-time dependency values.
+
+The migration deliberately ends at facts and pure substitution. Ownership and
+value flow retain separate environments, source payloads, definition
+collection, dispatch policies, boundaries, evidence schemas, and public result
+types. The private ownership call graph is not exposed as the value-flow call
+chain. A shared `AnalysisSession` may later avoid duplicate scans and AST reads
+when a downstream consumer runs both analyzers, but it is not required for
+correctness and would be designed as a separate public API change.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for

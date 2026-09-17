@@ -144,3 +144,15 @@ def statement_scope_facts(statements, policy=MAPPING_SCOPE):
     for statement in statements:
         collector.visit(statement)
     return collector.facts()
+
+
+## Select names captured from known enclosing lexical bindings.
+#  Declared nonlocals remain captures even though the compatibility collector
+#  also retains their stores in the local bound-name set.
+#  @param facts LexicalScopeFacts for the nested function or lambda.
+#  @param enclosing_bound_names Names bound by its lexical ancestors.
+#  @return Sorted immutable tuple of captured names.
+def captured_names(facts, enclosing_bound_names):
+    nonlocals = facts.nonlocals
+    free = (facts.loaded | nonlocals) - (facts.bound - nonlocals)
+    return tuple(sorted(free & frozenset(enclosing_bound_names)))
