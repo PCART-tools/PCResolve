@@ -22,7 +22,7 @@ call-site ownership.
 | Location | Role |
 |----------|------|
 | `ground_truth/calls/*.jsonl` | **Machine source of truth** — one JSON line per call record with `expected_kind`, `expected_top_library`, `status`, `verification_level`, etc. |
-| `ground_truth/review/*.md` | **Version-controlled human audit views** — generated Markdown grouped by `verification_level`, plus cross-cutting `suspicious.md`. |
+| `ground_truth/review/README.md` and `ground_truth/review/<project>/*.md` | **Version-controlled human audit views** — generated Markdown grouped by `verification_level`, plus cross-cutting `suspicious.md`. |
 | `ground_truth/verification/` | Release dispositions, source-boundary reviews, failure analysis, and retained probe evidence. |
 | `ground_truth/probes/` | Minimal dynamic probe scripts that verify receiver object ownership without running full projects. |
 

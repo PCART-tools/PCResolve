@@ -83,11 +83,16 @@ from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
-from .call_graph import CallContext, FunctionId, ProjectCallGraph
+from .call_graph import FunctionId, ProjectCallGraph
+from .call_resolution import CallContext, DefinitionRecord, DefinitionIndex
+from .program_facts import (bind_parameter_sources, starred_item_source,
+                            CONTEXT_BINDING, OWNERSHIP_BINDING)
+from .source_snapshot import SourceStore, OWNERSHIP_SOURCE
 from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
 from .source_resolution import SourceSetResolver
+from .return_resolution import CallBinding, first_bound_value
 from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
 
@@ -209,6 +214,7 @@ class ProjectAnalyzer:
     def __init__(self, project_root):
         self.project_root = project_root
         self.module_mapper = ModuleMapper(project_root)
+        self._source_store = SourceStore()
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
@@ -234,15 +240,17 @@ class ProjectAnalyzer:
         all_modules = self.module_mapper.get_all_modules()
         module_tracers = {}
         diagnostics = []
+        paths = [self.module_mapper.get_file_path(module) for module in all_modules]
+        self._source_snapshot = self._source_store.snapshot(
+            [path for path in paths if path and os.path.exists(path)], OWNERSHIP_SOURCE)
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
-            if not file_path or not os.path.exists(file_path):
+            document = self._source_snapshot.documents.get(file_path)
+            if document is None:
                 continue
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    code = f.read()
-            except UnicodeDecodeError as e:
+            e = document.error
+            if isinstance(e, UnicodeDecodeError):
                 diagnostics.append(Diagnostic(
                     code=ENCODING_ERROR,
                     message="Cannot decode file: %s" % e,
@@ -251,7 +259,7 @@ class ProjectAnalyzer:
                     module_name=module,
                 ))
                 continue
-            except OSError as e:
+            if isinstance(e, OSError):
                 diagnostics.append(Diagnostic(
                     code=FILE_READ_ERROR,
                     message="Cannot read file: %s" % e,
@@ -260,9 +268,7 @@ class ProjectAnalyzer:
                     module_name=module,
                 ))
                 continue
-            try:
-                tree = ast.parse(code)
-            except SyntaxError as e:
+            if isinstance(e, SyntaxError):
                 diagnostics.append(Diagnostic(
                     code=SYNTAX_ERROR,
                     message=str(e),
@@ -280,7 +286,7 @@ class ProjectAnalyzer:
                 is_package=self.module_mapper.is_package(module),
                 file_path=file_path,
             )
-            tracer.visit(tree)
+            tracer.visit(document.tree)
             module_tracers[module] = tracer
 
         ## Aggregate per-module call-graph facts (Phase 7B-full PR1).
@@ -4931,6 +4937,22 @@ class ProjectAnalyzer:
                     flow[(edge.caller.qualname, assigned_name)] = result_call
                     tracer.symbols.direct[assigned_name] = result_call
 
+    ## Adapt this generation's ownership summaries to the shared name index.
+    #  Logical keys and mutable source payloads retain their ownership meaning.
+    #  A normal analysis collects a new ProjectCallGraph before resolution.
+    #  @return Internal candidate index; not a public call-graph result.
+    def _get_definition_index(self):
+        if getattr(self, '_definition_index_graph', None) is not self.project_cg:
+            records = []
+            for module, module_cg in self.project_cg.modules.items():
+                for kind, summaries in (('function', module_cg.functions), ('class', module_cg.classes)):
+                    records.extend(DefinitionRecord(module, qualname, summary, kind,
+                                                    summary.definition_span)
+                                   for qualname, summary in summaries.items())
+            self._definition_index = DefinitionIndex(records)
+            self._definition_index_graph = self.project_cg
+        return self._definition_index
+
     ## Find all project-local functions reached by one call edge.
     #
     #  @param edge Call edge to resolve.
@@ -4944,24 +4966,23 @@ class ProjectAnalyzer:
             return list(edge.mapping_targets)
         targets = []
         caller_tracer = tracers.get(caller_module)
-        for target_module, module_cg in self.project_cg.modules.items():
-            for qualname, summary in module_cg.functions.items():
-                if self._edge_targets_local_function(
-                        edge, caller_module, target_module, qualname,
-                        caller_tracer, tracers):
-                    targets.append(summary.id)
+        candidates = self._get_definition_index().records_for()
+        for candidate in candidates:
+            if self._edge_targets_local_function(
+                    edge, caller_module, candidate.module, candidate.qualname,
+                    caller_tracer, tracers):
+                targets.append(candidate.payload.id)
         # An exact subclass method wins over inherited implementations. When
         # no exact method exists, resolve the nearest available local base
         # implementation through the class graph. Multiple inherited targets
         # remain explicit and therefore cannot drive bounded result binding.
         if not targets:
-            for target_module, module_cg in self.project_cg.modules.items():
-                for qualname, summary in module_cg.functions.items():
-                    if self._edge_targets_local_function(
-                            edge, caller_module, target_module, qualname,
-                            caller_tracer, tracers,
-                            allow_inherited_dispatch=True):
-                        targets.append(summary.id)
+            for candidate in candidates:
+                if self._edge_targets_local_function(
+                        edge, caller_module, candidate.module, candidate.qualname,
+                        caller_tracer, tracers,
+                        allow_inherited_dispatch=True):
+                    targets.append(candidate.payload.id)
             targets = self._nearest_inherited_method_targets(
                 targets, tracers)
         unique = []
@@ -5029,17 +5050,11 @@ class ProjectAnalyzer:
             branch = normalize_source(branch)
             if not isinstance(branch, str):
                 return []
-            matches = []
-            for module, module_cg in self.project_cg.modules.items():
-                for qualname, summary in module_cg.functions.items():
-                    qualified = module + "." + qualname
-                    if branch == qualified or (
-                            module == caller_module
-                            and branch == qualname):
-                        matches.append(summary.id)
+            matches = self._get_definition_index().find_qualified(
+                [branch], local_module=caller_module, local_names=[branch])
             if len(matches) != 1:
                 return []
-            target = matches[0]
+            target = matches[0].id
             key = (target.module, target.qualname)
             if key not in seen:
                 seen.add(key)
@@ -5119,37 +5134,13 @@ class ProjectAnalyzer:
             if module_cg is not None else None)
         if summary is None or parameter not in summary.params:
             return None
-        keyword_args = context.edge.arg_sources.get("kw", {})
-        if parameter in keyword_args:
-            return keyword_args[parameter]
-        if parameter == summary.vararg or parameter == summary.kwarg:
-            # A variadic parameter is a pack, not one source.  It is resolved
-            # only when a later edge selects one item from the pack.
-            return None
-        positional_params = list(getattr(summary, "positional_params", []))
-        if not positional_params:
-            positional_params = [
-                name for name in summary.params
-                if name not in (summary.vararg, summary.kwarg)
-            ]
-        if parameter in positional_params:
-            index = positional_params.index(parameter)
-            positional = context.edge.arg_sources.get("pos", {})
-            if index in positional:
-                return positional[index]
-            star_source = self._star_positional_item_source(
-                context.edge, summary, index)
-            if star_source is not None:
-                return star_source
-        star_kwargs = getattr(context.edge, "star_kwarg_sources", [])
-        if star_kwargs:
-            if len(star_kwargs) != 1:
-                return None
-            return ContainerItem(star_kwargs[0], parameter)
-        defaults = getattr(summary, "defaults", {})
-        if parameter in defaults:
-            return defaults[parameter]
-        return None
+        edge = context.edge
+        values = bind_parameter_sources(
+            summary.signature, parameter, edge.arg_sources.get('pos', {}),
+            edge.arg_sources.get('kw', {}), getattr(edge, 'star_arg_sources', {}),
+            getattr(edge, 'star_kwarg_sources', []), ContainerItem, CONTEXT_BINDING)
+        bindings = (CallBinding('parameter', parameter, tuple(values)),) if values else ()
+        return first_bound_value(bindings, 'parameter', parameter)
 
     ## Resolve one positional parameter from a starred call argument.
     #  @param edge Call graph edge.
@@ -5157,20 +5148,7 @@ class ProjectAnalyzer:
     #  @param index Zero-based positional parameter index.
     #  @return ContainerItem selecting the pack item, or None.
     def _star_positional_item_source(self, edge, summary, index):
-        raw_stars = getattr(edge, "star_arg_sources", {})
-        if any(start is None for start in raw_stars):
-            return None
-        stars = sorted(raw_stars.items(), key=lambda item: item[0])
-        if not stars:
-            return None
-        matches = []
-        for start, source in stars:
-            if start <= index:
-                matches.append((start, source))
-        if len(matches) != 1:
-            return None
-        start, source = matches[0]
-        return ContainerItem(source, index - start)
+        return starred_item_source(getattr(edge, 'star_arg_sources', {}), index, ContainerItem)
 
     ## Resolve one selected item from a local variadic parameter under a
     #  bounded call context.
@@ -5181,10 +5159,8 @@ class ProjectAnalyzer:
     def _bounded_pack_item_source(self, context, pack_source, index):
         if not isinstance(pack_source, ParameterSource):
             return None
-        current = context
-        while current is not None:
+        for current in context.chain() if context is not None else ():
             if pack_source.scope != current.target.qualname:
-                current = current.parent
                 continue
             module_cg = self.project_cg.modules.get(current.target.module)
             summary = (
@@ -5793,51 +5769,10 @@ class ProjectAnalyzer:
             protocol_args = getattr(edge, "protocol_arg_sources", {})
             ordinary_args["pos"].update(protocol_args.get("pos", {}))
             ordinary_args["kw"].update(protocol_args.get("kw", {}))
-        keyword_args = ordinary_args.get("kw", {})
-        if parameter in keyword_args:
-            return [keyword_args[parameter]]
-        positional_params = list(
-            getattr(summary, "positional_params", []))
-        if not positional_params:
-            positional_params = [
-                name for name in summary.params
-                if name not in (summary.vararg, summary.kwarg)
-            ]
-        if parameter == summary.vararg:
-            start = len(positional_params)
-            positional = ordinary_args.get("pos", {})
-            values = [
-                positional[index]
-                for index in sorted(positional)
-                if index >= start
-            ]
-            values.extend(getattr(edge, "star_arg_sources", {}).values())
-            return values or None
-        if parameter == summary.kwarg:
-            explicit = set(positional_params)
-            explicit.update(getattr(summary, "keyword_only_params", []))
-            values = [
-                value for name, value in keyword_args.items()
-                if name not in explicit
-            ]
-            values.extend(getattr(edge, "star_kwarg_sources", []))
-            return values or None
-        if parameter in positional_params:
-            index = positional_params.index(parameter)
-            positional = ordinary_args.get("pos", {})
-            if index in positional:
-                return [positional[index]]
-            star_item = self._star_positional_item_source(
-                edge, summary, index)
-            if star_item is not None:
-                return [star_item]
-        star_kwargs = getattr(edge, "star_kwarg_sources", [])
-        if len(star_kwargs) == 1:
-            return [ContainerItem(star_kwargs[0], parameter)]
-        defaults = getattr(summary, "defaults", {})
-        if parameter in defaults:
-            return [defaults[parameter]]
-        return None
+        return bind_parameter_sources(
+            summary.signature, parameter, ordinary_args.get('pos', {}),
+            ordinary_args.get('kw', {}), getattr(edge, 'star_arg_sources', {}),
+            getattr(edge, 'star_kwarg_sources', []), ContainerItem, OWNERSHIP_BINDING)
 
     ## Collect the selected item of a variadic parameter from each exact
     #  project-local call edge.
@@ -6092,14 +6027,8 @@ class ProjectAnalyzer:
         if caller_module == target_module and callee_name == callable_name:
             return True
 
-        definitions = []
-        if cg is not None:
-            for candidate_module, candidate_cg in cg.modules.items():
-                if is_constructor and callable_name in candidate_cg.classes:
-                    definitions.append(candidate_module)
-                elif (not is_constructor
-                      and callable_name in candidate_cg.functions):
-                    definitions.append(candidate_module)
+        definitions = self._get_definition_index().defining_modules(
+            callable_name, kind='class' if is_constructor else 'function')
         return len(definitions) == 1 and definitions[0] == target_module
 
     ## Unify receiver object ownership lookup through a single entry point.

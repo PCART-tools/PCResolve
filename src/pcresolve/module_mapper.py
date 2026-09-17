@@ -7,6 +7,7 @@
 
 import os
 from .scanner import FileScanner
+from .source_snapshot import ModuleIndex, module_name_for_path, OWNERSHIP_MODULES
 
 
 ## Bidirectional file-path-to-module-name mapper.
@@ -22,19 +23,18 @@ class ModuleMapper:
         self.module_to_file = {}
         self.package_modules = set()
         self._scanner = FileScanner()
+        self._index = ModuleIndex.build((), [self.project_root], OWNERSHIP_MODULES)
 
     ## Scan the project and build the file <-> module mapping.
     #  @return List of discovered .py/.pyi file paths.
     def scan_project(self):
         py_files = self._scanner.scan(self.project_root)
         py_files = [f for f in py_files if f.endswith('.py') or f.endswith('.pyi')]
-        for file_path in py_files:
-            module_path = self._file_path_to_module_path(file_path)
-            if module_path:
-                self.file_to_module[file_path] = module_path
-                self.module_to_file[module_path] = file_path
-                if os.path.basename(file_path) == '__init__.py':
-                    self.package_modules.add(module_path)
+        self._index = ModuleIndex.build(py_files, [self.project_root], OWNERSHIP_MODULES)
+        for entry in self._index.entries:
+            self.file_to_module[entry.file_path] = entry.module_name
+            self.module_to_file[entry.module_name] = entry.file_path
+        self.package_modules.update(self._index.package_modules)
         return py_files
 
     ## Convert an absolute file path to a dotted module path.
@@ -42,23 +42,7 @@ class ModuleMapper:
     #  @return Dotted module name, or empty string on failure.
     def _file_path_to_module_path(self, file_path):
         try:
-            relative_path = os.path.relpath(file_path, self.project_root)
-            if relative_path == os.path.basename(file_path):
-                module_name = relative_path.replace('.py', '').replace('.pyi', '')
-                return module_name if module_name != '__init__' else ''
-
-            dir_path = os.path.dirname(relative_path)
-            file_name = os.path.basename(relative_path)
-            module_name = file_name.replace('.py', '').replace('.pyi', '')
-
-            if module_name == '__init__':
-                module_path = dir_path.replace(os.sep, '.')
-            else:
-                module_path = f"{dir_path.replace(os.sep, '.')}.{module_name}"
-
-            if os.altsep:
-                module_path = module_path.replace(os.altsep, '.')
-            return module_path
+            return module_name_for_path(file_path, [self.project_root], OWNERSHIP_MODULES)
         except Exception as e:
             raise ValueError(f"Failed to convert file path {file_path}: {e}")
 
@@ -120,3 +104,4 @@ class ModuleMapper:
         self.module_to_file.clear()
         self.package_modules.clear()
         self._scanner.clc()
+        self._index = ModuleIndex.build((), [self.project_root], OWNERSHIP_MODULES)

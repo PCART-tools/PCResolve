@@ -24,8 +24,8 @@
       "expected_negative": 7
     },
     "parameter_flow": {
-      "negative_no_path": 3,
       "positive_found": 4,
+      "negative_no_path": 3,
       "checks": 7,
       "expected_positive": 4,
       "expected_negative": 3
@@ -81,14 +81,6 @@
     {
       "entry": "keywords",
       "dimension": "parameter_flow",
-      "name": "x->left",
-      "expected": false,
-      "actual": false,
-      "outcome": "negative_no_path"
-    },
-    {
-      "entry": "keywords",
-      "dimension": "parameter_flow",
       "name": "x->right",
       "expected": true,
       "actual": true,
@@ -97,10 +89,10 @@
     {
       "entry": "keywords",
       "dimension": "parameter_flow",
-      "name": "y->left",
-      "expected": true,
-      "actual": true,
-      "outcome": "positive_found"
+      "name": "x->left",
+      "expected": false,
+      "actual": false,
+      "outcome": "negative_no_path"
     },
     {
       "entry": "keywords",
@@ -109,6 +101,14 @@
       "expected": false,
       "actual": false,
       "outcome": "negative_no_path"
+    },
+    {
+      "entry": "keywords",
+      "dimension": "parameter_flow",
+      "name": "y->left",
+      "expected": true,
+      "actual": true,
+      "outcome": "positive_found"
     },
     {
       "entry": "keywords",
@@ -442,10 +442,7 @@
           "summary_status": "converged"
         }
       },
-      "boundaries": {
-        "unsupported_expression": 1,
-        "definition_unavailable": 1
-      }
+      "boundaries": {}
     },
     {
       "entry": "Child.run",

@@ -54,6 +54,17 @@ def test_mutation_invalidates_already_captured_selection():
     assert captured.targets() == ((), False)
 
 
+def test_known_readonly_mapping_call_preserves_facts_but_mutation_invalidates():
+    facts, bindings = _facts()
+    table = _value(facts, "{'run': consume}")
+    bindings['table'] = Binding('table', 'local', mapping_value=table)
+    captured = _value(facts, "table['run']")
+    facts.call(ast.parse("table.get('run')", mode='eval').body)
+    assert captured.targets()[1]
+    facts.call(ast.parse("table.clear()", mode='eval').body)
+    assert captured.targets() == ((), False)
+
+
 def test_bound_names_exclude_nested_scopes_and_outer_declarations():
     body = ast.parse('''
 global registry

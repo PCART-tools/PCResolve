@@ -5,59 +5,15 @@ import ast
 from dataclasses import dataclass, field
 
 from .call_graph import FunctionId
+from .effect_facts import container_method_effect
+from .scope_facts import MAPPING_SCOPE, statement_scope_facts
 
 
 ## Collect names bound in one lexical body, excluding nested namespaces.
 #  @param statements Body statements.
 #  @return Locally assigned names, excluding global/nonlocal declarations.
 def bound_names(statements):
-    names = set()
-    outer = set()
-
-    class Collector(ast.NodeVisitor):
-        def visit_Name(self, node):
-            if isinstance(node.ctx, (ast.Store, ast.Del)):
-                names.add(node.id)
-
-        def visit_FunctionDef(self, node):
-            names.add(node.name)
-
-        visit_AsyncFunctionDef = visit_FunctionDef
-        visit_ClassDef = visit_FunctionDef
-
-        def visit_Lambda(self, node):
-            pass
-
-        def visit_Import(self, node):
-            names.update(alias.asname or alias.name.split('.')[0]
-                         for alias in node.names)
-
-        def visit_ImportFrom(self, node):
-            names.update(alias.asname or alias.name for alias in node.names)
-
-        def visit_ExceptHandler(self, node):
-            if node.name:
-                names.add(node.name)
-            self.generic_visit(node)
-
-        def visit_Global(self, node):
-            outer.update(node.names)
-
-        visit_Nonlocal = visit_Global
-
-        def visit_ListComp(self, node):
-            for child in ast.walk(node):
-                if isinstance(child, ast.NamedExpr):
-                    self.visit(child.target)
-
-        visit_SetComp = visit_ListComp
-        visit_DictComp = visit_ListComp
-        visit_GeneratorExp = visit_ListComp
-
-    collector = Collector()
-    for statement in statements:
-        collector.visit(statement)
-    return names - outer
+    return set(statement_scope_facts(statements, MAPPING_SCOPE).bound)
 
 
 @dataclass(eq=False)
@@ -257,11 +213,14 @@ class MappingFacts:
     def call(self, node):
         if isinstance(node.func, ast.Attribute):
             receiver = self.value(node.func.value)
-            readonly = (node.func.attr == 'get'
-                        and 1 <= len(node.args) <= 2 and not node.keywords
-                        and receiver is not None
-                        and any(isinstance(value, _Table)
-                                for value in receiver.values))
+            has_table = (receiver is not None
+                         and any(isinstance(value, _Table)
+                                 for value in receiver.values))
+            effect = (container_method_effect(
+                node.func.attr, ('dict',), len(node.args))
+                if has_table else None)
+            readonly = (effect is not None and effect.operation == 'get'
+                        and not node.keywords)
             if readonly:
                 self.escape(node.args[0])
                 return

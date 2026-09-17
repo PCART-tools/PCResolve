@@ -1,10 +1,10 @@
 {
   "schema_version": "flow-eval-1",
   "case_count": 83,
-  "revision": "67c4ad69cc6894a4eb7e257f678892d01229876f",
+  "revision": "51628623f8a4cf41a1f920265ee04aa2400179cc",
   "python": "3.13.9",
-  "analyzer_sha256": "354e7ec875eab22f84057dfc32be9cfe70371b8cc068c804d832dd4623acae25",
-  "evaluator_sha256": "67d38deafef5bbc326a431ca3adda55dbcca28116ad7da83459604036cc05224",
+  "analyzer_sha256": "88b07b72784dc90888f61ef4a7211d1012dafab088b6b6117c3ee094d27ce55f",
+  "evaluator_sha256": "43bf7a79beb768fc0e98a08a7141ee0fc53ff5850bddaddbf2aed82450422337",
   "input_sha256": {
     "binding/bridge.py": "571d5fdbcf9cc60c7748e9bd1e4e054e32d05725887a8098a11120de0774b4bc",
     "binding/cases.py": "02286f3156b73aa09fe5c5c79dcf80cc5a9a747dc9c3aa5a67fec1b73b8b142e",
@@ -19,7 +19,7 @@
     "contract/manifest.json": "4ab6e850d7ae4cad60338b88e26a849b8b19b21fffa111945aef2721922f12ab",
     "control/cases.py": "1023cac54577fdd19ae59c446549a574e1d0f0c22832591ea4c8bfe0e6e0d4f0",
     "control/manifest.json": "51ff3d809a31aaa8c279e96cd661c8fb22ff52a4e7bff939f315d7fc9d928f14",
-    "stdlib/manifest.json": "277bd5d4b6e3f078b0e17ef870d395c652f778513b989170089fe00855a0519e",
+    "stdlib/manifest.json": "13477cc78946b621979fe3cd324f5883c7c8f659cd99c15e4ac75687e3c924bc",
     "stdlib/path_excerpt.py": "e3378416e7d913a41e03a52934ed663872fa3dae37606bd735ee1a4199692631",
     "stdlib/SOURCE.json": "6f7c5bf0772f20d05026db3179d79bfcda32bfc44d1f483d93e5b1a2057eb170",
     "stdlib/url_excerpt.py": "f44c0deb44622369eb5ebbab017b8bdab98c4d2d0f8e74acffa1825db671ab78"
@@ -201,7 +201,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007188
+      "seconds": 0.007617
     },
     {
       "id": "binding.keyword_only",
@@ -329,7 +329,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008473
+      "seconds": 0.005621
     },
     {
       "id": "binding.default_argument",
@@ -457,7 +457,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006237
+      "seconds": 0.00424
     },
     {
       "id": "binding.variadic_argument",
@@ -593,7 +593,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009233
+      "seconds": 0.004155
     },
     {
       "id": "binding.variadic_keyword",
@@ -713,7 +713,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007027
+      "seconds": 0.004794
     },
     {
       "id": "binding.literal_star",
@@ -833,7 +833,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00861
+      "seconds": 0.006598
     },
     {
       "id": "binding.star_and_keyword",
@@ -951,7 +951,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009571
+      "seconds": 0.004193
     },
     {
       "id": "binding.literal_keywords",
@@ -1079,7 +1079,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006317
+      "seconds": 0.004054
     },
     {
       "id": "binding.module_alias",
@@ -1169,7 +1169,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005747
+      "seconds": 0.004628
     },
     {
       "id": "binding.function_alias",
@@ -1259,7 +1259,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005961
+      "seconds": 0.00613
     },
     {
       "id": "binding.reexport_chain",
@@ -1349,7 +1349,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005683
+      "seconds": 0.010099
     },
     {
       "id": "binding.local_alias",
@@ -1439,7 +1439,7 @@
           "extra": []
         }
       },
-      "seconds": 0.010474
+      "seconds": 0.004573
     },
     {
       "id": "binding.rebound_import",
@@ -1500,7 +1500,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006577
+      "seconds": 0.003723
     },
     {
       "id": "binding.repeated_calls",
@@ -1667,7 +1667,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00852
+      "seconds": 0.004603
     },
     {
       "id": "binding.instance_receiver",
@@ -1801,7 +1801,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008782
+      "seconds": 0.007899
     },
     {
       "id": "binding.receiver_alias",
@@ -1935,7 +1935,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007024
+      "seconds": 0.007526
     },
     {
       "id": "binding.static_descriptor",
@@ -2025,7 +2025,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00941
+      "seconds": 0.005557
     },
     {
       "id": "binding.class_descriptor",
@@ -2131,7 +2131,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008017
+      "seconds": 0.004058
     },
     {
       "id": "binding.inherited_method",
@@ -2257,7 +2257,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007115
+      "seconds": 0.004187
     },
     {
       "id": "binding.overridden_method",
@@ -2423,7 +2423,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009445
+      "seconds": 0.005609
     },
     {
       "id": "binding.explicit_parent",
@@ -2551,7 +2551,7 @@
           "extra": []
         }
       },
-      "seconds": 0.011183
+      "seconds": 0.007512
     },
     {
       "id": "binding.super_parent",
@@ -2685,7 +2685,7 @@
           "extra": []
         }
       },
-      "seconds": 0.011633
+      "seconds": 0.006709
     },
     {
       "id": "binding.decorated_replacement",
@@ -2775,7 +2775,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009279
+      "seconds": 0.007769
     },
     {
       "id": "binding.unavailable_definition",
@@ -2836,7 +2836,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008041
+      "seconds": 0.006199
     },
     {
       "id": "containers.nested_index",
@@ -2892,7 +2892,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006815
+      "seconds": 0.005859
     },
     {
       "id": "containers.negative_index",
@@ -2962,7 +2962,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009096
+      "seconds": 0.00352
     },
     {
       "id": "containers.reverse_stride",
@@ -3032,7 +3032,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006084
+      "seconds": 0.003635
     },
     {
       "id": "containers.slice_then_index",
@@ -3102,7 +3102,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005574
+      "seconds": 0.003615
     },
     {
       "id": "containers.caught_out_of_range",
@@ -3158,7 +3158,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006181
+      "seconds": 0.009839
     },
     {
       "id": "containers.returned_dictionary",
@@ -3214,7 +3214,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00618
+      "seconds": 0.006598
     },
     {
       "id": "containers.overwritten_dynamic_key",
@@ -3284,7 +3284,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005664
+      "seconds": 0.005915
     },
     {
       "id": "containers.missing_dictionary_default",
@@ -3340,7 +3340,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00602
+      "seconds": 0.0048
     },
     {
       "id": "containers.unpacked_dictionary_overwrite",
@@ -3396,7 +3396,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005321
+      "seconds": 0.003968
     },
     {
       "id": "containers.dictionary_alias_write",
@@ -3452,7 +3452,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005763
+      "seconds": 0.005299
     },
     {
       "id": "containers.nested_alias_clear",
@@ -3494,7 +3494,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007826
+      "seconds": 0.007354
     },
     {
       "id": "containers.detached_rebinding",
@@ -3550,7 +3550,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00633
+      "seconds": 0.006887
     },
     {
       "id": "containers.cyclic_selected_element",
@@ -3592,7 +3592,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008289
+      "seconds": 0.005635
     },
     {
       "id": "containers.append_result",
@@ -3658,7 +3658,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005693
+      "seconds": 0.00375
     },
     {
       "id": "containers.conditional_append",
@@ -3714,7 +3714,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006946
+      "seconds": 0.004724
     },
     {
       "id": "containers.conditional_clear",
@@ -3770,7 +3770,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006985
+      "seconds": 0.005082
     },
     {
       "id": "containers.unconditional_branch_clear",
@@ -3826,7 +3826,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006098
+      "seconds": 0.004233
     },
     {
       "id": "containers.cross_call_append",
@@ -3936,7 +3936,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007716
+      "seconds": 0.004345
     },
     {
       "id": "containers.cross_call_clear",
@@ -4030,7 +4030,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005977
+      "seconds": 0.007169
     },
     {
       "id": "containers.dictionary_comprehension",
@@ -4086,7 +4086,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00706
+      "seconds": 0.004614
     },
     {
       "id": "containers.filtered_comprehension",
@@ -4142,7 +4142,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005598
+      "seconds": 0.004403
     },
     {
       "id": "containers.empty_comprehension",
@@ -4184,7 +4184,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006268
+      "seconds": 0.005171
     },
     {
       "id": "containers.comprehension_scope",
@@ -4240,7 +4240,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009818
+      "seconds": 0.005553
     },
     {
       "id": "containers.joined_values",
@@ -4296,7 +4296,7 @@
           "extra": []
         }
       },
-      "seconds": 0.010168
+      "seconds": 0.004033
     },
     {
       "id": "containers.popped_element",
@@ -4376,7 +4376,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009814
+      "seconds": 0.004034
     },
     {
       "id": "contract.depth_one",
@@ -4461,7 +4461,7 @@
           "extra": []
         }
       },
-      "seconds": 0.003395
+      "seconds": 0.001591
     },
     {
       "id": "contract.depth_two",
@@ -4519,7 +4519,7 @@
           "extra": []
         }
       },
-      "seconds": 0.004242
+      "seconds": 0.001501
     },
     {
       "id": "contract.missing_file",
@@ -4588,7 +4588,7 @@
           "extra": []
         }
       },
-      "seconds": 0.001813
+      "seconds": 0.001469
     },
     {
       "id": "contract.function_budget",
@@ -4625,7 +4625,7 @@
           "extra": []
         }
       },
-      "seconds": 0.002646
+      "seconds": 0.002035
     },
     {
       "id": "contract.call_budget",
@@ -4648,7 +4648,7 @@
         "queries": {},
         "calls": []
       },
-      "seconds": 0.001986
+      "seconds": 0.001536
     },
     {
       "id": "control.reassignment",
@@ -4704,7 +4704,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006954
+      "seconds": 0.006565
     },
     {
       "id": "control.control_only",
@@ -4760,7 +4760,7 @@
           "extra": []
         }
       },
-      "seconds": 0.005666
+      "seconds": 0.00531
     },
     {
       "id": "control.conditional",
@@ -4830,7 +4830,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009858
+      "seconds": 0.006094
     },
     {
       "id": "control.short_circuit",
@@ -4886,7 +4886,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007016
+      "seconds": 0.003663
     },
     {
       "id": "control.loop_zero_or_one",
@@ -4956,7 +4956,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009489
+      "seconds": 0.003885
     },
     {
       "id": "control.continue_skips_assignment",
@@ -5012,7 +5012,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007194
+      "seconds": 0.005036
     },
     {
       "id": "control.break_or_else",
@@ -5082,7 +5082,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009133
+      "seconds": 0.005077
     },
     {
       "id": "control.matching_exception",
@@ -5144,7 +5144,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006563
+      "seconds": 0.0048
     },
     {
       "id": "control.finally_overrides_return",
@@ -5256,7 +5256,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009782
+      "seconds": 0.004486
     },
     {
       "id": "control.finally_rebinds_local",
@@ -5312,7 +5312,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008497
+      "seconds": 0.006876
     },
     {
       "id": "control.raised_exit",
@@ -5358,7 +5358,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006222
+      "seconds": 0.005822
     },
     {
       "id": "control.closure_late_binding",
@@ -5446,7 +5446,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007709
+      "seconds": 0.006404
     },
     {
       "id": "control.default_snapshot",
@@ -5534,7 +5534,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00795
+      "seconds": 0.005571
     },
     {
       "id": "control.nonlocal_write",
@@ -5596,7 +5596,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00712
+      "seconds": 0.003984
     },
     {
       "id": "control.lambda_call",
@@ -5638,7 +5638,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007433
+      "seconds": 0.003814
     },
     {
       "id": "control.discarded_by_callee",
@@ -5728,7 +5728,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008526
+      "seconds": 0.005958
     },
     {
       "id": "control.discarded_call_result",
@@ -5840,7 +5840,7 @@
           "extra": []
         }
       },
-      "seconds": 0.00797
+      "seconds": 0.003777
     },
     {
       "id": "control.chained_calls",
@@ -5882,7 +5882,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007992
+      "seconds": 0.00372
     },
     {
       "id": "control.mutual_left",
@@ -6048,7 +6048,7 @@
           "extra": []
         }
       },
-      "seconds": 0.013982
+      "seconds": 0.006903
     },
     {
       "id": "control.recursion_without_result",
@@ -6094,7 +6094,7 @@
           "extra": []
         }
       },
-      "seconds": 0.008483
+      "seconds": 0.006266
     },
     {
       "id": "control.return_projection",
@@ -6214,7 +6214,7 @@
           "extra": []
         }
       },
-      "seconds": 0.010214
+      "seconds": 0.004093
     },
     {
       "id": "control.awaited_call",
@@ -6304,7 +6304,7 @@
           "extra": []
         }
       },
-      "seconds": 0.007016
+      "seconds": 0.006082
     },
     {
       "id": "control.unawaited_effect",
@@ -6406,7 +6406,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006501
+      "seconds": 0.006787
     },
     {
       "id": "control.consumed_generator",
@@ -6448,7 +6448,7 @@
           "extra": []
         }
       },
-      "seconds": 0.0066
+      "seconds": 0.003813
     },
     {
       "id": "control.unconsumed_generator_effect",
@@ -6550,7 +6550,7 @@
           "extra": []
         }
       },
-      "seconds": 0.009943
+      "seconds": 0.007145
     },
     {
       "id": "stdlib.splituser",
@@ -6596,7 +6596,7 @@
           "extra": []
         }
       },
-      "seconds": 0.004643
+      "seconds": 0.003764
     },
     {
       "id": "stdlib.splitvalue",
@@ -6642,7 +6642,7 @@
           "extra": []
         }
       },
-      "seconds": 0.004335
+      "seconds": 0.003498
     },
     {
       "id": "stdlib.splitnport",
@@ -6710,7 +6710,7 @@
           "extra": []
         }
       },
-      "seconds": 0.006783
+      "seconds": 0.005801
     },
     {
       "id": "stdlib.get_sep",
@@ -6756,7 +6756,7 @@
           "extra": []
         }
       },
-      "seconds": 0.002822
+      "seconds": 0.002214
     }
   ]
 }

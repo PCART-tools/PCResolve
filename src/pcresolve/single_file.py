@@ -11,6 +11,8 @@ from dataclasses import replace
 from .mapping_facts import MappingFacts, bound_names as mapping_bound_names
 from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
+from .program_facts import SourceSpan
+from .import_facts import import_facts, resolve_relative_module
 from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
 from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
@@ -2101,74 +2103,50 @@ class SingleFileAnalyzer(ast.NodeVisitor):
     ## Visit an Import node and record alias-to-module mappings.
     #  @param node The Import AST node.
     def visit_Import(self, node):
-        for alias in node.names:
-            symbol = alias.asname if alias.asname else alias.name
+        for fact in import_facts(node):
+            symbol = fact.full_binding
             self.import_aliases.add(symbol)
-            self._bind_target_name(symbol, alias.name, node, "import")
+            self._bind_target_name(symbol, fact.name, node, "import")
             binding = self.current_scope().bindings.get(symbol)
             if binding is not None:
                 self._import_binding_sources[
-                    self._binding_key(binding)] = alias.name
+                    self._binding_key(binding)] = fact.name
         self.generic_visit(node)
 
     ## Visit an ImportFrom node and record alias-to-module mappings.
     #  @param node The ImportFrom AST node.
     def visit_ImportFrom(self, node):
-        for alias in node.names:
-            symbol = alias.asname if alias.asname else alias.name
-            if symbol == '*':
-                if node.module:
-                    if node.level > 0 and self.module_name:
-                        resolved = self._resolve_relative_import(node.module, node.level)
+        for fact in import_facts(node):
+            symbol = fact.python_binding
+            if fact.wildcard:
+                if fact.module:
+                    if fact.level > 0 and self.module_name:
+                        resolved = resolve_relative_module(
+                            self.module_name, self.is_package,
+                            fact.module, fact.level)
                         self.wildcard_modules.append(resolved)
                     else:
-                        self.wildcard_modules.append(node.module)
+                        self.wildcard_modules.append(fact.module)
                 continue
-            if node.level > 0 and self.module_name:
-                resolved = self._resolve_relative_import(node.module, node.level)
+            if fact.level > 0 and self.module_name:
+                resolved = resolve_relative_module(
+                    self.module_name, self.is_package, fact.module, fact.level)
                 self._bind_target_name(symbol, resolved, node, "import")
                 qualified = (
-                    (resolved + '.' + alias.name) if resolved else alias.name)
+                    (resolved + '.' + fact.name) if resolved else fact.name)
                 self.import_from_symbols[symbol] = qualified
             else:
                 self.import_aliases.add(symbol)
-                self._bind_target_name(symbol, node.module, node, "import")
+                self._bind_target_name(symbol, fact.module or None, node, "import")
                 qualified = (
-                    (node.module + '.' + alias.name)
-                    if node.module else alias.name)
+                    (fact.module + '.' + fact.name)
+                    if fact.module else fact.name)
                 self.import_from_symbols[symbol] = qualified
             binding = self.current_scope().bindings.get(symbol)
             if binding is not None:
                 self._import_binding_sources[
                     self._binding_key(binding)] = qualified
         self.generic_visit(node)
-
-    ## Resolve a relative import to its full dotted module name.
-    #  @param module The module portion after the dots (may be None for "from . import X").
-    #  @param level The number of leading dots (1 = current package, 2 = parent, etc.).
-    #  @return The full dotted module name.
-    def _resolve_relative_import(self, module, level):
-        if not self.module_name:
-            return module or ''
-        parts = self.module_name.split('.')
-        ## __package__: for packages use module_name, else use parent
-        if self.is_package:
-            pkg_parts = parts
-        else:
-            if len(parts) < 2:
-                return module or ''
-            pkg_parts = parts[:-1]
-        ## level dots = go up (level-1) from __package__
-        strip = level - 1
-        if strip >= len(pkg_parts):
-            base = ''
-        elif strip == 0:
-            base = '.'.join(pkg_parts)
-        else:
-            base = '.'.join(pkg_parts[:-strip])
-        if module:
-            return f"{base}.{module}" if base else module
-        return base
 
     ## --- Source tracing ---
 
@@ -4913,6 +4891,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 assigned_to=assigned,
                 call_lineno=node.lineno,
                 call_col_offset=node.col_offset,
+                source_span=SourceSpan.from_ast(getattr(self, '_file_path', ''), node),
             )
             self.module_cg.edges.append(edge)
             mapping_value = self._mapping_facts.value(node.func)
@@ -5782,6 +5761,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             defaults=defaults,
             yields=func_yields,
             return_values=return_values,
+            positional_only_params=[arg.arg for arg in node.args.posonlyargs if arg.arg in params],
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
         self.module_cg.functions[qualname] = fs
         ## Link method to its class summary (created before class body visit).
@@ -5883,6 +5864,8 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             vararg=vararg_name,
             kwarg=kwarg_name,
             defaults=defaults,
+            positional_only_params=[arg.arg for arg in node.args.posonlyargs],
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
 
     ## Qualify a name or attribute through its current lexical import binding.
@@ -5989,6 +5972,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             bases=list(bases),
             methods={},
             attrs={},
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
         self._class_stack.append(node.name)
         self._super_base_path_stack.append((

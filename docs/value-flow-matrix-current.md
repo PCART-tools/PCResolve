@@ -1,6 +1,6 @@
 # Value-flow evaluation matrix
 
-Analyzer revision: `67c4ad69cc6894a4eb7e257f678892d01229876f`; Python: `3.13.9`.
+Analyzer revision: `51628623f8a4cf41a1f920265ee04aa2400179cc`; Python: `3.13.9`.
 
 83 entry cases. Semantic gold is manually specified; unknown absence is not a no-flow proof.
 

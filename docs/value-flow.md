@@ -4,6 +4,20 @@ The `flow-0.2` contract is experimental. It is separate from the stable
 ownership output. `FlowAnalyzer` does not execute analyzed code or import its
 dependencies. Existing `analyze_project()` behavior is unchanged.
 
+Ownership and value flow share internal source-span and signature facts, pure
+binding helpers, and source snapshot / module-index infrastructure. They retain
+separate propagation policies and result contracts. See
+[the shared-facts migration](architecture.md#shared-program-facts-first-migration),
+[source snapshots](architecture.md#shared-source-snapshots-and-module-index-second-migration),
+[shared definition candidates and call contexts](architecture.md#shared-target-candidates-and-call-contexts-third-migration),
+[shared lexical scope facts](architecture.md#shared-lexical-scope-facts-fourth-migration),
+[shared return substitution](architecture.md#shared-call-bindings-and-return-substitution-fifth-migration),
+[shared effect facts](architecture.md#shared-container-and-function-effect-facts-sixth-migration),
+and [shared import facts](architecture.md#shared-import-syntax-facts-seventh-migration).
+The [closure invariants](architecture.md#migration-closure-and-dependency-invariants)
+define the final dependency boundary
+for the current scope and characterized policy differences.
+
 `flow-0.2` gives call IDs a complete source range, adds end positions and
 effect records to calls, records element paths for variadic bindings, marks
 generator summaries, and records trusted parameter-shape inputs. Consumers of
@@ -78,6 +92,18 @@ explain options are not supported in flow mode. Existing commands without
 `--value-flow` keep their ownership output. Selected incremental expansion,
 trusted return summaries, and composed parameter queries currently use the
 Python API; the CLI performs a single analysis at the requested depth.
+
+For a method, put the class-qualified name after the colon. For example, from
+this repository root:
+
+```bash
+pcresolve src --value-flow --entry pcresolve.cross_file:ProjectAnalyzer.trace_symbol --depth 1
+```
+
+The module name is derived from the supplied project/import root, so `src` maps
+`src/pcresolve/cross_file.py` to `pcresolve.cross_file`. The spelling must match
+the definition exactly; `trace_symble` and a module name such as `cross_file`
+do not select that method.
 
 ### Python API
 
@@ -223,10 +249,13 @@ into its result. That requires its body summary or an explicit trusted contract.
 The four `_convert_listlike` calls now resolve to the nested function, with
 separate explicit-argument and closure bindings. The `Series` call exposes the
 inner call result in `argument_flows` for position 0; this alone does not prove
-that `Series` preserves that input in its result. The helper analysis remains
-partial at unsupported constructs such as loops, so expansion does **not**
-collect all calls or all return paths inside it. In particular, do not interpret
-the printed child-call list as an exhaustive list from the Python AST.
+that `Series` preserves that input in its result. The helper analysis can remain
+partial at unresolved external calls and other explicit boundaries, so
+expansion does **not** necessarily establish every runtime flow path inside it.
+Loops are modeled with the bounded fixed point described below; convergence
+covers the modeled dependencies rather than path feasibility or arbitrary heap
+effects. Do not interpret the printed child-call list as a proof that every
+listed call executes.
 
 The example's `trace_parameter("arg")` can report `flow_found` through the
 entry's direct `result = arg` branch. This does not establish propagation
