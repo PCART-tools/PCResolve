@@ -9,7 +9,8 @@ binding helpers, and source snapshot / module-index infrastructure. They retain
 separate propagation policies and result contracts. See
 [the shared-facts migration](architecture.md#shared-program-facts-first-migration),
 [source snapshots](architecture.md#shared-source-snapshots-and-module-index-second-migration),
-and [shared definition candidates and call contexts](architecture.md#shared-target-candidates-and-call-contexts-third-migration)
+[shared definition candidates and call contexts](architecture.md#shared-target-candidates-and-call-contexts-third-migration),
+and [shared lexical scope facts](architecture.md#shared-lexical-scope-facts-fourth-migration)
 for the current scope and characterized policy differences.
 
 `flow-0.2` gives call IDs a complete source range, adds end positions and

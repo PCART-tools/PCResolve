@@ -17,6 +17,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    ir.py              decorator_provenance.py
                                    types.py           call_graph.py
                                                       call_resolution.py
+                                                      scope_facts.py
                                    diagnostics.py
 ```
 
@@ -31,6 +32,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
 | Shared definition lookup | `call_resolution.py` | Adapter-collected definitions and call occurrences | Ordered candidate index and parent-linked call contexts |
+| Shared lexical facts | `scope_facts.py` | Function/lambda AST or one statement body | Immutable loaded, bound, global, and nonlocal name sets |
 | Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
@@ -73,9 +75,9 @@ This migration preserves existing policy differences:
   argument validation is not expanded by this refactor.
 
 Public entry points and ownership / `flow-0.2` schemas are unchanged. Ownership
-does not invoke `FlowAnalyzer`. Import resolution, target resolution, return
-substitution, captures, and effects are still collected or analyzed separately;
-their migration is subsequent work.
+does not invoke `FlowAnalyzer`. Import resolution, target resolution, lexical
+facts, return substitution, captures, and effects are migrated independently;
+later sections describe completed stages.
 
 ## Shared source snapshots and module index: second migration
 
@@ -161,6 +163,31 @@ This migration deliberately preserves ambiguity. Duplicate definitions,
 multiple inherited candidates, incomplete mapping selections, dynamic
 receivers, and unsupported callable values remain unavailable or explicit
 boundaries according to the consuming analyzer's existing rules.
+
+## Shared lexical scope facts: fourth migration
+
+`scope_facts.py` collects immutable `LexicalScopeFacts` from AST bodies. The
+facts distinguish names that are loaded, bound, declared `global`, and declared
+`nonlocal`. Flow uses them to compute closure captures and initialize local
+environments. Ownership's literal-mapping analysis uses the same collector to
+identify names whose rebinding, loop assignment, or exception assignment must
+invalidate a callable mapping.
+
+The collector does not resolve a binding or assign an owner. Two explicit
+compatibility policies preserve the pre-extraction behavior:
+
+- `FLOW_SCOPE` includes root parameters, comprehension targets, and names read
+  inside nested lambda expressions. It leaves global/nonlocal stores in the
+  bound-name view; Flow's capture rule handles declared nonlocals separately.
+- `MAPPING_SCOPE` excludes global/nonlocal declarations, lambda bodies, and
+  ordinary comprehension-local targets. Assignment-expression targets inside
+  comprehensions and except-handler targets remain surrounding-body bindings.
+
+These differences are documented compatibility behavior, not claims about a
+complete Python compiler symbol table. Correcting either policy requires an
+independent precision change with ground truth. Flow caches facts by AST node
+within one source generation and clears that cache whenever `_index()` reads a
+new snapshot. Neither facts nor cache state appear in public results.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for

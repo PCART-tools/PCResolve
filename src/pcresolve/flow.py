@@ -11,6 +11,7 @@ from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES
 from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from .scope_facts import FLOW_SCOPE, function_scope_facts
 
 
 def _exception_class(name):
@@ -212,27 +213,6 @@ def _matches(actual, selector):
             and (not selector.lineno or actual.lineno == selector.lineno))
 
 
-def _scope_names(node):
-    loaded, bound = set(), set()
-    args = node.args
-    bound.update(a.arg for a in args.posonlyargs + args.args + args.kwonlyargs)
-    bound.update(a.arg for a in (args.vararg, args.kwarg) if a)
-    def visit(item):
-        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(item.name)
-            return
-        if isinstance(item, ast.Name):
-            (loaded if isinstance(item.ctx, ast.Load) else bound).add(item.id)
-        if isinstance(item, (ast.Import, ast.ImportFrom)):
-            bound.update(a.asname or a.name.split('.')[0] for a in item.names)
-        for child in ast.iter_child_nodes(item):
-            visit(child)
-    body = [node.body] if isinstance(node, ast.Lambda) else node.body
-    for statement in body:
-        visit(statement)
-    return loaded, bound
-
-
 def _unique(values):
     result = []
     for value in values:
@@ -348,6 +328,7 @@ class FlowAnalyzer:
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
+        self._scope_fact_cache = {}
         self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
         # Preserve the prior behavior of deriving names only for parseable files.
         self._module_index = ModuleIndex.build(
@@ -446,6 +427,16 @@ class FlowAnalyzer:
             return matches[0]
         return self._inherited_method(ref.module, ref.qualname, method, seen + (identity,))
 
+    ## Read immutable lexical facts once per AST definition in this source generation.
+    #  @param node Function or lambda definition.
+    #  @return Flow-compatible lexical facts.
+    def _scope_facts(self, node):
+        facts = self._scope_fact_cache.get(node)
+        if facts is None:
+            facts = function_scope_facts(node, FLOW_SCOPE)
+            self._scope_fact_cache[node] = facts
+        return facts
+
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
         classes = self._definition_index.find(ref.module, owner, kind='class')
@@ -471,7 +462,7 @@ class FlowAnalyzer:
             return None
         name = ast.unparse(assignment.value.func)
         first, dot, rest = name.partition('.')
-        if first in self.module_bindings.get(ref.module, set()) or first in _scope_names(init)[1]:
+        if first in self.module_bindings.get(ref.module, set()) or first in self._scope_facts(init).bound:
             return None
         alias = self.imports.get(ref.module, {}).get(first)
         qualified = alias + (dot + rest if dot else '') if alias else ref.module + '.' + name
@@ -546,26 +537,16 @@ class FlowAnalyzer:
             caller.module, caller.qualname, name, self.imports)
 
     def _captures(self, ref, node):
-        loaded, bound = _scope_names(node)
-        declared_nonlocal = set()
-
-        def collect_nonlocal(item):
-            if item is not node and isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                                       ast.ClassDef, ast.Lambda)):
-                return
-            if isinstance(item, ast.Nonlocal):
-                declared_nonlocal.update(item.names)
-            for child in ast.iter_child_nodes(item):
-                collect_nonlocal(child)
-
-        collect_nonlocal(node)
+        facts = self._scope_facts(node)
+        loaded, bound = facts.loaded, facts.bound
+        declared_nonlocal = facts.nonlocals
         outer = set()
         parent = ref.qualname.rpartition('.')[0]
         while parent:
             definitions = self._definition_index.find(ref.module, parent)
             definition = definitions[0][1] if definitions else None
             if definition:
-                outer.update(_scope_names(definition)[1])
+                outer.update(self._scope_facts(definition).bound)
             parent = parent.rpartition('.')[0]
         return sorted(((loaded | declared_nonlocal) - (bound - declared_nonlocal)) & outer)
 
@@ -1619,7 +1600,7 @@ class _Summary:
                 env[name] = [dict(value, python_shape=shape,
                                   shape_provenance=shape_contract['provenance'])
                              for value in env[name]]
-        for local in _scope_names(self.node)[1]:
+        for local in self.analyzer._scope_facts(self.node).bound:
             env.setdefault(local, [])
         for capture in self.analyzer._captures(self.ref, self.node):
             env[capture] = [{'kind': 'capture', 'source': capture, 'relation': 'direct',
