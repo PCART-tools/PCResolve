@@ -90,10 +90,11 @@ the following sections describe the completed stages.
 `source_snapshot.py` supplies source versions and module naming to both
 analyzers. `ProjectAnalyzer` and `FlowAnalyzer` each own a `SourceStore` for their
 session. The layer has no dependency on analysis summaries or classification.
-A future shared analysis session could supply one store to both internal
-adapters. That is an optional performance feature rather than part of this
-facts-layer migration, and no public constructor option or output field is
-introduced here.
+A future shared analysis session is an optional composition and performance
+feature rather than part of this facts-layer migration. Sharing the current
+store alone would reuse some ASTs, but would still rescan and reread files and
+would not guarantee that both analyzers observed one point-in-time source
+generation. No public constructor option or output field is introduced here.
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -131,7 +132,8 @@ Compatibility choices remain explicit and tested:
   Import roots never discover or authorize additional source files.
 - `ModuleMapper` preserves its mutable compatibility lookups and scan order.
   Its private index describes the current scan; existing cumulative lookup
-  behavior across rescans remains until the session/invalidation migration.
+  behavior across rescans remains compatibility behavior and must not be
+  silently changed by a future session API.
 
 Module naming is shared; import interpretation and definition collection remain
 in their adapters. The index does not choose a unique callee from duplicate
@@ -291,9 +293,13 @@ The migration deliberately ends at facts and pure substitution. Ownership and
 value flow retain separate environments, source payloads, definition
 collection, dispatch policies, boundaries, evidence schemas, and public result
 types. The private ownership call graph is not exposed as the value-flow call
-chain. A shared `AnalysisSession` may later avoid duplicate scans and AST reads
-when a downstream consumer runs both analyzers, but it is not required for
-correctness and would be designed as a separate public API change.
+chain. A shared `AnalysisSession` may later avoid duplicate work when a
+downstream consumer runs both analyzers, but it is not required for correctness.
+A production session would need an immutable source generation plus separate
+ownership and flow decoding/module-index views; passing one mutable
+`SourceStore` to both analyzers is not sufficient. Such a session would be an
+additive public API, while the existing constructors and result schemas remain
+available.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for
@@ -343,7 +349,7 @@ does not establish complete static-analysis precision.
 `ProjectAnalyzer` orchestrates:
 
 1. **Parse**: Iterates files, creates `SingleFileAnalyzer` per file.
-2. **Resolve**: `resolve_cross_file_symbols()` traces each symbol through imports/assignments across modules, populated `global_symbols` and `symbol_chains`.
+2. **Resolve**: `resolve_cross_file_symbols()` traces each symbol through imports/assignments across modules, populating `global_symbols` and `symbol_chains`.
 3. **SourceSet convergence**: `SourceSetResolver` in `source_resolution.py` resolves multi-source bindings with origin-aware rules.
 4. **Classify**: `ClassificationPipeline` in `classification.py` assigns reason, confidence, and alternatives via priority-ordered rules.
 5. **Provenance**: `_build_symbol_provenance()` traces each `SymbolRef` into a `SymbolProvenance`.

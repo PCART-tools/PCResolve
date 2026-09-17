@@ -28,11 +28,6 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 
 ## Python API
 
-Experimental value-flow analysis is available separately with `--value-flow
---entry MODULE:QUALNAME`. In that mode, `--json` emits the `flow-0.2` schema,
-not the ownership schema below. See the [value-flow CLI and pandas example](value-flow.md).
-Commands without `--value-flow` retain the existing contract.
-
 The stable entry points use these signatures:
 
 ```python
@@ -44,6 +39,41 @@ SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
 
 PCResolve uses one lexical scope model. The removed `scope_model` selector and
 the former `stats.scope_model` field are not part of the 1.0.5 interface.
+
+### Experimental value-flow contract
+
+Value-flow analysis is an additive, experimental API. It does not change the
+ownership entry points or the ownership JSON schema below:
+
+```python
+FlowAnalyzer(
+    source_files=None,
+    import_roots=None,
+    project_root=None,
+    return_summaries=None,
+    parameter_shapes=None,
+)
+FlowAnalyzer.analyze(entry, max_depth=1, max_functions=500,
+                     max_call_contexts=2000)
+FlowAnalyzer.expand(result, call_id, additional_depth=1)
+```
+
+Exactly one of `project_root` and `source_files` is required. `entry` is a
+`FunctionRef`; its `module` and dotted `qualname` identify a function, nested
+function, or method. File path and definition line can disambiguate duplicate
+definitions in the Python API.
+
+`FlowAnalysis.to_dict()` emits `schema_version="flow-0.2"` with `entry`,
+`inputs`, `functions`, `calls`, and `boundaries`. `find_calls()` and
+`describe_call_flow()` select exact call-site records; `trace_parameter()`
+composes only the summaries already present in the snapshot. Empty flow lists
+or `status="unknown"` are not no-flow proofs when boundaries remain.
+
+The CLI selects this contract with `--value-flow` and
+`--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the
+ownership schema. Commands without `--value-flow` retain the stable ownership
+contract. See the [value-flow CLI and pandas example](value-flow.md) for the
+complete usage and boundary semantics.
 
 ## Full provenance JSON (`--json`)
 

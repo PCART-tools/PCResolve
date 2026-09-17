@@ -37,6 +37,12 @@ For machine-readable output:
 pcresolve /path/to/project --json
 ```
 
+To analyze explicit parameter and return dependencies from one entry function:
+
+```bash
+pcresolve /path/to/project --value-flow --entry package.module:function --depth 2 --json
+```
+
 ## Usage
 
 ### CLI
@@ -63,9 +69,23 @@ for call in result.all_api_calls:
     print("confidence:", call.confidence)
 ```
 
+Experimental value flow uses a separate result contract:
+
+```python
+from pcresolve import FlowAnalyzer, FunctionRef
+
+analyzer = FlowAnalyzer(project_root="/path/to/project")
+flow = analyzer.analyze(
+    FunctionRef(module="package.module", qualname="ClassName.method"),
+    max_depth=2,
+)
+```
+
 ## Output
 
-PCResolve 1.0.4 is the first stable provenance contract release. `--json` returns the full provenance schema.
+PCResolve 1.0.4 is the first stable provenance contract release. In ownership
+mode, `--json` returns the full provenance schema. With `--value-flow`, it
+returns the separate experimental `flow-0.2` schema.
 
 The main output sections are:
 
@@ -97,6 +117,12 @@ Supported patterns include:
 
 `top_library` represents the primary owner of the callable or receiver object for a call expression. Additional evidence is reported separately through fields such as `alternatives`, `decorated_by`, and symbol provenance records.
 
+The experimental `FlowAnalyzer` answers a separate dependency question. It
+records actual-to-formal argument bindings, entry-parameter flows into calls,
+receiver flows, supported mutations and effects, and call-result flows into
+caller returns. Missing paths are reported as unknown when analysis boundaries
+remain; they are not proofs that no runtime flow exists.
+
 ## Validation
 
 The current analyzer is validated against locked call-site ground truth from 42 real-world projects:
@@ -111,11 +137,21 @@ false positives:       0
 
 The regression gate checks complete AST call coverage, locked annotations, stable snapshots, clean library keys, and golden JSON output.
 
+The separate value-flow development matrix covers 83 entry functions and 472
+binding, call, parameter, receiver, return, and boundary checks. All currently
+match their reviewed expectations. This is a regression matrix used to guide
+implementation, not a held-out estimate of real-project accuracy.
+
 ## Limitations
 
 PCResolve is static by design. It does not execute project code and does not model arbitrary runtime reflection, monkey patching, dynamic imports, descriptors, or full library internals.
 
 When a single origin cannot be determined confidently, PCResolve reports conservative results and preserves alternative evidence rather than choosing an unsupported library owner.
+
+Value-flow expansion is bounded by the selected source files, call depth,
+summary budget, and call-site budget. Dynamic dispatch, general heap behavior,
+external implementations, and unsupported Python constructs remain explicit
+boundaries.
 
 ## Documentation
 
