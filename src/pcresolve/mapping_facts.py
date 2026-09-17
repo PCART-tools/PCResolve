@@ -5,6 +5,7 @@ import ast
 from dataclasses import dataclass, field
 
 from .call_graph import FunctionId
+from .effect_facts import container_method_effect
 from .scope_facts import MAPPING_SCOPE, statement_scope_facts
 
 
@@ -212,11 +213,14 @@ class MappingFacts:
     def call(self, node):
         if isinstance(node.func, ast.Attribute):
             receiver = self.value(node.func.value)
-            readonly = (node.func.attr == 'get'
-                        and 1 <= len(node.args) <= 2 and not node.keywords
-                        and receiver is not None
-                        and any(isinstance(value, _Table)
-                                for value in receiver.values))
+            has_table = (receiver is not None
+                         and any(isinstance(value, _Table)
+                                 for value in receiver.values))
+            effect = (container_method_effect(
+                node.func.attr, ('dict',), len(node.args))
+                if has_table else None)
+            readonly = (effect is not None and effect.operation == 'get'
+                        and not node.keywords)
             if readonly:
                 self.escape(node.args[0])
                 return

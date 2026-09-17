@@ -15,6 +15,7 @@ from .scope_facts import FLOW_SCOPE, function_scope_facts
 from .return_resolution import (CallBinding, ReturnCall,
                                 resolve_return_dependencies,
                                 select_dependencies)
+from .effect_facts import container_method_effect, function_effects
 
 
 def _exception_class(name):
@@ -1096,17 +1097,14 @@ class _Summary:
             return None
         shapes = {v['container_shape'] for v in receiver}
         method = node.func.attr
-        valid = ((method == 'append' and shapes == {'list'} and len(node.args) == 1)
-                 or (method == 'clear' and shapes <= {'list', 'set', 'dict'} and not node.args)
-                 or (method == 'get' and shapes == {'dict'} and len(node.args) in (1, 2))
-                 or (method == 'pop' and shapes == {'list'} and len(node.args) in (0, 1)))
-        if not valid or node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
+        effect = container_method_effect(method, shapes, len(node.args))
+        if (effect is None or node.keywords
+                or any(isinstance(a, ast.Starred) for a in node.args)):
             self.result.boundaries.append({'call_id': call.id, 'callee_name': call.callee_name,
                                            'reason': 'container_effect_unknown'})
             return None
         call.target_status = 'local_container_protocol'
-        parameters = (('key', 'default') if method == 'get' else
-                      ('index',) if method == 'pop' else ('object',))
+        parameters = effect.parameters
         for index, argument in enumerate(call.argument_sources):
             argument['parameter'] = parameters[index]
             call.parameter_bindings[index].update(parameter=parameters[index], status='exact')
@@ -1189,65 +1187,42 @@ class _Summary:
         # Apply only unconditional, statically bound writes. Unsupported body
         # statements leave the caller environment unchanged.
         target_ref, target = definition
-        if not isinstance(target, ast.FunctionDef) or _contains_yield(target):
-            return
-        body = [s for s in target.body if not (isinstance(s, ast.Expr)
-                and isinstance(s.value, ast.Constant) and isinstance(s.value.value, str))]
-        nonlocal_names = {name for statement in body if isinstance(statement, ast.Nonlocal)
-                          for name in statement.names}
-        operations = []
-        for statement in body:
-            if isinstance(statement, ast.Nonlocal):
-                continue
-            if (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
-                    and isinstance(statement.value.func, ast.Attribute)
-                    and isinstance(statement.value.func.value, ast.Name)
-                    and not statement.value.keywords):
-                effect = statement.value
-                receiver_name = effect.func.value.id
-                if (effect.func.attr == 'append' and len(effect.args) == 1
-                        and isinstance(effect.args[0], ast.Name)):
-                    operations.append(('append', receiver_name, effect.args[0].id, statement))
-                    continue
-                if effect.func.attr == 'clear' and not effect.args:
-                    operations.append(('clear', receiver_name, None, statement))
-                    continue
-            if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
-                    and isinstance(statement.targets[0], ast.Name)
-                    and statement.targets[0].id in nonlocal_names
-                    and isinstance(statement.value, ast.Name)):
-                operations.append(('nonlocal', statement.targets[0].id,
-                                   statement.value.id, statement))
-                continue
+        effects = function_effects(target)
+        if effects is None:
             return
         values_by_name = dict(captures)
         values_by_name.update(actuals)
-        for kind, target_name, source_name, statement in operations:
-            if kind == 'nonlocal':
+        for effect in effects:
+            kind = effect.kind
+            target_name = effect.target
+            source_name = effect.source
+            if kind == 'nonlocal_write':
                 values = values_by_name.get(source_name, [])
                 env[target_name] = self.marked(values, node)
                 call.effects.append({'kind': 'nonlocal_write', 'target': target_name,
                                      'source': source_name, 'status': 'exact',
-                                     'evidence': [self.evidence_at(target_ref, statement)]})
+                                     'evidence': [self.evidence_at(
+                                         target_ref, effect.statement)]})
                 call.mutation_flows.extend(dict(value, target_binding=target_name,
                                                 effect_summary='nonlocal_write')
                                            for value in self.materialize(values, env))
                 continue
             receivers = values_by_name.get(target_name, [])
-            expected_shape = 'list' if kind == 'append' else None
+            expected_shape = 'list' if kind == 'container_append' else None
             if (not receivers or not all(value.get('kind') == 'container'
                     and (expected_shape is None or value.get('container_shape') == expected_shape)
                     for value in receivers)
                     or len({value['source'] for value in receivers}) != 1):
                 continue
-            if kind == 'clear':
+            if kind == 'container_clear':
                 for reference in receivers:
                     env[reference['source']] = []
                     env[reference['source'] + '$keys'] = [
                         {'kind': 'key', 'source': '<cleared>', 'key': '*'}]
                 call.effects.append({'kind': 'container_clear', 'target': target_name,
                                      'status': 'exact',
-                                     'evidence': [self.evidence_at(target_ref, statement)]})
+                                     'evidence': [self.evidence_at(
+                                         target_ref, effect.statement)]})
                 continue
             values = values_by_name.get(source_name, [])
             for reference in receivers:
@@ -1262,7 +1237,8 @@ class _Summary:
                     for value in self.materialize(inserted, env))
             call.effects.append({'kind': 'container_append', 'target': target_name,
                                  'source': source_name, 'status': 'exact',
-                                 'evidence': [self.evidence_at(target_ref, statement)]})
+                                 'evidence': [self.evidence_at(
+                                     target_ref, effect.statement)]})
 
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
