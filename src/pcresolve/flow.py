@@ -9,6 +9,7 @@ import os
 from dataclasses import dataclass, field, asdict
 
 from .scanner import FileScanner
+from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 
 
 def _exception_class(name):
@@ -42,12 +43,11 @@ def _contains_yield(node):
 
 
 def _call_key(path, node):
-    return '%s:%s:%s:%s:%s' % (path, node.lineno, node.col_offset,
-                                node.end_lineno, node.end_col_offset)
+    return SourceSpan.from_ast(path, node).key
 
 
 def _call_span(node):
-    return (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+    return SourceSpan.from_ast('', node).coordinates
 
 
 ## A source function selector; definition location disambiguates duplicates.
@@ -717,76 +717,15 @@ class _Summary:
                 'defaults': defaults or {}, 'relation': 'direct',
                 'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}
 
+    ## Attach analysis boundaries to the pure syntax binder's result.
+    #  @param node Call expression.
+    #  @param params Callee ast.arguments.
+    #  @param positional Positional nodes after receiver binding.
+    #  @param call_id Public flow call identity.
+    #  @return Existing flow binding records with AST payloads.
     def bind_call_arguments(self, node, params, positional, call_id):
-        records = []
-        position = 0
-        uncertain_position = False
-
-        def positional_record(argument, slot, expanded=False):
-            nonlocal position
-            parameter = None
-            target_path = []
-            if not uncertain_position and position < len(positional):
-                parameter = positional[position].arg
-            elif params.vararg and (not uncertain_position or position >= len(positional)):
-                parameter = params.vararg.arg
-                target_path = [position - len(positional)] if not uncertain_position else ['*']
-            status = 'exact' if parameter else 'unresolved'
-            records.append({'argument': slot, 'node': argument, 'parameter': parameter,
-                            'target_path': target_path, 'status': status,
-                            'binding_kind': 'starred' if expanded else 'explicit'})
-            position += 1
-
-        for source_position, argument in enumerate(node.args):
-            if isinstance(argument, ast.Starred):
-                if isinstance(argument.value, (ast.Tuple, ast.List)):
-                    for star_index, element in enumerate(argument.value.elts):
-                        positional_record(element, {'position': position,
-                            'expanded_from': source_position, 'star_index': star_index}, True)
-                else:
-                    parameter = (params.vararg.arg if params.vararg and position >= len(positional)
-                                 else None)
-                    records.append({'argument': {'position': source_position, 'starred': True},
-                        'node': argument.value, 'parameter': parameter,
-                        'target_path': ['*'] if parameter else [],
-                        'status': 'exact' if parameter else 'unresolved',
-                        'binding_kind': 'dynamic_starred'})
-                    uncertain_position = True
-                    self.result.boundaries.append({'call_id': call_id,
-                                                   'reason': 'dynamic_argument_expansion'})
-                continue
-            positional_record(argument, {'position': position})
-
-        keyword_arguments = []
-        for keyword in node.keywords:
-            if (keyword.arg is None and isinstance(keyword.value, ast.Dict)
-                    and all(isinstance(key, ast.Constant) and isinstance(key.value, str)
-                            for key in keyword.value.keys)
-                    and len({key.value for key in keyword.value.keys}) == len(keyword.value.keys)):
-                keyword_arguments.extend((key.value, value, True)
-                                         for key, value in zip(keyword.value.keys, keyword.value.values))
-            else:
-                keyword_arguments.append((keyword.arg, keyword.value, False))
-        allowed = {argument.arg for argument in params.args if argument in positional}
-        allowed.update(argument.arg for argument in params.kwonlyargs)
-        for key, argument, expanded in keyword_arguments:
-            if key is None:
-                parameter = params.kwarg.arg if params.kwarg and not allowed else None
-                target_path = ['*'] if parameter else []
-                self.result.boundaries.append({'call_id': call_id,
-                                               'reason': 'dynamic_argument_expansion'})
-            else:
-                parameter = key if key in allowed else (params.kwarg.arg if params.kwarg else None)
-                target_path = [key] if params.kwarg and parameter == params.kwarg.arg else []
-            records.append({'argument': {'keyword': key}, 'node': argument,
-                'parameter': parameter, 'target_path': target_path,
-                'status': 'exact' if parameter else 'unresolved',
-                'binding_kind': 'expanded_keyword' if expanded else 'explicit'})
-        if any(record['status'] == 'unresolved'
-               and record['binding_kind'] in ('explicit', 'starred', 'expanded_keyword')
-               for record in records):
-            self.result.boundaries.append({'call_id': call_id,
-                                           'reason': 'invalid_argument_binding'})
+        records, reasons = bind_ast_call(node, FunctionSignature.from_ast(params, positional))
+        self.result.boundaries.extend({'call_id': call_id, 'reason': reason} for reason in reasons)
         return records
 
     def expression(self, node, env):

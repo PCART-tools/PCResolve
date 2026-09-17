@@ -2,6 +2,7 @@
 #  Internal analysis IR for call sites and trace results.
 
 from dataclasses import dataclass, field
+from .program_facts import SourceSpan
 
 ## Classification reason constants.
 REASON_DIRECT_IMPORT = "DIRECT_IMPORT"
@@ -60,6 +61,13 @@ class CallSite:
     scope_name: str = ""
     ## Argument sources (list of source values).
     arg_sources: list = field(default_factory=list)
+
+    ## Shared internal identity without adding serialized fields to this adapter.
+    #  @return Complete source span of the call expression.
+    @property
+    def source_span(self):
+        return SourceSpan(self.file_path, self.lineno, self.col_offset,
+                          self.end_lineno, self.end_col_offset)
 
 
 ## A symbol definition or reference whose origin should be tracked.

@@ -1,6 +1,10 @@
 # PCResolve Architecture
 
-PCResolve has two connected analysis surfaces: call-site ownership and symbol provenance. `all_api_calls` is the primary classification output. `all_symbol_provenance` explains the symbol flows that support those call classifications.
+PCResolve's primary analysis surface is call-site ownership, supported by symbol
+provenance. `all_api_calls` is the primary classification output.
+`all_symbol_provenance` explains the symbol flows that support those call
+classifications. The experimental `FlowAnalyzer` separately exposes parameter,
+return, and effect evidence for downstream analyses.
 
 ## Pipeline Overview
 
@@ -23,8 +27,69 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Module map | `module_mapper.py` | File list | File path ↔ dotted module name |
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
+| Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
+| Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
+
+## Shared program facts: first migration
+
+`program_facts.py` is an internal layer consumed by both ownership and value
+flow. It uses only the standard library and has no dependency on either
+analyzer, classification rules, or public result types.
+
+| Component | Fact or operation | Consumers |
+|-----------|-------------------|-----------|
+| `SourceSpan` | File and complete start/end coordinates; snapshot-local call identity | Ownership `CallSite` / `CallEdge`, flow call IDs |
+| `FunctionSignature` | Positional-only, positional-or-keyword, keyword-only, variadic names, and declaration-time defaults | Ownership `FunctionSummary.signature`, flow syntax binding |
+| `bind_ast_call()` | Explicit and literal-expanded argument bindings with ordered uncertainty reasons | Flow's AST adapter |
+| `bind_parameter_sources()` | Parameter projections over opaque source payloads | Ownership's bounded contexts and incoming-edge propagation |
+| `starred_item_source()` | Item projection when a single known-start expansion can supply a position | Ownership's parameter and pack adapters |
+
+These operations do not resolve callees, trace default expressions, classify
+libraries, or compute return summaries. Adapters choose source payloads and
+receiver binding, and attach analysis-specific evidence and boundaries.
+`SourceSpan.key` preserves existing `flow-0.2` IDs; it is not a persistent
+identity across edits or different source snapshots. The path representation is
+chosen by the existing analysis session, not normalized by this helper.
+
+This migration preserves existing policy differences:
+
+- Flow uses Python parameter kinds for keyword binding and reports uncertain
+  dynamic expansions. Ownership preserves its existing explicit-keyword
+  priority, including legacy summaries without complete kind metadata.
+- An ownership bounded context projects a single parameter source; a variadic
+  pack requires selecting a later item. Incoming-edge propagation can collect
+  pack sources. These are `CONTEXT_BINDING` and `OWNERSHIP_BINDING` policies.
+- Multiple unresolved keyword expansions currently block default substitution
+  in bounded contexts; incoming-edge propagation retains its existing default
+  fallback. This is characterized by tests, not silently corrected during the
+  extraction.
+- Ownership's empty `positional_params` compatibility fallback remains intact.
+  Flow's default-evidence assembly remains in its adapter. Duplicate and missing
+  argument validation is not expanded by this refactor.
+
+Public entry points and ownership / `flow-0.2` schemas are unchanged. Ownership
+does not invoke `FlowAnalyzer`. AST snapshots, module/import indexes, target
+resolution, return substitution, captures, and effects are still collected or
+analyzed separately; their migration is subsequent work.
+
+Before a migration, capture fingerprints of the complete public ownership views
+for the 42-project corpus and flow snapshots plus declared parameter queries for
+the evaluation matrix. Compare on the same checkout path and Python runtime:
+
+```bash
+python scripts/compare_analysis_baseline.py --output before.json
+# Apply the internal migration.
+python scripts/compare_analysis_baseline.py --output after.json --compare before.json
+```
+
+The comparison exits nonzero on changed output or call inventory. Per-entry
+timings are recorded separately and excluded from output fingerprints. The
+script restarts with `PYTHONHASHSEED=0` when needed so set-derived explanation
+order does not produce false differences between processes. This
+check supplements ground-truth and semantic regression tests; unchanged output
+does not establish complete static-analysis precision.
 
 ## Per-Layer Data Structures
 
@@ -87,7 +152,7 @@ Output: `ProjectAnalysis`
 
 ## Lexical Scope Semantics
 
-PCResolve uses one lexical scope model. Function parameters, local variables,
+Ownership analysis uses a lexical scope model. Function parameters, local variables,
 class-body names, and comprehension targets remain in their defining scopes.
 Module-level `SymbolTable.direct` is retained as a compatibility bridge for
 cross-file resolution, but function-local bindings never overwrite it.

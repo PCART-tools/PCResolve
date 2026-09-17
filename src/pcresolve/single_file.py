@@ -11,6 +11,7 @@ from dataclasses import replace
 from .mapping_facts import MappingFacts, bound_names as mapping_bound_names
 from .symbol_table import SymbolTable
 from .ir import CallSite, SymbolRef
+from .program_facts import SourceSpan
 from .scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION, SCOPE_CLASS,
                        SCOPE_COMPREHENSION, merge_snapshots)
 from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
@@ -4913,6 +4914,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
                 assigned_to=assigned,
                 call_lineno=node.lineno,
                 call_col_offset=node.col_offset,
+                source_span=SourceSpan.from_ast(getattr(self, '_file_path', ''), node),
             )
             self.module_cg.edges.append(edge)
             mapping_value = self._mapping_facts.value(node.func)
@@ -5782,6 +5784,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             defaults=defaults,
             yields=func_yields,
             return_values=return_values,
+            positional_only_params=[arg.arg for arg in node.args.posonlyargs if arg.arg in params],
         )
         self.module_cg.functions[qualname] = fs
         ## Link method to its class summary (created before class body visit).
@@ -5883,6 +5886,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             vararg=vararg_name,
             kwarg=kwarg_name,
             defaults=defaults,
+            positional_only_params=[arg.arg for arg in node.args.posonlyargs],
         )
 
     ## Qualify a name or attribute through its current lexical import binding.

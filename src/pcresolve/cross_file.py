@@ -84,6 +84,8 @@ from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
 from .call_graph import CallContext, FunctionId, ProjectCallGraph
+from .program_facts import (bind_parameter_sources, starred_item_source,
+                            CONTEXT_BINDING, OWNERSHIP_BINDING)
 from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
@@ -5119,37 +5121,12 @@ class ProjectAnalyzer:
             if module_cg is not None else None)
         if summary is None or parameter not in summary.params:
             return None
-        keyword_args = context.edge.arg_sources.get("kw", {})
-        if parameter in keyword_args:
-            return keyword_args[parameter]
-        if parameter == summary.vararg or parameter == summary.kwarg:
-            # A variadic parameter is a pack, not one source.  It is resolved
-            # only when a later edge selects one item from the pack.
-            return None
-        positional_params = list(getattr(summary, "positional_params", []))
-        if not positional_params:
-            positional_params = [
-                name for name in summary.params
-                if name not in (summary.vararg, summary.kwarg)
-            ]
-        if parameter in positional_params:
-            index = positional_params.index(parameter)
-            positional = context.edge.arg_sources.get("pos", {})
-            if index in positional:
-                return positional[index]
-            star_source = self._star_positional_item_source(
-                context.edge, summary, index)
-            if star_source is not None:
-                return star_source
-        star_kwargs = getattr(context.edge, "star_kwarg_sources", [])
-        if star_kwargs:
-            if len(star_kwargs) != 1:
-                return None
-            return ContainerItem(star_kwargs[0], parameter)
-        defaults = getattr(summary, "defaults", {})
-        if parameter in defaults:
-            return defaults[parameter]
-        return None
+        edge = context.edge
+        values = bind_parameter_sources(
+            summary.signature, parameter, edge.arg_sources.get('pos', {}),
+            edge.arg_sources.get('kw', {}), getattr(edge, 'star_arg_sources', {}),
+            getattr(edge, 'star_kwarg_sources', []), ContainerItem, CONTEXT_BINDING)
+        return values[0] if values else None
 
     ## Resolve one positional parameter from a starred call argument.
     #  @param edge Call graph edge.
@@ -5157,20 +5134,7 @@ class ProjectAnalyzer:
     #  @param index Zero-based positional parameter index.
     #  @return ContainerItem selecting the pack item, or None.
     def _star_positional_item_source(self, edge, summary, index):
-        raw_stars = getattr(edge, "star_arg_sources", {})
-        if any(start is None for start in raw_stars):
-            return None
-        stars = sorted(raw_stars.items(), key=lambda item: item[0])
-        if not stars:
-            return None
-        matches = []
-        for start, source in stars:
-            if start <= index:
-                matches.append((start, source))
-        if len(matches) != 1:
-            return None
-        start, source = matches[0]
-        return ContainerItem(source, index - start)
+        return starred_item_source(getattr(edge, 'star_arg_sources', {}), index, ContainerItem)
 
     ## Resolve one selected item from a local variadic parameter under a
     #  bounded call context.
@@ -5793,51 +5757,10 @@ class ProjectAnalyzer:
             protocol_args = getattr(edge, "protocol_arg_sources", {})
             ordinary_args["pos"].update(protocol_args.get("pos", {}))
             ordinary_args["kw"].update(protocol_args.get("kw", {}))
-        keyword_args = ordinary_args.get("kw", {})
-        if parameter in keyword_args:
-            return [keyword_args[parameter]]
-        positional_params = list(
-            getattr(summary, "positional_params", []))
-        if not positional_params:
-            positional_params = [
-                name for name in summary.params
-                if name not in (summary.vararg, summary.kwarg)
-            ]
-        if parameter == summary.vararg:
-            start = len(positional_params)
-            positional = ordinary_args.get("pos", {})
-            values = [
-                positional[index]
-                for index in sorted(positional)
-                if index >= start
-            ]
-            values.extend(getattr(edge, "star_arg_sources", {}).values())
-            return values or None
-        if parameter == summary.kwarg:
-            explicit = set(positional_params)
-            explicit.update(getattr(summary, "keyword_only_params", []))
-            values = [
-                value for name, value in keyword_args.items()
-                if name not in explicit
-            ]
-            values.extend(getattr(edge, "star_kwarg_sources", []))
-            return values or None
-        if parameter in positional_params:
-            index = positional_params.index(parameter)
-            positional = ordinary_args.get("pos", {})
-            if index in positional:
-                return [positional[index]]
-            star_item = self._star_positional_item_source(
-                edge, summary, index)
-            if star_item is not None:
-                return [star_item]
-        star_kwargs = getattr(edge, "star_kwarg_sources", [])
-        if len(star_kwargs) == 1:
-            return [ContainerItem(star_kwargs[0], parameter)]
-        defaults = getattr(summary, "defaults", {})
-        if parameter in defaults:
-            return [defaults[parameter]]
-        return None
+        return bind_parameter_sources(
+            summary.signature, parameter, ordinary_args.get('pos', {}),
+            ordinary_args.get('kw', {}), getattr(edge, 'star_arg_sources', {}),
+            getattr(edge, 'star_kwarg_sources', []), ContainerItem, OWNERSHIP_BINDING)
 
     ## Collect the selected item of a variadic parameter from each exact
     #  project-local call edge.

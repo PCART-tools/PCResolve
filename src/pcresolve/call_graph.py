@@ -6,6 +6,7 @@
 #  SingleFileAnalyzer.  PR2+ will consume these facts for classification.
 
 from dataclasses import dataclass, field
+from .program_facts import FunctionSignature
 
 
 ## Unique identifier for a function or method within the project.
@@ -53,6 +54,20 @@ class FunctionSummary:
     ## Concrete return alternatives for receiver-protocol queries. Unlike
     #  symbol provenance, these include scalar, None, and unresolved branches.
     return_values: object = None
+    ## Preserved syntax metadata, independent of ownership source payloads.
+    positional_only_params: list = field(default_factory=list, repr=False)
+
+    ## Adapt collected source facts without caching mutable declaration defaults.
+    #  @return Shared signature, preserving the legacy positional fallback.
+    @property
+    def signature(self):
+        positional = self.positional_params or [
+            name for name in self.params if name not in (self.vararg, self.kwarg)]
+        positional_only = tuple(name for name in positional if name in self.positional_only_params)
+        return FunctionSignature(positional_only,
+                                 tuple(name for name in positional if name not in positional_only),
+                                 tuple(self.keyword_only_params), self.vararg, self.kwarg,
+                                 tuple(self.defaults.items()))
 
 
 ## Per-class summary collected during single-file analysis.
@@ -124,6 +139,8 @@ class CallEdge:
     call_lineno: int = 0
     ## Source column.
     call_col_offset: int = 0
+    ## Complete syntactic identity; not part of ownership's public output.
+    source_span: object = field(default=None, repr=False, compare=False)
 
 
 ## A loop target bound from a call expression that produces an iterator.
