@@ -1,5 +1,5 @@
 ## @package pcresolve
-#  Project-level static analysis for Python API ownership and library usage
+#  Project-level Python static analysis for API ownership and library usage
 #  provenance.
 #
 #  Usage:
