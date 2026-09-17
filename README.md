@@ -6,6 +6,9 @@ Project-level Python static analysis for API ownership and library usage provena
 
 ## News
 
+- **2026-09-17** - PCResolve 1.0.6 adds experimental interprocedural value-flow
+  analysis for parameters, receivers, returns, and mutation effects, backed by
+  a shared program-facts layer and a 472-check evaluation matrix.
 - **2026-09-03** - PCResolve 1.0.5 standardizes on lexical scope analysis and
   expands context-sensitive parameter, return, call, and receiver provenance.
 - **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
