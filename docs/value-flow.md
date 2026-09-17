@@ -4,9 +4,11 @@ The `flow-0.2` contract is experimental. It is separate from the stable
 ownership output. `FlowAnalyzer` does not execute analyzed code or import its
 dependencies. Existing `analyze_project()` behavior is unchanged.
 
-Ownership and value flow share internal source-span and signature facts plus
-pure binding helpers. They retain separate propagation policies and result
-contracts. See [the shared-facts migration](architecture.md#shared-program-facts-first-migration)
+Ownership and value flow share internal source-span and signature facts, pure
+binding helpers, and source snapshot / module-index infrastructure. They retain
+separate propagation policies and result contracts. See
+[the shared-facts migration](architecture.md#shared-program-facts-first-migration)
+and [source snapshots](architecture.md#shared-source-snapshots-and-module-index-second-migration)
 for the current scope and characterized policy differences.
 
 `flow-0.2` gives call IDs a complete source range, adds end positions and

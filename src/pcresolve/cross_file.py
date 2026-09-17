@@ -86,6 +86,7 @@ from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
 from .call_graph import CallContext, FunctionId, ProjectCallGraph
 from .program_facts import (bind_parameter_sources, starred_item_source,
                             CONTEXT_BINDING, OWNERSHIP_BINDING)
+from .source_snapshot import SourceStore, OWNERSHIP_SOURCE
 from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
@@ -211,6 +212,7 @@ class ProjectAnalyzer:
     def __init__(self, project_root):
         self.project_root = project_root
         self.module_mapper = ModuleMapper(project_root)
+        self._source_store = SourceStore()
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
@@ -236,15 +238,17 @@ class ProjectAnalyzer:
         all_modules = self.module_mapper.get_all_modules()
         module_tracers = {}
         diagnostics = []
+        paths = [self.module_mapper.get_file_path(module) for module in all_modules]
+        self._source_snapshot = self._source_store.snapshot(
+            [path for path in paths if path and os.path.exists(path)], OWNERSHIP_SOURCE)
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
-            if not file_path or not os.path.exists(file_path):
+            document = self._source_snapshot.documents.get(file_path)
+            if document is None:
                 continue
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    code = f.read()
-            except UnicodeDecodeError as e:
+            e = document.error
+            if isinstance(e, UnicodeDecodeError):
                 diagnostics.append(Diagnostic(
                     code=ENCODING_ERROR,
                     message="Cannot decode file: %s" % e,
@@ -253,7 +257,7 @@ class ProjectAnalyzer:
                     module_name=module,
                 ))
                 continue
-            except OSError as e:
+            if isinstance(e, OSError):
                 diagnostics.append(Diagnostic(
                     code=FILE_READ_ERROR,
                     message="Cannot read file: %s" % e,
@@ -262,9 +266,7 @@ class ProjectAnalyzer:
                     module_name=module,
                 ))
                 continue
-            try:
-                tree = ast.parse(code)
-            except SyntaxError as e:
+            if isinstance(e, SyntaxError):
                 diagnostics.append(Diagnostic(
                     code=SYNTAX_ERROR,
                     message=str(e),
@@ -282,7 +284,7 @@ class ProjectAnalyzer:
                 is_package=self.module_mapper.is_package(module),
                 file_path=file_path,
             )
-            tracer.visit(tree)
+            tracer.visit(document.tree)
             module_tracers[module] = tracer
 
         ## Aggregate per-module call-graph facts (Phase 7B-full PR1).

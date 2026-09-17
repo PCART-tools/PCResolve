@@ -28,6 +28,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
+| Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
 | Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
@@ -70,9 +71,59 @@ This migration preserves existing policy differences:
   argument validation is not expanded by this refactor.
 
 Public entry points and ownership / `flow-0.2` schemas are unchanged. Ownership
-does not invoke `FlowAnalyzer`. AST snapshots, module/import indexes, target
-resolution, return substitution, captures, and effects are still collected or
-analyzed separately; their migration is subsequent work.
+does not invoke `FlowAnalyzer`. Import resolution, target resolution, return
+substitution, captures, and effects are still collected or analyzed separately;
+their migration is subsequent work.
+
+## Shared source snapshots and module index: second migration
+
+`source_snapshot.py` supplies source versions and module naming to both
+analyzers. `ProjectAnalyzer` and `FlowAnalyzer` each own a `SourceStore` for their
+session. The layer has no dependency on analysis summaries or classification.
+A future shared analysis session can supply one store to both internal adapters;
+this migration adds no public constructor option or output field.
+
+| Component | Responsibility |
+|-----------|----------------|
+| `SourceDocument` | Decoded text, SHA-256 of that text, AST, or native read/parse error |
+| `SourceSnapshot` | Ordered requested file set and immutable document lookup |
+| `SourceStore` | Reread actual content; reuse unchanged decoded ASTs; retain only the latest requested version per file |
+| `ModuleIndex` | Preserve ordered file-to-module candidates, package facts, and existing last-file lookup behavior |
+| `module_name_for_path()` | Derive names under the existing adapter's compatibility policy |
+
+Every snapshot reads each requested file's content rather than trusting its size
+or modification time. ASTs can be reused across decode policies when the decoded
+text matches. Changed, unreadable, or removed sources cannot supply stale trees.
+Earlier snapshots keep their own document versions. Document and lookup records
+are immutable; AST nodes are read-only by convention, and visitors must never
+modify them. Source hashes retain the existing meaning: decoded UTF-8 text after
+text-mode newline normalization, rather than original file bytes.
+
+Source failures remain data at this layer. Ownership translates them into its
+existing encoding/read/syntax diagnostics; flow translates them into
+`source_unavailable` boundaries. Flow continues to include hashes only for
+successfully parsed sources in its public snapshot. Old expansion results still
+require reanalysis after source changes under the existing hash/source-set guard.
+
+Compatibility choices remain explicit and tested:
+
+- Ownership uses `utf-8`; flow uses `utf-8-sig`. A BOM still produces an
+  ownership syntax diagnostic and is accepted by flow.
+- Ownership omits a root `__init__.py` module. Flow retains the existing
+  `__init__` name, and nested package initializers map to the package name.
+- Ownership retains legacy suffix replacement, including `pkg.contractsi` for
+  `pkg/contracts.pyi`. Flow uses extension splitting and retains both `.py` and
+  `.pyi` candidates under `pkg.contracts`. Correcting ownership stub naming is
+  a separate behavior change, not part of this extraction.
+- Flow retains ordered import-root selection and file-directory fallback.
+  Import roots never discover or authorize additional source files.
+- `ModuleMapper` preserves its mutable compatibility lookups and scan order.
+  Its private index describes the current scan; existing cumulative lookup
+  behavior across rescans remains until the session/invalidation migration.
+
+Module naming is shared; import interpretation and definition collection remain
+in their adapters. The index does not choose a unique callee from duplicate
+module candidates or expose the private ownership call graph.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for

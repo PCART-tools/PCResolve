@@ -4,12 +4,12 @@
 import ast
 import builtins
 import copy
-import hashlib
 import os
 from dataclasses import dataclass, field, asdict
 
 from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
+from .source_snapshot import SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES
 
 
 def _exception_class(name):
@@ -312,6 +312,7 @@ class FlowAnalyzer:
         if (source_files is None) == (project_root is None):
             raise ValueError('Specify exactly one of source_files or project_root')
         self.files = set()
+        self._source_store = SourceStore()
         self.return_summaries = copy.deepcopy(return_summaries or {})
         for contract in self.return_summaries.values():
             if not contract.get('provenance') or not isinstance(contract.get('parameters'), list):
@@ -346,20 +347,21 @@ class FlowAnalyzer:
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
+        self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
+        # Preserve the prior behavior of deriving names only for parseable files.
+        self._module_index = ModuleIndex.build(
+            [path for path in sorted(self.files)
+             if self._source_snapshot.documents[path].error is None], self.roots, FLOW_MODULES)
         for path in sorted(self.files):
-            try:
-                with open(path, encoding='utf-8-sig') as stream:
-                    source = stream.read()
-                tree = ast.parse(source)
-            except (OSError, UnicodeError, SyntaxError) as error:
-                self.index_boundaries.append({'file_path': path, 'reason': 'source_unavailable', 'detail': str(error)})
+            document = self._source_snapshot.documents[path]
+            if document.error is not None:
+                self.index_boundaries.append({'file_path': path, 'reason': 'source_unavailable',
+                                              'detail': str(document.error)})
                 continue
+            source, tree = document.text, document.tree
             self.texts[path] = source
-            self.hashes[path] = hashlib.sha256(source.encode('utf-8')).hexdigest()
-            root = next((r for r in self.roots if os.path.commonpath([r, path]) == r), os.path.dirname(path))
-            module = os.path.splitext(os.path.relpath(path, root))[0].replace(os.sep, '.')
-            if module.endswith('.__init__'):
-                module = module[:-9]
+            self.hashes[path] = document.sha256
+            module = self._module_index.file_to_module[path]
             aliases = {}
             for node in tree.body:
                 if isinstance(node, ast.Import):
