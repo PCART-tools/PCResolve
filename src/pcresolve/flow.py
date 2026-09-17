@@ -16,6 +16,7 @@ from .return_resolution import (CallBinding, ReturnCall,
                                 resolve_return_dependencies,
                                 select_dependencies)
 from .effect_facts import container_method_effect, function_effects
+from .import_facts import import_facts, resolve_relative_module
 
 
 def _exception_class(name):
@@ -272,17 +273,17 @@ class FlowAnalyzer:
             module = self._module_index.file_to_module[path]
             aliases = {}
             for node in tree.body:
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        aliases[alias.asname or alias.name.split('.')[0]] = alias.name if alias.asname else alias.name.split('.')[0]
-                elif isinstance(node, ast.ImportFrom):
-                    package = module if os.path.basename(path).startswith('__init__.') else module.rpartition('.')[0]
-                    prefix = node.module or ''
-                    if node.level:
-                        parts = package.split('.') if package else []
-                        prefix = '.'.join(parts[:len(parts) - node.level + 1] + ([prefix] if prefix else []))
-                    for alias in node.names:
-                        aliases[alias.asname or alias.name] = prefix + '.' + alias.name
+                for fact in import_facts(node):
+                    if fact.kind == 'import':
+                        aliases[fact.python_binding] = (
+                            fact.name if fact.asname else fact.python_binding)
+                    else:
+                        prefix = (resolve_relative_module(
+                            module,
+                            os.path.basename(path).startswith('__init__.'),
+                            fact.module, fact.level)
+                            if fact.level else fact.module)
+                        aliases[fact.python_binding] = prefix + '.' + fact.name
             self.imports[module] = aliases
             self.module_bindings[module] = {
                 n.id for statement in tree.body
@@ -1355,19 +1356,19 @@ class _Summary:
             exception = expression.id if isinstance(expression, ast.Name) else None
             return [('raise', env, [], exception)]
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                env[alias.asname or alias.name.split('.')[0]] = [{
+            for fact in import_facts(node):
+                env[fact.python_binding] = [{
                     'kind': 'import',
-                    'source': alias.name if alias.asname else alias.name.split('.')[0],
+                    'source': fact.name if fact.asname else fact.python_binding,
                     'relation': 'direct', 'evidence': [self.evidence(node)],
                     'conditions': list(self.conditions)}]
             return normal(env)
         if isinstance(node, ast.ImportFrom):
             if node.level:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'relative_local_import', 'evidence': self.evidence(node)})
-            for alias in node.names:
-                env[alias.asname or alias.name] = ([{'kind': 'import',
-                    'source': (node.module or '') + '.' + alias.name,
+            for fact in import_facts(node):
+                env[fact.python_binding] = ([{'kind': 'import',
+                    'source': fact.module + '.' + fact.name,
                     'relation': 'direct', 'evidence': [self.evidence(node)],
                     'conditions': list(self.conditions)}]
                                                   if not node.level else [])

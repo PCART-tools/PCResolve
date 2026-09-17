@@ -20,6 +20,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                                       scope_facts.py
                                                       return_resolution.py
                                                       effect_facts.py
+                                                      import_facts.py
                                    diagnostics.py
 ```
 
@@ -37,6 +38,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Shared lexical facts | `scope_facts.py` | Function/lambda AST or one statement body | Immutable loaded, bound, global, and nonlocal name sets |
 | Shared return substitution | `return_resolution.py` | Normalized call bindings and adapter-owned dependency records | Bounded, composed return dependencies |
 | Shared effect facts | `effect_facts.py` | Proven builtin container shapes or one function AST | Immutable protocol and complete straight-line effect descriptions |
+| Shared import facts | `import_facts.py` | One import AST node and lexical module context | Immutable alias records and resolved relative module names |
 | Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
@@ -243,6 +245,28 @@ uses the shared dict `get` contract to preserve a proven read-only mapping and
 retains conservative invalidation for mutating or unsupported calls. The shared
 layer does not mutate either environment, identify heap aliases, or classify
 call ownership. Public ownership and `flow-0.2` schemas are unchanged.
+
+## Shared import syntax facts: seventh migration
+
+`import_facts.py` converts each `import` or `from ... import ...` statement into
+ordered immutable `ImportFact` records. A record retains the raw imported name,
+explicit alias, from-module, relative level, and wildcard status. Relative
+module resolution is a pure operation over the current module name and whether
+the source file is a package initializer.
+
+The record exposes two binding names because the adapters intentionally retain
+different compatibility behavior for `import package.sub` without an alias.
+Flow uses Python's root binding (`package`), while ownership continues to retain
+its existing full dotted binding (`package.sub`). Explicit aliases and
+from-import bindings agree. Encoding both choices in one syntax fact makes the
+difference visible instead of embedding separate AST loops in each analyzer.
+
+Flow uses the facts for its module import index and function-local import
+environment. Ownership uses them in its import visitors and keeps its existing
+wildcard, scope-binding, symbol provenance, and owner policies. The shared layer
+does not decide whether an imported module is local or external, resolve a
+wildcard export, choose a callee, or emit analysis boundaries. Public outputs
+remain unchanged.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for
