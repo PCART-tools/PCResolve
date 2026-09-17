@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, asdict
 from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES
+from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
 
 
 def _exception_class(name):
@@ -403,12 +404,19 @@ class FlowAnalyzer:
                                 collect_lambdas(child)
                         collect_lambdas(node)
             collect(tree.body)
+        self._definition_index = DefinitionIndex(
+            [DefinitionRecord(ref.module, ref.qualname, (ref, node),
+                              source_span=SourceSpan.from_ast(ref.file_path, node))
+             for ref, node in self.definitions] +
+            [DefinitionRecord(ref.module, ref.qualname, (ref, node), kind='class',
+                              source_span=SourceSpan.from_ast(ref.file_path, node))
+             for ref, node in self.classes])
 
     def _inherited_method(self, module, owner, method, seen=()):
         identity = (module, owner)
         if identity in seen:
             return None
-        classes = [(r, n) for r, n in self.classes if r.module == module and r.qualname == owner]
+        classes = self._definition_index.find(module, owner, kind='class')
         if len(classes) != 1:
             return None
         cls = classes[0][1]
@@ -427,20 +435,20 @@ class FlowAnalyzer:
             return None
         alias = self.imports.get(module, {}).get(first)
         qualified = alias + dot + rest if alias else module + '.' + name
-        bases = [(r, n) for r, n in self.classes if r.module + '.' + r.qualname == qualified]
+        bases = self._definition_index.find_qualified([qualified], kind='class')
         if len(bases) != 1 or bases[0][1].decorator_list or bases[0][1].keywords:
             return None
         ref, cls = bases[0]
         if any(isinstance(n, ast.FunctionDef) and n.name in ('__getattr__', '__getattribute__') for n in cls.body):
             return None
-        matches = [d for d in self.definitions if d[0].module == ref.module and d[0].qualname == ref.qualname + '.' + method]
+        matches = self._definition_index.find(ref.module, ref.qualname + '.' + method)
         if len(matches) == 1:
             return matches[0]
         return self._inherited_method(ref.module, ref.qualname, method, seen + (identity,))
 
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
-        classes = [(r, n) for r, n in self.classes if r.module == ref.module and r.qualname == owner]
+        classes = self._definition_index.find(ref.module, owner, kind='class')
         if len(classes) != 1 or classes[0][1].decorator_list:
             return None
         cls = classes[0][1]
@@ -467,14 +475,14 @@ class FlowAnalyzer:
             return None
         alias = self.imports.get(ref.module, {}).get(first)
         qualified = alias + (dot + rest if dot else '') if alias else ref.module + '.' + name
-        targets = [(r, n) for r, n in self.classes if r.module + '.' + r.qualname == qualified]
+        targets = self._definition_index.find_qualified([qualified], kind='class')
         if len(targets) != 1 or targets[0][1].decorator_list:
             return None
         target_class = targets[0]
         if any(isinstance(n, ast.FunctionDef) and n.name in ('__getattribute__', '__getattr__', '__new__') for n in target_class[1].body):
             return None
-        target = [(r, n) for r, n in self.definitions
-                  if r.module == target_class[0].module and r.qualname == target_class[0].qualname + '.' + method]
+        target = self._definition_index.find(
+            target_class[0].module, target_class[0].qualname + '.' + method)
         return (target[0], assignment) if len(target) == 1 and not target[0][1].decorator_list else None
 
     def _descriptor_kind(self, target):
@@ -487,12 +495,11 @@ class FlowAnalyzer:
             return None
         if (name in self.imports.get(ref.module, {})
                 or name in self.module_bindings.get(ref.module, set())
-                or any(candidate.module == ref.module and candidate.qualname == name
-                       for candidate, _ in self.definitions)):
+                or self._definition_index.find(ref.module, name)):
             return None
         owner = ref.qualname.rpartition('.')[0]
-        cls = next((node for candidate, node in self.classes
-                    if candidate.module == ref.module and candidate.qualname == owner), None)
+        classes = self._definition_index.find(ref.module, owner, kind='class')
+        cls = classes[0][1] if classes else None
         if cls is None:
             return None
         for statement in cls.body:
@@ -529,47 +536,14 @@ class FlowAnalyzer:
                 or body[1].value.id != body[0].name):
             return None
         qualname = decorator[0].qualname + '.' + body[0].name
-        matches = [candidate for candidate in self.definitions
-                   if candidate[0].module == decorator[0].module
-                   and candidate[0].qualname == qualname]
+        matches = self._definition_index.find(decorator[0].module, qualname)
         if len(matches) != 1 or self._captures(*matches[0]):
             return None
         return matches[0]
 
     def _resolve(self, caller, name):
-        # Nearest lexical definition wins before module imports. Class scopes
-        # are deliberately excluded from implicit lexical method resolution.
-        scope = caller.qualname
-        function_scopes = {r.qualname for r, _ in self.definitions if r.module == caller.module}
-        while scope:
-            if scope in function_scopes:
-                matches = [(r, n) for r, n in self.definitions
-                           if r.module == caller.module and r.qualname == scope + '.' + name]
-                if matches:
-                    return matches[0] if len(matches) == 1 else None
-            scope = scope.rpartition('.')[0]
-        names = [caller.module + '.' + name]
-        parent = caller.qualname.rpartition('.')[0]
-        if parent:
-            names.insert(0, caller.module + '.' + parent + '.' + name)
-        alias, dot, rest = name.partition('.')
-        imported = self.imports.get(caller.module, {}).get(alias)
-        if imported:
-            names = [imported + (dot + rest if dot else '')]
-        for _ in range(20):
-            matches = [(ref, node) for ref, node in self.definitions if ref.module + '.' + ref.qualname in names]
-            if len(matches) == 1:
-                return matches[0]
-            expanded = []
-            for name in names:
-                mod, _, symbol = name.rpartition('.')
-                value = self.imports.get(mod, {}).get(symbol)
-                if value:
-                    expanded.append(value)
-            if not expanded:
-                break
-            names = expanded
-        return None
+        return self._definition_index.resolve_name(
+            caller.module, caller.qualname, name, self.imports)
 
     def _captures(self, ref, node):
         loaded, bound = _scope_names(node)
@@ -588,8 +562,8 @@ class FlowAnalyzer:
         outer = set()
         parent = ref.qualname.rpartition('.')[0]
         while parent:
-            definition = next((n for r, n in self.definitions
-                               if r.module == ref.module and r.qualname == parent), None)
+            definitions = self._definition_index.find(ref.module, parent)
+            definition = definitions[0][1] if definitions else None
             if definition:
                 outer.update(_scope_names(definition)[1])
             parent = parent.rpartition('.')[0]
@@ -614,13 +588,14 @@ class FlowAnalyzer:
                               'parameter_shapes': copy.deepcopy(self.parameter_shapes),
                               'coverage': 'explicit value dependencies and limited local container effects; no general heap or path feasibility proof'})
         result.boundaries.extend(self.index_boundaries)
-        self._walk(result, matches[0], max_depth, (), max_functions, max_call_contexts)
+        context = CallContext(matches[0][0].module, matches[0][0], None)
+        self._walk(result, matches[0], max_depth, context, max_functions, max_call_contexts)
         result.boundaries = _unique(result.boundaries)
         return result
 
-    def _walk(self, result, definition, depth, ancestors, max_functions, max_calls):
+    def _walk(self, result, definition, depth, context, max_functions, max_calls):
         ref, node = definition
-        if ref in ancestors:
+        if ref in context.ancestors:
             result.boundaries.append({'function': asdict(ref), 'reason': 'recursion'})
             return
         existing = any(f['function'] == asdict(ref) for f in result.functions)
@@ -640,8 +615,10 @@ class FlowAnalyzer:
                                               'reason': call.target_status})
             elif depth > 1:
                 result.boundaries = [b for b in result.boundaries if not (b.get('call_id') == call.id and b['reason'] == 'depth_limit')]
-                target = next(d for d in self.definitions if d[0] == call.target)
-                self._walk(result, target, depth - 1, ancestors + (ref,), max_functions, max_calls)
+                target = next(d for d in self._definition_index.find(call.target.module, call.target.qualname)
+                              if d[0] == call.target)
+                child = CallContext(call.caller.module, call.target, call, context)
+                self._walk(result, target, depth - 1, child, max_functions, max_calls)
             else:
                 result.boundaries.append({'call_id': call.id, 'reason': 'depth_limit'})
 
@@ -662,7 +639,14 @@ class FlowAnalyzer:
         updated = copy.deepcopy(result)
         if call.target is not None:
             updated.boundaries = [b for b in updated.boundaries if not (b.get('call_id') == call_id and b['reason'] == 'depth_limit')]
-            self._walk(updated, next(d for d in self.definitions if d[0] == call.target), additional_depth, (call.caller,), 500, 2000)
+            # Selected expansion retains its original caller-only recursion
+            # ancestry; it does not infer an entry path from the merged graph.
+            parent = CallContext(call.caller.module, call.caller, None)
+            selected = next(c for c in updated.calls if c.id == call_id)
+            context = CallContext(call.caller.module, call.target, selected, parent)
+            definition = next(d for d in self._definition_index.find(call.target.module, call.target.qualname)
+                              if d[0] == call.target)
+            self._walk(updated, definition, additional_depth, context, 500, 2000)
         updated.boundaries = _unique(updated.boundaries)
         return updated
 
@@ -916,15 +900,14 @@ class _Summary:
             dispatch_kind = None
             field_evidence = None
             owner = self.ref.qualname.rpartition('.')[0]
-            function_names = {r.qualname for r, _ in self.analyzer.definitions if r.module == self.ref.module}
+            function_names = self.analyzer._definition_index.scopes(self.ref.module)
             if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
                     and owner and owner not in function_names
                     and (self.node.args.posonlyargs or self.node.args.args)
                     and receiver_sources and all(v['kind'] == 'parameter' and v['relation'] == 'direct'
                         and v['source'] == (self.node.args.posonlyargs + self.node.args.args)[0].arg
                         for v in receiver_sources)):
-                matches = [d for d in self.analyzer.definitions if d[0].module == self.ref.module
-                           and d[0].qualname == owner + '.' + node.func.attr]
+                matches = self.analyzer._definition_index.find(self.ref.module, owner + '.' + node.func.attr)
                 if not matches:
                     inherited = self.analyzer._inherited_method(self.ref.module, owner, node.func.attr)
                     matches = [inherited] if inherited else []
@@ -963,8 +946,7 @@ class _Summary:
                 imported = {v['source'] for v in binding}
                 if len(imported) == 1:
                     canonical = next(iter(imported)) + ('.' + name.split('.', 1)[1] if '.' in name else '')
-                    matches = [d for d in self.analyzer.definitions
-                               if d[0].module + '.' + d[0].qualname == canonical]
+                    matches = self.analyzer._definition_index.find_qualified([canonical])
                     target = matches[0] if len(matches) == 1 else None
             elif binding is None:
                 alias, dot, rest = name.partition('.')
@@ -975,8 +957,8 @@ class _Summary:
                 targets = {(v.get('module', self.ref.module), v['source']) for v in binding}
                 if len(targets) == 1:
                     module, qualname = next(iter(targets))
-                    target = next((d for d in self.analyzer.definitions
-                                   if d[0].module == module and d[0].qualname == qualname), None)
+                    matches = self.analyzer._definition_index.find(module, qualname)
+                    target = matches[0] if matches else None
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
                 replacement = self.analyzer._decorated_target(target)

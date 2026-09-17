@@ -83,7 +83,8 @@ from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
                        DerivedResult, UnknownSource,
                        SourceSet, is_structured_source, normalize_source,
                        source_display, make_source_set)
-from .call_graph import CallContext, FunctionId, ProjectCallGraph
+from .call_graph import FunctionId, ProjectCallGraph
+from .call_resolution import CallContext, DefinitionRecord, DefinitionIndex
 from .program_facts import (bind_parameter_sources, starred_item_source,
                             CONTEXT_BINDING, OWNERSHIP_BINDING)
 from .source_snapshot import SourceStore, OWNERSHIP_SOURCE
@@ -4935,6 +4936,22 @@ class ProjectAnalyzer:
                     flow[(edge.caller.qualname, assigned_name)] = result_call
                     tracer.symbols.direct[assigned_name] = result_call
 
+    ## Adapt this generation's ownership summaries to the shared name index.
+    #  Logical keys and mutable source payloads retain their ownership meaning.
+    #  A normal analysis collects a new ProjectCallGraph before resolution.
+    #  @return Internal candidate index; not a public call-graph result.
+    def _get_definition_index(self):
+        if getattr(self, '_definition_index_graph', None) is not self.project_cg:
+            records = []
+            for module, module_cg in self.project_cg.modules.items():
+                for kind, summaries in (('function', module_cg.functions), ('class', module_cg.classes)):
+                    records.extend(DefinitionRecord(module, qualname, summary, kind,
+                                                    summary.definition_span)
+                                   for qualname, summary in summaries.items())
+            self._definition_index = DefinitionIndex(records)
+            self._definition_index_graph = self.project_cg
+        return self._definition_index
+
     ## Find all project-local functions reached by one call edge.
     #
     #  @param edge Call edge to resolve.
@@ -4948,24 +4965,23 @@ class ProjectAnalyzer:
             return list(edge.mapping_targets)
         targets = []
         caller_tracer = tracers.get(caller_module)
-        for target_module, module_cg in self.project_cg.modules.items():
-            for qualname, summary in module_cg.functions.items():
-                if self._edge_targets_local_function(
-                        edge, caller_module, target_module, qualname,
-                        caller_tracer, tracers):
-                    targets.append(summary.id)
+        candidates = self._get_definition_index().records_for()
+        for candidate in candidates:
+            if self._edge_targets_local_function(
+                    edge, caller_module, candidate.module, candidate.qualname,
+                    caller_tracer, tracers):
+                targets.append(candidate.payload.id)
         # An exact subclass method wins over inherited implementations. When
         # no exact method exists, resolve the nearest available local base
         # implementation through the class graph. Multiple inherited targets
         # remain explicit and therefore cannot drive bounded result binding.
         if not targets:
-            for target_module, module_cg in self.project_cg.modules.items():
-                for qualname, summary in module_cg.functions.items():
-                    if self._edge_targets_local_function(
-                            edge, caller_module, target_module, qualname,
-                            caller_tracer, tracers,
-                            allow_inherited_dispatch=True):
-                        targets.append(summary.id)
+            for candidate in candidates:
+                if self._edge_targets_local_function(
+                        edge, caller_module, candidate.module, candidate.qualname,
+                        caller_tracer, tracers,
+                        allow_inherited_dispatch=True):
+                    targets.append(candidate.payload.id)
             targets = self._nearest_inherited_method_targets(
                 targets, tracers)
         unique = []
@@ -5033,17 +5049,11 @@ class ProjectAnalyzer:
             branch = normalize_source(branch)
             if not isinstance(branch, str):
                 return []
-            matches = []
-            for module, module_cg in self.project_cg.modules.items():
-                for qualname, summary in module_cg.functions.items():
-                    qualified = module + "." + qualname
-                    if branch == qualified or (
-                            module == caller_module
-                            and branch == qualname):
-                        matches.append(summary.id)
+            matches = self._get_definition_index().find_qualified(
+                [branch], local_module=caller_module, local_names=[branch])
             if len(matches) != 1:
                 return []
-            target = matches[0]
+            target = matches[0].id
             key = (target.module, target.qualname)
             if key not in seen:
                 seen.add(key)
@@ -5147,10 +5157,8 @@ class ProjectAnalyzer:
     def _bounded_pack_item_source(self, context, pack_source, index):
         if not isinstance(pack_source, ParameterSource):
             return None
-        current = context
-        while current is not None:
+        for current in context.chain() if context is not None else ():
             if pack_source.scope != current.target.qualname:
-                current = current.parent
                 continue
             module_cg = self.project_cg.modules.get(current.target.module)
             summary = (
@@ -6017,14 +6025,8 @@ class ProjectAnalyzer:
         if caller_module == target_module and callee_name == callable_name:
             return True
 
-        definitions = []
-        if cg is not None:
-            for candidate_module, candidate_cg in cg.modules.items():
-                if is_constructor and callable_name in candidate_cg.classes:
-                    definitions.append(candidate_module)
-                elif (not is_constructor
-                      and callable_name in candidate_cg.functions):
-                    definitions.append(candidate_module)
+        definitions = self._get_definition_index().defining_modules(
+            callable_name, kind='class' if is_constructor else 'function')
         return len(definitions) == 1 and definitions[0] == target_module
 
     ## Unify receiver object ownership lookup through a single entry point.

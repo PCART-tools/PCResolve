@@ -7,6 +7,7 @@
 
 from dataclasses import dataclass, field
 from .program_facts import FunctionSignature
+from .call_resolution import CallContext
 
 
 ## Unique identifier for a function or method within the project.
@@ -56,6 +57,8 @@ class FunctionSummary:
     return_values: object = None
     ## Preserved syntax metadata, independent of ownership source payloads.
     positional_only_params: list = field(default_factory=list, repr=False)
+    ## Definition location, independent of the logical ownership key.
+    definition_span: object = field(default=None, repr=False, compare=False)
 
     ## Adapt collected source facts without caching mutable declaration defaults.
     #  @return Shared signature, preserving the legacy positional fallback.
@@ -82,6 +85,8 @@ class ClassSummary:
     ## self.attr bindings collected from __init__ and class body.
     #  Maps "self.attr" -> source.
     attrs: dict = field(default_factory=dict)
+    ## Definition location; not part of public ownership output.
+    definition_span: object = field(default=None, repr=False, compare=False)
 
 
 ## A single call edge in the intra-project call graph.
@@ -158,23 +163,6 @@ class IterationBinding:
     call_lineno: int = 0
     ## Source column of the iterator call.
     call_col_offset: int = 0
-
-
-## One bounded call-site context used while substituting local parameters.
-#
-#  Contexts are internal analysis facts. They retain the exact call edge and
-#  may point to the enclosing context when a local function forwards one of
-#  its own parameters to another local function.
-@dataclass(frozen=True)
-class CallContext:
-    ## Module containing the call expression.
-    caller_module: str
-    ## Unambiguous project-local function or method reached by the edge.
-    target: FunctionId
-    ## Exact edge at this call site.
-    edge: CallEdge
-    ## Enclosing substitution context for bounded forwarding.
-    parent: object = None
 
 
 ## Full call-graph facts for a module.

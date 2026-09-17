@@ -16,6 +16,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    sources.py         library_usage.py
                                    ir.py              decorator_provenance.py
                                    types.py           call_graph.py
+                                                      call_resolution.py
                                    diagnostics.py
 ```
 
@@ -29,6 +30,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
+| Shared definition lookup | `call_resolution.py` | Adapter-collected definitions and call occurrences | Ordered candidate index and parent-linked call contexts |
 | Value flow | `flow.py` | Source files/import roots, entry selector, budgets | Experimental `FlowAnalysis` |
 | Views | `views.py` | `ProjectAnalysis` | Dict/list for JSON serialization |
 | CLI | `cli.py` | Project root + args | Human-readable text or JSON |
@@ -124,6 +126,41 @@ Compatibility choices remain explicit and tested:
 Module naming is shared; import interpretation and definition collection remain
 in their adapters. The index does not choose a unique callee from duplicate
 module candidates or expose the private ownership call graph.
+
+## Shared target candidates and call contexts: third migration
+
+`call_resolution.py` indexes definitions collected by each analyzer without
+assigning ownership, type, or dispatch meaning. `DefinitionRecord` stores the
+adapter's module name, lexical qualified name, kind, source location, and an
+opaque payload. `DefinitionIndex` preserves collection order and duplicate
+definitions. Exact, fully qualified, and nearest lexical lookups return all
+candidates unless the existing flow name policy requires one unique result.
+
+The ownership adapter indexes its `FunctionSummary` and `ClassSummary` values.
+The value-flow adapter indexes `(FunctionRef, AST)` pairs. Consequently, both
+use the same candidate operations while retaining different collection rules:
+ownership's call graph keeps one summary for each logical dictionary key;
+value flow retains repeated definitions at separate source locations. The
+shared index never resolves receiver types, applies inheritance, classifies a
+library, evaluates decorators, or interprets callable source sets. Those remain
+adapter policies.
+
+`CallContext` stores one selected target, its exact call occurrence, and an
+optional parent. Flow uses the parent chain to detect recursive expansion;
+ownership uses it while substituting parameters forwarded through local calls.
+The context exposes the existing source-span call identity through a common
+operation. It is an internal analysis fact and adds no field to
+`ProjectAnalysis`, `FlowAnalysis`, or their JSON schemas.
+
+Definition indexes are generation-local. Flow rebuilds one after every source
+snapshot and ownership rebuilds one for every new `ProjectCallGraph`. Source
+locations are internal metadata on ownership summaries, so matching definition
+evidence can be compared without changing logical `FunctionId` equality.
+
+This migration deliberately preserves ambiguity. Duplicate definitions,
+multiple inherited candidates, incomplete mapping selections, dynamic
+receivers, and unsupported callable values remain unavailable or explicit
+boundaries according to the consuming analyzer's existing rules.
 
 Before a migration, capture fingerprints of the complete public ownership views
 for the 42-project corpus and flow snapshots plus declared parameter queries for

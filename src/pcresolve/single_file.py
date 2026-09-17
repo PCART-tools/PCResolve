@@ -5785,6 +5785,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             yields=func_yields,
             return_values=return_values,
             positional_only_params=[arg.arg for arg in node.args.posonlyargs if arg.arg in params],
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
         self.module_cg.functions[qualname] = fs
         ## Link method to its class summary (created before class body visit).
@@ -5887,6 +5888,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             kwarg=kwarg_name,
             defaults=defaults,
             positional_only_params=[arg.arg for arg in node.args.posonlyargs],
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
 
     ## Qualify a name or attribute through its current lexical import binding.
@@ -5993,6 +5995,7 @@ class SingleFileAnalyzer(ast.NodeVisitor):
             bases=list(bases),
             methods={},
             attrs={},
+            definition_span=SourceSpan.from_ast(self._file_path, node),
         )
         self._class_stack.append(node.name)
         self._super_base_path_stack.append((
