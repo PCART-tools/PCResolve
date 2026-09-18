@@ -3,6 +3,7 @@
 #
 #  Usage:
 #    pcresolve /path/to/project
+#    pcresolve /path/to/a.py
 #    pcresolve --json /path/to/project
 #    pcresolve --json-summary /path/to/project
 #    pcresolve --json-full /path/to/project
@@ -261,7 +262,7 @@ def main():
         )
     )
     parser.add_argument("project_root", nargs="?", default=None,
-                        help="Absolute path to the project root directory.")
+                        help="Path to a project directory; ownership also accepts a .py/.pyi file.")
     parser.add_argument("--json", action="store_true",
                         help="Full provenance JSON, or flow JSON with --value-flow.")
     parser.add_argument("--json-summary", action="store_true",
@@ -273,7 +274,7 @@ def main():
     parser.add_argument("--debug-dump", action="store_true",
                         help="Full text output (old default, for debugging).")
     parser.add_argument("--stdin", action="store_true",
-                        help="Read project root path from stdin.")
+                        help="Read the input path from stdin.")
     parser.add_argument("--verbose", action="store_true",
                         help="Print diagnostics in human-readable mode.")
     parser.add_argument("--strict", action="store_true",
@@ -318,6 +319,12 @@ def main():
 
     if not os.path.exists(project_root):
         print("Error: %s does not exist." % project_root, file=sys.stderr)
+        sys.exit(1)
+
+    if not (os.path.isdir(project_root)
+            or (os.path.isfile(project_root) and project_root.endswith(('.py', '.pyi')))):
+        print("Error: input must be a directory or a .py/.pyi file: %s" % project_root,
+              file=sys.stderr)
         sys.exit(1)
 
     result = analyze_project(project_root)

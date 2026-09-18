@@ -10,6 +10,8 @@ JSON outputs before 1.0.4 are experimental and not guaranteed compatible.
 pcresolve project                  # human summary
 pcresolve project --json           # full provenance JSON
 pcresolve project --json-summary   # compact summary JSON (CI)
+pcresolve a.py                     # one file, human summary
+pcresolve a.py --json              # one file, full provenance JSON
 pcresolve project --explain-library numpy
 pcresolve project --explain-symbol x
 pcresolve project --explain-call "np.array"
@@ -24,7 +26,27 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 - `--json-summary` is the recommended CI format.
 - `--strict` exits non-zero when error diagnostics are present.
 - `--verbose`, `--usage-summary`, `--quiet`, and `--top` control text output.
-- `--stdin` reads the project root from standard input.
+- Ownership accepts a project directory or one existing `.py`/`.pyi` file,
+  using relative or absolute paths. File mode reads only that source; it does
+  not discover or follow sibling sources. Use directory mode for cross-file
+  provenance.
+- Missing paths and unsupported file inputs exit non-zero with an error,
+  rather than producing a successful empty analysis.
+- In file mode, the path-normalization root is the file's parent directory,
+  or the directory above its outermost enclosing regular Python package
+  (identified by `__init__.py` or `__init__.pyi`). This retains package module
+  names, including for a selected `__init__.py`, without adding other sources.
+  Ownership JSON keeps `schema_version="1.0"` and the same fields.
+- `--stdin` reads the input path from standard input. Value-flow mode still
+  requires a project directory or explicit `--source-file` options.
+
+File and directory inputs use the same ownership semantics. Given the same
+analyzed source set and module mapping root, their call classifications are
+the same. Missing module implementations limit both input forms: for example,
+`from factory import create_app; create_app()` retains the import-backed owner
+`factory` when no additional project evidence is available. The import path
+alone does not prove that the module is project-local or identify a different
+implementation owner.
 
 ## Python API
 
@@ -36,6 +58,13 @@ analyze_source(source, file_path="<string>")
 ProjectAnalyzer(project_root)
 SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
 ```
+
+`analyze_project` and `ProjectAnalyzer` also accept a `.py`/`.pyi` file path,
+with the same source selection and path-normalization root as the ownership
+CLI. They return the existing `ProjectAnalysis` result for that single file.
+
+`analyze_source` accepts Python source text. Its `file_path` parameter supplies
+location metadata; it does not select or read a file from disk.
 
 PCResolve uses one lexical scope model. The removed `scope_model` selector and
 the former `stats.scope_model` field are not part of the 1.0.5 interface.

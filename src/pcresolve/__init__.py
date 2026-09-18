@@ -5,6 +5,7 @@
 #  Usage:
 #    import pcresolve
 #    result = pcresolve.analyze_project("/path/to/project")
+#    result = pcresolve.analyze_project("/path/to/a.py")  # Select one source.
 #    for call in result.all_api_calls:
 #        print(f"{call.expression} -> {call.top_library}")
 
