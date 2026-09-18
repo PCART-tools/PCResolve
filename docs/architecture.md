@@ -130,6 +130,10 @@ Compatibility choices remain explicit and tested:
   a separate behavior change, not part of this extraction.
 - Flow retains ordered import-root selection and file-directory fallback.
   Import roots never discover or authorize additional source files.
+- The CLI normalizes a positional flow source file or a file path read from
+  stdin to FlowAnalyzer's existing single-item `source_files` input. This is
+  the same source-selection path as `--source-file`; it does not change the
+  analyzer API, module policy, source snapshot, or `flow-0.2` schema.
 - `ModuleMapper` preserves its mutable compatibility lookups and scan order.
   Its private index describes the current scan; existing cumulative lookup
   behavior across rescans remains compatibility behavior and must not be

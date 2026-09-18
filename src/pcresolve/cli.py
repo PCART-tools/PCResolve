@@ -88,28 +88,37 @@ def _print_summary(result, top=20):
 #  @param result ProjectAnalysis result.
 #  @param quiet Show only error diagnostics.
 #  @param verbose Include the number of skipped modules.
-def _print_diagnostics(result, quiet=False, verbose=False):
+#  @param leading_newline Separate diagnostics from preceding text output.
+def _print_diagnostics(result, quiet=False, verbose=False, leading_newline=True):
     diagnostics = [d for d in result.diagnostics if not quiet or d.severity == "error"]
+    printed = False
     if diagnostics:
         if quiet:
-            print("Diagnostics (%d errors):" % len(diagnostics))
+            print(("\n" if leading_newline else "") +
+                  "Diagnostics (%d errors):" % len(diagnostics))
         else:
-            print("\nDiagnostics")
+            print(("\n" if leading_newline else "") + "Diagnostics")
         for d in diagnostics:
             loc = " (L%d:C%d)" % (d.lineno, d.col_offset) if d.lineno else ""
             print("  [%s] %s %s%s: %s" % (
                 d.severity.upper(), d.code, d.file_path, loc, d.message))
+        printed = True
     if verbose and result.diagnostics:
-        print("\n%d file(s) skipped." % result.stats.get("skipped_modules", 0))
+        print(("\n" if leading_newline or printed else "") +
+              "%d file(s) skipped." % result.stats.get("skipped_modules", 0))
+        printed = True
+    return printed
 
 
 ## Print library usage with a limit on displayed libraries.
 #  @param result ProjectAnalysis result.
 #  @param top Maximum libraries to list (0 = unlimited).
-def _print_usage_summary(result, top=20):
+#  @param leading_newline Separate this view from preceding text output.
+#  @return True if a summary was printed.
+def _print_usage_summary(result, top=20, leading_newline=True):
     if not result.library_usage:
-        return
-    print("\nLibrary Usage Summary:")
+        return False
+    print(("\n" if leading_newline else "") + "Library Usage Summary:")
     items = sorted(result.library_usage.items())
     if top > 0:
         items = items[:top]
@@ -120,14 +129,15 @@ def _print_usage_summary(result, top=20):
         print("  symbols: %d" % u.symbol_count)
         if u.imports:
             print("  imports: %s" % ", ".join(u.imports))
+    return True
 
 
 def _print_explain_library(result, lib, top=20):
     v = build_explain_library_view(result, lib, top=top)
-    if not v:
-        print("Library not found: %s" % lib, file=sys.stderr)
-        return
     print("Library: %s" % lib)
+    if not v:
+        print("No matches found for library: %s" % lib)
+        return
     print("API calls: %d" % v["api_call_count"])
     print("Symbols: %d" % v["symbol_count"])
     print("Files: %d" % len(v["files"]))
@@ -242,7 +252,52 @@ def _validate_output_options(parser, args):
             parser.error("--usage-summary cannot be combined with explain output")
     if args.debug_dump and args.quiet:
         parser.error("--quiet cannot be combined with --debug-dump")
+    if args.top is not None:
+        if json_flags:
+            parser.error("--top cannot be combined with %s" % json_flags[0])
+        if args.debug_dump and not args.usage_summary:
+            parser.error("--top cannot be combined with --debug-dump")
     return json_mode, explain_mode
+
+
+## Resolve the positional or stdin-selected input path.
+#  @param parser ArgumentParser used to report invalid combinations.
+#  @param args Parsed CLI options.
+#  @return Selected path, or None when explicit value-flow sources may be used.
+def _resolve_input_path(parser, args):
+    if args.stdin and args.project_root:
+        parser.error("Specify either an input path or --stdin")
+    if args.stdin and args.source_file:
+        parser.error("Specify either --stdin or one or more --source-file paths")
+    if not args.stdin:
+        return args.project_root
+    path = sys.stdin.readline().strip()
+    if not path:
+        parser.error("--stdin did not provide an input path")
+    return path
+
+
+## Validate value-flow-only arguments that do not depend on input contents.
+#  @param parser ArgumentParser used to report invalid combinations.
+#  @param args Parsed CLI options.
+def _validate_value_flow_options(parser, args):
+    if (args.json_summary or args.json_full or args.json_stable or args.debug_dump
+            or args.verbose or args.strict or args.usage_summary or args.quiet
+            or any(value is not None for value in
+                   (args.explain_library, args.explain_symbol, args.explain_call))
+            or args.top is not None):
+        parser.error('Ownership output options cannot be combined with --value-flow; use --json.')
+    if not args.entry or args.entry.count(':') != 1:
+        parser.error('--value-flow requires --entry MODULE:QUALNAME')
+    module, qualname = args.entry.split(':')
+    if not module or not qualname or not all(
+            part.isidentifier() for part in (module + '.' + qualname).split('.')):
+        parser.error('--entry must be MODULE:QUALNAME with dotted Python identifiers')
+    values = [value for value in
+              (args.depth, args.max_functions, args.max_call_contexts)
+              if value is not None]
+    if values and min(values) < 1:
+        parser.error('Depth and budgets must be positive integers')
 
 
 def _flow_text(result):
@@ -276,25 +331,26 @@ def _flow_text(result):
     return '\n'.join(lines)
 
 
-def _run_value_flow(parser, args, project_root):
+def _run_value_flow(parser, args, input_path):
     from .flow import FlowAnalyzer, FunctionRef
 
-    if (args.json_summary or args.json_full or args.json_stable or args.debug_dump
-            or args.verbose or args.strict or args.usage_summary or args.quiet
-            or any(value is not None for value in
-                   (args.explain_library, args.explain_symbol, args.explain_call))
-            or args.top != 20):
-        parser.error('Ownership output options cannot be combined with --value-flow; use --json.')
-    if not args.entry or args.entry.count(':') != 1:
-        parser.error('--value-flow requires --entry MODULE:QUALNAME')
     module, qualname = args.entry.split(':')
-    if not module or not qualname or not all(p.isidentifier() for p in (module + '.' + qualname).split('.')):
-        parser.error('--entry must be MODULE:QUALNAME with dotted Python identifiers')
-    if bool(project_root) == bool(args.source_file):
-        parser.error('Specify either project_root or one or more --source-file paths')
-    if project_root and not os.path.isdir(project_root):
-        parser.error('Project root is not a directory: %s' % project_root)
-    for path in args.source_file or []:
+    if input_path and args.source_file:
+        parser.error('Specify either an input path or one or more --source-file paths')
+    if not input_path and not args.source_file:
+        parser.error('Specify an input path or one or more --source-file paths')
+    project_root = None
+    source_files = args.source_file
+    if input_path:
+        if os.path.isdir(input_path):
+            project_root = input_path
+        elif os.path.isfile(input_path) and input_path.endswith(('.py', '.pyi')):
+            source_files = [input_path]
+        elif not os.path.exists(input_path):
+            parser.error('%s does not exist' % input_path)
+        else:
+            parser.error('input must be a directory or a .py/.pyi file: %s' % input_path)
+    for path in source_files or []:
         if not os.path.isfile(path) or not path.endswith(('.py', '.pyi')):
             parser.error('Source must be an existing .py or .pyi file: %s' % path)
     for root in args.import_root or []:
@@ -303,11 +359,9 @@ def _run_value_flow(parser, args, project_root):
     depth = args.depth if args.depth is not None else 1
     functions = args.max_functions if args.max_functions is not None else 500
     calls = args.max_call_contexts if args.max_call_contexts is not None else 2000
-    if min(depth, functions, calls) < 1:
-        parser.error('Depth and budgets must be positive integers')
     try:
         analyzer = FlowAnalyzer(project_root=project_root,
-                                source_files=args.source_file, import_roots=args.import_root)
+                                source_files=source_files, import_roots=args.import_root)
         result = analyzer.analyze(FunctionRef(module=module, qualname=qualname),
                                   max_depth=depth, max_functions=functions,
                                   max_call_contexts=calls)
@@ -324,13 +378,14 @@ def _run_value_flow(parser, args, project_root):
 ## Run ownership analysis or the opt-in experimental value-flow CLI.
 def main():
     parser = argparse.ArgumentParser(
+        allow_abbrev=False,
         description=(
             "Classify Python API call ownership and trace library usage "
             "provenance."
         )
     )
-    parser.add_argument("project_root", nargs="?", default=None,
-                        help="Path to a project directory; ownership also accepts a .py/.pyi file.")
+    parser.add_argument("project_root", nargs="?", default=None, metavar="path",
+                        help="Project directory or one .py/.pyi source file.")
     parser.add_argument("--json", action="store_true",
                         help="Full provenance JSON, or flow JSON with --value-flow.")
     parser.add_argument("--json-summary", action="store_true",
@@ -342,17 +397,17 @@ def main():
     parser.add_argument("--debug-dump", action="store_true",
                         help="Full text output (old default, for debugging).")
     parser.add_argument("--stdin", action="store_true",
-                        help="Read the input path from stdin.")
+                        help="Read the input path from stdin instead of the positional path.")
     parser.add_argument("--verbose", action="store_true",
-                        help="Print diagnostics in text/explain mode and show the skipped-file count.")
+                        help="Include diagnostics in debug/explain output and show the skipped-file count.")
     parser.add_argument("--strict", action="store_true",
-                        help="Exit non-zero when error diagnostics are present.")
+                        help="Exit non-zero for ownership error diagnostics; display them in text modes.")
     parser.add_argument("--usage-summary", action="store_true",
                         help="Print library usage summary in text mode.")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress summary and warning diagnostics; combine with --usage-summary for library usage.")
-    parser.add_argument("--top", type=int, default=20,
-                        help="Limit displayed libraries, explain calls/symbols, and summary file details (0 = unlimited). Default: 20.")
+    parser.add_argument("--top", type=int, default=None,
+                        help="Limit ownership summaries and explain lists (0 = unlimited; default 20).")
     parser.add_argument("--explain-library", default=None,
                         help="Explain one library usage.")
     parser.add_argument("--explain-symbol", default=None,
@@ -362,51 +417,53 @@ def main():
     flow = parser.add_argument_group('experimental value flow')
     flow.add_argument('--value-flow', action='store_true', help='Analyze parameter and return value flows.')
     flow.add_argument('--entry', help='Entry function as MODULE:QUALNAME (value flow only).')
-    flow.add_argument('--source-file', action='append', help='Explicit Python source file; repeat instead of project_root.')
+    flow.add_argument('--source-file', action='append', help='Explicit Python source file; repeat instead of the input path.')
     flow.add_argument('--import-root', action='append', help='Module mapping root; repeat as needed (does not add sources).')
     flow.add_argument('--depth', type=int, help='Call-edge depth, default 1 (value flow only).')
     flow.add_argument('--max-functions', type=int, help='Function summary budget, default 500.')
     flow.add_argument('--max-call-contexts', type=int, help='Collected call-site budget, default 2000.')
     flow.add_argument('--output', help='Write flow output to a UTF-8 file instead of stdout; overwrites existing file.')
     args = parser.parse_args()
-    if args.top < 0:
+    if args.top is not None and args.top < 0:
         parser.error("--top must be a non-negative integer (0 = unlimited)")
-
-    project_root = args.project_root
-    if args.stdin:
-        project_root = sys.stdin.readline().strip()
-
     if args.value_flow:
-        _run_value_flow(parser, args, project_root)
+        _validate_value_flow_options(parser, args)
+        json_mode = False
+        explain_mode = False
+    else:
+        if any(value is not None for value in (args.entry, args.source_file, args.import_root,
+               args.depth, args.max_functions, args.max_call_contexts, args.output)):
+            parser.error('Value-flow options require --value-flow')
+        json_mode, explain_mode = _validate_output_options(parser, args)
+        args.top = 20 if args.top is None else args.top
+    input_path = _resolve_input_path(parser, args)
+    if args.value_flow:
+        _run_value_flow(parser, args, input_path)
         return
-    if any(value is not None for value in (args.entry, args.source_file, args.import_root,
-           args.depth, args.max_functions, args.max_call_contexts, args.output)):
-        parser.error('Value-flow options require --value-flow')
-    json_mode, explain_mode = _validate_output_options(parser, args)
 
-    if not project_root:
-        parser.print_help()
-        sys.exit(1)
+    if not input_path:
+        parser.error('an input path is required')
 
-    if not os.path.exists(project_root):
-        print("Error: %s does not exist." % project_root, file=sys.stderr)
-        sys.exit(1)
+    if not os.path.exists(input_path):
+        parser.error('%s does not exist' % input_path)
 
-    if not (os.path.isdir(project_root)
-            or (os.path.isfile(project_root) and project_root.endswith(('.py', '.pyi')))):
-        print("Error: input must be a directory or a .py/.pyi file: %s" % project_root,
-              file=sys.stderr)
-        sys.exit(1)
+    if not (os.path.isdir(input_path)
+            or (os.path.isfile(input_path) and input_path.endswith(('.py', '.pyi')))):
+        parser.error('input must be a directory or a .py/.pyi file: %s' % input_path)
 
-    result = analyze_project(project_root)
+    result = analyze_project(input_path)
 
     # ── explain modes ────────────────────────────────────────────────
+    text_printed = False
     if args.explain_library:
         _print_explain_library(result, args.explain_library, top=args.top)
+        text_printed = True
     elif args.explain_symbol:
         _print_explain_symbol(result, args.explain_symbol, top=args.top)
+        text_printed = True
     elif args.explain_call:
         _print_explain_call(result, args.explain_call, top=args.top)
+        text_printed = True
 
     # ── JSON modes ───────────────────────────────────────────────────
     elif args.json_summary:
@@ -419,13 +476,18 @@ def main():
     else:
         if args.debug_dump:
             _print_debug_dump(result)
+            text_printed = True
         elif not args.quiet:
             _print_summary(result, top=args.top)
+            text_printed = True
     if not json_mode:
-        if args.verbose or not (args.debug_dump or explain_mode):
-            _print_diagnostics(result, quiet=args.quiet, verbose=args.verbose)
+        has_errors = any(d.severity == "error" for d in result.diagnostics)
+        if args.verbose or (args.strict and has_errors) or not (args.debug_dump or explain_mode):
+            text_printed = (_print_diagnostics(
+                result, quiet=args.quiet, verbose=args.verbose,
+                leading_newline=text_printed) or text_printed)
         if args.usage_summary:
-            _print_usage_summary(result, top=args.top)
+            _print_usage_summary(result, top=args.top, leading_newline=text_printed)
 
     if args.strict:
         for d in result.diagnostics:

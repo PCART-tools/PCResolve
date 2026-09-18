@@ -57,10 +57,13 @@ To analyze explicit parameter and return dependencies from one entry function:
 
 ```bash
 pcresolve /path/to/project --value-flow --entry package.module:function --depth 2 --json
+pcresolve /path/to/module.py --value-flow --entry module:function --depth 2 --json
 ```
 
-For explicit files in value-flow mode, use `--source-file`; its positional
-input remains a project directory.
+The value-flow positional input accepts a project directory or one `.py`/`.pyi`
+file. A file selects only that source and uses its basename as the module name
+unless `--import-root` supplies a package root. Use repeated `--source-file`
+options when selecting multiple explicit files.
 
 ## Usage
 
@@ -87,14 +90,21 @@ Choose one output mode: `--json`, `--json-summary`, `--debug-dump`, or one
 errors. JSON output rejects the text controls `--verbose`, `--quiet`, and
 `--usage-summary`. Explain output accepts `--verbose` to include diagnostics;
 `--quiet` and `--usage-summary` are summary controls. `--debug-dump` also
-rejects `--quiet`.
+rejects `--quiet`. Long options require their complete spelling; abbreviations
+such as `--js` and `--json-f` are rejected.
 
 `--top N` requires a non-negative integer; `0` means unlimited. It limits
 libraries in text and usage summaries, calls and symbols in explain output,
 and per-library file details in summary JSON. Counts always cover the complete
-analysis. Full JSON and the debug dump retain all facts. Diagnostics appear
-once; `--quiet --verbose` shows only error diagnostics and the skipped-file
-count when diagnostics are present.
+analysis. Full JSON and the debug dump retain all facts, so `--top` is rejected
+with those modes unless it applies to a usage summary appended to the debug
+dump. Diagnostics appear once; `--quiet --verbose` shows only error diagnostics
+and the skipped-file count when diagnostics are present. `--strict` makes the
+causing error diagnostics visible in every text mode.
+
+Use either a positional input path or `--stdin`; providing both is an error.
+In value-flow mode, `--stdin` also conflicts with `--source-file`. Missing and
+unsupported inputs are argument errors and exit with status 2.
 
 ### Python API
 

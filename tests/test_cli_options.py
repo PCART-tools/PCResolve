@@ -23,10 +23,13 @@ OUTPUT_MODES = [
 ]
 
 
-def invoke(path, *options):
+def invoke(path, *options, stdin=None):
+    command = [sys.executable, '-X', 'utf8', '-m', 'pcresolve']
+    if path is not None:
+        command.append(str(path))
+    command.extend(options)
     return subprocess.run(
-        [sys.executable, '-X', 'utf8', '-m', 'pcresolve', str(path), *options],
-        capture_output=True, text=True, encoding='utf-8',
+        command, input=stdin, capture_output=True, text=True, encoding='utf-8',
     )
 
 
@@ -80,6 +83,70 @@ def test_debug_dump_rejects_quiet():
     assert '--quiet' in run.stderr
 
 
+@pytest.mark.parametrize('option', [
+    '--j', '--js', '--json-f', '--json-st', '--deb', '--explain-c', '--source-f',
+])
+def test_long_options_cannot_be_abbreviated(option):
+    run = invoke(FIXTURE, option)
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert 'unrecognized arguments: %s' % option in run.stderr
+    assert '--json-full' not in run.stderr
+    assert '--json-stable' not in run.stderr
+
+
+def test_stdin_conflicts_with_positional_input():
+    run = invoke(FIXTURE, '--stdin', stdin=str(BAD_FIXTURE) + '\n')
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert 'Specify either an input path or --stdin' in run.stderr
+
+
+def test_output_conflicts_are_validated_before_reading_stdin():
+    run = invoke(None, '--stdin', '--json', '--json-summary', stdin='')
+    assert run.returncode == 2
+    assert 'Output modes are mutually exclusive' in run.stderr
+    assert '--stdin did not provide' not in run.stderr
+
+
+def test_empty_stdin_is_an_input_error():
+    run = invoke(None, '--stdin', stdin='')
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert '--stdin did not provide an input path' in run.stderr
+
+
+def test_stdin_accepts_single_file_input():
+    run = invoke(None, '--stdin', '--json', stdin=str(FIXTURE / 'a.py') + '\n')
+    assert run.returncode == 0, run.stderr
+    result = json.loads(run.stdout)
+    assert [entry['file_path'] for entry in result['files']] == ['a.py']
+
+
+def test_missing_positional_input_is_an_argument_error():
+    run = invoke(None)
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert 'an input path is required' in run.stderr
+
+
+def test_missing_path_is_an_argument_error(tmp_path):
+    missing = tmp_path / 'missing.py'
+    run = invoke(missing)
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert '%s does not exist' % missing in run.stderr
+
+
+def test_unsupported_positional_file_is_an_argument_error(tmp_path):
+    source = tmp_path / 'source.txt'
+    source.write_text('pass\n', encoding='utf-8')
+    run = invoke(source)
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert 'input must be a directory or a .py/.pyi file' in run.stderr
+
+
 @pytest.mark.parametrize('flag', ['--explain-library', '--explain-symbol', '--explain-call'])
 @pytest.mark.parametrize('query', ['', '   '])
 def test_empty_explain_queries_are_errors(flag, query):
@@ -97,6 +164,22 @@ def test_negative_top_is_an_error(options):
     assert '--top' in run.stderr
 
 
+@pytest.mark.parametrize('mode', [['--json'], ['--debug-dump']])
+def test_top_is_rejected_when_selected_output_cannot_apply_it(mode):
+    run = invoke(FIXTURE, *mode, '--top', '20')
+    assert run.returncode == 2
+    assert run.stdout == ''
+    assert '--top cannot be combined with %s' % mode[0] in run.stderr
+
+
+def test_top_can_limit_usage_appended_to_debug_dump():
+    run = invoke(FIXTURE, '--debug-dump', '--usage-summary', '--top', '1')
+    assert run.returncode == 0, run.stderr
+    usage = run.stdout.split('Library Usage Summary:', 1)[1]
+    displayed = [line for line in usage.splitlines() if line in ('json', 'pathlib', 'requests')]
+    assert displayed == ['json']
+
+
 @pytest.mark.parametrize('top, expected', [
     ('1', ['json']), ('2', ['json', 'pathlib']),
     ('0', ['json', 'pathlib', 'requests']),
@@ -108,6 +191,14 @@ def test_usage_summary_honors_top_and_preserves_counts(top, expected):
     assert displayed == expected
     assert '  files: 2' in run.stdout
     assert '  api calls: 2' in run.stdout
+    assert not run.stdout.startswith('\n')
+
+
+def test_missing_library_query_matches_other_explain_modes():
+    run = invoke(FIXTURE, '--explain-library', 'missing')
+    assert run.returncode == 0
+    assert run.stderr == ''
+    assert run.stdout == 'Library: missing\nNo matches found for library: missing\n'
 
 
 @pytest.mark.parametrize('options', [['--verbose'], ['--quiet', '--verbose']])
@@ -141,6 +232,7 @@ def test_diagnostics_are_printed_once_and_quiet_filters_warnings(monkeypatch, ca
     if '--verbose' in options:
         assert '1 file(s) skipped.' in output
         assert '2 file(s) skipped.' not in output
+    assert not output.startswith('\n')
 
 
 @pytest.mark.parametrize('mode', OUTPUT_MODES[:2])
@@ -148,3 +240,12 @@ def test_strict_json_stays_machine_readable(mode):
     run = invoke(BAD_FIXTURE, *mode, '--strict')
     assert run.returncode == 1
     assert any(d['severity'] == 'error' for d in json.loads(run.stdout)['diagnostics'])
+
+
+@pytest.mark.parametrize('mode', [
+    ['--debug-dump'], ['--explain-symbol', 'missing'], ['--explain-call', 'missing'],
+])
+def test_strict_text_modes_show_the_error_that_caused_failure(mode):
+    run = invoke(BAD_FIXTURE, *mode, '--strict')
+    assert run.returncode == 1
+    assert run.stdout.count('[ERROR] SYNTAX_ERROR') == 1
