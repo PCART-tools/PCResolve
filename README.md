@@ -76,6 +76,26 @@ pcresolve /path/to/project --explain-call "np.array"
 pcresolve /path/to/project --explain-symbol df
 ```
 
+`--explain-call NAME` matches a callable's name or resolved path, using exact
+names or dotted path suffixes. For example, `Series` selects `Series(...)`,
+`pd.Series(...)`, and aliases whose resolved path ends in `.Series`. Arguments,
+string contents, partial names such as `ABCSeries`, and methods such as
+`Series.to_numpy(...)` do not match that query. Matching is case-sensitive.
+
+Choose one output mode: `--json`, `--json-summary`, `--debug-dump`, or one
+`--explain-*` option. Conflicting modes and empty explain queries are CLI
+errors. JSON output rejects the text controls `--verbose`, `--quiet`, and
+`--usage-summary`. Explain output accepts `--verbose` to include diagnostics;
+`--quiet` and `--usage-summary` are summary controls. `--debug-dump` also
+rejects `--quiet`.
+
+`--top N` requires a non-negative integer; `0` means unlimited. It limits
+libraries in text and usage summaries, calls and symbols in explain output,
+and per-library file details in summary JSON. Counts always cover the complete
+analysis. Full JSON and the debug dump retain all facts. Diagnostics appear
+once; `--quiet --verbose` shows only error diagnostics and the skipped-file
+count when diagnostics are present.
+
 ### Python API
 
 ```python

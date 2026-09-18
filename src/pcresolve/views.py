@@ -172,23 +172,23 @@ def build_explain_symbol_view(result, symbol, top=20):
 ## Build an explain call view.
 #
 #  @param result ProjectAnalysis result.
-#  @param query Substring to search in expression/func_name/resolved_func.
+#  @param query Exact callable name or dotted path suffix in func_name/resolved_func.
 #  @param top Maximum matches (0 = unlimited).
 #  @return Dict with matches list.
 def build_explain_call_view(result, query, top=20):
     matches = []
     for f in result.files:
         for c in f.api_calls:
-            if (query in c.expression or
-                query in c.func_name or
-                query in c.resolved_func):
+            if query and any(
+                    name == query or name.endswith('.' + query)
+                    for name in (c.func_name, c.resolved_func)):
                 matches.append(c)
+    count = len(matches)
     if top > 0:
         matches = matches[:top]
     return {
         "query": query,
-        "count": len([c for f in result.files for c in f.api_calls
-                       if (query in c.expression or query in c.func_name or query in c.resolved_func)]),
+        "count": count,
         "matches": [_full_api_call(c, result.project_root) for c in matches],
     }
 

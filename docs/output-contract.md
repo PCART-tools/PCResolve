@@ -25,7 +25,32 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 - `--json-full` and `--json-stable` are hidden aliases for `--json`.
 - `--json-summary` is the recommended CI format.
 - `--strict` exits non-zero when error diagnostics are present.
-- `--verbose`, `--usage-summary`, `--quiet`, and `--top` control text output.
+- Choose one output mode: full JSON (`--json` or its hidden aliases),
+  `--json-summary`, `--debug-dump`, or one `--explain-*` option. Conflicting
+  modes exit 2 with an argument error. Combining full JSON aliases is allowed
+  because they select the same mode.
+- JSON output rejects `--verbose`, `--usage-summary`, and `--quiet`.
+  Explain output rejects `--usage-summary` and `--quiet`; `--debug-dump`
+  rejects `--quiet`. These combinations exit 2 instead of ignoring options.
+- Text diagnostics are printed once. `--verbose` also includes diagnostics
+  in debug/explain output and reports `stats.skipped_modules` when diagnostics
+  are present. `--quiet` suppresses the summary and filters diagnostics to
+  errors, including when combined with `--verbose`. `--usage-summary` can
+  include library usage in quiet mode.
+- `--top N` requires a non-negative integer (default 20, `0` means unlimited).
+  It limits libraries in the text and usage summaries, calls and symbols in
+  explain output, and per-library `files` lists in summary JSON. Total counts
+  remain unchanged. Full JSON, debug facts, diagnostics, import lists, and
+  per-file statistics in explain-library output are not truncated.
+- Explain queries must contain a non-whitespace name; empty queries exit 2.
+- `--explain-call NAME` matches `func_name` or `resolved_func` by exact name
+  or a dotted path suffix at a name boundary. Matching is case-sensitive and
+  excludes call arguments and string contents. `Series` matches `Series`,
+  `pd.Series`, and aliases resolved to `pandas.core.series.Series`; it does not
+  match `ABCSeries`, `SeriesExtra`, or `Series.to_numpy`. Qualified queries
+  such as `np.array`, `pandas.core.series.Series`, and `core.series.Series`
+  select matching callable paths. The reported count includes all matches
+  before the `--top` display limit is applied.
 - Ownership accepts a project directory or one existing `.py`/`.pyi` file,
   using relative or absolute paths. File mode reads only that source; it does
   not discover or follow sibling sources. Use directory mode for cross-file
