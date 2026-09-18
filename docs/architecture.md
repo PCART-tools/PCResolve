@@ -29,7 +29,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Layer | Module | Input | Output |
 |-------|--------|-------|--------|
 | Scan | `scanner.py` | Project root path | List of `.py`/`.pyi` files (excluding venv) |
-| Module map | `module_mapper.py` | File list | File path ↔ dotted module name |
+| Module map | `module_mapper.py` | Project directory or explicit source file | File path ↔ dotted module name |
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
@@ -323,6 +323,15 @@ does not establish complete static-analysis precision.
 ### Scanner → Project file list
 - `scanner.py` produces a list of absolute file paths.
 - `module_mapper.py` maps each file to a dotted module name (e.g., `pkg/sub.py` → `pkg.sub`).
+- For an explicit ownership source-file input, `module_mapper.py` indexes only
+  that file and bypasses directory scanning. Its mapping root is the parent
+  directory, lifted above enclosing regular packages to retain package names.
+  `cross_file.py` runs the same ownership pipeline and returns `ProjectAnalysis`
+  using that root; no sibling sources are added.
+- Source selection and module naming supply the analysis context. File and
+  directory inputs with the same source set and mapping root use identical
+  ownership semantics. Missing imported implementations limit both input
+  forms; file selection does not introduce a separate classification policy.
 
 ### Single-File Analysis (`single_file.py`)
 

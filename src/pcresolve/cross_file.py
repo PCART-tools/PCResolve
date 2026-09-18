@@ -209,11 +209,12 @@ def _make_api_call(c, deco_by):
 class ProjectAnalyzer:
     # ── pipeline ───────────────────────────────────────────────────────
 
-    ## Initialize the analyzer for a given project root.
-    #  @param project_root Absolute path to the project root directory.
+    ## Initialize the analyzer for a project directory or one Python source file.
+    #  @param project_root Path to the project directory or a .py/.pyi file.
     def __init__(self, project_root):
-        self.project_root = project_root
         self.module_mapper = ModuleMapper(project_root)
+        self.project_root = (self.module_mapper.project_root
+                             if os.path.isfile(project_root) else project_root)
         self._source_store = SourceStore()
         self.global_symbols = {}
         self.symbol_chains = {}
@@ -6649,17 +6650,11 @@ class ProjectAnalyzer:
         return "local"
 
 
-## Analyze an entire project and return structured results.
+## Analyze a project directory or one Python source file and return structured results.
 #
 #  Convenience function: creates a ProjectAnalyzer, runs analysis, and
 #  returns a ProjectAnalysis object.
-#  @param project_root Absolute path to the project root directory.
-#  @return ProjectAnalysis with all per-file and cross-file results.
-## Analyze an entire project and return structured results.
-#
-#  Convenience function: creates a ProjectAnalyzer, runs analysis, and
-#  returns a ProjectAnalysis object.
-#  @param project_root Absolute path to the project root directory.
+#  @param project_root Path to the project directory or a .py/.pyi file.
 #  @return ProjectAnalysis with all per-file and cross-file results.
 def analyze_project(project_root):
     analyzer = ProjectAnalyzer(project_root)

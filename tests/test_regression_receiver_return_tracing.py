@@ -73,9 +73,10 @@ def test_alias_import_factory():
 
 def test_create_app_call_is_local():
     """create_app() call itself is local (calling a local function)."""
-    r = analyze_project(os.path.join(_FIXTURE, "main_from_import.py"))
+    r = _analyze_subdir("main_from_import")
     app_calls = [c for c in r.all_api_calls
                  if c.func_name == "create_app"]
+    assert app_calls, "create_app() not collected"
     for c in app_calls:
         assert c.top_library == "local", \
             f"create_app() must be local, got {c.top_library}"

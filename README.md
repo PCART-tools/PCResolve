@@ -40,11 +40,27 @@ For machine-readable output:
 pcresolve /path/to/project --json
 ```
 
+To analyze just one Python source file:
+
+```bash
+pcresolve a.py
+pcresolve a.py --json
+```
+
+Ownership analysis accepts relative or absolute `.py` and `.pyi` paths. File
+mode analyzes only the selected file. Use a project directory when provenance
+needs to be traced across local imports. Both inputs use the same ownership
+rules; with the same source set and module mapping root, call classifications
+are the same.
+
 To analyze explicit parameter and return dependencies from one entry function:
 
 ```bash
 pcresolve /path/to/project --value-flow --entry package.module:function --depth 2 --json
 ```
+
+For explicit files in value-flow mode, use `--source-file`; its positional
+input remains a project directory.
 
 ## Usage
 
@@ -54,6 +70,7 @@ pcresolve /path/to/project --value-flow --entry package.module:function --depth 
 pcresolve /path/to/project                         # human-readable summary
 pcresolve /path/to/project --json                  # full provenance JSON
 pcresolve /path/to/project --json-summary          # compact JSON summary
+pcresolve /path/to/a.py --json                     # one file, full provenance JSON
 pcresolve /path/to/project --explain-library numpy
 pcresolve /path/to/project --explain-call "np.array"
 pcresolve /path/to/project --explain-symbol df
@@ -65,6 +82,7 @@ pcresolve /path/to/project --explain-symbol df
 from pcresolve import analyze_project
 
 result = analyze_project("/path/to/project")
+# Or select one source file: result = analyze_project("a.py")
 
 for call in result.all_api_calls:
     print(call.expression, "->", call.top_library)

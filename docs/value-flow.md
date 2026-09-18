@@ -2,7 +2,8 @@
 
 The `flow-0.2` contract is experimental. It is separate from the stable
 ownership output. `FlowAnalyzer` does not execute analyzed code or import its
-dependencies. Existing `analyze_project()` behavior is unchanged.
+dependencies. Value-flow analysis does not change ownership classification or
+its JSON contract.
 
 Ownership and value flow share internal source-span and signature facts, pure
 binding helpers, and source snapshot / module-index infrastructure. They retain
@@ -69,6 +70,10 @@ current working directory unless absolute. Use either the positional project
 directory or repeated `--source-file` options, not both. `--import-root` is
 repeatable and controls module naming only. With explicit files and no import
 root, module names default to each file's basename.
+
+Ownership mode also accepts a positional `.py`/`.pyi` file path. With
+`--value-flow`, select explicit files using `--source-file` as shown above;
+the positional input remains a project directory.
 
 | Option | Meaning |
 |--------|---------|

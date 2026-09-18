@@ -1,7 +1,7 @@
 ## @package pcresolve.module_mapper
 #  Provide bidirectional mapping between file paths and Python module names.
 #
-#  The ModuleMapper class scans a project directory and builds lookup
+#  The ModuleMapper class scans a project directory or selects one file and builds lookup
 #  dictionaries that convert absolute file paths to dotted module names
 #  (e.g. "pkg.sub.module") and vice versa.
 
@@ -12,23 +12,37 @@ from .source_snapshot import ModuleIndex, module_name_for_path, OWNERSHIP_MODULE
 
 ## Bidirectional file-path-to-module-name mapper.
 #
-#  Scans a project root, discovers all .py/.pyi files, and builds
+#  Scans a project root or selects one .py/.pyi file, and builds
 #  dictionaries for translating between file paths and Python module paths.
 class ModuleMapper:
-    ## Initialize the mapper for a given project root.
-    #  @param project_root The absolute path to the project root directory.
+    ## Initialize the mapper for a project directory or one Python source file.
+    #  @param project_root Path to the project directory or a .py/.pyi file.
     def __init__(self, project_root):
-        self.project_root = os.path.abspath(project_root)
+        path = os.path.abspath(project_root)
+        self._source_file = path if os.path.isfile(path) else None
+        self.project_root = path
+        if self._source_file:
+            if not path.endswith(('.py', '.pyi')):
+                raise ValueError('Source must be a .py or .pyi file: %s' % path)
+            self.project_root = os.path.dirname(path)
+            # Retain regular-package names without adding their other sources.
+            while (os.path.isfile(os.path.join(self.project_root, '__init__.py'))
+                   or os.path.isfile(os.path.join(self.project_root, '__init__.pyi'))):
+                parent = os.path.dirname(self.project_root)
+                if parent == self.project_root:
+                    break
+                self.project_root = parent
         self.file_to_module = {}
         self.module_to_file = {}
         self.package_modules = set()
         self._scanner = FileScanner()
         self._index = ModuleIndex.build((), [self.project_root], OWNERSHIP_MODULES)
 
-    ## Scan the project and build the file <-> module mapping.
+    ## Discover selected sources and build the file <-> module mapping.
     #  @return List of discovered .py/.pyi file paths.
     def scan_project(self):
-        py_files = self._scanner.scan(self.project_root)
+        py_files = ([self._source_file] if self._source_file
+                    else self._scanner.scan(self.project_root))
         py_files = [f for f in py_files if f.endswith('.py') or f.endswith('.pyi')]
         self._index = ModuleIndex.build(py_files, [self.project_root], OWNERSHIP_MODULES)
         for entry in self._index.entries:
