@@ -82,14 +82,44 @@ def _print_summary(result, top=20):
         for lib, u in items:
             print("  %-20s %d calls   %d symbols   %d files" % (
                 lib, u.api_call_count, u.symbol_count, len(u.files)))
-    if result.diagnostics:
-        print("\nDiagnostics")
-        for d in result.diagnostics:
-            loc = ""
-            if d.lineno:
-                loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
+
+
+## Print diagnostics once, respecting quiet mode.
+#  @param result ProjectAnalysis result.
+#  @param quiet Show only error diagnostics.
+#  @param verbose Include the number of skipped modules.
+def _print_diagnostics(result, quiet=False, verbose=False):
+    diagnostics = [d for d in result.diagnostics if not quiet or d.severity == "error"]
+    if diagnostics:
+        if quiet:
+            print("Diagnostics (%d errors):" % len(diagnostics))
+        else:
+            print("\nDiagnostics")
+        for d in diagnostics:
+            loc = " (L%d:C%d)" % (d.lineno, d.col_offset) if d.lineno else ""
             print("  [%s] %s %s%s: %s" % (
                 d.severity.upper(), d.code, d.file_path, loc, d.message))
+    if verbose and result.diagnostics:
+        print("\n%d file(s) skipped." % result.stats.get("skipped_modules", 0))
+
+
+## Print library usage with a limit on displayed libraries.
+#  @param result ProjectAnalysis result.
+#  @param top Maximum libraries to list (0 = unlimited).
+def _print_usage_summary(result, top=20):
+    if not result.library_usage:
+        return
+    print("\nLibrary Usage Summary:")
+    items = sorted(result.library_usage.items())
+    if top > 0:
+        items = items[:top]
+    for lib, u in items:
+        print("\n%s" % lib)
+        print("  files: %d" % len(u.files))
+        print("  api calls: %d" % u.api_call_count)
+        print("  symbols: %d" % u.symbol_count)
+        if u.imports:
+            print("  imports: %s" % ", ".join(u.imports))
 
 
 def _print_explain_library(result, lib, top=20):
@@ -178,6 +208,43 @@ def _print_json_full(result):
 
 # ── main ─────────────────────────────────────────────────────────────────
 
+## Validate ownership output options before analysis.
+#  @param parser ArgumentParser used to report invalid combinations.
+#  @param args Parsed CLI options.
+#  @return Pair indicating JSON and explain output modes.
+def _validate_output_options(parser, args):
+    json_flags = [flag for flag in ("--json", "--json-full", "--json-stable")
+                  if getattr(args, flag[2:].replace("-", "_"))]
+    modes = ["/".join(json_flags)] if json_flags else []
+    if args.json_summary:
+        modes.append("--json-summary")
+    if args.debug_dump:
+        modes.append("--debug-dump")
+    explain_flags = []
+    for flag in ("--explain-library", "--explain-symbol", "--explain-call"):
+        query = getattr(args, flag[2:].replace("-", "_"))
+        if query is not None:
+            if not query.strip():
+                parser.error("%s requires a non-empty name" % flag)
+            modes.append(flag)
+            explain_flags.append(flag)
+    if len(modes) > 1:
+        parser.error("Output modes are mutually exclusive: %s" % ", ".join(modes))
+    json_mode = bool(json_flags or args.json_summary)
+    explain_mode = bool(explain_flags)
+    for flag in ("--quiet", "--verbose", "--usage-summary"):
+        if getattr(args, flag[2:].replace("-", "_")) and json_mode:
+            parser.error("%s cannot be combined with JSON output" % flag)
+    if explain_mode:
+        if args.quiet:
+            parser.error("--quiet cannot be combined with explain output")
+        if args.usage_summary:
+            parser.error("--usage-summary cannot be combined with explain output")
+    if args.debug_dump and args.quiet:
+        parser.error("--quiet cannot be combined with --debug-dump")
+    return json_mode, explain_mode
+
+
 def _flow_text(result):
     lines = ['Value flow (experimental %s)' % result.schema_version,
              'Entry: %s:%s' % (result.entry.module, result.entry.qualname),
@@ -214,7 +281,8 @@ def _run_value_flow(parser, args, project_root):
 
     if (args.json_summary or args.json_full or args.json_stable or args.debug_dump
             or args.verbose or args.strict or args.usage_summary or args.quiet
-            or args.explain_library or args.explain_symbol or args.explain_call
+            or any(value is not None for value in
+                   (args.explain_library, args.explain_symbol, args.explain_call))
             or args.top != 20):
         parser.error('Ownership output options cannot be combined with --value-flow; use --json.')
     if not args.entry or args.entry.count(':') != 1:
@@ -276,21 +344,21 @@ def main():
     parser.add_argument("--stdin", action="store_true",
                         help="Read the input path from stdin.")
     parser.add_argument("--verbose", action="store_true",
-                        help="Print diagnostics in human-readable mode.")
+                        help="Print diagnostics in text/explain mode and show the skipped-file count.")
     parser.add_argument("--strict", action="store_true",
                         help="Exit non-zero when error diagnostics are present.")
     parser.add_argument("--usage-summary", action="store_true",
                         help="Print library usage summary in text mode.")
     parser.add_argument("--quiet", action="store_true",
-                        help="Suppress summary; show only error diagnostics and library usage.")
+                        help="Suppress summary and warning diagnostics; combine with --usage-summary for library usage.")
     parser.add_argument("--top", type=int, default=20,
-                        help="Max entries in lists (0 = unlimited). Default: 20.")
+                        help="Limit displayed libraries, explain calls/symbols, and summary file details (0 = unlimited). Default: 20.")
     parser.add_argument("--explain-library", default=None,
                         help="Explain one library usage.")
     parser.add_argument("--explain-symbol", default=None,
                         help="Explain one symbol's provenance.")
     parser.add_argument("--explain-call", default=None,
-                        help="Explain matching call expressions.")
+                        help="Explain calls by exact callable name or dotted path suffix.")
     flow = parser.add_argument_group('experimental value flow')
     flow.add_argument('--value-flow', action='store_true', help='Analyze parameter and return value flows.')
     flow.add_argument('--entry', help='Entry function as MODULE:QUALNAME (value flow only).')
@@ -301,6 +369,8 @@ def main():
     flow.add_argument('--max-call-contexts', type=int, help='Collected call-site budget, default 2000.')
     flow.add_argument('--output', help='Write flow output to a UTF-8 file instead of stdout; overwrites existing file.')
     args = parser.parse_args()
+    if args.top < 0:
+        parser.error("--top must be a non-negative integer (0 = unlimited)")
 
     project_root = args.project_root
     if args.stdin:
@@ -312,6 +382,7 @@ def main():
     if any(value is not None for value in (args.entry, args.source_file, args.import_root,
            args.depth, args.max_functions, args.max_call_contexts, args.output)):
         parser.error('Value-flow options require --value-flow')
+    json_mode, explain_mode = _validate_output_options(parser, args)
 
     if not project_root:
         parser.print_help()
@@ -350,34 +421,11 @@ def main():
             _print_debug_dump(result)
         elif not args.quiet:
             _print_summary(result, top=args.top)
-        if args.quiet:
-            diag_errors = [d for d in result.diagnostics if d.severity == "error"]
-            if diag_errors:
-                print("Diagnostics (%d errors):" % len(diag_errors))
-                for d in diag_errors:
-                    loc = ""
-                    if d.lineno:
-                        loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
-                    print("  [%s] %s %s%s: %s" % (
-                        d.severity.upper(), d.code, d.file_path, loc, d.message))
-        if args.usage_summary and result.library_usage:
-            print("\nLibrary Usage Summary:")
-            for lib, u in sorted(result.library_usage.items()):
-                print("\n%s" % lib)
-                print("  files: %d" % len(u.files))
-                print("  api calls: %d" % u.api_call_count)
-                print("  symbols: %d" % u.symbol_count)
-                if u.imports:
-                    print("  imports: %s" % ", ".join(u.imports))
-        if args.verbose and result.diagnostics:
-            print("\nDiagnostics:")
-            for d in result.diagnostics:
-                loc = ""
-                if d.lineno:
-                    loc = " (L%d:C%d)" % (d.lineno, d.col_offset)
-                print("  [%s] %s %s%s: %s" % (
-                    d.severity.upper(), d.code, d.file_path, loc, d.message))
-            print("\n%d file(s) skipped." % len(result.diagnostics))
+    if not json_mode:
+        if args.verbose or not (args.debug_dump or explain_mode):
+            _print_diagnostics(result, quiet=args.quiet, verbose=args.verbose)
+        if args.usage_summary:
+            _print_usage_summary(result, top=args.top)
 
     if args.strict:
         for d in result.diagnostics:
