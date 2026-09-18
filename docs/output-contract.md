@@ -12,6 +12,7 @@ pcresolve project --json           # full provenance JSON
 pcresolve project --json-summary   # compact summary JSON (CI)
 pcresolve a.py                     # one file, human summary
 pcresolve a.py --json              # one file, full provenance JSON
+pcresolve a.py --value-flow --entry a:function
 pcresolve project --explain-library numpy
 pcresolve project --explain-symbol x
 pcresolve project --explain-call "np.array"
@@ -22,9 +23,15 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 
 - Lexical scope analysis is the only supported scope semantics.
 - `--json` is the primary machine-consumption format.
-- `--json-full` and `--json-stable` are hidden aliases for `--json`.
+- `--json-full` and `--json-stable` are exact-spelling hidden compatibility
+  aliases for `--json`; `--json-stable` has been deprecated since 1.0.4.
 - `--json-summary` is the recommended CI format.
-- `--strict` exits non-zero when error diagnostics are present.
+- Long options do not accept abbreviations. A partial option such as `--js` or
+  `--json-f` exits 2 as unrecognized and does not expose hidden aliases through
+  ambiguous-option messages.
+- `--strict` exits non-zero when ownership error diagnostics are present. In
+  text, debug, and explain modes, the diagnostics causing that exit are shown
+  even without `--verbose`. JSON modes retain diagnostics in their payload.
 - Choose one output mode: full JSON (`--json` or its hidden aliases),
   `--json-summary`, `--debug-dump`, or one `--explain-*` option. Conflicting
   modes exit 2 with an argument error. Combining full JSON aliases is allowed
@@ -41,8 +48,12 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
   It limits libraries in the text and usage summaries, calls and symbols in
   explain output, and per-library `files` lists in summary JSON. Total counts
   remain unchanged. Full JSON, debug facts, diagnostics, import lists, and
-  per-file statistics in explain-library output are not truncated.
+  per-file statistics in explain-library output are not truncated. `--top` is
+  rejected with full JSON and with a debug dump that has no appended
+  `--usage-summary`, rather than being silently ignored.
 - Explain queries must contain a non-whitespace name; empty queries exit 2.
+- Explain queries with no matches complete successfully and report that result
+  on stdout consistently for libraries, symbols, and calls.
 - `--explain-call NAME` matches `func_name` or `resolved_func` by exact name
   or a dotted path suffix at a name boundary. Matching is case-sensitive and
   excludes call arguments and string contents. `Series` matches `Series`,
@@ -51,19 +62,23 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
   such as `np.array`, `pandas.core.series.Series`, and `core.series.Series`
   select matching callable paths. The reported count includes all matches
   before the `--top` display limit is applied.
-- Ownership accepts a project directory or one existing `.py`/`.pyi` file,
-  using relative or absolute paths. File mode reads only that source; it does
-  not discover or follow sibling sources. Use directory mode for cross-file
-  provenance.
-- Missing paths and unsupported file inputs exit non-zero with an error,
-  rather than producing a successful empty analysis.
+- Ownership and value-flow positional inputs accept a project directory or one
+  existing `.py`/`.pyi` file, using relative or absolute paths. File mode reads
+  only that source; it does not discover or follow sibling sources. Use
+  directory mode for cross-file analysis. Value flow also accepts repeated
+  `--source-file` options when an explicit multi-file source set is required.
+- Missing paths, missing positional ownership input, empty stdin, and
+  unsupported file inputs exit 2 as argument errors rather than producing a
+  successful empty analysis.
 - In file mode, the path-normalization root is the file's parent directory,
   or the directory above its outermost enclosing regular Python package
   (identified by `__init__.py` or `__init__.pyi`). This retains package module
   names, including for a selected `__init__.py`, without adding other sources.
   Ownership JSON keeps `schema_version="1.0"` and the same fields.
-- `--stdin` reads the input path from standard input. Value-flow mode still
-  requires a project directory or explicit `--source-file` options.
+- `--stdin` reads one directory or source-file input path from standard input.
+  It is an alternative to the positional path; using both is an error. In
+  value-flow mode it also conflicts with `--source-file`, so the selected input
+  source never depends on whether stdin happens to be empty.
 
 File and directory inputs use the same ownership semantics. Given the same
 analyzed source set and module mapping root, their call classifications are

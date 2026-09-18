@@ -10,9 +10,9 @@ ROOT = Path(__file__).parent / 'fixtures' / 'value_flow'
 MATRIX_CONTAINERS = Path(__file__).parent / 'fixtures' / 'value_flow_matrix' / 'containers'
 
 
-def invoke(*args):
+def invoke(*args, stdin=None):
     return subprocess.run([sys.executable, '-X', 'utf8', '-m', 'pcresolve', *map(str, args)],
-                          capture_output=True, text=True, encoding='utf-8')
+                          input=stdin, capture_output=True, text=True, encoding='utf-8')
 
 
 def test_project_flow_json_and_depth():
@@ -34,6 +34,62 @@ def test_explicit_sources_and_output_file(tmp_path):
     result = json.loads(output.read_text(encoding='utf-8'))
     assert len(result['inputs']['source_files']) == 2
     assert result['calls'][0]['target']['module'] == 'helper'
+
+
+def test_positional_file_matches_explicit_source_file():
+    positional = invoke(ROOT / 'main.py', '--value-flow', '--entry', 'main:entry', '--json')
+    explicit = invoke('--value-flow', '--source-file', ROOT / 'main.py',
+                      '--entry', 'main:entry', '--json')
+    assert positional.returncode == 0, positional.stderr
+    assert explicit.returncode == 0, explicit.stderr
+    assert json.loads(positional.stdout) == json.loads(explicit.stdout)
+
+
+def test_positional_file_uses_import_root_for_module_name():
+    run = invoke(ROOT / 'main.py', '--value-flow', '--import-root', ROOT.parent,
+                 '--entry', 'value_flow.main:entry', '--json')
+    assert run.returncode == 0, run.stderr
+    result = json.loads(run.stdout)
+    assert result['entry']['module'] == 'value_flow.main'
+    assert result['inputs']['import_roots'] == [str(ROOT.parent.resolve())]
+
+
+def test_stdin_file_matches_positional_file():
+    positional = invoke(ROOT / 'main.py', '--value-flow', '--entry', 'main:entry', '--json')
+    stdin_run = invoke('--stdin', '--value-flow', '--entry', 'main:entry', '--json',
+                       stdin=str(ROOT / 'main.py') + '\n')
+    assert stdin_run.returncode == 0, stdin_run.stderr
+    assert json.loads(stdin_run.stdout) == json.loads(positional.stdout)
+
+
+@pytest.mark.parametrize('stdin', ['', str(ROOT) + '\n'])
+def test_stdin_always_conflicts_with_explicit_source_files(stdin):
+    run = invoke('--stdin', '--value-flow', '--source-file', ROOT / 'main.py',
+                 '--entry', 'main:entry', stdin=stdin)
+    assert run.returncode == 2
+    assert 'Specify either --stdin or one or more --source-file paths' in run.stderr
+    assert 'FlowAnalyzer' not in run.stderr
+
+
+def test_stdin_conflicts_with_positional_flow_input():
+    run = invoke(ROOT, '--stdin', '--value-flow', '--entry', 'main:entry',
+                 stdin=str(ROOT) + '\n')
+    assert run.returncode == 2
+    assert 'Specify either an input path or --stdin' in run.stderr
+
+
+def test_flow_option_conflicts_are_validated_before_reading_stdin():
+    run = invoke('--stdin', '--value-flow', '--entry', 'main:entry', '--json-summary', stdin='')
+    assert run.returncode == 2
+    assert 'Ownership output options cannot be combined with --value-flow' in run.stderr
+    assert '--stdin did not provide' not in run.stderr
+
+
+def test_positional_file_conflicts_with_explicit_source_files():
+    run = invoke(ROOT / 'main.py', '--value-flow', '--source-file', ROOT / 'helper.py',
+                 '--entry', 'main:entry')
+    assert run.returncode == 2
+    assert 'Specify either an input path or one or more --source-file paths' in run.stderr
 
 
 def test_flow_text_has_flows_and_boundaries():
@@ -71,11 +127,25 @@ def test_missing_explicit_file_is_error():
     assert run.returncode == 2
 
 
+def test_unsupported_positional_flow_file_is_error(tmp_path):
+    source = tmp_path / 'main.txt'
+    source.write_text('def entry():\n    pass\n', encoding='utf-8')
+    run = invoke(source, '--value-flow', '--entry', 'main:entry')
+    assert run.returncode == 2
+    assert 'input must be a directory or a .py/.pyi file' in run.stderr
+
+
 def test_budget_is_forwarded():
     run = invoke(ROOT, '--value-flow', '--entry', 'main:deep', '--depth', 3,
                  '--max-functions', 1, '--max-call-contexts', 1, '--json')
     assert run.returncode == 0, run.stderr
     assert any(b['reason'] == 'budget_exceeded' for b in json.loads(run.stdout)['boundaries'])
+
+
+def test_explicit_default_top_is_rejected_in_flow_mode():
+    run = invoke(ROOT, '--value-flow', '--entry', 'main:entry', '--top', 20)
+    assert run.returncode == 2
+    assert '--top' in run.stderr
 
 
 def test_existing_ownership_json_still_works():

@@ -138,5 +138,5 @@ def test_invalid_file_input_fails(tmp_path, exists):
     run = _invoke(source, '--json')
     assert run.returncode != 0
     assert not run.stdout
-    assert 'Error:' in run.stderr
+    assert 'error:' in run.stderr
     assert 'Traceback' not in run.stderr
