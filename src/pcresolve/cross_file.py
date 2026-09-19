@@ -36,6 +36,7 @@ from .call_resolution import CallContext, DefinitionRecord, DefinitionIndex
 from .program_facts import (bind_parameter_sources, starred_item_source,
                             CONTEXT_BINDING, OWNERSHIP_BINDING)
 from .source_snapshot import SourceStore, OWNERSHIP_SOURCE
+from .ownership_model import OwnershipRun, ProjectSnapshot
 from .classification import classify_confidence, ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
@@ -165,6 +166,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.project_root = (self.module_mapper.project_root
                              if os.path.isfile(project_root) else project_root)
         self._source_store = SourceStore()
+        self._ownership_run = None
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
@@ -194,12 +196,18 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     #  @return ProjectAnalysis with all results.
     def analyze(self):
         self.module_mapper.scan_project()
-        all_modules = self.module_mapper.get_all_modules()
-        module_tracers = {}
-        diagnostics = []
+        all_modules = tuple(self.module_mapper.get_all_modules())
         paths = [self.module_mapper.get_file_path(module) for module in all_modules]
-        self._source_snapshot = self._source_store.snapshot(
+        sources = self._source_store.snapshot(
             [path for path in paths if path and os.path.exists(path)], OWNERSHIP_SOURCE)
+        run = OwnershipRun(ProjectSnapshot(all_modules, sources))
+        self._ownership_run = run
+        # Compatibility aliases remain while resolver methods migrate to the
+        # explicit run model in later behavior-preserving slices.
+        self._source_snapshot = run.snapshot.sources
+        self.project_cg = run.program.call_graph
+        module_tracers = run.program.module_tracers
+        diagnostics = run.diagnostics
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
@@ -244,15 +252,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                 file_path=file_path,
             )
             tracer.visit(document.tree)
-            module_tracers[module] = tracer
-
-        ## Aggregate per-module call-graph facts (Phase 7B-full PR1).
-        self.project_cg = ProjectCallGraph()
-        for module, tracer in module_tracers.items():
-            if (tracer.module_cg.functions or tracer.module_cg.classes
-                    or tracer.module_cg.edges
-                    or tracer.module_cg.iteration_bindings):
-                self.project_cg.modules[module] = tracer.module_cg
+            run.program.add_module(module, tracer)
 
         self._bind_bounded_local_call_results(module_tracers)
         self._bind_bounded_callback_map_results(module_tracers)

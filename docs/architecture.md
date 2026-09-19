@@ -36,6 +36,13 @@ binding maps, position identity, and append order.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
 same visitor instance and at the same point in traversal.
+Project orchestration now creates one explicit internal run in
+`ownership_model.py`: an immutable `ProjectSnapshot` fixes the ordered modules
+and source versions, `ProgramIndex` owns the per-module analyzers and project
+call graph, and `OwnershipRun` owns diagnostics for that invocation. Existing
+`_source_snapshot` and `project_cg` attributes remain compatibility aliases
+while resolver methods are migrated incrementally. These types are internal;
+they do not add a public session or change either output schema.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -44,12 +51,14 @@ Further extraction is staged rather than an all-at-once class move:
    binding timing, candidate priority, and recursion guards.
 2. Move coherent file-level shape, call-site, and definition collection and
    project-level result-binding passes behind explicit internal interfaces.
-3. Untangle the mutually recursive project resolution methods before moving
+3. Migrate project orchestration state from analyzer compatibility attributes
+   to `OwnershipRun` consumers without creating a second source of truth.
+4. Untangle the mutually recursive project resolution methods before moving
    them into a dedicated resolver. A resolver may retain semantic recursion,
    but modules must not form Python import cycles or gain hidden global state.
-4. Consider an internal per-run ownership state only after the component
-   boundaries are stable. No public `AnalysisSession` or generic ownership/flow
-   propagation engine is implied by this refactor.
+
+No public `AnalysisSession` or generic ownership/flow propagation engine is
+implied by this refactor.
 
 For each behavior-preserving slice, compare complete public-output fingerprints
 on the 42-project ownership corpus and the value-flow matrix with
@@ -72,6 +81,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_method_resolution.py
                                    single_file_call_collection.py
                                    single_file_assignment.py
+                                                      ownership_model.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
                                                       container_resolution.py
@@ -94,6 +104,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file call collection | `single_file_call_collection.py` | Call AST, lexical bindings, receiver evidence | Ordered API-call records and internal `CallEdge` facts |
 | Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
+| Ownership run state | `ownership_model.py` | Ordered modules and one `SourceSnapshot` | Internal `ProjectSnapshot`, `ProgramIndex`, and `OwnershipRun` |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
 | Container ownership | `container_resolution.py` | Item/iteration sources, returned-element facts, Python shapes | Conservative item and iterable owner candidates |
