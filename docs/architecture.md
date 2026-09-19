@@ -6,6 +6,43 @@ provenance. `all_api_calls` is the primary classification output.
 classifications. The experimental `FlowAnalyzer` separately exposes parameter,
 return, and effect evidence for downstream analyses.
 
+## Ownership module refactor (in progress)
+
+The stable ownership pipeline and the experimental value-flow adapter retain
+their separate state, policies, and public outputs. This refactor changes code
+organization only: `SingleFileAnalyzer` remains the AST visitor,
+`ProjectAnalyzer` remains the project orchestration entry point, and the
+documented constructors, `analyze_source()`, `analyze_project()`, JSON schemas,
+call inventory, evidence ordering, and conservative boundaries stay unchanged.
+
+The first extraction moves evidence-backed result contracts to
+`ownership_contracts.py` and proven builtin receiver rules to
+`builtin_ownership.py`. Both are ownership-only policy modules; neither belongs
+in the neutral program-fact layer or depends on an analyzer. The project
+analyzer still composes the single-file analyzer, but it now imports these
+shared ownership policies directly rather than through private names in
+`single_file.py`.
+
+Further extraction is staged rather than an all-at-once class move:
+
+1. Split large visitor and structured-source methods into smaller handlers
+   while preserving AST visitation order, call-position identity, mutable
+   binding timing, candidate priority, and recursion guards.
+2. Move coherent file-level shape, call-site, and definition collection and
+   project-level result-binding passes behind explicit internal interfaces.
+3. Untangle the mutually recursive project resolution methods before moving
+   them into a dedicated resolver. A resolver may retain semantic recursion,
+   but modules must not form Python import cycles or gain hidden global state.
+4. Consider an internal per-run ownership state only after the component
+   boundaries are stable. No public `AnalysisSession` or generic ownership/flow
+   propagation engine is implied by this refactor.
+
+For each behavior-preserving slice, compare complete public-output fingerprints
+on the 42-project ownership corpus and the value-flow matrix with
+`scripts/compare_analysis_baseline.py`, then run the focused tests, live
+ground-truth gate, strict value-flow matrix, and full test suite. A changed
+fingerprint is investigated rather than accepted by refreshing golden data.
+
 ## Pipeline Overview
 
 ```
@@ -16,6 +53,8 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    sources.py         library_usage.py
                                    ir.py              decorator_provenance.py
                                    types.py           call_graph.py
+                                   builtin_ownership.py
+                                   ownership_contracts.py
                                                       call_resolution.py
                                                       scope_facts.py
                                                       return_resolution.py
@@ -32,6 +71,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Module map | `module_mapper.py` | Project directory or explicit source file | File path ↔ dotted module name |
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
+| Ownership policy | `builtin_ownership.py`, `ownership_contracts.py` | Proven builtin shapes and verified import-backed result contracts | Conservative owner/shape rule lookups used by both ownership phases |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
 | Shared definition lookup | `call_resolution.py` | Adapter-collected definitions and call occurrences | Ordered candidate index and parent-linked call contexts |

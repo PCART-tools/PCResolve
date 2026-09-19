@@ -6,7 +6,6 @@
 #  their resolved primary owners and supporting provenance.
 
 import ast
-import builtins
 from dataclasses import replace
 from .mapping_facts import MappingFacts, bound_names as mapping_bound_names
 from .symbol_table import SymbolTable
@@ -23,94 +22,20 @@ from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
                        source_display, make_source_set)
 from .call_graph import (FunctionId, FunctionSummary, ClassSummary, CallEdge,
                          IterationBinding, ModuleCallGraph)
-
-## Python 2 builtins not present in Python 3's builtins module.
-_PY2_BUILTINS = frozenset({
-    "apply", "basestring", "buffer", "cmp", "coerce", "execfile",
-    "file", "intern", "long", "raw_input", "reduce", "reload",
-    "StandardError", "unichr", "unicode", "xrange",
-})
-
-## 1.0.5 P1: builtin container/type method names whose receiver is a
-#  Python-provided object even when the receiver variable is local.
-#  When a call like x.append(...) has a receiver tracing to "local"
-#  and the method name is in this set, the callable owner is python.
-## 1.0.5 P1: builtin container/type methods keyed by container kind.
-#  The container kind (list/dict/set/tuple/str) provides context so
-#  that method classification is safe from local-class name collisions.
-_BUILTIN_CONTAINER_METHODS = {
-    "list": frozenset([
-        "append", "extend", "insert", "remove", "pop", "clear",
-        "index", "count", "sort", "reverse", "copy", "__len__",
-    ]),
-    "dict": frozenset([
-        "get", "keys", "values", "items", "update", "pop",
-        "popitem", "clear", "copy", "__len__",
-    ]),
-    "set": frozenset([
-        "add", "remove", "discard", "pop", "clear", "copy",
-        "update", "difference", "intersection", "union",
-        "symmetric_difference", "issubset", "issuperset", "__len__",
-    ]),
-    "tuple": frozenset(["count", "index", "__len__"]),
-    "str": frozenset([
-        "strip", "rstrip", "lstrip", "split", "rsplit", "join",
-        "replace", "find", "rfind", "rindex", "startswith",
-        "endswith", "upper", "lower", "title", "capitalize",
-        "swapcase", "center", "ljust", "rjust", "encode", "zfill",
-        "format", "format_map",
-        "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
-        "isidentifier", "islower", "isnumeric", "isprintable",
-        "isspace", "istitle", "isupper", "__len__",
-    ]),
-}
-
-
-## Check if a name is a Python builtin (including Python 2 builtins).
-def _is_builtin(name):
-    return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
-
-
-## Return the runtime type corresponding to a proven PythonShape kind.
-#  @param kind Concrete builtin type or container kind.
-#  @return Builtin type object, or None for an unsupported shape.
-def _builtin_shape_type(kind):
-    if kind == "NoneType":
-        return type(None)
-    value = getattr(builtins, kind, None)
-    return value if isinstance(value, type) else None
-
-
-## Check whether a proven PythonShape exposes a callable attribute.
-#  This consults the Python builtin type itself instead of maintaining a
-#  method-name allowlist. Unknown receivers never reach this helper.
-#  @param kind Concrete builtin type or container kind.
-#  @param method Attribute name being called.
-#  @return True when the builtin type defines a callable attribute.
-def _has_builtin_shape_method(kind, method):
-    shape_type = _builtin_shape_type(kind)
-    return shape_type is not None and callable(getattr(shape_type, method, None))
-
-
-## Return an established builtin method's result shape.
-#  @param receiver Independently proven PythonShape, not an owner name.
-#  @param method Called attribute name.
-#  @return PythonShape or None without a result protocol.
-def _builtin_method_return_shape(receiver, method):
-    if not isinstance(receiver, PythonShape):
-        return None
-    if receiver.kind == "str":
-        if method in ("split", "rsplit", "splitlines"):
-            return PythonShape("list", "str")
-        if method in (
-                "strip", "rstrip", "lstrip", "replace", "upper", "lower",
-                "title", "capitalize", "swapcase", "center", "ljust",
-                "rjust", "zfill", "format", "format_map", "join"):
-            return PythonShape("str")
-    if method == "copy" and receiver.kind in ("list", "dict", "set"):
-        return receiver
-    return None
-
+from .ownership_contracts import (
+    _CONVERSION_METHOD_TARGETS, _CONVERSION_ATTRIBUTE_TARGETS,
+    _TYPE_GUARD_OWNER_CONTRACTS, _CALLBACK_PARAMETER_OWNER_CONTRACTS,
+    _BUILTIN_METHOD_RESULT_ITEM_KINDS, _RECEIVER_PRESERVE_UFUNCS,
+    _COMPARE_RESULT_METHODS, _match_result_owner,
+    _has_result_owner_contract, _match_attribute_result_owner,
+    _match_attribute_python_shape, _match_result_python_shape,
+    _is_verified_result_owner, _match_result_item_owner,
+    _match_iterator_element_owner, _match_iterator_element_shape,
+)
+from .builtin_ownership import (
+    _BUILTIN_CONTAINER_METHODS, _is_builtin, _builtin_shape_type,
+    _has_builtin_shape_method, _builtin_method_return_shape,
+)
 
 ## 1.0.5 P2: builtin return-object ownership semantics.
 #
@@ -355,251 +280,6 @@ def _container_item_kind(node):
     return None
 from .types import FileAnalysis, ApiCall
 
-# 1.0.5 P1: known conversion targets.  Method calls (to_numpy())
-# change the result type; bare attribute reads (values) also
-# change the result type.  Bare method references (df.to_numpy
-# without calling) are NOT conversions.
-_CONVERSION_METHOD_TARGETS = {
-    ("pandas", "to_numpy"): "numpy",
-}
-_CONVERSION_ATTRIBUTE_TARGETS = {
-    ("pandas", "values"): "numpy",
-}
-
-# Verified attribute-result contracts.  The receiver owner must already be
-# import-backed; matching an attribute name alone is never sufficient.
-_ATTRIBUTE_RESULT_OWNER_CONTRACTS = {
-    ("bs4", "text"): (
-        "python", "public-api:bs4.PageElement.text", PythonShape("str")),
-    ("requests", "text"): (
-        "python", "public-api:requests.Response.text", PythonShape("str")),
-    ("spacy", "text"): (
-        "python", "public-api:spacy Token/Span/Doc.text",
-        PythonShape("str")),
-    ("xml", "text"): (
-        "python", "python-stdlib:xml.etree.ElementTree.Element.text",
-        PythonShape("str")),
-}
-
-# Verified result-object contracts for import-backed calls.  The callable keeps
-# its own library owner; each contract applies only to the object returned
-# across an assignment or chained-call boundary.  Values contain
-# (result_owner, evidence).  Evidence points to a checked Python/stdlib
-# contract, a public API contract, or a committed runtime probe.
-_RESULT_OWNER_CONTRACTS = {
-    ("Box2D", "CreateDynamicBody"): (
-        "Box2D", "probe:parameter_receiver_ownership"),
-    ("Box2D", "CreateStaticBody"): (
-        "Box2D", "probe:parameter_receiver_ownership"),
-    ("scipy", "cdist"): (
-        "numpy", "probe:receiver_ownership"),
-    # svd() returns a Python tuple whose unpacked items are NumPy arrays.
-    ("scipy", "svd"): (
-        "python", "probe:machine_learning_svd"),
-    ("scipy", "bisplev"): (
-        "numpy", "public-api:scipy.interpolate.bisplev"),
-    ("numpy", "dot"): (
-        "numpy", "probe:receiver_ownership"),
-    ("numpy", "reshape"): (
-        "numpy", "public-api:numpy.reshape"),
-    ("seaborn", "barplot"): (
-        "matplotlib", "public-api:seaborn.barplot"),
-    ("seaborn", "stripplot"): (
-        "matplotlib", "public-api:seaborn.stripplot"),
-    ("seaborn", "swarmplot"): (
-        "matplotlib", "public-api:seaborn.swarmplot"),
-    ("matplotlib", "figure"): (
-        "matplotlib", "public-api:matplotlib.pyplot.figure"),
-    ("matplotlib", "gca"): (
-        "matplotlib", "public-api:matplotlib.pyplot.gca"),
-    ("matplotlib", "gcf"): (
-        "matplotlib", "public-api:matplotlib.pyplot.gcf"),
-    ("matplotlib", "subplot"): (
-        "matplotlib", "public-api:matplotlib.pyplot.subplot"),
-    # subplots() returns a Python tuple.  Its second unpacked item may be a
-    # Matplotlib Axes or a NumPy array, so no uniform item owner is claimed.
-    ("matplotlib", "subplots"): (
-        "python", "public-api:matplotlib.pyplot.subplots"),
-    ("matplotlib", "add_subplot"): (
-        "matplotlib", "public-api:matplotlib.figure.Figure.add_subplot"),
-    ("skimage", "downscale_local_mean"): (
-        "numpy", "probe:ground_truth/probes/round6_probe.py"),
-    ("torchvision", "to_tensor"): (
-        "torch", "public-api:torchvision.transforms.functional.to_tensor"),
-    # Stable standard-library contracts.  Both functions return a
-    # Python-provided str/bytes object, not an object owned by the module.
-    ("json", "dumps"): (
-        "python", "python-stdlib:json.dumps", PythonShape("str")),
-    ("json", "load"): (
-        "python", "python-stdlib:json.load"),
-    ("json", "loads"): (
-        "python", "python-stdlib:json.loads"),
-    ("re", "sub"): (
-        "python", "python-stdlib:re.sub", PythonShape("str")),
-    ("re", "split"): (
-        "python", "python-stdlib:re.split", PythonShape("list", "str")),
-    ("re", "group"): (
-        "python", "python-stdlib:re.Match.group", PythonShape("str")),
-    ("re", "compile"): (
-        "re", "python-stdlib:re.compile"),
-    ("re", "match"): (
-        "re", "python-stdlib:re.match"),
-    ("re", "search"): (
-        "re", "python-stdlib:re.search"),
-    ("re", "fullmatch"): (
-        "re", "python-stdlib:re.fullmatch"),
-}
-_VERIFIED_RESULT_OWNERS = frozenset(
-    contract[0] for contract in _RESULT_OWNER_CONTRACTS.values()
-)
-
-# Owners of elements yielded by selected import-backed iterator calls. This is
-# deliberately separate from _RESULT_OWNER_CONTRACTS: the iterator object and
-# each yielded object do not necessarily have the same ownership semantics.
-_ITERATOR_ELEMENT_OWNER_MAP = {
-    ("re", "finditer"): "re",
-    ("glob", "glob"): ("python", PythonShape("str")),
-    ("glob", "iglob"): ("python", PythonShape("str")),
-    ("os", "listdir"): ("python", PythonShape("str")),
-}
-
-# Owners of items selected from selected call results.  Keep this separate
-# from _RESULT_OWNER_CONTRACTS because the aggregate result may be a Python
-# tuple while its destructured or indexed items are import-backed objects.
-_RESULT_ITEM_OWNER_CONTRACTS = {
-    ("scipy", "svd"): "numpy",
-    ("GPy", "predict"): "numpy",
-    ("re", "split"): "python",
-}
-
-# Verified predicates that narrow a receiver owner in their true branch.
-# The evidence is part of the contract so these rules remain distinguishable
-# from method-name guessing.
-_TYPE_GUARD_OWNER_CONTRACTS = {
-    ("scipy", "issparse"): (
-        "scipy", "public-api:scipy.sparse.issparse"),
-}
-
-# Verified callback-parameter contracts.  Each key is
-# (library, callable, callback argument index, callback parameter index).
-_CALLBACK_PARAMETER_OWNER_CONTRACTS = {
-    ("re", "sub", 1, 0): (
-        "re", "python-stdlib:re.sub replacement callback"),
-    ("re", "subn", 1, 0): (
-        "re", "python-stdlib:re.subn replacement callback"),
-}
-
-# Item kind produced by indexing selected builtin-method results.  Keep this
-# table limited to contracts guaranteed by Python itself; arbitrary local
-# methods with the same name do not enter this path unless their receiver kind
-# is independently known.
-_BUILTIN_METHOD_RESULT_ITEM_KINDS = {
-    ("str", "split"): "str",
-    ("str", "rsplit"): "str",
-}
-
-def _match_result_owner(top, func_name):
-    """Return the verified owner of an import-backed call's result object."""
-    if top is None:
-        return None
-    for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
-        if (fn == func_name
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[0]
-    return None
-
-
-def _has_result_owner_contract(func_name):
-    """Return whether any verified result contract covers a method name."""
-    return any(
-        contract_name == func_name
-        for _, contract_name in _RESULT_OWNER_CONTRACTS
-    )
-
-
-def _match_attribute_result_owner(top, attribute):
-    """Return the verified owner of an import-backed attribute's value."""
-    if top is None:
-        return None
-    for (lib_prefix, name), contract in (
-            _ATTRIBUTE_RESULT_OWNER_CONTRACTS.items()):
-        if (name == attribute
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[0]
-    return None
-
-
-def _match_attribute_python_shape(top, attribute):
-    """Return the concrete Python shape from a verified attribute contract."""
-    if top is None:
-        return None
-    for (lib_prefix, name), contract in (
-            _ATTRIBUTE_RESULT_OWNER_CONTRACTS.items()):
-        if (name == attribute
-                and len(contract) >= 3
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[2]
-    return None
-
-
-def _match_result_python_shape(top, func_name):
-    """Return the concrete Python shape from a verified result contract."""
-    if top is None:
-        return None
-    for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
-        if (fn == func_name
-                and len(contract) >= 3
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[2]
-    return None
-
-
-def _is_verified_result_owner(owner):
-    """Return whether owner is produced by a verified result contract."""
-    return owner in _VERIFIED_RESULT_OWNERS
-
-
-def _match_result_item_owner(top, func_name):
-    """Return a uniform owner for destructured or indexed call-result items."""
-    if top is None:
-        return None
-    for (lib_prefix, fn), owner in _RESULT_ITEM_OWNER_CONTRACTS.items():
-        if (fn == func_name
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return owner
-    return None
-
-
-def _match_iterator_element_owner(top, func_name):
-    """Return the owner of elements from a known import-backed iterator."""
-    if top is None:
-        return None
-    for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():
-        if (fn == func_name
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[0] if isinstance(contract, tuple) else contract
-    return None
-
-
-def _match_iterator_element_shape(top, func_name):
-    """Return the Python shape of elements from a verified iterator."""
-    if top is None:
-        return None
-    for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():
-        if (fn == func_name
-                and isinstance(contract, tuple)
-                and (top == lib_prefix
-                     or top.startswith(lib_prefix + "."))):
-            return contract[1]
-    return None
-
-
 ## Check whether every possible return source is Python-owned.
 #
 #  SourceSet values represent branch-dependent returns.  A local call may use
@@ -646,21 +326,6 @@ def _uniform_python_shape(source):
                 and all(shape == shapes[0] for shape in shapes[1:])):
             return shapes[0]
     return None
-
-# 1.0.5 P1: numpy ufuncs that preserve the receiver's type when
-# applied to pandas objects.  Probe-backed: np.log(pd.Series)
-# returns pd.Series.
-_RECEIVER_PRESERVE_UFUNCS = frozenset({
-    "log", "exp", "sqrt", "abs", "divide",
-})
-
-# Methods known to be valid on compare-result objects, keyed by
-# the result owner.  Only these (owner, method) pairs allow a
-# compare-receiver call to be classified as that owner.
-_COMPARE_RESULT_METHODS = {
-    "numpy": frozenset(["any", "all"]),
-}
-
 
 ## AST visitor that traces all symbols and API calls in a single Python file.
 #

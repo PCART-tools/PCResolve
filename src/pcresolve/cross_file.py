@@ -7,43 +7,7 @@
 
 import ast
 import os
-import builtins
 from .module_mapper import ModuleMapper
-
-## Python 2 builtins not present in Python 3's builtins module.
-_PY2_BUILTINS = frozenset({
-    "apply", "basestring", "buffer", "cmp", "coerce", "execfile",
-    "file", "intern", "long", "raw_input", "reduce", "reload",
-    "StandardError", "unichr", "unicode", "xrange",
-})
-
-## 1.0.5 P1: builtin container/type methods keyed by container kind.
-_BUILTIN_CONTAINER_METHODS = {
-    "list": frozenset([
-        "append", "extend", "insert", "remove", "pop", "clear",
-        "index", "count", "sort", "reverse", "copy", "__len__",
-    ]),
-    "dict": frozenset([
-        "get", "keys", "values", "items", "update", "pop",
-        "popitem", "clear", "copy", "__len__",
-    ]),
-    "set": frozenset([
-        "add", "remove", "discard", "pop", "clear", "copy",
-        "update", "difference", "intersection", "union",
-        "symmetric_difference", "issubset", "issuperset", "__len__",
-    ]),
-    "tuple": frozenset(["count", "index", "__len__"]),
-    "str": frozenset([
-        "strip", "rstrip", "lstrip", "split", "rsplit", "join",
-        "replace", "find", "rfind", "rindex", "startswith",
-        "endswith", "upper", "lower", "title", "capitalize",
-        "swapcase", "center", "ljust", "rjust", "encode", "zfill",
-        "format", "format_map",
-        "isalnum", "isalpha", "isascii", "isdecimal", "isdigit",
-        "isidentifier", "islower", "isnumeric", "isprintable",
-        "isspace", "istitle", "isupper", "__len__",
-    ]),
-}
 
 ## Check if a receiver name has a known container kind from single-file analysis.
 #  @param tracer Single-file analyzer.
@@ -51,11 +15,6 @@ _BUILTIN_CONTAINER_METHODS = {
 #  @return Container kind string or None.
 def _receiver_container_kind(tracer, receiver_name):
     return getattr(tracer, "container_kinds", {}).get(receiver_name)
-
-
-## Check if a name is a Python builtin(including Python 2 builtins).
-def _is_builtin(name):
-    return isinstance(name, str) and (hasattr(builtins, name) or name in _PY2_BUILTINS)
 
 
 ## Select one field from a bounded tuple/list source.
@@ -72,11 +31,15 @@ def _tuple_source_item(source, index):
 from .diagnostics import Diagnostic, FILE_READ_ERROR, SYNTAX_ERROR, ENCODING_ERROR
 from .ir import (SymbolProvenance, ClassificationResult,
                     REASON_DIRECT_IMPORT)
-from .single_file import (SingleFileAnalyzer, _has_result_owner_contract,
-                          _match_result_owner, _is_verified_result_owner,
-                          _has_builtin_shape_method,
-                          _builtin_method_return_shape,
-                          _match_result_python_shape)
+from .single_file import SingleFileAnalyzer
+from .builtin_ownership import (
+    _BUILTIN_CONTAINER_METHODS, _is_builtin, _has_builtin_shape_method,
+    _builtin_method_return_shape,
+)
+from .ownership_contracts import (
+    _has_result_owner_contract, _match_result_owner,
+    _is_verified_result_owner, _match_result_python_shape,
+)
 from .sources import (ContainerItem, ContainerIter, TupleSource, InstanceMethod,
                        ParameterSource, InstanceAttribute, PythonShape,
                        SuperMethod, CallResult,
