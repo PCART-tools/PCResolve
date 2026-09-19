@@ -21,9 +21,11 @@ The first extraction moves evidence-backed result contracts to
 in the neutral program-fact layer or depends on an analyzer. The project
 analyzer still composes the single-file analyzer, but it now imports these
 shared ownership policies directly rather than through private names in
-`single_file.py`. The next extraction moves the `CallResult` ownership state
-machine to `call_result_resolution.py`; `ProjectAnalyzer` supplies the project
-indexes and recursive resolver operations through an internal mixin boundary.
+`single_file.py`. Subsequent extractions move the `CallResult` ownership state
+machine to `call_result_resolution.py` and instance receiver resolution to
+`instance_method_resolution.py`; `ProjectAnalyzer` supplies project indexes,
+recursive resolver operations, and import-origin evidence through internal
+mixin boundaries.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -58,6 +60,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    builtin_ownership.py
                                    ownership_contracts.py
                                                       call_result_resolution.py
+                                                      instance_method_resolution.py
                                                       call_resolution.py
                                                       scope_facts.py
                                                       return_resolution.py
@@ -75,6 +78,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
+| Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
 | Ownership policy | `builtin_ownership.py`, `ownership_contracts.py` | Proven builtin shapes and verified import-backed result contracts | Conservative owner/shape rule lookups used by both ownership phases |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
