@@ -44,3 +44,34 @@ def test_project_analyzer_builds_and_uses_one_explicit_ownership_run(tmp_path):
     assert run.program.call_graph.modules['main'] is run.program.module_tracers['main'].module_cg
     assert run.diagnostics is result.diagnostics
     assert [call.top_library for call in result.all_api_calls] == ['json']
+
+
+def test_each_analysis_replaces_project_tables_and_resolution_guards(tmp_path):
+    path = tmp_path / 'main.py'
+    path.write_text('import json\nvalue = json.loads("{}")\n', encoding='utf-8')
+    analyzer = ProjectAnalyzer(str(tmp_path))
+    analyzer.analyze()
+    first = analyzer._ownership_run
+
+    first.global_symbols['stale'] = 'value'
+    first.symbol_chains['stale'] = ['value']
+    first.all_calls['stale'] = []
+    first.python_shape_in_progress.add(('main', 'stale'))
+    first.callable_field_in_progress.add(('main', 'stale'))
+    first.constructor_only_fields = {'stale'}
+
+    analyzer.analyze()
+    second = analyzer._ownership_run
+
+    assert second is not first
+    assert analyzer.global_symbols is second.global_symbols
+    assert analyzer.symbol_chains is second.symbol_chains
+    assert analyzer.all_calls is second.all_calls
+    assert analyzer._python_shape_in_progress is second.python_shape_in_progress
+    assert analyzer._callable_field_in_progress is second.callable_field_in_progress
+    assert 'stale' not in second.global_symbols
+    assert 'stale' not in second.symbol_chains
+    assert 'stale' not in second.all_calls
+    assert not second.python_shape_in_progress
+    assert not second.callable_field_in_progress
+    assert second.constructor_only_fields is None

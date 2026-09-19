@@ -208,6 +208,12 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.project_cg = run.program.call_graph
         module_tracers = run.program.module_tracers
         diagnostics = run.diagnostics
+        self.global_symbols = run.global_symbols
+        self.symbol_chains = run.symbol_chains
+        self.all_calls = run.all_calls
+        self._python_shape_in_progress = run.python_shape_in_progress
+        self._callable_field_in_progress = run.callable_field_in_progress
+        self._constructor_only_fields = run.constructor_only_fields
 
         for module in all_modules:
             file_path = self.module_mapper.get_file_path(module)
@@ -2663,7 +2669,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         if source.parameter_name not in params:
             return []
         # A write outside an initializer invalidates constructor-only evidence.
-        if self._constructor_only_fields is None:
+        run = self._ownership_run
+        if run.constructor_only_fields is None:
             fields, blocked = set(), set()
             for candidate in tracers.values():
                 tree = candidate._module_tree
@@ -2686,8 +2693,9 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                             or parent is None or parent.name != '__init__'
                             or not isinstance(parents.get(id(parent)), ast.ClassDef)):
                         blocked.add(node.attr)
-            self._constructor_only_fields = fields - blocked
-        if source.method not in self._constructor_only_fields:
+            run.constructor_only_fields = fields - blocked
+            self._constructor_only_fields = run.constructor_only_fields
+        if source.method not in run.constructor_only_fields:
             return []
         self._callable_field_in_progress.add(key)
         try:

@@ -41,8 +41,11 @@ Project orchestration now creates one explicit internal run in
 and source versions, `ProgramIndex` owns the per-module analyzers and project
 call graph, and `OwnershipRun` owns diagnostics for that invocation. Existing
 `_source_snapshot` and `project_cg` attributes remain compatibility aliases
-while resolver methods are migrated incrementally. These types are internal;
-they do not add a public session or change either output schema.
+while resolver methods are migrated incrementally. Project symbol tables,
+classified call records, recursion guards, and the constructor-field cache are
+also run-owned, so repeated use of one analyzer cannot reuse stale resolution
+state. These types are internal; they do not add a public session or change
+either output schema.
 
 Further extraction is staged rather than an all-at-once class move:
 

@@ -45,3 +45,15 @@ class OwnershipRun:
     program: ProgramIndex = field(default_factory=ProgramIndex)
     ## Diagnostics emitted while consuming the snapshot.
     diagnostics: list = field(default_factory=list)
+    ## Cross-file symbol lookup table built during resolution.
+    global_symbols: dict = field(default_factory=dict)
+    ## Explanation chains corresponding to global symbol resolutions.
+    symbol_chains: dict = field(default_factory=dict)
+    ## Classified call records grouped by module.
+    all_calls: dict = field(default_factory=dict)
+    ## Active Python-shape queries used to stop recursive resolution cycles.
+    python_shape_in_progress: set = field(default_factory=set)
+    ## Active callable-field queries used to stop recursive resolution cycles.
+    callable_field_in_progress: set = field(default_factory=set)
+    ## Lazily computed fields whose writes are confined to constructors.
+    constructor_only_fields: object = None
