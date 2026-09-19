@@ -36,6 +36,11 @@ binding maps, position identity, and append order.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
 same visitor instance and at the same point in traversal.
+Expression-to-source tracing is isolated in
+`single_file_source_resolution.py`. Its public visitor hook now dispatches to
+bounded handlers for method calls, chained calls, ordinary call results,
+subscripts, lambdas, and literal containers; the former monolithic
+`trace_source()` decision tree is no longer one indivisible method.
 Project orchestration now creates one explicit internal run in
 `ownership_model.py`: an immutable `ProjectSnapshot` fixes the ordered modules
 and source versions, `ProgramIndex` owns the per-module analyzers and project
@@ -84,6 +89,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_method_resolution.py
                                    single_file_call_collection.py
                                    single_file_assignment.py
+                                   single_file_source_resolution.py
                                                       ownership_model.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
@@ -106,6 +112,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file method sources | `single_file_method_resolution.py` | Method-call AST and lexical visitor state | Structured receiver/method source evidence |
 | Single-file call collection | `single_file_call_collection.py` | Call AST, lexical bindings, receiver evidence | Ordered API-call records and internal `CallEdge` facts |
 | Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
+| Single-file source resolution | `single_file_source_resolution.py` | Expression AST and visitor-owned lexical facts | Structured expression source and call-result evidence |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Ownership run state | `ownership_model.py` | Ordered modules and one `SourceSnapshot` | Internal `ProjectSnapshot`, `ProgramIndex`, and `OwnershipRun` |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
