@@ -23,9 +23,10 @@ analyzer still composes the single-file analyzer, but it now imports these
 shared ownership policies directly rather than through private names in
 `single_file.py`. Subsequent extractions move the `CallResult` ownership state
 machine to `call_result_resolution.py` and instance receiver resolution to
-`instance_method_resolution.py`; `ProjectAnalyzer` supplies project indexes,
-recursive resolver operations, and import-origin evidence through internal
-mixin boundaries.
+`instance_method_resolution.py`. Container item, iteration, returned-element,
+and Python-shape resolution live together in `container_resolution.py`;
+`ProjectAnalyzer` supplies project indexes, recursive resolver operations, and
+import-origin evidence through internal mixin boundaries.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -61,6 +62,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    ownership_contracts.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
+                                                      container_resolution.py
                                                       call_resolution.py
                                                       scope_facts.py
                                                       return_resolution.py
@@ -79,6 +81,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
+| Container ownership | `container_resolution.py` | Item/iteration sources, returned-element facts, Python shapes | Conservative item and iterable owner candidates |
 | Ownership policy | `builtin_ownership.py`, `ownership_contracts.py` | Proven builtin shapes and verified import-backed result contracts | Conservative owner/shape rule lookups used by both ownership phases |
 | Shared syntax and binding | `program_facts.py` | AST positions, signatures, opaque argument payloads | Source spans and pure binding projections |
 | Shared source versions | `source_snapshot.py` | Explicit file set and read/naming policies | Source snapshots, cached ASTs, read-only module index |
