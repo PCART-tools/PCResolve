@@ -33,6 +33,9 @@ without introducing a second analyzer state or changing AST visit order.
 Call-edge snapshots and public per-file call records are isolated in
 `single_file_call_collection.py`, while retaining the same visitor-owned
 binding maps, position identity, and append order.
+Ordinary assignment handling and its flow-sensitive container metadata are
+isolated in `single_file_assignment.py`; target binding still occurs on the
+same visitor instance and at the same point in traversal.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -68,6 +71,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    ownership_contracts.py
                                    single_file_method_resolution.py
                                    single_file_call_collection.py
+                                   single_file_assignment.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
                                                       container_resolution.py
@@ -88,6 +92,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Single-file method sources | `single_file_method_resolution.py` | Method-call AST and lexical visitor state | Structured receiver/method source evidence |
 | Single-file call collection | `single_file_call_collection.py` | Call AST, lexical bindings, receiver evidence | Ordered API-call records and internal `CallEdge` facts |
+| Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
