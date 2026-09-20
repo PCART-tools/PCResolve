@@ -27,6 +27,9 @@ machine to `call_result_resolution.py` and instance receiver resolution to
 and Python-shape resolution live together in `container_resolution.py`;
 `ProjectAnalyzer` supplies project indexes, recursive resolver operations, and
 import-origin evidence through internal mixin boundaries.
+The call-result state machine separates explicit result contracts, initial
+project-target selection, bounded `SourceSet` convergence, parameter
+substitution, and recursive return-summary following.
 On the single-file side, receiver and method-source collection is isolated in
 `single_file_method_resolution.py`; it operates on the visitor's lexical state
 without introducing a second analyzer state or changing AST visit order.
