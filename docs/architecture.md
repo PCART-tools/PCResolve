@@ -46,6 +46,10 @@ Shared receiver, callable, operator, conversion, and bounded result-owner
 helpers live in `single_file_receiver_resolution.py`. This keeps the main
 visitor focused on state and traversal while method dispatch and result
 contracts reuse one receiver-resolution boundary.
+Decorator and assignment-target binding, iterator-source binding, receiver
+guards, and bounded finite-name evaluation are grouped in
+`single_file_binding_resolution.py`; all operate on the same lexical scopes
+and preserve the visitor's original binding order.
 Call-edge snapshots and public per-file call records are isolated in
 `single_file_call_collection.py`, while retaining the same visitor-owned
 binding maps, position identity, and append order. Call-edge argument views,
@@ -170,6 +174,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    builtin_ownership.py
                                    ownership_contracts.py
                                    single_file_method_resolution.py
+                                   single_file_binding_resolution.py
                                    single_file_call_collection.py
                                    single_file_assignment.py
                                    single_file_source_resolution.py
@@ -205,6 +210,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Module map | `module_mapper.py` | Project directory or explicit source file | File path ↔ dotted module name |
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
 | Single-file method sources | `single_file_method_resolution.py` | Method-call AST and lexical visitor state | Structured receiver/method source evidence |
+| Single-file binding resolution | `single_file_binding_resolution.py` | Decorator, target, iterator, and guarded-branch AST | Flow-sensitive target bindings and bounded guard evidence |
 | Single-file call collection | `single_file_call_collection.py` | Call AST, lexical bindings, receiver evidence | Ordered API-call records and internal `CallEdge` facts |
 | Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
 | Single-file source resolution | `single_file_source_resolution.py` | Expression AST and visitor-owned lexical facts | Structured expression source and call-result evidence |

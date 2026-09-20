@@ -12,7 +12,8 @@ SHARED_MODULES = frozenset([
 ])
 OWNERSHIP_ADAPTERS = (
     'single_file.py', 'cross_file.py', 'mapping_facts.py',
-    'single_file_method_resolution.py', 'single_file_call_collection.py',
+    'single_file_method_resolution.py',
+    'single_file_binding_resolution.py', 'single_file_call_collection.py',
     'single_file_assignment.py', 'single_file_source_resolution.py',
     'single_file_parameter_dependency.py',
     'single_file_receiver_resolution.py', 'single_file_returns.py',
