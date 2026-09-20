@@ -95,6 +95,12 @@ factory result identities, field bindings, callable-parameter escape checks,
 and receiver-class filtering for project edges. These queries consume the
 shared project graph without becoming a second class index or mutable state
 owner.
+Project call-record classification is isolated in
+`project_call_classification.py`. It owns effective receiver selection,
+top-owner candidate convergence, confidence/reason attachment, and resolved
+function display names. Call-record assembly, derived/source-kind dispatch,
+return-summary fallback, and name replacement are separate stages; no method
+in this policy adapter exceeds the orchestration entry's size.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -143,6 +149,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                                       project_source_tracing.py
                                                       project_method_ownership.py
                                                       project_local_classes.py
+                                                      project_call_classification.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
                                                       container_resolution.py
@@ -175,6 +182,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Project source tracing | `project_source_tracing.py` | Module map, per-file symbols, return summaries, and recursion guard | Ordered source chains and conservative final top-level sources |
 | Project method ownership | `project_method_ownership.py` | Structured receivers, project call graph, parameter bindings, and local class evidence | Conservative method-owner candidates and structured source resolutions |
 | Project local classes | `project_local_classes.py` | Local class summaries, inheritance facts, constructor sources, and call edges | Bounded class identities, field bindings, and callable-instance candidates |
+| Project call classification | `project_call_classification.py` | Per-file call records, structured sources, project symbols, and ownership policies | Classified call records, owner alternatives, reasons, confidence, and resolved function names |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
 | Container ownership | `container_resolution.py` | Item/iteration sources, returned-element facts, Python shapes | Conservative item and iterable owner candidates |

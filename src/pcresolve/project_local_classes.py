@@ -721,4 +721,3 @@ class ProjectLocalClassesMixin:
                 required[0], required[1], tracers)
             for candidate in candidates
         )
-
