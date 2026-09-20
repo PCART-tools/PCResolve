@@ -66,14 +66,19 @@ def test_literal_unpack_does_not_mix_elements():
 
 def test_trace_symbol_call_coverage_and_method_candidates():
     root = Path(__file__).resolve().parents[1] / 'src'
-    source = root / 'pcresolve' / 'cross_file.py'
+    source = root / 'pcresolve' / 'project_source_tracing.py'
     tree = ast.parse(source.read_text(encoding='utf-8'))
     method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
                   and n.name == 'trace_symbol')
     expected = {(n.lineno, n.col_offset) for n in ast.walk(method) if isinstance(n, ast.Call)}
     result = FlowAnalyzer(project_root=root).analyze(FunctionRef(
-        module='pcresolve.cross_file', qualname='ProjectAnalyzer.trace_symbol'))
+        module='pcresolve.project_source_tracing',
+        qualname='ProjectSourceTracingMixin.trace_symbol'))
     assert {(c.lineno, c.col_offset) for c in result.calls} == expected
-    recursive = result.find_calls(callee_name='self.trace_symbol')
-    assert recursive and all(c.target == result.entry for c in recursive)
+    helpers = [c for c in result.calls
+               if c.callee_name.startswith('self._trace_')]
+    assert helpers and all(
+        c.target and c.target.qualname.startswith(
+            'ProjectSourceTracingMixin._trace_')
+        for c in helpers)
     assert not any(b['reason'] in ('unsupported_assignment', 'unsupported_statement') for b in result.boundaries)
