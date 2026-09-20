@@ -52,6 +52,10 @@ Parameter-derived expression evidence is isolated in
 `single_file_parameter_dependency.py`. Name, attribute, subscript, unary,
 binary, comparison, and method-call dependencies have separate handlers while
 using the visitor's existing lexical bindings and source tracing operations.
+Return collection is isolated in `single_file_returns.py`. It separately
+records iterable-element alternatives, legacy ownership provenance, and
+protocol-oriented call-graph values while retaining one AST visit and the
+existing tuple/non-tuple summary boundaries.
 Loop-carried shapes, iterator binding, generator yields, branch joins,
 comprehensions, and scope declarations are grouped in
 `single_file_control_flow.py`. Iterator-yield resolution is further divided
@@ -152,6 +156,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_assignment.py
                                    single_file_source_resolution.py
                                    single_file_parameter_dependency.py
+                                   single_file_returns.py
                                    single_file_control_flow.py
                                    single_file_definitions.py
                                    single_file_container_shapes.py
@@ -185,6 +190,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
 | Single-file source resolution | `single_file_source_resolution.py` | Expression AST and visitor-owned lexical facts | Structured expression source and call-result evidence |
 | Single-file parameter dependencies | `single_file_parameter_dependency.py` | Expression AST, lexical parameter bindings, and field sources | ParameterSource, DerivedResult, and explicit uncertainty evidence |
+| Single-file returns | `single_file_returns.py` | Return AST, lexical bindings, container shapes, and call-edge sources | Ownership provenance, tuple-aware summaries, and protocol return values |
 | Single-file control flow | `single_file_control_flow.py` | Loop, branch, generator, and comprehension AST | Flow-sensitive bindings, branch joins, and iteration facts |
 | Single-file definitions | `single_file_definitions.py` | Definition AST and enclosing lexical state | Function/class summaries, parameter bindings, decorator and constructor facts |
 | Single-file container shapes | `single_file_container_shapes.py` | Container expressions, lexical bindings, and append calls | Python shapes, homogeneous item/tuple facts, and field-shape joins |
