@@ -65,6 +65,11 @@ classified call records, recursion guards, and the constructor-field cache are
 also run-owned, so repeated use of one analyzer cannot reuse stale resolution
 state. These types are internal; they do not add a public session or change
 either output schema.
+Project-level result rewriting is isolated in `project_result_binding.py`.
+It owns bounded local-call results, callback-map results, generator iteration
+substitution, and proven receiver-method results. Assigned-result propagation
+is split into target selection, positional result selection, record rewriting,
+and future-edge rewriting rather than one pass with interleaved concerns.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -108,6 +113,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_definitions.py
                                    single_file_container_shapes.py
                                                       ownership_model.py
+                                                      project_result_binding.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
                                                       container_resolution.py
@@ -135,6 +141,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file container shapes | `single_file_container_shapes.py` | Container expressions, lexical bindings, and append calls | Python shapes, homogeneous item/tuple facts, and field-shape joins |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Ownership run state | `ownership_model.py` | Ordered modules and one `SourceSnapshot` | Internal `ProjectSnapshot`, `ProgramIndex`, and `OwnershipRun` |
+| Project result binding | `project_result_binding.py` | Project call graph, function summaries, and per-file call records | Bounded assigned-result, callback, iterator, and method-result rewrites |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
 | Container ownership | `container_resolution.py` | Item/iteration sources, returned-element facts, Python shapes | Conservative item and iterable owner candidates |
