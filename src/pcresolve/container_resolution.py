@@ -175,17 +175,8 @@ class ContainerResolutionMixin:
         if key in seen:
             return None
         seen.add(key)
-
-        def uniform(values):
-            result = None
-            for value in values:
-                if value is None or (result is not None and value != result):
-                    return None
-                result = value
-            return result
-
         if isinstance(source, SourceSet):
-            return uniform(
+            return self._uniform_python_shapes(
                 self._returned_python_shape(module, item, tracers, context, seen)
                 for item in source.sources)
         if (isinstance(source, DerivedResult) and source.kind == 'method_result'
@@ -193,85 +184,14 @@ class ContainerResolutionMixin:
             return self._returned_python_shape(
                 module, source.sources[0], tracers, context, seen)
         if isinstance(source, ParameterSource):
-            if source.attributes or (source.derived
-                                    and source.derived_operation != "slice"):
-                return None
-            current = context
-            while current is not None:
-                if (module == current.target.module
-                        and source.scope == current.target.qualname):
-                    summary = self.project_cg.modules[module].functions[
-                        source.scope]
-                    if source.name not in summary.params:
-                        return None
-                    arguments = self._edge_parameter_sources(
-                        current.edge, summary, source.name,
-                        summary.params.index(source.name),
-                        prefer_protocol_shape=True)
-                    shape = uniform(
-                        self._returned_python_shape(
-                            current.caller_module, argument, tracers,
-                            current.parent, seen)
-                        for argument in arguments or [])
-                    break
-                current = current.parent
-            else:
-                tracer = tracers.get(module)
-                params = (tracer.function_params.get(source.scope, [])
-                          if tracer is not None else [])
-                if source.name not in params:
-                    return None
-                arguments = self._parameter_call_arguments(
-                    module, source.scope, source.name, params.index(source.name),
-                    tracer, tracers, prefer_protocol_shape=True)
-                shape = uniform(
-                    self._returned_python_shape(origin, argument, tracers,
-                                                None, seen)
-                    for origin, argument in arguments)
-            if source.derived and (shape is None or shape.kind not in (
-                    "str", "bytes", "list", "tuple")):
-                return None
-            return shape
+            return self._parameter_returned_python_shape(
+                module, source, tracers, context, seen)
         if isinstance(source, CallResult):
-            origin = source.source_module or module
-            contexts = self._bounded_call_contexts(
-                origin, source.call_lineno, source.call_col_offset, tracers,
-                parent=context, callee_name=source.display_name)
-            if contexts:
-                shapes = []
-                for called in contexts:
-                    if (called.target.qualname.endswith(".__init__")
-                            and not called.edge.callee_name.endswith(".__init__")):
-                        return None
-                    summary = self.project_cg.modules[
-                        called.target.module].functions[called.target.qualname]
-                    shapes.append(self._returned_python_shape(
-                        called.target.module, summary.return_values,
-                        tracers, called, seen))
-                    if shapes[-1] is None or shapes[-1] != shapes[0]:
-                        return None
-                return uniform(shapes)
-            if source.result_source is not None:
-                return self._returned_python_shape(
-                    origin, source.result_source, tracers, context, seen)
-            return None
+            return self._call_result_returned_python_shape(
+                module, source, tracers, context, seen)
         if isinstance(source, InstanceMethod):
-            receiver = source.receiver
-            if (source.parameter_scope and source.parameter_name
-                    and receiver == source.parameter_name):
-                receiver = ParameterSource(source.parameter_scope,
-                                           source.parameter_name)
-            shape = self._returned_python_shape(
-                module, receiver, tracers, context, seen)
-            result = _builtin_method_return_shape(shape, source.method)
-            if result is not None:
-                return result
-            # Reuse an already verified external result contract only.
-            if not _has_result_owner_contract(source.method):
-                return None
-            owners = self._origin_candidates(module, receiver, tracers)
-            if len(owners) == 1:
-                return _match_result_python_shape(owners[0], source.method)
+            return self._instance_method_returned_python_shape(
+                module, source, tracers, context, seen)
         if isinstance(source, ContainerItem):
             shape = self._returned_python_shape(
                 module, source.container, tracers, context, seen)
@@ -280,6 +200,104 @@ class ContainerResolutionMixin:
                     return PythonShape("str")
                 if shape.kind in ("list", "tuple") and shape.item_kind:
                     return PythonShape(shape.item_kind)
+        return None
+
+    ## Select one shape only when every candidate is equal and known.
+    def _uniform_python_shapes(self, values):
+        result = None
+        for value in values:
+            if value is None or (result is not None and value != result):
+                return None
+            result = value
+        return result
+
+    ## Resolve a parameter's Python shape through exact call contexts.
+    def _parameter_returned_python_shape(
+            self, module, source, tracers, context, seen):
+        if (source.attributes or (source.derived
+                and source.derived_operation != "slice")):
+            return None
+        current = context
+        while current is not None:
+            if (module == current.target.module
+                    and source.scope == current.target.qualname):
+                summary = self.project_cg.modules[module].functions[
+                    source.scope]
+                if source.name not in summary.params:
+                    return None
+                arguments = self._edge_parameter_sources(
+                    current.edge, summary, source.name,
+                    summary.params.index(source.name),
+                    prefer_protocol_shape=True)
+                shape = self._uniform_python_shapes(
+                    self._returned_python_shape(
+                        current.caller_module, argument, tracers,
+                        current.parent, seen)
+                    for argument in arguments or [])
+                break
+            current = current.parent
+        else:
+            tracer = tracers.get(module)
+            params = (tracer.function_params.get(source.scope, [])
+                      if tracer is not None else [])
+            if source.name not in params:
+                return None
+            arguments = self._parameter_call_arguments(
+                module, source.scope, source.name, params.index(source.name),
+                tracer, tracers, prefer_protocol_shape=True)
+            shape = self._uniform_python_shapes(
+                self._returned_python_shape(
+                    origin, argument, tracers, None, seen)
+                for origin, argument in arguments)
+        if (source.derived and (shape is None or shape.kind not in (
+                "str", "bytes", "list", "tuple"))):
+            return None
+        return shape
+
+    ## Resolve Python shape from bounded local call return summaries.
+    def _call_result_returned_python_shape(
+            self, module, source, tracers, context, seen):
+        origin = source.source_module or module
+        contexts = self._bounded_call_contexts(
+            origin, source.call_lineno, source.call_col_offset, tracers,
+            parent=context, callee_name=source.display_name)
+        if contexts:
+            shapes = []
+            for called in contexts:
+                if (called.target.qualname.endswith(".__init__")
+                        and not called.edge.callee_name.endswith(".__init__")):
+                    return None
+                summary = self.project_cg.modules[
+                    called.target.module].functions[called.target.qualname]
+                shapes.append(self._returned_python_shape(
+                    called.target.module, summary.return_values,
+                    tracers, called, seen))
+                if shapes[-1] is None or shapes[-1] != shapes[0]:
+                    return None
+            return self._uniform_python_shapes(shapes)
+        if source.result_source is not None:
+            return self._returned_python_shape(
+                origin, source.result_source, tracers, context, seen)
+        return None
+
+    ## Resolve the Python shape produced by a method result.
+    def _instance_method_returned_python_shape(
+            self, module, source, tracers, context, seen):
+        receiver = source.receiver
+        if (source.parameter_scope and source.parameter_name
+                and receiver == source.parameter_name):
+            receiver = ParameterSource(
+                source.parameter_scope, source.parameter_name)
+        shape = self._returned_python_shape(
+            module, receiver, tracers, context, seen)
+        result = _builtin_method_return_shape(shape, source.method)
+        if result is not None:
+            return result
+        if not _has_result_owner_contract(source.method):
+            return None
+        owners = self._origin_candidates(module, receiver, tracers)
+        if len(owners) == 1:
+            return _match_result_python_shape(owners[0], source.method)
         return None
 
     ## Resolve project-returned elements without erasing their value sources.
@@ -314,47 +332,8 @@ class ContainerResolutionMixin:
             return self._returned_element_sources(
                 module, source.container, tracers, context, True, seen)
         if isinstance(source, ParameterSource):
-            if source.derived or source.attributes:
-                return None
-            current = context
-            while current is not None:
-                if (module == current.target.module
-                        and source.scope == current.target.qualname):
-                    summary = self.project_cg.modules[
-                        module].functions[current.target.qualname]
-                    if source.name not in summary.params:
-                        return None
-                    arguments = self._edge_parameter_sources(
-                        current.edge, summary, source.name,
-                        summary.params.index(source.name),
-                        prefer_protocol_shape=True)
-                    elements = []
-                    for argument in arguments or [UnknownSource()]:
-                        elements.extend(self._returned_element_sources(
-                            current.caller_module, argument, tracers,
-                            current.parent, iterable, seen)
-                            or [(current.caller_module, UnknownSource())])
-                    return elements
-                current = current.parent
-            tracer = tracers.get(module)
-            params = (tracer.function_params.get(source.scope, [])
-                      if tracer is not None else [])
-            if source.name not in params:
-                return None
-            arguments = self._parameter_call_arguments(
-                module, source.scope, source.name, params.index(source.name),
-                tracer, tracers, prefer_protocol_shape=True)
-            elements = []
-            for argument_module, argument in arguments:
-                resolved = self._returned_element_sources(
-                    argument_module, argument, tracers, None, iterable, seen)
-                if resolved is None:
-                    # The ordinary parameter-iteration path also retains
-                    # literal element facts on call edges. Let it handle
-                    # arguments not described by a return context here.
-                    return None
-                elements.extend(resolved)
-            return elements or None
+            return self._parameter_returned_element_sources(
+                module, source, tracers, context, iterable, seen)
         if not iterable:
             return [(module, source)]
         shape = self._returned_python_shape(module, source, tracers, context)
@@ -368,32 +347,78 @@ class ContainerResolutionMixin:
         if isinstance(source, TupleSource):
             return [(module, item) for item in source.items]
         if isinstance(source, CallResult):
-            origin = source.source_module or module
-            contexts = self._bounded_call_contexts(
-                origin, source.call_lineno, source.call_col_offset,
-                tracers, parent=context, callee_name=source.display_name)
-            if not contexts:
-                shapes = self._python_iterable_element_sources(
-                    source.result_source)
-                return ([(origin, shape) for shape in shapes]
-                        if shapes is not None else None)
-            elements = []
-            for called in contexts:
-                tracer = tracers[called.target.module]
-                summary = self.project_cg.modules[
-                    called.target.module].functions[called.target.qualname]
-                # A generator's return value terminates iteration; only its
-                # yield summary describes values observed by a for-loop.
-                returned = ([summary.yields] if summary.yields is not None
-                            else tracer.return_element_sources.get(
-                                called.target.qualname))
-                for element in returned or [UnknownSource()]:
-                    elements.extend(self._returned_element_sources(
-                        called.target.module, element, tracers, called,
-                        False, seen)
-                        or [(called.target.module, UnknownSource())])
-            return elements
+            return self._call_result_returned_element_sources(
+                module, source, tracers, context, seen)
         return None
+
+    ## Resolve returned elements forwarded from a parameter.
+    def _parameter_returned_element_sources(
+            self, module, source, tracers, context, iterable, seen):
+        if source.derived or source.attributes:
+            return None
+        current = context
+        while current is not None:
+            if (module == current.target.module
+                    and source.scope == current.target.qualname):
+                summary = self.project_cg.modules[
+                    module].functions[current.target.qualname]
+                if source.name not in summary.params:
+                    return None
+                arguments = self._edge_parameter_sources(
+                    current.edge, summary, source.name,
+                    summary.params.index(source.name),
+                    prefer_protocol_shape=True)
+                elements = []
+                for argument in arguments or [UnknownSource()]:
+                    elements.extend(self._returned_element_sources(
+                        current.caller_module, argument, tracers,
+                        current.parent, iterable, seen)
+                        or [(current.caller_module, UnknownSource())])
+                return elements
+            current = current.parent
+        tracer = tracers.get(module)
+        params = (tracer.function_params.get(source.scope, [])
+                  if tracer is not None else [])
+        if source.name not in params:
+            return None
+        arguments = self._parameter_call_arguments(
+            module, source.scope, source.name, params.index(source.name),
+            tracer, tracers, prefer_protocol_shape=True)
+        elements = []
+        for argument_module, argument in arguments:
+            resolved = self._returned_element_sources(
+                argument_module, argument, tracers, None, iterable, seen)
+            if resolved is None:
+                return None
+            elements.extend(resolved)
+        return elements or None
+
+    ## Resolve iterable elements from a bounded local call result.
+    def _call_result_returned_element_sources(
+            self, module, source, tracers, context, seen):
+        origin = source.source_module or module
+        contexts = self._bounded_call_contexts(
+            origin, source.call_lineno, source.call_col_offset,
+            tracers, parent=context, callee_name=source.display_name)
+        if not contexts:
+            shapes = self._python_iterable_element_sources(
+                source.result_source)
+            return ([(origin, shape) for shape in shapes]
+                    if shapes is not None else None)
+        elements = []
+        for called in contexts:
+            tracer = tracers[called.target.module]
+            summary = self.project_cg.modules[
+                called.target.module].functions[called.target.qualname]
+            returned = ([summary.yields] if summary.yields is not None
+                        else tracer.return_element_sources.get(
+                            called.target.qualname))
+            for element in returned or [UnknownSource()]:
+                elements.extend(self._returned_element_sources(
+                    called.target.module, element, tracers, called,
+                    False, seen)
+                    or [(called.target.module, UnknownSource())])
+        return elements
 
     ## Resolve an iteration over a container to its source(s).
     #  @param module The current module.
@@ -413,68 +438,14 @@ class ContainerResolutionMixin:
                     origin, element, tracers, include_local=True))
             return (module, self._dedupe_list(candidates) or ["unknown"])
         if not isinstance(container_name, str):
-            cn = normalize_source(container_name)
-            if isinstance(cn, ParameterSource):
-                if cn.derived or cn.attributes:
-                    return (module, ["unknown"])
-                params = (
-                    tracer.function_params.get(cn.scope)
-                    or tracer.function_params.get(
-                        cn.scope.rsplit(".", 1)[-1], []))
-                if cn.name not in params:
-                    return (module, ["unknown"])
-                param_index = params.index(cn.name)
-                protocol_arguments = self._parameter_call_arguments(
-                    module, cn.scope, cn.name, param_index,
-                    tracer, tracers, prefer_protocol_shape=True)
-                if protocol_arguments:
-                    element_sources = []
-                    protocol_proven = True
-                    for _, argument in protocol_arguments:
-                        argument_sources = (
-                            self._python_iterable_element_sources(argument))
-                        if argument_sources is None:
-                            protocol_proven = False
-                            break
-                        element_sources.extend(argument_sources)
-                    if protocol_proven and element_sources:
-                        return (
-                            module,
-                            self._dedupe_list(element_sources) or ["unknown"],
-                        )
-                arguments = self._parameter_call_arguments(
-                    module, cn.scope, cn.name, param_index,
-                    tracer, tracers, prefer_iterable_elements=True)
-                if not arguments:
-                    return (module, ["unknown"])
-                candidates = []
-                for caller_module, source in arguments:
-                    candidates.extend(self._origin_candidates(
-                        caller_module, source, tracers,
-                        include_local=True))
-                return (
-                    module,
-                    self._dedupe_list(candidates) or ["unknown"],
-                )
-            if isinstance(cn, CallResult) and isinstance(cn.callee, str):
-                elements = tracer.return_element_sources.get(cn.callee)
-                if elements is not None:
-                    candidates = []
-                    for element in elements:
-                        candidates.extend(self._origin_candidates(
-                            module, element, tracers, include_local=True))
-                    return (module, self._dedupe_list(candidates) or ["unknown"])
-                top = self._top_source(module, cn.callee, tracers)
-                if top and top not in ("local", "python", "unknown", ""):
-                    ## 1.0.5 P2: only propagate callee top as element type
-                    #  when the callee has explicit return-type evidence.
-                    #  Without return_sources, an import-backed call result
-                    #  has no yield contract — element type is unknowable.
-                    if tracer.return_sources.get(cn.callee) is not None:
-                        return (module, [top])
-                ## No yield contract or builtin callee:
-                #  element type cannot be determined statically.
-                return (module, ["unknown"])
+            source = normalize_source(container_name)
+            if isinstance(source, ParameterSource):
+                return self._parameter_container_iter_source(
+                    module, source, tracer, tracers)
+            if isinstance(source, CallResult) and isinstance(
+                    source.callee, str):
+                return self._call_result_container_iter_source(
+                    module, source, tracer, tracers)
             return (module, ["unknown"])
         local_candidates = self._collect_container_candidates(
             module, tracer, container_name, tracers)
@@ -491,6 +462,61 @@ class ContainerResolutionMixin:
             if src_candidates:
                 return (src_module, src_candidates)
         return None
+
+    ## Resolve iteration over a parameter from its exact call arguments.
+    def _parameter_container_iter_source(
+            self, module, source, tracer, tracers):
+        if source.derived or source.attributes:
+            return (module, ["unknown"])
+        params = (
+            tracer.function_params.get(source.scope)
+            or tracer.function_params.get(
+                source.scope.rsplit(".", 1)[-1], []))
+        if source.name not in params:
+            return (module, ["unknown"])
+        param_index = params.index(source.name)
+        protocol_arguments = self._parameter_call_arguments(
+            module, source.scope, source.name, param_index,
+            tracer, tracers, prefer_protocol_shape=True)
+        if protocol_arguments:
+            element_sources = []
+            for _, argument in protocol_arguments:
+                argument_sources = self._python_iterable_element_sources(
+                    argument)
+                if argument_sources is None:
+                    break
+                element_sources.extend(argument_sources)
+            else:
+                if element_sources:
+                    return (
+                        module,
+                        self._dedupe_list(element_sources) or ["unknown"])
+        arguments = self._parameter_call_arguments(
+            module, source.scope, source.name, param_index,
+            tracer, tracers, prefer_iterable_elements=True)
+        if not arguments:
+            return (module, ["unknown"])
+        candidates = []
+        for caller_module, argument in arguments:
+            candidates.extend(self._origin_candidates(
+                caller_module, argument, tracers, include_local=True))
+        return (module, self._dedupe_list(candidates) or ["unknown"])
+
+    ## Resolve iteration over a call result from explicit element evidence.
+    def _call_result_container_iter_source(
+            self, module, source, tracer, tracers):
+        elements = tracer.return_element_sources.get(source.callee)
+        if elements is not None:
+            candidates = []
+            for element in elements:
+                candidates.extend(self._origin_candidates(
+                    module, element, tracers, include_local=True))
+            return (module, self._dedupe_list(candidates) or ["unknown"])
+        top = self._top_source(module, source.callee, tracers)
+        if (top and top not in ("local", "python", "unknown", "")
+                and tracer.return_sources.get(source.callee) is not None):
+            return (module, [top])
+        return (module, ["unknown"])
 
     ## Resolve one structured container-item source.
     #  @param module Module containing the item access.

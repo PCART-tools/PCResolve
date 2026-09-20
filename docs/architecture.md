@@ -33,6 +33,9 @@ substitution, and recursive return-summary following.
 Instance-method resolution likewise separates bounded receiver evidence,
 local-class convergence, structured-source resolution, homogeneous-container
 facts, class-symbol lookup, and conservative unresolved fallbacks.
+Container resolution keeps Python-shape inference, returned-element expansion,
+and iteration-owner resolution as separate recursive pipelines, each with
+dedicated parameter and call-result context handlers.
 On the single-file side, receiver and method-source collection is isolated in
 `single_file_method_resolution.py`; it operates on the visitor's lexical state
 without introducing a second analyzer state or changing AST visit order.
