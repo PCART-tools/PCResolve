@@ -8,6 +8,9 @@
 import ast
 from dataclasses import replace
 from .single_file_method_resolution import SingleFileMethodResolutionMixin
+from .single_file_parameter_dependency import (
+    SingleFileParameterDependencyMixin,
+)
 from .single_file_call_collection import (
     SingleFileCallCollectionMixin, _is_unshadowed_builtin_call,
 )
@@ -61,6 +64,7 @@ from .types import FileAnalysis, ApiCall
 #  - Detect and classify all API call expressions
 class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
                          SingleFileMethodResolutionMixin,
+                         SingleFileParameterDependencyMixin,
                          SingleFileCallCollectionMixin,
                          SingleFileAssignmentMixin,
                          SingleFileControlFlowMixin,
@@ -825,172 +829,6 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
                     (selected, default), origin="dict_lookup")
             return selected
         return "python"
-
-    ## Preserve whether an assignment value has unresolved parameter origin.
-    #  @param node Assignment value expression.
-    #  @return ParameterSource, DerivedResult, UnknownSource, "local", or
-    #  None.
-    def _parameter_dependency_source(self, node, expression_context=False):
-        if isinstance(node, ast.Name):
-            if not self._caller_stack:
-                return None
-            binding = self.current_scope().lookup(
-                node.id, skip_parent_classes=True)
-            if binding is None:
-                return None
-            existing = normalize_source(binding.source)
-            if isinstance(existing, (ParameterSource, UnknownSource)):
-                return existing
-            if isinstance(existing, DerivedResult):
-                return existing
-            if (expression_context
-                    and isinstance(existing, ContainerItem)):
-                return UnknownSource(
-                    "unresolved container-item expression")
-            if (expression_context
-                    and isinstance(existing, CallResult)
-                    and existing.result_source is None):
-                callee = existing.callee
-                callee_root = (
-                    callee.split(".", 1)[0]
-                    if isinstance(callee, str) else "")
-                imported = (
-                    callee_root in self.import_aliases
-                    or callee_root in self.import_from_symbols
-                    or (callee_root in self.symbols.direct
-                        and self.symbols.direct.get(callee_root)
-                        not in (None, "local", "python", "unknown")))
-                if not imported:
-                    return None
-                # A call result without an explicit result-owner contract
-                # cannot be safely used as the operand owner of a later
-                # expression. Preserve uncertainty instead of allowing the
-                # assignment fallback to relabel the value as local.
-                return UnknownSource("unresolved call-result expression")
-            if binding.binding_kind != "parameter":
-                return None
-            return ParameterSource(
-                self._caller_stack[-1].qualname, node.id)
-
-        if isinstance(node, ast.Attribute):
-            if (expression_context
-                    and isinstance(node.value, ast.Name)
-                    and node.value.id in ("self", "cls")):
-                attr_name = self._attribute_name(node)
-                existing_attr = None
-                if self._class_stack and attr_name:
-                    existing_attr = self.instance_attrs.get(
-                        (self._class_stack[-1], attr_name))
-                existing_attr = normalize_source(existing_attr)
-                if existing_attr is not None:
-                    if isinstance(existing_attr, (ParameterSource,
-                                                   UnknownSource,
-                                                   DerivedResult)):
-                        return existing_attr
-                    return None
-                scope_name = (
-                    self._caller_stack[-1].qualname
-                    if self._caller_stack else "")
-                if not self._class_stack:
-                    return "local"
-                return InstanceAttribute(
-                    self._class_stack[-1], attr_name, scope_name)
-            dependency = self._parameter_dependency_source(
-                node.value, expression_context=expression_context)
-            if isinstance(dependency, ParameterSource):
-                return ParameterSource(
-                    dependency.scope,
-                    dependency.name,
-                    derived=dependency.derived,
-                    attributes=dependency.attributes + (node.attr,),
-                    derived_operation=dependency.derived_operation,
-                )
-            if isinstance(dependency, UnknownSource):
-                return dependency
-            return None
-
-        if isinstance(node, ast.Subscript):
-            dependency = self._parameter_dependency_source(
-                node.value, expression_context=expression_context)
-            if isinstance(dependency, ParameterSource):
-                return ParameterSource(
-                    dependency.scope,
-                    dependency.name,
-                    derived=True,
-                    attributes=dependency.attributes,
-                    derived_operation=(
-                        "slice" if isinstance(node.slice, ast.Slice)
-                        else "item"),
-                )
-            if isinstance(dependency, UnknownSource):
-                return dependency
-            return None
-
-        if isinstance(node, ast.UnaryOp):
-            dependency = self._parameter_dependency_source(
-                node.operand, expression_context=expression_context)
-            if dependency is not None:
-                return UnknownSource("unresolved parameter-derived expression")
-            return None
-
-        if isinstance(node, ast.BinOp):
-            left = self._parameter_dependency_source(
-                node.left, expression_context=True)
-            right = self._parameter_dependency_source(
-                node.right, expression_context=True)
-            if left is not None or right is not None:
-                if left is None:
-                    traced_left = self.trace_source(node.left)
-                    if traced_left != "local":
-                        left = traced_left
-                if right is None:
-                    traced_right = self.trace_source(node.right)
-                    if traced_right != "local":
-                        right = traced_right
-                operands = tuple(
-                    source for source in (left, right)
-                    if source is not None)
-                return DerivedResult(
-                    "expression", operands,
-                    type(node.op).__name__)
-            return None
-
-        if isinstance(node, ast.Compare):
-            operands = []
-            has_dependency = False
-            for operand in [node.left] + list(node.comparators):
-                dependency = self._parameter_dependency_source(
-                    operand, expression_context=True)
-                if dependency is not None:
-                    has_dependency = True
-                    operands.append(dependency)
-                    continue
-                traced = self.trace_source(operand)
-                if traced != "local" and traced is not None:
-                    operands.append(traced)
-            if has_dependency:
-                return DerivedResult(
-                    "expression", tuple(operands), "Compare")
-            return None
-
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            dependency = self._parameter_dependency_source(node.func.value)
-            if dependency is not None:
-                method_source = self._resolve_methods(node)
-                if method_source is None:
-                    return UnknownSource("unresolved parameter method result")
-                return CallResult(
-                    method_source,
-                    display_name=ast.unparse(node.func),
-                    call_lineno=node.lineno,
-                    call_col_offset=node.col_offset,
-                    result_source=DerivedResult(
-                        "method_result",
-                        (method_source,),
-                        node.func.attr,
-                    ),
-                )
-        return None
 
     ## Record a SymbolRef for provenance tracking.
     #  @param symbol Display name.
