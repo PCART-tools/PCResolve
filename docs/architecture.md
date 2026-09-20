@@ -30,6 +30,9 @@ import-origin evidence through internal mixin boundaries.
 On the single-file side, receiver and method-source collection is isolated in
 `single_file_method_resolution.py`; it operates on the visitor's lexical state
 without introducing a second analyzer state or changing AST visit order.
+Receiver dispatch is explicit for operators, call results, names, subscripts,
+attributes, and literals; class, parameter, self-field, and local-field lookup
+are bounded helpers instead of branches in one monolithic resolver.
 Call-edge snapshots and public per-file call records are isolated in
 `single_file_call_collection.py`, while retaining the same visitor-owned
 binding maps, position identity, and append order. Call-edge argument views,
