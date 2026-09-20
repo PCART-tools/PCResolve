@@ -19,6 +19,7 @@ OWNERSHIP_ADAPTERS = (
     'instance_method_resolution.py', 'container_resolution.py',
     'project_call_context.py', 'project_result_binding.py',
     'project_source_tracing.py', 'project_method_ownership.py',
+    'project_local_classes.py',
 )
 
 

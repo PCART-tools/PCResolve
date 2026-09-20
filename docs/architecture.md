@@ -89,6 +89,12 @@ container receiver propagation, expression-method convergence, and runtime
 instance-field resolution. The former 279-line argument-method resolver now
 dispatches by structured source kind, with separate bounded-call, iteration,
 item, variadic-pack, derived-expression, and terminal-parameter stages.
+Local class identity and callable-instance evidence are isolated in
+`project_local_classes.py`. It owns inheritance traversal, constructor and
+factory result identities, field bindings, callable-parameter escape checks,
+and receiver-class filtering for project edges. These queries consume the
+shared project graph without becoming a second class index or mutable state
+owner.
 
 Further extraction is staged rather than an all-at-once class move:
 
@@ -136,6 +142,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                                       project_result_binding.py
                                                       project_source_tracing.py
                                                       project_method_ownership.py
+                                                      project_local_classes.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
                                                       container_resolution.py
@@ -167,6 +174,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Project result binding | `project_result_binding.py` | Project call graph, function summaries, and per-file call records | Bounded assigned-result, callback, iterator, and method-result rewrites |
 | Project source tracing | `project_source_tracing.py` | Module map, per-file symbols, return summaries, and recursion guard | Ordered source chains and conservative final top-level sources |
 | Project method ownership | `project_method_ownership.py` | Structured receivers, project call graph, parameter bindings, and local class evidence | Conservative method-owner candidates and structured source resolutions |
+| Project local classes | `project_local_classes.py` | Local class summaries, inheritance facts, constructor sources, and call edges | Bounded class identities, field bindings, and callable-instance candidates |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
 | Instance-method ownership | `instance_method_resolution.py` | `InstanceMethod`, receiver evidence, project indexes | Resolved display, module, and conservative owner tuple |
 | Container ownership | `container_resolution.py` | Item/iteration sources, returned-element facts, Python shapes | Conservative item and iterable owner candidates |
