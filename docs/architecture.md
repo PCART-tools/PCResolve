@@ -35,7 +35,12 @@ Call-edge snapshots and public per-file call records are isolated in
 binding maps, position identity, and append order.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
-same visitor instance and at the same point in traversal.
+same visitor instance and at the same point in traversal. Its shared
+right-hand-side pipeline now separates source tracing, result contracts,
+conversion and operator ownership, and post-visit call metadata. The
+`visit_Assign()` pipeline likewise stages container-fact collection, target
+discovery, traced or conservative binding, and mapping/iteration finalization
+without changing their original order.
 Expression-to-source tracing is isolated in
 `single_file_source_resolution.py`. Its public visitor hook now dispatches to
 bounded handlers for method calls, chained calls, ordinary call results,
