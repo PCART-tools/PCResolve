@@ -562,3 +562,116 @@ class SingleFileAssignmentMixin:
                         container_kind=container_kind or "",
                         container_item_kind=item_kind or "",
                         container_item_fields=item_fields)
+
+    ## Visit an AnnAssign node with RHS-before-target ordering.
+    #
+    #  @param node The AnnAssign AST node.
+    def visit_AnnAssign(self, node):
+        if node.value is None:
+            return
+        mapping_value = self._mapping_facts.value(node.value)
+        container_kind, item_kind = self._expression_container_shape(
+            node.value)
+        item_fields = self._expression_container_item_fields(node.value)
+        container_kind = container_kind or None
+        item_kind = item_kind or None
+        targets = self._annotated_assignment_target_names(node.target)
+        field_targets = [
+            name for name in targets if name.startswith("self.")]
+        right = self._visit_assignment(node, targets, field_targets)
+        if isinstance(node.target, ast.Attribute):
+            self._invalidate_attribute_tuple_item_sources(node.target)
+        self._record_local_constructor_fields(node, targets)
+        right, callable_keys = self._lambda_assignment_source(
+            node, targets, right)
+        self._bind_annotated_assignment_target(
+            node.target, right, callable_keys,
+            container_kind, item_kind, item_fields)
+        self._bind_mapping_value(node.target, mapping_value)
+
+    ## Collect names bound by one annotated assignment target.
+    def _annotated_assignment_target_names(self, target):
+        if isinstance(target, ast.Name):
+            return [target.id]
+        if isinstance(target, ast.Attribute):
+            name = self._attribute_name(target)
+            if name and name.startswith("self."):
+                return [name]
+            return []
+        if isinstance(target, (ast.Tuple, ast.List)):
+            return [
+                element.id for element in target.elts
+                if isinstance(element, ast.Name)]
+        return []
+
+    ## Bind one annotated target to its traced or conservative source.
+    def _bind_annotated_assignment_target(
+            self, target, right, callable_keys,
+            container_kind, item_kind, item_fields):
+        source = right or "local"
+        if isinstance(target, ast.Name):
+            self._bind_annotated_name(
+                target, source, right, callable_keys,
+                container_kind, item_kind, item_fields)
+        elif isinstance(target, ast.Attribute):
+            self._bind_annotated_attribute(
+                target, source, bool(right),
+                container_kind, item_kind, item_fields)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                if isinstance(element, ast.Name):
+                    self._bind_target_name(element.id, source, element)
+
+    ## Bind one annotated name while preserving self-assignment semantics.
+    def _bind_annotated_name(
+            self, target, source, has_traced_source, callable_keys,
+            container_kind, item_kind, item_fields):
+        if (has_traced_source and isinstance(source, str)
+                and source == target.id):
+            return
+        self._bind_target_name(
+            target.id, source, target,
+            container_kind=container_kind or "",
+            container_item_kind=item_kind or "",
+            callable_key=callable_keys.get(target.id, ""),
+            container_item_fields=item_fields)
+
+    ## Bind one annotated attribute using the original conservative boundary.
+    def _bind_annotated_attribute(
+            self, target, source, has_traced_source,
+            container_kind, item_kind, item_fields):
+        name = self._attribute_name(target)
+        if has_traced_source:
+            name = name if name and name.startswith("self.") else (
+                self._instance_attribute_target_name(name))
+        elif not (name and name.startswith("self.")):
+            name = None
+        if not name:
+            return
+        self._bind_target_name(
+            name, source, target,
+            container_kind=container_kind or "",
+            container_item_kind=item_kind or "",
+            container_item_fields=item_fields)
+
+    ## Reject mapping identities affected by augmented assignment.
+    #  @param node AugAssign AST node.
+    def visit_AugAssign(self, node):
+        self._mapping_facts.escape(node.target)
+        self._mapping_facts.escape(node.value)
+        self.generic_visit(node)
+        self._bind_mapping_value(node.target, None)
+
+    ## Invalidate mapping aliases when a binding or item is deleted.
+    #  @param node Delete AST node.
+    def visit_Delete(self, node):
+        for target in node.targets:
+            self._mapping_facts.escape(target)
+            self._bind_mapping_value(target, None)
+        self.generic_visit(node)
+
+    ## Do not reuse mapping identities across an unsupported walrus rebind.
+    #  @param node NamedExpr AST node.
+    def visit_NamedExpr(self, node):
+        self.generic_visit(node)
+        self._bind_mapping_value(node.target, None)
