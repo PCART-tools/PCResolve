@@ -42,6 +42,10 @@ without introducing a second analyzer state or changing AST visit order.
 Receiver dispatch is explicit for operators, call results, names, subscripts,
 attributes, and literals; class, parameter, self-field, and local-field lookup
 are bounded helpers instead of branches in one monolithic resolver.
+Shared receiver, callable, operator, conversion, and bounded result-owner
+helpers live in `single_file_receiver_resolution.py`. This keeps the main
+visitor focused on state and traversal while method dispatch and result
+contracts reuse one receiver-resolution boundary.
 Call-edge snapshots and public per-file call records are isolated in
 `single_file_call_collection.py`, while retaining the same visitor-owned
 binding maps, position identity, and append order. Call-edge argument views,
@@ -170,6 +174,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_assignment.py
                                    single_file_source_resolution.py
                                    single_file_parameter_dependency.py
+                                   single_file_receiver_resolution.py
                                    single_file_returns.py
                                    single_file_control_flow.py
                                    single_file_definitions.py
@@ -204,6 +209,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file assignments | `single_file_assignment.py` | Assignment AST, lexical scope, container metadata | Flow-sensitive bindings and structured assignment sources |
 | Single-file source resolution | `single_file_source_resolution.py` | Expression AST and visitor-owned lexical facts | Structured expression source and call-result evidence |
 | Single-file parameter dependencies | `single_file_parameter_dependency.py` | Expression AST, lexical parameter bindings, and field sources | ParameterSource, DerivedResult, and explicit uncertainty evidence |
+| Single-file receiver resolution | `single_file_receiver_resolution.py` | Receiver/call AST, lexical bindings, and ownership contracts | Receiver sources, callable owners, and bounded result owners |
 | Single-file returns | `single_file_returns.py` | Return AST, lexical bindings, container shapes, and call-edge sources | Ownership provenance, tuple-aware summaries, and protocol return values |
 | Single-file control flow | `single_file_control_flow.py` | Loop, branch, generator, and comprehension AST | Flow-sensitive bindings, branch joins, and iteration facts |
 | Single-file definitions | `single_file_definitions.py` | Definition AST and enclosing lexical state | Function/class summaries, parameter bindings, decorator and constructor facts |
