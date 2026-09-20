@@ -51,6 +51,10 @@ isolated in `single_file_definitions.py`. `FunctionDefinitionFacts` freezes
 receiver, parameter-kind, default-value, and variadic facts before the visitor
 enters the function scope; body traversal and summary construction are now
 separate stages instead of one 162-line handler.
+Container and Python value-shape facts are grouped in
+`single_file_container_shapes.py`. Expression-shape dispatch is separated from
+attribute, subscript, binary, and call-result handlers; list-append processing
+now has distinct owner, tuple-field, item-kind, and literal-field joins.
 Project orchestration now creates one explicit internal run in
 `ownership_model.py`: an immutable `ProjectSnapshot` fixes the ordered modules
 and source versions, `ProgramIndex` owns the per-module analyzers and project
@@ -102,6 +106,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    single_file_source_resolution.py
                                    single_file_control_flow.py
                                    single_file_definitions.py
+                                   single_file_container_shapes.py
                                                       ownership_model.py
                                                       call_result_resolution.py
                                                       instance_method_resolution.py
@@ -127,6 +132,7 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Single-file source resolution | `single_file_source_resolution.py` | Expression AST and visitor-owned lexical facts | Structured expression source and call-result evidence |
 | Single-file control flow | `single_file_control_flow.py` | Loop, branch, generator, and comprehension AST | Flow-sensitive bindings, branch joins, and iteration facts |
 | Single-file definitions | `single_file_definitions.py` | Definition AST and enclosing lexical state | Function/class summaries, parameter bindings, decorator and constructor facts |
+| Single-file container shapes | `single_file_container_shapes.py` | Container expressions, lexical bindings, and append calls | Python shapes, homogeneous item/tuple facts, and field-shape joins |
 | Cross-file | `cross_file.py` | Per-file tracers | `ProjectAnalysis` (global symbols, chains, api calls, provenance, library usage) |
 | Ownership run state | `ownership_model.py` | Ordered modules and one `SourceSnapshot` | Internal `ProjectSnapshot`, `ProgramIndex`, and `OwnershipRun` |
 | Call-result ownership | `call_result_resolution.py` | `CallResult`, project indexes, recursion guard | Resolved display, module, and conservative owner tuple |
