@@ -10,6 +10,15 @@ SHARED_MODULES = frozenset([
     'program_facts', 'source_snapshot', 'call_resolution', 'scope_facts',
     'return_resolution', 'effect_facts', 'import_facts',
 ])
+OWNERSHIP_ADAPTERS = (
+    'single_file.py', 'cross_file.py', 'mapping_facts.py',
+    'single_file_method_resolution.py', 'single_file_call_collection.py',
+    'single_file_assignment.py', 'single_file_source_resolution.py',
+    'single_file_control_flow.py', 'single_file_definitions.py',
+    'single_file_container_shapes.py', 'call_result_resolution.py',
+    'instance_method_resolution.py', 'container_resolution.py',
+    'project_call_context.py', 'project_result_binding.py',
+)
 
 
 def _local_imports(path):
@@ -35,6 +44,6 @@ def test_analyzers_consume_the_shared_layer_through_explicit_imports():
     flow_imports = _local_imports(PACKAGE / 'flow.py')
     ownership_imports = set().union(*(
         _local_imports(PACKAGE / name)
-        for name in ('single_file.py', 'cross_file.py', 'mapping_facts.py')))
+        for name in OWNERSHIP_ADAPTERS))
     assert SHARED_MODULES <= flow_imports
     assert SHARED_MODULES <= ownership_imports
