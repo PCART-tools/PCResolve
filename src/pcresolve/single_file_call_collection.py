@@ -57,380 +57,306 @@ class SingleFileCallCollectionMixin:
         base = self._resolve_call_base_for_api(node)
         if not base:
             return
-
-        ## Record CallEdge fact for Phase 7B-full call graph.
-        if self._caller_stack:
-            caller = self._caller_stack[-1]
-            ## Collect receiver source for obj.method() calls.
-            receiver_source = None
-            if isinstance(node.func, ast.Attribute):
-                receiver = node.func.value
-                if (isinstance(receiver, ast.Name)
-                        and receiver.id in ("self", "cls")):
-                    receiver_source = self.get_base(receiver)
-                else:
-                    receiver_source = self._call_edge_argument_source(
-                        receiver)
-            ## Collect arg sources.  Ordinary positional and keyword
-            #  arguments stay in the existing maps; starred expansions are
-            #  retained separately so cross-file binding can respect the
-            #  callee signature instead of treating a pack as one value.
-            arg_sources = {"pos": {}, "kw": {}}
-            protocol_arg_sources = {"pos": {}, "kw": {}}
-            iterable_arg_sources = {"pos": {}, "kw": {}}
-            star_arg_sources = {}
-            positional_index = 0
-            for arg in node.args:
-                if isinstance(arg, ast.Starred):
-                    star_src = self._call_edge_argument_source(arg.value)
-                    if star_src is not None:
-                        star_arg_sources[positional_index] = star_src
-                    positional_index = None
-                    continue
-                arg_src = self._call_edge_argument_source(arg)
-                if arg_src is not None:
-                    if positional_index is not None:
-                        arg_sources["pos"][positional_index] = arg_src
-                protocol_src = self._call_edge_protocol_source(arg)
-                if protocol_src is not None:
-                    if positional_index is not None:
-                        protocol_arg_sources["pos"][positional_index] = protocol_src
-                iterable_src = self._call_edge_iterable_source(arg)
-                if iterable_src is not None:
-                    if positional_index is not None:
-                        iterable_arg_sources["pos"][positional_index] = iterable_src
-                if positional_index is not None:
-                    positional_index += 1
-            star_kwarg_sources = []
-            for kw in getattr(node, "keywords", []) or []:
-                if kw.arg is None:
-                    star_src = self._call_edge_argument_source(kw.value)
-                    if star_src is not None:
-                        star_kwarg_sources.append(star_src)
-                    continue
-                arg_src = (
-                    self._call_edge_argument_source(kw.value)
-                    if kw.arg else None)
-                if arg_src is not None and kw.arg:
-                    arg_sources["kw"][kw.arg] = arg_src
-                protocol_src = (
-                    self._call_edge_protocol_source(kw.value)
-                    if kw.arg else None)
-                if protocol_src is not None and kw.arg:
-                    protocol_arg_sources["kw"][kw.arg] = protocol_src
-                iterable_src = (
-                    self._call_edge_iterable_source(kw.value)
-                    if kw.arg else None)
-                if iterable_src is not None and kw.arg:
-                    iterable_arg_sources["kw"][kw.arg] = iterable_src
-            ## Consume assigned_to only for the top-level RHS call.
-            assigned = self._pending_call_targets_by_node.pop(id(node), [])
-            callback_args = {}
-            for index, arg in enumerate(node.args):
-                callback_name = self._call_edge_callback_name(arg)
-                if callback_name:
-                    callback_args[index] = callback_name
-            callback_bindings = []
-            target_names = {
-                kw.value.id for kw in getattr(node, "keywords", []) or []
-                if kw.arg == "target" and isinstance(kw.value, ast.Name)
-            }
-            args_keyword = next(
-                (kw.value for kw in getattr(node, "keywords", []) or []
-                 if kw.arg == "args"), None)
-            callback_source = self._call_edge_tuple_source(args_keyword)
-            if callback_source is not None:
-                callback_bindings = [
-                    {"callback": target, "args": callback_source}
-                    for target in sorted(target_names)
-                ]
-            edge = CallEdge(
-                caller=caller,
-                callee=base,
-                callee_name=func_name or "",
-                callee_source=self._call_edge_callee_source(node.func),
-                receiver_source=receiver_source,
-                arg_sources=arg_sources,
-                star_arg_sources=star_arg_sources,
-                star_kwarg_sources=star_kwarg_sources,
-                callback_args=callback_args,
-                callback_bindings=callback_bindings,
-                protocol_arg_sources=protocol_arg_sources,
-                iterable_arg_sources=iterable_arg_sources,
-                assigned_to=assigned,
-                call_lineno=node.lineno,
-                call_col_offset=node.col_offset,
-                source_span=SourceSpan.from_ast(getattr(self, '_file_path', ''), node),
-            )
-            self.module_cg.edges.append(edge)
-            mapping_value = self._mapping_facts.value(node.func)
-            if mapping_value is not None and mapping_value.selected:
-                self._mapping_edges.append((edge, mapping_value))
-
-        if isinstance(node.func, ast.Name):
-            direct_name = node.func.id
-        else:
-            direct_name = None
-
-        scope_name = ""
-        cs = self.current_scope()
-        if cs.kind != SCOPE_MODULE:
-            scope_name = cs.name
-        loc = {
-            'func_name': func_name,
-            'parameters': parameters,
-            'lineno': node.lineno,
-            'col_offset': node.col_offset,
-            'end_lineno': getattr(node, 'end_lineno', 0) or 0,
-            'end_col_offset': getattr(node, 'end_col_offset', 0) or 0,
-            'scope_name': scope_name,
-        }
-        if isinstance(normalize_source(base), SuperMethod):
-            # Snapshot the class-definition import path, before later
-            # rebinding or another same-named class can replace the evidence.
-            loc['super_base_path'] = None
-            receiver = node.func.value if isinstance(node.func, ast.Attribute) else None
-            if (isinstance(receiver, ast.Call)
-                    and isinstance(receiver.func, ast.Name)
-                    and receiver.func.id == 'super'
-                    and not receiver.args and not receiver.keywords
-                    and _is_unshadowed_builtin_call(self, receiver)
-                    and cs.kind == SCOPE_FUNCTION
-                    and cs.parent is not None and cs.parent.kind == SCOPE_CLASS
-                    and self._super_base_path_stack):
-                base_path, decorator_module = self._super_base_path_stack[-1]
-                loc['super_base_path'] = base_path
-                loc['super_decorator_module'] = decorator_module
-        # 1.0.5 P0: snapshot call_assign_funcs for dotted calls so
-        # cross-file _resolve_func_name reads the pre-assignment
-        # state, not the final map that may include later
-        # reassignments.
-        if func_name and '.' in func_name:
-            first = func_name.split('.')[0]
-            loc['call_assign_func'] = self.call_assign_funcs.get(first)
-            binding = self.current_scope().lookup(
-                first, skip_parent_classes=True)
-            if (binding is not None
-                    and binding.binding_kind == "import"
-                    and binding.scope_kind != SCOPE_MODULE):
-                loc["call_import_source"] = (
-                    self._import_binding_sources.get(
-                        self._binding_key(binding))
-                    or binding.source
-                )
-
-        # The callable identity of an unshadowed builtin is independent of
-        # the object it returns.  Record it before return-value provenance can
-        # introduce an unrelated same-name assignment from another scope.
+        self._record_call_edge(node, base, func_name)
+        direct_name = node.func.id if isinstance(node.func, ast.Name) else None
+        location = self._call_location(node, func_name, parameters)
+        self._snapshot_super_base_path(node, base, location)
+        self._snapshot_call_assignment(func_name, location)
         if direct_name and _is_unshadowed_builtin_call(self, node):
-            record = {
-                'api': api_string,
-                'top': 'python',
-                'chain': ['python'],
-                'base': direct_name,
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    direct_name, loc)
+            self._append_api_call(
+                api_string, "python", ["python"], direct_name,
+                direct_name, func_name, parameters, location)
             return
-
-        # A concrete receiver kind determines the callable owner even when
-        # legacy base resolution represents the receiver as a plain string.
-        # This covers names, self attributes, and homogeneous subscript items.
         receiver_kind = self._call_receiver_container_kind(node)
         method_name = (
             node.func.attr if isinstance(node.func, ast.Attribute) else "")
         if (receiver_kind is not None
                 and _has_builtin_shape_method(receiver_kind, method_name)):
-            loc["receiver_container_kind"] = receiver_kind
-            record = {
-                'api': api_string,
-                'top': 'python',
-                'chain': ['python'],
-                'base': base,
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    base, loc)
+            location["receiver_container_kind"] = receiver_kind
+            self._append_api_call(
+                api_string, "python", ["python"], base,
+                direct_name, func_name, parameters, location)
             return
-
         if isinstance(base, UnknownSource):
-            record = {
-                'api': api_string,
-                'top': 'unknown',
-                'chain': ['unknown'],
-                'base': base,
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    base, loc)
+            self._append_api_call(
+                api_string, "unknown", ["unknown"], base,
+                direct_name, func_name, parameters, location)
             return
-
         if isinstance(base, CallResult):
-            # Resolve top through the callee so s.get() shows 'requests'
-            # instead of 'requests()' when s = Session().
-            callee = base.callee
-            ## 1.0.5 P2: explicit result_source carries result-object ownership.
-            #  When set, it overrides callee-based tracing — the callable's
-            #  identity is determined by what the called function returns,
-            #  not who was called.
-            rs_explicit = getattr(base, 'result_source', None)
-            if rs_explicit is not None:
-                if isinstance(rs_explicit, UnknownSource):
-                    top = "unknown"
-                elif isinstance(rs_explicit, PythonShape):
-                    top = "python"
-                elif rs_explicit == "python":
-                    top = "python"
-                elif is_structured_source(rs_explicit):
-                    # Structured: defer to cross_file for resolution.
-                    # In single-file, use source_display as placeholder.
-                    top = source_display(base)
-                else:
-                    # String source — direct ownership.
-                    top = str(rs_explicit)
-            elif isinstance(callee, str):
-                rs = self.return_sources.get(callee)
-                if rs is not None:
-                    resolved = normalize_source(rs)
-                    if isinstance(resolved, CallResult):
-                        inner_callee = resolved.callee
-                        if isinstance(inner_callee, str):
-                            callee = inner_callee
-                    elif isinstance(resolved, SourceSet):
-                        top = source_display(base)
-                        chain = [top]
-                        record = {
-                            'api': api_string,
-                            'top': top,
-                            'chain': chain,
-                            'base': base,
-                            'direct_name_callee': direct_name,
-                        }
-                        record.update(loc)
-                        self.api_calls.append(record)
-                        self._collect_call_site(api_string, func_name, parameters,
-                                                base, loc)
-                        return
-                top = self.symbols.get_top(callee) or source_display(base)
-            else:
-                top = source_display(base)
-            chain = [source_display(base)]
-            record = {
-                'api': api_string,
-                'top': top,
-                'chain': chain,
-                'base': base,
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    base, loc)
+            top, chain = self._call_result_record_source(base)
+            self._append_api_call(
+                api_string, top, chain, base, direct_name,
+                func_name, parameters, location)
             return
+        if self._is_structured_call_base(base):
+            display, chain = self._structured_call_record_source(
+                node, base, location)
+            self._append_api_call(
+                api_string, display, chain, base, direct_name,
+                func_name, parameters, location)
+            return
+        if base == "local":
+            self._append_api_call(
+                api_string, "local", ["local"], "local",
+                direct_name, func_name, parameters, location)
+            return
+        top = self.symbols.get_top(base)
+        if top:
+            self._append_api_call(
+                api_string, top, self.symbols.get_chain(base), base,
+                direct_name, func_name, parameters, location)
 
-        if (isinstance(base, tuple)
+    ## Record the internal call edge before public call classification.
+    def _record_call_edge(self, node, base, func_name):
+        if not self._caller_stack:
+            return
+        (arg_sources, protocol_sources, iterable_sources,
+         star_args, star_kwargs) = self._call_argument_sources(node)
+        callback_args, callback_bindings = self._call_callback_sources(node)
+        edge = CallEdge(
+            caller=self._caller_stack[-1],
+            callee=base,
+            callee_name=func_name or "",
+            callee_source=self._call_edge_callee_source(node.func),
+            receiver_source=self._call_receiver_source(node),
+            arg_sources=arg_sources,
+            star_arg_sources=star_args,
+            star_kwarg_sources=star_kwargs,
+            callback_args=callback_args,
+            callback_bindings=callback_bindings,
+            protocol_arg_sources=protocol_sources,
+            iterable_arg_sources=iterable_sources,
+            assigned_to=self._pending_call_targets_by_node.pop(id(node), []),
+            call_lineno=node.lineno,
+            call_col_offset=node.col_offset,
+            source_span=SourceSpan.from_ast(
+                getattr(self, "_file_path", ""), node),
+        )
+        self.module_cg.edges.append(edge)
+        mapping_value = self._mapping_facts.value(node.func)
+        if mapping_value is not None and mapping_value.selected:
+            self._mapping_edges.append((edge, mapping_value))
+
+    ## Resolve the receiver source stored on a call edge.
+    def _call_receiver_source(self, node):
+        if not isinstance(node.func, ast.Attribute):
+            return None
+        receiver = node.func.value
+        if (isinstance(receiver, ast.Name)
+                and receiver.id in ("self", "cls")):
+            return self.get_base(receiver)
+        return self._call_edge_argument_source(receiver)
+
+    ## Collect ordinary, protocol, iterable, and starred argument sources.
+    def _call_argument_sources(self, node):
+        ordinary = {"pos": {}, "kw": {}}
+        protocol = {"pos": {}, "kw": {}}
+        iterable = {"pos": {}, "kw": {}}
+        star_args = {}
+        positional_index = 0
+        for argument in node.args:
+            if isinstance(argument, ast.Starred):
+                source = self._call_edge_argument_source(argument.value)
+                if source is not None:
+                    star_args[positional_index] = source
+                positional_index = None
+                continue
+            self._record_positional_argument_sources(
+                argument, positional_index, ordinary, protocol, iterable)
+            if positional_index is not None:
+                positional_index += 1
+        star_kwargs = []
+        for keyword in getattr(node, "keywords", []) or []:
+            if keyword.arg is None:
+                source = self._call_edge_argument_source(keyword.value)
+                if source is not None:
+                    star_kwargs.append(source)
+                continue
+            self._record_keyword_argument_sources(
+                keyword, ordinary, protocol, iterable)
+        return ordinary, protocol, iterable, star_args, star_kwargs
+
+    ## Record the three source views for one positional argument.
+    def _record_positional_argument_sources(
+            self, argument, index, ordinary, protocol, iterable):
+        if index is None:
+            self._call_edge_argument_source(argument)
+            self._call_edge_protocol_source(argument)
+            self._call_edge_iterable_source(argument)
+            return
+        source = self._call_edge_argument_source(argument)
+        if source is not None:
+            ordinary["pos"][index] = source
+        protocol_source = self._call_edge_protocol_source(argument)
+        if protocol_source is not None:
+            protocol["pos"][index] = protocol_source
+        iterable_source = self._call_edge_iterable_source(argument)
+        if iterable_source is not None:
+            iterable["pos"][index] = iterable_source
+
+    ## Record the three source views for one named keyword argument.
+    def _record_keyword_argument_sources(
+            self, keyword, ordinary, protocol, iterable):
+        source = self._call_edge_argument_source(keyword.value)
+        if source is not None:
+            ordinary["kw"][keyword.arg] = source
+        protocol_source = self._call_edge_protocol_source(keyword.value)
+        if protocol_source is not None:
+            protocol["kw"][keyword.arg] = protocol_source
+        iterable_source = self._call_edge_iterable_source(keyword.value)
+        if iterable_source is not None:
+            iterable["kw"][keyword.arg] = iterable_source
+
+    ## Collect callback positions and multiprocessing target/args bindings.
+    def _call_callback_sources(self, node):
+        callback_args = {}
+        for index, argument in enumerate(node.args):
+            callback_name = self._call_edge_callback_name(argument)
+            if callback_name:
+                callback_args[index] = callback_name
+        keywords = getattr(node, "keywords", []) or []
+        targets = {
+            keyword.value.id for keyword in keywords
+            if (keyword.arg == "target"
+                and isinstance(keyword.value, ast.Name))
+        }
+        args_keyword = next(
+            (keyword.value for keyword in keywords
+             if keyword.arg == "args"), None)
+        callback_source = self._call_edge_tuple_source(args_keyword)
+        bindings = []
+        if callback_source is not None:
+            bindings = [
+                {"callback": target, "args": callback_source}
+                for target in sorted(targets)
+            ]
+        return callback_args, bindings
+
+    ## Build stable source-position and lexical-scope call metadata.
+    def _call_location(self, node, func_name, parameters):
+        scope = self.current_scope()
+        return {
+            "func_name": func_name,
+            "parameters": parameters,
+            "lineno": node.lineno,
+            "col_offset": node.col_offset,
+            "end_lineno": getattr(node, "end_lineno", 0) or 0,
+            "end_col_offset": getattr(node, "end_col_offset", 0) or 0,
+            "scope_name": "" if scope.kind == SCOPE_MODULE else scope.name,
+        }
+
+    ## Snapshot a zero-argument super() receiver's class import path.
+    def _snapshot_super_base_path(self, node, base, location):
+        if not isinstance(normalize_source(base), SuperMethod):
+            return
+        location["super_base_path"] = None
+        receiver = (
+            node.func.value if isinstance(node.func, ast.Attribute) else None)
+        scope = self.current_scope()
+        if (not isinstance(receiver, ast.Call)
+                or not isinstance(receiver.func, ast.Name)
+                or receiver.func.id != "super"
+                or receiver.args or receiver.keywords
+                or not _is_unshadowed_builtin_call(self, receiver)
+                or scope.kind != SCOPE_FUNCTION
+                or scope.parent is None
+                or scope.parent.kind != SCOPE_CLASS
+                or not self._super_base_path_stack):
+            return
+        base_path, decorator_module = self._super_base_path_stack[-1]
+        location["super_base_path"] = base_path
+        location["super_decorator_module"] = decorator_module
+
+    ## Snapshot flow-sensitive dotted-call assignment and import evidence.
+    def _snapshot_call_assignment(self, func_name, location):
+        if not func_name or "." not in func_name:
+            return
+        first = func_name.split(".")[0]
+        location["call_assign_func"] = self.call_assign_funcs.get(first)
+        binding = self.current_scope().lookup(
+            first, skip_parent_classes=True)
+        if (binding is not None
+                and binding.binding_kind == "import"
+                and binding.scope_kind != SCOPE_MODULE):
+            location["call_import_source"] = (
+                self._import_binding_sources.get(self._binding_key(binding))
+                or binding.source)
+
+    ## Resolve a CallResult's provisional single-file owner and chain.
+    def _call_result_record_source(self, base):
+        callee = base.callee
+        explicit = base.result_source
+        if explicit is not None:
+            if isinstance(explicit, UnknownSource):
+                top = "unknown"
+            elif isinstance(explicit, PythonShape) or explicit == "python":
+                top = "python"
+            elif is_structured_source(explicit):
+                top = source_display(base)
+            else:
+                top = str(explicit)
+            return top, [source_display(base)]
+        if not isinstance(callee, str):
+            return source_display(base), [source_display(base)]
+        returned = self.return_sources.get(callee)
+        if returned is not None:
+            resolved = normalize_source(returned)
+            if (isinstance(resolved, CallResult)
+                    and isinstance(resolved.callee, str)):
+                callee = resolved.callee
+            elif isinstance(resolved, SourceSet):
+                top = source_display(base)
+                return top, [top]
+        top = self.symbols.get_top(callee) or source_display(base)
+        return top, [source_display(base)]
+
+    ## Return whether a call base requires deferred structured resolution.
+    def _is_structured_call_base(self, base):
+        return (isinstance(base, tuple)
                 or isinstance(base, (
                     ContainerItem, ContainerIter, InstanceMethod,
-                    SuperMethod, SourceSet))):
-            # Unresolved compare receiver: owner cannot be determined.
-            # Emit as unknown so the call is collected but not
-            # misattributed to local.
-            if (isinstance(base, InstanceMethod)
-                    and isinstance(base.receiver, str)
-                    and base.receiver == "__unresolved_compare__"):
-                display = "unknown"
-                chain = ["unknown"]
-                record = {
-                    'api': api_string,
-                    'top': display,
-                    'chain': chain,
-                    'base': base,
-                    'direct_name_callee': direct_name,
-                }
-                record.update(loc)
-                self.api_calls.append(record)
-                self._collect_call_site(api_string, func_name, parameters,
-                                        base, loc)
-                return
+                    SuperMethod, SourceSet)))
 
-            display = source_display(base)
-            if isinstance(base, InstanceMethod) and isinstance(base.receiver, str):
-                top_from_receiver = self.symbols.get_top(base.receiver)
-                # 1.0.5 P1: builtin container methods on receivers
-                # whose container kind is known.  The receiver may be
-                # local via get_top, scope binding, or item kind
-                # (defaultdict(list) — receiver traces to collections
-                # but item kind is list).
-                #
-                rec_local = (top_from_receiver == "local")
-                if not rec_local:
-                    binding = self.current_scope().lookup(base.receiver)
-                    if (binding is not None
-                            and binding.source == "local"):
-                        rec_local = True
-                # Use the exact call receiver shape to distinguish
-                # d[k].append() item metadata from d.append(). Lexical
-                # binding metadata prevents same-name scope leakage.
-                kind = self._call_receiver_container_kind(node)
-                if rec_local or kind is not None:
-                    if (kind is not None
-                            and _has_builtin_shape_method(kind, base.method)):
-                        display = "python"
-                        # Record kind at call-site time so cross-file
-                        # phase doesn't see later invalidation.
-                        loc["receiver_container_kind"] = kind
-                    elif rec_local and not base.parameter_scope:
-                        display = "local"
-                    else:
-                        display = display  # keep source_display default
-            chain = [display] if display else []
-            record = {
-                'api': api_string,
-                'top': display,
-                'chain': chain,
-                'base': base,
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    base, loc)
-            return
+    ## Resolve a structured base's provisional owner and chain.
+    def _structured_call_record_source(self, node, base, location):
+        if (isinstance(base, InstanceMethod)
+                and isinstance(base.receiver, str)
+                and base.receiver == "__unresolved_compare__"):
+            return "unknown", ["unknown"]
+        display = source_display(base)
+        if isinstance(base, InstanceMethod) and isinstance(base.receiver, str):
+            display = self._instance_method_record_source(
+                node, base, display, location)
+        return display, [display] if display else []
 
-        # Handle a lexical binding that resolves to a local value.
-        if base == "local":
-            record = {
-                'api': api_string,
-                'top': 'local',
-                'chain': ['local'],
-                'base': 'local',
-                'direct_name_callee': direct_name,
-            }
-            record.update(loc)
-            self.api_calls.append(record)
-            self._collect_call_site(api_string, func_name, parameters,
-                                    base, loc)
-            return
+    ## Apply builtin-container and local-receiver evidence at a call site.
+    def _instance_method_record_source(self, node, base, display, location):
+        receiver_top = self.symbols.get_top(base.receiver)
+        receiver_is_local = receiver_top == "local"
+        if not receiver_is_local:
+            binding = self.current_scope().lookup(base.receiver)
+            receiver_is_local = (
+                binding is not None and binding.source == "local")
+        kind = self._call_receiver_container_kind(node)
+        if kind is not None and _has_builtin_shape_method(kind, base.method):
+            location["receiver_container_kind"] = kind
+            return "python"
+        if receiver_is_local and not base.parameter_scope:
+            return "local"
+        return display
 
-        top = self.symbols.get_top(base)
-        if not top:
-            return
-
+    ## Append one public call record and its structured call-site snapshot.
+    def _append_api_call(
+            self, api_string, top, chain, base, direct_name,
+            func_name, parameters, location):
         record = {
-            'api': api_string,
-            'top': top,
-            'chain': self.symbols.get_chain(base),
-            'base': base,
-            'direct_name_callee': direct_name,
+            "api": api_string,
+            "top": top,
+            "chain": chain,
+            "base": base,
+            "direct_name_callee": direct_name,
         }
-        record.update(loc)
+        record.update(location)
         self.api_calls.append(record)
-        self._collect_call_site(api_string, func_name, parameters,
-                                base, loc)
+        self._collect_call_site(
+            api_string, func_name, parameters, base, location)

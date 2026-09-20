@@ -32,7 +32,9 @@ On the single-file side, receiver and method-source collection is isolated in
 without introducing a second analyzer state or changing AST visit order.
 Call-edge snapshots and public per-file call records are isolated in
 `single_file_call_collection.py`, while retaining the same visitor-owned
-binding maps, position identity, and append order.
+binding maps, position identity, and append order. Call-edge argument views,
+callback bindings, location snapshots, provisional owner selection, and final
+record emission are separate stages rather than one call-collection branch.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
 same visitor instance and at the same point in traversal. Its shared
