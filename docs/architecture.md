@@ -6,7 +6,7 @@ provenance. `all_api_calls` is the primary classification output.
 classifications. The experimental `FlowAnalyzer` separately exposes parameter,
 return, and effect evidence for downstream analyses.
 
-## Ownership module refactor (in progress)
+## Ownership module refactor (completed)
 
 The stable ownership pipeline and the experimental value-flow adapter retain
 their separate state, policies, and public outputs. This refactor changes code
@@ -147,7 +147,7 @@ function display names. Call-record assembly, derived/source-kind dispatch,
 return-summary fallback, and name replacement are separate stages; no method
 in this policy adapter exceeds the orchestration entry's size.
 
-Further extraction is staged rather than an all-at-once class move:
+The refactor was completed through staged, behavior-preserving slices:
 
 1. Split large visitor and structured-source methods into smaller handlers
    while preserving AST visitation order, call-position identity, mutable
@@ -162,6 +162,18 @@ Further extraction is staged rather than an all-at-once class move:
 
 No public `AnalysisSession` or generic ownership/flow propagation engine is
 implied by this refactor.
+
+The completion boundary is deliberate. Relative to the pre-refactor ownership
+adapter, `single_file.py` decreased from 7,093 to 468 lines and
+`cross_file.py` from 6,661 to 379 lines. Both are now facades over cohesive
+policy adapters: the single-file facade retains visitor state, lexical scope
+primitives, import collection, and the public entry point; the project facade
+retains run construction and top-level orchestration. Former multi-hundred-line
+analyzer methods are staged into bounded handlers, the package's internal
+import graph is acyclic, and an architecture test protects that property.
+Larger policy modules are retained when their methods are bounded and their
+state and responsibility are cohesive; splitting them only to reduce file line
+counts would recreate implicit interfaces without a semantic boundary.
 
 For each behavior-preserving slice, compare complete public-output fingerprints
 on the 42-project ownership corpus and the value-flow matrix with
@@ -181,6 +193,8 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
                                    types.py           call_graph.py
                                    builtin_ownership.py
                                    ownership_contracts.py
+                                   single_file_builtins.py
+                                   single_file_argparse.py
                                    single_file_method_resolution.py
                                    single_file_binding_resolution.py
                                    single_file_call_collection.py
@@ -217,6 +231,8 @@ scanner.py  →  module_mapper.py  →  single_file.py  →  cross_file.py  → 
 | Scan | `scanner.py` | Project root path | List of `.py`/`.pyi` files (excluding venv) |
 | Module map | `module_mapper.py` | Project directory or explicit source file | File path ↔ dotted module name |
 | Parse + single-file | `single_file.py` | Source code | `SymbolTable`, api_calls (dict list), `call_site_objects`, `symbol_refs` |
+| Single-file builtin predicates | `single_file_builtins.py` | Call AST and lexical visitor state | Conservative unshadowed-builtin decisions shared by sibling adapters |
+| Single-file argparse facts | `single_file_argparse.py` | Parser calls, assignments, and lexical visitor state | Namespace destination fields and conservative builtin value shapes |
 | Single-file method sources | `single_file_method_resolution.py` | Method-call AST and lexical visitor state | Structured receiver/method source evidence |
 | Single-file binding resolution | `single_file_binding_resolution.py` | Decorator, target, iterator, and guarded-branch AST | Flow-sensitive target bindings and bounded guard evidence |
 | Single-file call collection | `single_file_call_collection.py` | Call AST, lexical bindings, receiver evidence | Ordered API-call records and internal `CallEdge` facts |

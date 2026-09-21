@@ -55,3 +55,30 @@ def test_analyzers_consume_the_shared_layer_through_explicit_imports():
         for name in OWNERSHIP_ADAPTERS))
     assert SHARED_MODULES <= flow_imports
     assert SHARED_MODULES <= ownership_imports
+
+
+def test_internal_package_import_graph_is_acyclic():
+    paths = tuple(PACKAGE.glob('*.py'))
+    modules = {path.stem for path in paths}
+    graph = {
+        path.stem: _local_imports(path) & modules
+        for path in paths
+    }
+    visited = set()
+    active = []
+
+    def visit(module):
+        if module in active:
+            cycle_start = active.index(module)
+            cycle = active[cycle_start:] + [module]
+            raise AssertionError(' -> '.join(cycle))
+        if module in visited:
+            return
+        active.append(module)
+        for dependency in sorted(graph[module]):
+            visit(dependency)
+        active.pop()
+        visited.add(module)
+
+    for module in sorted(graph):
+        visit(module)
