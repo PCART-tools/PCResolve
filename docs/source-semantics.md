@@ -1,9 +1,8 @@
-# Source Semantics: IR types, SourceSet convergence, and recursion guards
+# Source Semantics
 
-This document freezes the semantics that `cross_file.py` and
-`source_resolution.py` rely on.  It is not a spec for future work;
-it describes the *current* behaviour that tests and baselines
-enforce.
+This document defines the structured source evidence consumed by ownership
+resolution. These types are internal: they explain how evidence is represented
+but do not become public JSON fields automatically.
 
 ## Source IR types
 
@@ -24,20 +23,20 @@ enforce.
 | `SourceSet` | Ordered set of alternatives | `SourceSet((src1, src2))` |
 | `UnknownSource` | Unresolved with display | `UnknownSource("...")` |
 
-Legacy 3-tuples (`("container_item", a, b)`) are normalised to
-dataclass objects by `normalize_source()` at the boundary.
+`normalize_source()` also accepts compatibility tuples such as
+`("container_item", a, b)` and converts them to structured source objects at
+adapter boundaries.
 
 ## SourceSet.origin
 
 The `origin` field on `SourceSet` is a hint that controls how
 `SourceSetResolver.resolve_primary()` picks a primary candidate.
 
-| origin | set by | convergence rule |
-|--------|--------|------------------|
-| `""` (default) | `make_source_set()` without origin | strict: all candidates must converge to the same non-local owner with **no** local or unknown sources present |
-| `"return"` | `visit_Return` in `single_file.py` | relaxed: a single non-local owner is accepted even when **local** sources are present, but **unknown** sources still block convergence |
-| `"dict_lookup"` | dynamic-key `dict[...]` in `single_file.py` | strict: same as default: no local, no unknown, one convergent non-local owner only |
-| `"mixed"` | `make_source_set` flattening Sources with different origins | treated as default (strict) |
+| origin | convergence rule |
+|--------|------------------|
+| `"return"` | A single non-local owner may converge when local sources are also present; unknown sources still block convergence |
+| `"dict_lookup"` | Strict: one non-local owner, no local source, and no unknown source |
+| all other origins, including `""`, `"function_branch"`, `"yield"`, `"builtin_element"`, `"dict_values"`, `"finite_name_selection"`, and `"mixed"` | Strict: one non-local owner, no local source, and no unknown source |
 
 Rationale:
 
@@ -63,29 +62,32 @@ Rationale:
 
 ## Recursion guard
 
-`SourceSetResolver._to_top_candidate()` (formerly
-`_source_to_top_candidate`) resolves each source in a `SourceSet`
-to a top-library candidate.  For `CallResult` sources it must
-**not** unconditionally call `_top_source()`, because a local
-symbol whose direct binding is itself a `SourceSet` would
-re-enter convergence resolution and overflow the stack.
+`SourceSetResolver._to_top_candidate()` resolves each source in a `SourceSet`
+to a top-level candidate. For `CallResult` sources it does not
+unconditionally call `_top_source()`, because a local symbol whose direct
+binding is itself a `SourceSet` would re-enter convergence resolution.
 
-The resolution order for `CallResult(callee=name)`:
+The resolution order for `CallResult(callee=name)` is:
 
-1. **CG return source**: `_lookup_cg_return_source(module, name)`.
+1. **Explicit result source**: resolve `CallResult.result_source` when present.
+
+2. **Call-graph return source**: `_lookup_cg_return_source(module, name)`.
    If a call-graph fact records what the function returns, use it.
 
-2. **Import-backed**: if `name.split(".")[0]` is in
+3. **Import-backed**: if `name.split(".")[0]` is in
    `tracer.import_aliases` or `tracer.import_from_symbols`,
    call `_top_source()` to trace the import chain.
    This is safe because import chains never produce `SourceSet`.
 
-3. **Known local**: `_is_known_local_symbol(tracer, name)`.
+4. **Known local**: `_is_known_local_symbol(tracer, name)`.
    Covers `self`, `cls`, locally-defined functions/classes/methods,
    and symbols whose `direct` binding is `"local"`.
    Returns `"local"` without calling `_top_source()`.
 
-4. **Unknown**: returns `None` (treated as `has_unknown` in
+5. **Qualified import evidence**: a dotted callee can be resolved only when
+   the tracer independently records import-backed evidence for it.
+
+6. **Unknown**: returns `None` (treated as `has_unknown` in
    convergence).  Does not call `_top_source()`.
 
 A `_seen` set keyed on `(module, "cr", callee_name)` detects
@@ -94,13 +96,12 @@ chains that circle back).
 
 ## Cross-file trace boundaries
 
-`ProjectAnalyzer.trace_symbol()` is the entry point for
-cross-module symbol tracing.  It delegates structured-source
-resolution to `_resolve_structured_source()`, which dispatches
-on source type.
+`ProjectAnalyzer.trace_symbol()` is implemented by
+`project_source_tracing.py`. It delegates structured-source resolution to
+`_resolve_structured_source()`, which dispatches on source type.
 
 `_resolve_structured_source()` calls `_resolve_sourceset_primary()`
-for `SourceSet` inputs.  That method now delegates to
+for `SourceSet` inputs. That method delegates to
 `SourceSetResolver.resolve_primary()` in `source_resolution.py`.
 
 The call graph:
@@ -119,8 +120,8 @@ trace_symbol()
 
 ## Classification result fields
 
-`classify_source()` in `cross_file.py` is the single entry point
-for turning a `(base, top)` pair into a `ClassificationResult`:
+`classify_source()` in `project_call_classification.py` is the entry point for
+turning a `(base, top)` pair into a `ClassificationResult`:
 
 | field | default | notes |
 |-------|---------|-------|

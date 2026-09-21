@@ -3,26 +3,19 @@
 The `flow-0.2` contract is experimental. It is separate from the stable
 ownership output. `FlowAnalyzer` does not execute analyzed code or import its
 dependencies. Value-flow analysis does not change ownership classification or
-its JSON contract.
+its JSON contract. The reviewed regression scope and current results are in
+[Validation](validation.md#value-flow-regression-matrix).
 
 Ownership and value flow share internal source-span and signature facts, pure
 binding helpers, and source snapshot / module-index infrastructure. They retain
-separate propagation policies and result contracts. See
-[the shared-facts migration](architecture.md#shared-program-facts-first-migration),
-[source snapshots](architecture.md#shared-source-snapshots-and-module-index-second-migration),
-[shared definition candidates and call contexts](architecture.md#shared-target-candidates-and-call-contexts-third-migration),
-[shared lexical scope facts](architecture.md#shared-lexical-scope-facts-fourth-migration),
-[shared return substitution](architecture.md#shared-call-bindings-and-return-substitution-fifth-migration),
-[shared effect facts](architecture.md#shared-container-and-function-effect-facts-sixth-migration),
-and [shared import facts](architecture.md#shared-import-syntax-facts-seventh-migration).
-The [closure invariants](architecture.md#migration-closure-and-dependency-invariants)
-define the final dependency boundary
-for the current scope and characterized policy differences.
+separate propagation policies and result contracts. The
+[shared fact layer](architecture.md#shared-fact-layer) defines the common
+dependency boundary; adapter-specific uncertainty and policy stay on their
+respective sides.
 
-`flow-0.2` gives call IDs a complete source range, adds end positions and
-effect records to calls, records element paths for variadic bindings, marks
-generator summaries, and records trusted parameter-shape inputs. Consumers of
-`flow-0.1` call IDs must rediscover calls with `find_calls()` after upgrading.
+`flow-0.2` call IDs use complete source ranges. Calls can also contain effect
+records, variadic element paths, generator-summary markers, and trusted
+parameter-shape provenance.
 
 ```python
 from pcresolve import FlowAnalyzer, FunctionRef
@@ -385,8 +378,8 @@ argument expansion remains a `dynamic_argument_expansion` boundary while
 independent explicit keyword bindings are retained.
 
 Unbounded loop reasoning, `with`, starred destructuring/heap writes, escaping
-closures, general receiver binding, multiple inheritance, and dynamic dispatch are not yet
-complete. Unsupported statements stop that path and produce a boundary; this
+closures, general receiver binding, multiple inheritance, and dynamic dispatch
+are unsupported or partial. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
 boundaries remain unresolved. Effects outside the exact local summaries remain
 unknown; discarded results therefore do not prove absence of side effects.
@@ -397,7 +390,7 @@ explicit `boundaries`. `trace_parameter()` returns `unknown` when no path is
 found, rather than claiming a negative proof. Consumers must not prune unknown
 edges as no-flow. The initial budgets bound distinct summaries and collected
 call sites, not the number of all possible runtime contexts. Complete path
-enumeration and a public selected-chain query are not provided yet.
+enumeration and a public selected-chain query are outside this contract.
 
 Ownership can later consume verified flow evidence, but value dependence alone
 does not imply owner preservation (for example, conversion through `str`).
@@ -579,7 +572,7 @@ analyzer = FlowAnalyzer(
 Keys are exact `module.qualname` definitions. Contracts and provenance are
 copied into `inputs.parameter_shapes`; affected function summaries expose their
 `parameter_shapes`. The current protocol consumer recognizes `str` for the
-documented string methods above. Other nonempty shape names are retained for
-future consumers without changing value-flow semantics. PCResolve does not
+documented string methods above. Other nonempty shape names are retained as
+provenance without changing value-flow semantics. PCResolve does not
 verify the supplied claim. Changing it requires a new analysis snapshot before
 expansion.

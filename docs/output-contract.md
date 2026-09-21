@@ -1,8 +1,8 @@
 # PCResolve Output Contract
 
-PCResolve 1.0.4 introduced the first stable provenance JSON contract.
-PCResolve 1.0.5 freezes the lexical-scope-only interface documented here.
-JSON outputs before 1.0.4 are experimental and not guaranteed compatible.
+Ownership uses the stable `schema_version="1.0"` provenance contract and one
+lexical scope model. Experimental value flow uses the separate `flow-0.2`
+contract and does not change ownership output.
 
 ## CLI
 
@@ -23,19 +23,15 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
 
 - Lexical scope analysis is the only supported scope semantics.
 - `--json` is the primary machine-consumption format.
-- `--json-full` and `--json-stable` are exact-spelling hidden compatibility
-  aliases for `--json`; `--json-stable` has been deprecated since 1.0.4.
 - `--json-summary` is the recommended CI format.
 - Long options do not accept abbreviations. A partial option such as `--js` or
-  `--json-f` exits 2 as unrecognized and does not expose hidden aliases through
-  ambiguous-option messages.
+  `--json-f` exits 2 as unrecognized.
 - `--strict` exits non-zero when ownership error diagnostics are present. In
   text, debug, and explain modes, the diagnostics causing that exit are shown
   even without `--verbose`. JSON modes retain diagnostics in their payload.
-- Choose one output mode: full JSON (`--json` or its hidden aliases),
+- Choose one output mode: full JSON (`--json`),
   `--json-summary`, `--debug-dump`, or one `--explain-*` option. Conflicting
-  modes exit 2 with an argument error. Combining full JSON aliases is allowed
-  because they select the same mode.
+  modes exit 2 with an argument error.
 - JSON output rejects `--verbose`, `--usage-summary`, and `--quiet`.
   Explain output rejects `--usage-summary` and `--quiet`; `--debug-dump`
   rejects `--quiet`. These combinations exit 2 instead of ignoring options.
@@ -106,8 +102,8 @@ CLI. They return the existing `ProjectAnalysis` result for that single file.
 `analyze_source` accepts Python source text. Its `file_path` parameter supplies
 location metadata; it does not select or read a file from disk.
 
-PCResolve uses one lexical scope model. The removed `scope_model` selector and
-the former `stats.scope_model` field are not part of the 1.0.5 interface.
+PCResolve uses one lexical scope model. There is no public scope-model selector
+or `stats.scope_model` field.
 
 ### Experimental value-flow contract
 
@@ -256,9 +252,9 @@ External paths use the `<external>/...` prefix.
 | FLOW_MERGE | Multiple branches/sources merged (if/else, multi-return, SourceSet) |
 | UNRESOLVED | Trace could not reach a terminal origin |
 
-`PARAMETER_PROPAGATION` remains a stable reason value. In 1.0.5, parameter
-evidence often resolves before final classification, so the resulting call may
-instead report `RETURN_PROPAGATION`, `FLOW_MERGE`, or `TRANSITIVE_IMPORT`.
+`PARAMETER_PROPAGATION` remains a stable reason value. Parameter evidence often
+resolves before final classification, so the resulting call may instead report
+`RETURN_PROPAGATION`, `FLOW_MERGE`, or `TRANSITIVE_IMPORT`.
 
 ## Confidence rules
 
@@ -274,11 +270,3 @@ instead report `RETURN_PROPAGATION`, `FLOW_MERGE`, or `TRANSITIVE_IMPORT`.
 | FLOW_MERGE (N alts) | max(1/N, 0.2) |
 | FLOW_MERGE with a conservative local primary | 0.5 |
 | UNRESOLVED | 0.0 |
-
-## Version History
-
-- **1.0.5:** lexical scope analysis is the only scope semantics; JSON `stats`
-  contains parsed, skipped, and total module counts only.
-- **1.0.4:** `--json` became the full provenance schema;
-  `--json-stable` became a deprecated hidden alias.
-- **Before 1.0.4:** JSON was experimental and has no compatibility guarantee.
