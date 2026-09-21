@@ -50,11 +50,14 @@ Decorator and assignment-target binding, iterator-source binding, receiver
 guards, and bounded finite-name evaluation are grouped in
 `single_file_binding_resolution.py`; all operate on the same lexical scopes
 and preserve the visitor's original binding order.
-Call-edge snapshots and public per-file call records are isolated in
-`single_file_call_collection.py`, while retaining the same visitor-owned
-binding maps, position identity, and append order. Call-edge argument views,
-callback bindings, location snapshots, provisional owner selection, and final
-record emission are separate stages rather than one call-collection branch.
+Call-edge source snapshots, API-call visitors, and public per-file call records
+are isolated in `single_file_call_collection.py`, while retaining the same
+visitor-owned binding maps, position identity, AST traversal, and append order.
+Call-edge argument views, callback bindings, location snapshots, provisional
+owner selection, and final record emission are separate stages rather than one
+call-collection branch. The shared unshadowed-builtin predicate lives in
+`single_file_builtins.py`, avoiding dependencies between sibling visitor
+adapters.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
 same visitor instance and at the same point in traversal. Its shared

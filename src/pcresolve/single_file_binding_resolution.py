@@ -9,7 +9,7 @@ import ast
 from .builtin_ownership import _is_builtin
 from .ownership_contracts import _TYPE_GUARD_OWNER_CONTRACTS
 from .scope import SCOPE_MODULE
-from .single_file_call_collection import _is_unshadowed_builtin_call
+from .single_file_builtins import _is_unshadowed_builtin_call
 from .sources import (
     CallResult, ContainerIter, ParameterSource, PythonShape, UnknownSource,
     make_source_set, normalize_source,

@@ -9,7 +9,7 @@ from .ownership_contracts import (
     _match_result_python_shape,
 )
 from .single_file_assignment import _builtin_value_source
-from .single_file_call_collection import _is_unshadowed_builtin_call
+from .single_file_builtins import _is_unshadowed_builtin_call
 from .sources import (
     ContainerItem, ContainerIter, DerivedResult, InstanceMethod, PythonShape,
     SuperMethod, CallResult, UnknownSource, SourceSet, normalize_source,
