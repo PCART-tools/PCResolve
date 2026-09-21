@@ -4,14 +4,13 @@
 
 Project-level Python static analysis for API ownership and library usage provenance.
 
-## News
+## Status
 
-- **2026-09-17** - PCResolve 1.0.6 adds experimental interprocedural value-flow
-  analysis for parameters, receivers, returns, and mutation effects, backed by
-  a shared program-facts layer and a 472-check evaluation matrix.
-- **2026-09-03** - PCResolve 1.0.5 standardizes on lexical scope analysis and
-  expands context-sensitive parameter, return, call, and receiver provenance.
-- **2026-05-28** - PCResolve 1.0.4 released: stable provenance JSON contract, `scope_model="v2"` by default, `--json` full output, expanded real-project regression baselines, and Windows-safe audit/gate tooling.
+PCResolve 1.0.7 provides stable ownership and symbol-provenance output plus an
+opt-in experimental value-flow API for parameters, receivers, returns, and
+supported mutation effects. This release also supports single-file ownership
+analysis and keeps the ownership implementation aligned with the documented
+shared-facts architecture.
 
 ## What is PCResolve?
 
@@ -134,9 +133,8 @@ flow = analyzer.analyze(
 
 ## Output
 
-PCResolve 1.0.4 is the first stable provenance contract release. In ownership
-mode, `--json` returns the full provenance schema. With `--value-flow`, it
-returns the separate experimental `flow-0.2` schema.
+In ownership mode, `--json` returns the stable provenance schema. With
+`--value-flow`, it returns the separate experimental `flow-0.2` schema.
 
 The main output sections are:
 
@@ -207,13 +205,11 @@ boundaries.
 ## Documentation
 
 - [Experimental Value Flow API and pandas Example](./docs/value-flow.md)
-- [Value Flow Evaluation Matrix and Tests](./docs/value-flow-testing.md)
 - [Output Contract](./docs/output-contract.md)
 - [Architecture](./docs/architecture.md)
 - [Trace Contract](./docs/trace-contract.md)
 - [Source Semantics](./docs/source-semantics.md)
-- [Real-Project Validation](./docs/real-project-validation.md)
-- [Ground Truth Evaluation](./docs/ground-truth-evaluation.md)
+- [Validation](./docs/validation.md)
 
 ## Development
 

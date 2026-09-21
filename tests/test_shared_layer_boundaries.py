@@ -10,6 +10,23 @@ SHARED_MODULES = frozenset([
     'program_facts', 'source_snapshot', 'call_resolution', 'scope_facts',
     'return_resolution', 'effect_facts', 'import_facts',
 ])
+OWNERSHIP_ADAPTERS = (
+    'single_file.py', 'cross_file.py', 'mapping_facts.py',
+    'single_file_builtins.py',
+    'single_file_argparse.py',
+    'single_file_method_resolution.py',
+    'single_file_binding_resolution.py', 'single_file_call_collection.py',
+    'single_file_assignment.py', 'single_file_source_resolution.py',
+    'single_file_parameter_dependency.py',
+    'single_file_receiver_resolution.py', 'single_file_returns.py',
+    'single_file_control_flow.py',
+    'single_file_definitions.py',
+    'single_file_container_shapes.py', 'call_result_resolution.py',
+    'instance_method_resolution.py', 'container_resolution.py',
+    'project_call_context.py', 'project_result_binding.py',
+    'project_source_tracing.py', 'project_method_ownership.py',
+    'project_local_classes.py', 'project_call_classification.py',
+)
 
 
 def _local_imports(path):
@@ -35,6 +52,33 @@ def test_analyzers_consume_the_shared_layer_through_explicit_imports():
     flow_imports = _local_imports(PACKAGE / 'flow.py')
     ownership_imports = set().union(*(
         _local_imports(PACKAGE / name)
-        for name in ('single_file.py', 'cross_file.py', 'mapping_facts.py')))
+        for name in OWNERSHIP_ADAPTERS))
     assert SHARED_MODULES <= flow_imports
     assert SHARED_MODULES <= ownership_imports
+
+
+def test_internal_package_import_graph_is_acyclic():
+    paths = tuple(PACKAGE.glob('*.py'))
+    modules = {path.stem for path in paths}
+    graph = {
+        path.stem: _local_imports(path) & modules
+        for path in paths
+    }
+    visited = set()
+    active = []
+
+    def visit(module):
+        if module in active:
+            cycle_start = active.index(module)
+            cycle = active[cycle_start:] + [module]
+            raise AssertionError(' -> '.join(cycle))
+        if module in visited:
+            return
+        active.append(module)
+        for dependency in sorted(graph[module]):
+            visit(dependency)
+        active.pop()
+        visited.add(module)
+
+    for module in sorted(graph):
+        visit(module)
