@@ -58,6 +58,11 @@ owner selection, and final record emission are separate stages rather than one
 call-collection branch. The shared unshadowed-builtin predicate lives in
 `single_file_builtins.py`, avoiding dependencies between sibling visitor
 adapters.
+The narrowly scoped argparse ownership contract is isolated in
+`single_file_argparse.py`: parser aliases, declared destinations, conservative
+builtin shapes, argument groups, and `parse_args()` Namespace fields share the
+visitor's lexical state without leaking library-specific policy into the core
+visitor shell.
 Ordinary assignment handling and its flow-sensitive container metadata are
 isolated in `single_file_assignment.py`; target binding still occurs on the
 same visitor instance and at the same point in traversal. Its shared
