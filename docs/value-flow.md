@@ -238,6 +238,7 @@ the helper or that all possible runtime paths are feasible.
 | `return_flows` | This call's result reaching a return in `to_datetime` |
 | `effects` | Exact supported writes through parameters or nonlocal captures |
 | `target_candidates` | Bounded source-level call targets when receiver evidence admits one or more alternatives |
+| `receiver_type_evidence` | Field/constructor, accessor-return, and both call-site evidence for a chained receiver |
 | `binding_status` / `binding_issues` | Complete binding facts, including missing required and duplicate bindings |
 | `functions[*].mapping_effects` | Element-specific mapping observations and mutations |
 | `evidence` | Ordered source snippets with file and start/end positions |
@@ -340,6 +341,26 @@ resolved class construction retain nominal receiver evidence. If branch merges
 produce multiple receiver types, `target_candidates` reports bounded
 alternatives instead of selecting one. `dynamic_method_override_possible`
 remains explicit: these are source candidates, not guaranteed runtime dispatch.
+
+A narrow return-to-receiver rule handles `self.accessor().method(...)` when
+every normal return of the local, undecorated accessor reads the same instance
+field and the field has one unconditional constructor assignment in `__init__`.
+A conditional expression assigning one of several known local constructors
+can produce bounded `target_candidates`; if any receiver type lacks the method,
+no target is selected. `receiver_type_evidence` connects each candidate to the
+field assignment, all accepted return statements, the accessor call, and the
+downstream call. A single source candidate uses
+`target_status="returned_field_candidate"`; multiple candidates use
+`target_status="bounded_alternatives"` with no selected `target`. In both cases,
+the accessor and downstream dispatch remain subject to override boundaries.
+Reassignment, unknown constructor/type, incomplete return paths, dynamic
+attribute hooks, and insufficient call budget leave the receiver unresolved.
+
+VPPDetector can consume `calls[*].target_candidates` together with
+`receiver_type_evidence` to explore candidate downstream signatures and use
+the linked evidence for explanation. It must retain `dynamic_accessor_override_possible`,
+`dynamic_method_override_possible`, decorator, depth, and budget boundaries as
+uncertainty; PCResolve does not decide whether a keyword is accepted or rejected.
 
 Calling a source class resolves to its `__init__`, or to `__new__` when no
 `__init__` definition is available. Both `super().method(...)` and the nominal

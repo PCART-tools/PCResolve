@@ -8,6 +8,8 @@ build/
 .pytest_cache/
 .idea/
 
+docs/pcbench-flow-0.2-regressions.md
+
 ground_truth/verification/verification_report.md
 ground_truth/verification/coverage_check.json
 ground_truth/verification/suspicious_selector.json
