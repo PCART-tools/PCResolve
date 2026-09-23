@@ -237,6 +237,9 @@ the helper or that all possible runtime paths are feasible.
 | `capture_bindings` | Call-time bindings of enclosing variables read by a nested function |
 | `return_flows` | This call's result reaching a return in `to_datetime` |
 | `effects` | Exact supported writes through parameters or nonlocal captures |
+| `target_candidates` | Bounded source-level call targets when receiver evidence admits one or more alternatives |
+| `binding_status` / `binding_issues` | Complete binding facts, including missing required and duplicate bindings |
+| `functions[*].mapping_effects` | Element-specific mapping observations and mutations |
 | `evidence` | Ordered source snippets with file and start/end positions |
 | `conditions` | Collected syntactic branch conditions, not feasibility proofs |
 | `analysis.functions` | Function summaries actually generated |
@@ -330,18 +333,29 @@ boundary records distinguish `builtin_boundary`, `receiver_unresolved`,
 `flow_not_analyzed`, and missing definitions. Boundaries include callee spelling.
 
 `receiver_sources` records method receivers independently of explicit arguments.
-Undecorated same-class methods on the unchanged first receiver parameter or its
-direct aliases can be
-expanded as `lexical_method_candidate` targets, with an implicit receiver binding
-in `argument_sources`. `dynamic_method_override_possible` remains explicit:
-these are conditional lexical candidates, not guaranteed runtime dispatch.
+Same-class and inherited methods on the unchanged first receiver parameter or
+its direct aliases can be expanded as static candidates, with an implicit
+receiver binding in `argument_sources`. Local variables assigned a statically
+resolved class construction retain nominal receiver evidence. If branch merges
+produce multiple receiver types, `target_candidates` reports bounded
+alternatives instead of selecting one. `dynamic_method_override_possible`
+remains explicit: these are source candidates, not guaranteed runtime dispatch.
+
+Calling a source class resolves to its `__init__`, or to `__new__` when no
+`__init__` definition is available. Both `super().method(...)` and the nominal
+two-argument `super(CurrentClass, receiver).method(...)` form traverse available
+bases. An inherited entry selector such as `DataFrame.take` may select the
+defining `NDFrame.take` source. Fully available bases use C3 lookup;
+unavailable/dynamic bases remain boundaries. Decorated callers and decorated
+target methods retain `decorated_caller_semantics` or
+`decorated_target_candidate` boundaries rather than being treated as exact
+runtime dispatch.
 
 Unshadowed builtin `staticmethod` and `classmethod` decorators use their Python
-descriptor binding rules. A nominal zero-argument `super()` call can resolve a
-method on one statically available base. A simple local decorator that accepts
-one function and returns one nested callable can resolve to that replacement.
-Other descriptors, multiple inheritance, decorator factories, and dynamic
-replacement remain boundaries.
+descriptor binding rules. A simple local decorator that accepts one function
+and returns one nested callable can resolve to that replacement. Other
+descriptors, unknown bases, decorator factories, and dynamic replacement remain
+boundaries.
 
 Conditional expressions preserve the two value branches separately from their
 test. Tuple/list destructuring records element projections; matching literal
@@ -356,7 +370,12 @@ Non-convergence produces `loop_iteration_limit`. One witness is retained per
 dependency; this does not enumerate iteration counts or prove feasibility.
 Repeated evaluation of a call site does not spend the call budget repeatedly.
 Known local list/dict/set protocols include bounded `append`, `clear`, `get`,
-and list `pop` behavior. Resolved, straight-line callees can expose exact
+list/dict `pop`, dict `update`, membership, deletion, and mapping-unpack merge
+behavior. Variadic parameter containers start with a wildcard element root, so
+passing `kwargs` as an ordinary argument preserves `kwargs[*]` provenance rather
+than requiring `**kwargs` syntax. Conditional effects keep their syntactic
+conditions and report `state_after="conditional"`; this does not prove branch
+feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
@@ -372,21 +391,36 @@ ordinary assignments, if/else merges, try/except/else/finally, explicit returns,
 lexically nested definitions, direct closure bindings, definition-time nested
 defaults, literal argument expansion, path-sensitive variadic captures, and
 bounded cross-call return substitution. Builtin static/class descriptors,
-nominal zero-argument `super()`, and a narrow statically returned replacement
+nominal `super()` calls, and a narrow statically returned replacement
 decorator are resolved when their definitions are unambiguous. Unknown dynamic
 argument expansion remains a `dynamic_argument_expansion` boundary while
 independent explicit keyword bindings are retained.
 
 Unbounded loop reasoning, `with`, starred destructuring/heap writes, escaping
-closures, general receiver binding, multiple inheritance, and dynamic dispatch
+closures, general receiver binding, complex multiple inheritance, and dynamic dispatch
 are unsupported or partial. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation
 boundaries remain unresolved. Effects outside the exact local summaries remain
 unknown; discarded results therefore do not prove absence of side effects.
 Recursion records a boundary rather than unrolling forever.
+For fully available base classes, inheritance lookup follows Python's C3 order.
+If a class in that chain is decorated, a selected method is only a source
+candidate and carries `decorated_class_candidate`.
 
 Missing targets, unsupported constructs, depth limits, and budget cutoffs are
-explicit `boundaries`. `trace_parameter()` returns `unknown` when no path is
+explicit `boundaries`. Boundaries produced while evaluating an expression or
+assignment add `affected_scope` and `affected_values`; roots include a parameter
+or capture name and an `element_path` when known. `affected_scope="none"` means
+the modeled boundary expression has no tracked input root, while `unknown`
+preserves uncertainty. Source parse/read failures additionally distinguish
+static import reachability from the selected entry; `entry_relation="unrelated"`
+means no static import path was found, not that dynamic loading is impossible.
+For an import-reachable failed source, `unaffected_values` lists entry parameters
+that are never read in the entry body and thus cannot flow into it through an
+ordinary call. This exclusion is withheld when local reflection (`locals`,
+`vars`, `eval`, `exec`, or frame-local access) is visible. The source boundary
+remains `affected_scope="unknown"` for other values.
+`trace_parameter()` returns `unknown` when no path is
 found, rather than claiming a negative proof. Consumers must not prune unknown
 edges as no-flow. The initial budgets bound distinct summaries and collected
 call sites, not the number of all possible runtime contexts. Complete path
@@ -452,9 +486,10 @@ attribute hooks reject the candidate. Calls expose
 conditional on normal initialization and dispatch; it does not prove the runtime
 class of every possible receiver. Existing dynamic dispatch boundaries remain.
 
-Local literal containers have allocation identities, so aliases share modeled
+Local literal and variadic parameter containers have allocation identities, so aliases share modeled
 contents. Supported effects include list `append`/`pop`, container `clear`,
-dictionary item assignment/unpacking, and dictionary `get`. Dictionary keys are
+dictionary item assignment/unpacking, dictionary `get`/`pop`/`update`, mapping
+membership and deletion. Dictionary keys are
 part of whole-container results but excluded from value lookup; later exact-key
 writes mask matching wildcard paths. `mutation_flows` records appended value
 dependencies separately from the call's return: `append` returns `None`.

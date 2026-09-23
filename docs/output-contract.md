@@ -134,6 +134,22 @@ definitions in the Python API.
 composes only the summaries already present in the snapshot. Empty flow lists
 or `status="unknown"` are not no-flow proofs when boundaries remain.
 
+The PCBench-driven extensions remain additive within `flow-0.2`:
+
+| Location | Additive field | Meaning |
+|---|---|---|
+| `calls[*]` | `target_candidates` | Bounded source targets; a single `target` remains the selected static candidate when available. |
+| `calls[*]` | `binding_status`, `binding_issues` | Complete/uncertain/invalid binding state and statically proven missing, duplicate, unresolved, or dynamic-expansion facts. |
+| `calls[*].parameter_bindings[*]` | `destination_kind` | `parameter`, `var_positional`, `var_keyword`, or `unresolved`; variadic element positions remain in `target_path`. |
+| `calls[*]` | `result_sources` | Sources of supported local container protocol results, used to relate later boundaries to input roots. |
+| `functions[*]` | `mapping_effects` | Element-specific membership, pop, delete, update, and merge facts with bounded state and branch conditions. |
+| `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
+| source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
+
+Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
+continue to treat a selected method or decorated target/class as conservative
+when a corresponding override/decorator boundary is present.
+
 The CLI selects this contract with `--value-flow` and
 `--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the
 ownership schema. Commands without `--value-flow` retain the stable ownership

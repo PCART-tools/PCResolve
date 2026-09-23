@@ -109,13 +109,15 @@ class DefinitionIndex:
     #  @param name Syntactic callable name.
     #  @param imports Module-to-alias lookup supplied by the adapter.
     #  @param max_alias_hops Maximum qualified candidate rounds.
+    #  @param kind Definition category to resolve.
     #  @return Unique opaque payload or None for absent/ambiguous candidates.
-    def resolve_name(self, module, scope, name, imports, max_alias_hops=20):
+    def resolve_name(self, module, scope, name, imports, max_alias_hops=20,
+                     kind='function'):
         current = scope
-        function_scopes = self.scopes(module)
+        function_scopes = self.scopes(module, kind=kind)
         while current:
             if current in function_scopes:
-                matches = self.find(module, current + '.' + name)
+                matches = self.find(module, current + '.' + name, kind=kind)
                 if matches:
                     return matches[0] if len(matches) == 1 else None
             current = current.rpartition('.')[0]
@@ -128,7 +130,7 @@ class DefinitionIndex:
         if imported:
             names = [imported + (dot + rest if dot else '')]
         for _ in range(max_alias_hops):
-            matches = self.find_qualified(names)
+            matches = self.find_qualified(names, kind=kind)
             if len(matches) == 1:
                 return matches[0]
             expanded = []
