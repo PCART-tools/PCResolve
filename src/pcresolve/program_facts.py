@@ -82,16 +82,45 @@ class FunctionSignature:
 
 
 ## Pure syntax binding for the value-flow adapter, including explicit uncertainty.
-#  This preserves the existing flow binding coverage, rather than validating all
-#  runtime call errors (duplicate/missing arguments remain a separate enhancement).
+#  Records also expose complete statically decidable callability facts. Dynamic
+#  expansion prevents a missing/duplicate claim when it could supply the slot.
 #  @param node ast.Call; its expressions are retained as opaque payloads.
 #  @param signature Callee signature after receiver binding.
 #  @return (Binding records, ordered boundary reasons), without session mutation.
 def bind_ast_call(node, signature):
     records, reasons = [], []
     positional = signature.positional
+    defaults = {name for name, _ in signature.defaults}
     position = 0
     uncertain_position = False
+    uncertain_keywords = False
+    bound = {}
+
+    def destination_kind(parameter):
+        if parameter == signature.vararg:
+            return 'var_positional'
+        if parameter == signature.kwarg:
+            return 'var_keyword'
+        return 'parameter' if parameter else 'unresolved'
+
+    def add_record(record):
+        parameter = record['parameter']
+        record['destination_kind'] = destination_kind(parameter)
+        duplicate_key = (parameter, tuple(record.get('target_path', ())))
+        if (parameter and parameter not in (signature.vararg, signature.kwarg)
+                and parameter in bound):
+            record['status'] = 'duplicate'
+            record['conflicts_with'] = bound[parameter]['argument']
+            if 'duplicate_argument_binding' not in reasons:
+                reasons.append('duplicate_argument_binding')
+        elif (parameter == signature.kwarg and duplicate_key in bound):
+            record['status'] = 'duplicate'
+            record['conflicts_with'] = bound[duplicate_key]['argument']
+            if 'duplicate_argument_binding' not in reasons:
+                reasons.append('duplicate_argument_binding')
+        records.append(record)
+        if parameter and record['status'] == 'exact':
+            bound[duplicate_key if parameter == signature.kwarg else parameter] = record
 
     def positional_record(argument, slot, expanded=False):
         nonlocal position
@@ -102,9 +131,9 @@ def bind_ast_call(node, signature):
         elif signature.vararg and (not uncertain_position or position >= len(positional)):
             parameter = signature.vararg
             target_path = [position - len(positional)] if not uncertain_position else ['*']
-        records.append({'argument': slot, 'node': argument, 'parameter': parameter,
-                        'target_path': target_path, 'status': 'exact' if parameter else 'unresolved',
-                        'binding_kind': 'starred' if expanded else 'explicit'})
+        add_record({'argument': slot, 'node': argument, 'parameter': parameter,
+                    'target_path': target_path, 'status': 'exact' if parameter else 'unresolved',
+                    'binding_kind': 'starred' if expanded else 'explicit'})
         position += 1
 
     for source_position, argument in enumerate(node.args):
@@ -115,7 +144,7 @@ def bind_ast_call(node, signature):
                         'expanded_from': source_position, 'star_index': star_index}, True)
             else:
                 parameter = signature.vararg if signature.vararg and position >= len(positional) else None
-                records.append({'argument': {'position': source_position, 'starred': True},
+                add_record({'argument': {'position': source_position, 'starred': True},
                     'node': argument.value, 'parameter': parameter,
                     'target_path': ['*'] if parameter else [],
                     'status': 'exact' if parameter else 'unresolved',
@@ -141,17 +170,34 @@ def bind_ast_call(node, signature):
             parameter = signature.kwarg if signature.kwarg and not allowed else None
             target_path = ['*'] if parameter else []
             reasons.append('dynamic_argument_expansion')
+            uncertain_keywords = True
         else:
             parameter = key if key in allowed else (signature.kwarg or None)
             target_path = [key] if signature.kwarg and parameter == signature.kwarg else []
-        records.append({'argument': {'keyword': key}, 'node': argument,
+        add_record({'argument': {'keyword': key}, 'node': argument,
             'parameter': parameter, 'target_path': target_path,
             'status': 'exact' if parameter else 'unresolved',
-            'binding_kind': 'expanded_keyword' if expanded else 'explicit'})
+            'binding_kind': ('dynamic_keyword' if key is None else
+                             'expanded_keyword' if expanded else 'explicit')})
+
+    required = [name for name in positional + signature.keyword_only if name not in defaults]
+    for parameter in required:
+        could_be_positional = parameter in positional and uncertain_position
+        could_be_keyword = parameter in signature.keyword_names and uncertain_keywords
+        if parameter not in bound and not could_be_positional and not could_be_keyword:
+            records.append({'argument': None, 'node': None, 'parameter': parameter,
+                            'target_path': [], 'status': 'missing',
+                            'binding_kind': 'required',
+                            'destination_kind': 'parameter'})
+            if 'missing_required_parameter' not in reasons:
+                reasons.append('missing_required_parameter')
     if any(record['status'] == 'unresolved'
            and record['binding_kind'] in ('explicit', 'starred', 'expanded_keyword')
            for record in records):
         reasons.append('invalid_argument_binding')
+    if any(record['status'] in ('duplicate', 'missing') for record in records):
+        if 'invalid_argument_binding' not in reasons:
+            reasons.append('invalid_argument_binding')
     return records, reasons
 
 

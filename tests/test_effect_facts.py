@@ -24,7 +24,11 @@ def test_container_method_effects_preserve_shapes_arity_and_parameters():
 
     assert container_method_effect('append', {'set'}, 1) is None
     assert container_method_effect('get', {'dict'}, 0) is None
-    assert container_method_effect('pop', {'dict'}, 1) is None
+    mapping_pop = container_method_effect('pop', {'dict'}, 1)
+    assert mapping_pop.operation == 'mapping_pop'
+    assert mapping_pop.parameters == ('key', 'default')
+    assert mapping_pop.mutates_receiver
+    assert container_method_effect('pop', {'dict'}, 0) is None
 
 
 def test_function_effects_extract_complete_straight_line_summary():

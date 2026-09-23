@@ -57,6 +57,14 @@ def container_method_effect(method, receiver_shapes, positional_count):
         if positional_count in (0, 1):
             return ContainerMethodEffect('pop', ('index',), True)
         return None
+    if method == 'pop' and shapes == frozenset(('dict',)):
+        if positional_count in (1, 2):
+            return ContainerMethodEffect('mapping_pop', ('key', 'default'), True)
+        return None
+    if method == 'update' and shapes == frozenset(('dict',)):
+        if positional_count in (0, 1):
+            return ContainerMethodEffect('mapping_update', ('other',), True)
+        return None
     return None
 
 
