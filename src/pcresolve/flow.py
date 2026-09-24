@@ -69,6 +69,7 @@ class FlowCall:
     return_dependencies: list = field(default_factory=list)
     receiver_sources: list = field(default_factory=list)
     receiver_type_evidence: list = field(default_factory=list)
+    callable_instance_evidence: dict = field(default_factory=dict)
     analysis_status: str = 'analyzed'
     target_status: str = 'definition_unavailable'
     mutation_flows: list = field(default_factory=list)
@@ -239,6 +240,7 @@ class FlowAnalyzer:
         self.classes = []
         self.imports = {}
         self.module_bindings = {}
+        self.module_bodies = {}
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
@@ -260,6 +262,7 @@ class FlowAnalyzer:
             self.texts[path] = source
             self.hashes[path] = document.sha256
             module = self._module_index.file_to_module[path]
+            self.module_bodies.setdefault(module, []).append((path, tree.body))
             aliases = {}
             for node in tree.body:
                 for fact in import_facts(node):
@@ -699,6 +702,156 @@ class FlowAnalyzer:
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports, kind='class')
 
+    ## Find a source __call__ candidate for one imported module-level instance.
+    #  @param caller Function containing the invocation.
+    #  @param name Syntactic callee spelling.
+    #  @param binding Current lexical binding of the callee's first name.
+    #  @return (target, constructor facts, unresolved cause), conservatively.
+    def _module_callable_instance(self, caller, name, binding):
+        first, dot, rest = name.partition('.')
+        if binding is not None and not (
+                binding and all(item.get('kind') == 'import' for item in binding)):
+            return None, None, None
+        if first in self.module_bindings.get(caller.module, set()) and dot:
+            return None, None, None
+        imports = self.imports.get(caller.module, {})
+        imported = imports.get(first)
+        if imported:
+            if binding and {item['source'] for item in binding} != {imported}:
+                return None, None, None
+            qualified = imported + (dot + rest if dot else '')
+        elif not dot:
+            qualified = caller.module + '.' + first
+        else:
+            return None, None, None
+        module, _, variable = qualified.rpartition('.')
+        sources = self.module_bodies.get(module, [])
+        if not sources:
+            return None, None, None
+        if len(sources) != 1:
+            return None, None, 'ambiguous_module'
+        path, body = sources[0]
+
+        def root_name(node):
+            while isinstance(node, (ast.Attribute, ast.Subscript)):
+                node = node.value
+            return node.id if isinstance(node, ast.Name) else ''
+
+        def statements(nodes):
+            for statement in nodes:
+                yield statement
+                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                          ast.ClassDef)):
+                    continue
+                children = [child for child in ast.iter_child_nodes(statement)
+                            if isinstance(child, ast.stmt)]
+                yield from statements(children)
+
+        bindings = []
+        dynamic_write = False
+        method_write = False
+        for statement in statements(body):
+            if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign,
+                                      ast.Delete)):
+                targets = (statement.targets if isinstance(statement, (ast.Assign, ast.Delete))
+                           else [statement.target])
+                for target in targets:
+                    if root_name(target) != variable:
+                        continue
+                    if isinstance(target, ast.Name) and isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                        bindings.append(statement)
+                    else:
+                        dynamic_write = True
+                        if (isinstance(target, ast.Attribute)
+                                and target.attr == '__call__'):
+                            method_write = True
+            elif isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                        ast.ClassDef)) and statement.name == variable:
+                bindings.append(statement)
+            elif isinstance(statement, (ast.Import, ast.ImportFrom)):
+                if any(fact.python_binding == variable for fact in import_facts(statement)):
+                    bindings.append(statement)
+            if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+                function = statement.value.func
+                if isinstance(function, ast.Name) and function.id in (
+                        'globals', 'exec', 'eval', 'setattr', 'delattr'):
+                    dynamic_write = True
+        if any(any(isinstance(node, ast.Global) and variable in node.names
+                   for node in ast.walk(statement))
+               for statement in body
+               if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))):
+            dynamic_write = True
+        if len(bindings) != 1:
+            return None, None, 'multiple_bindings' if bindings else None
+        if method_write:
+            return None, None, 'dynamic_method_write'
+        if dynamic_write:
+            return None, None, 'dynamic_binding_write'
+        assignment = bindings[0]
+        if assignment not in body:
+            return None, None, 'conditional_binding'
+        value = (assignment.value if isinstance(assignment, (ast.Assign, ast.AnnAssign))
+                 else None)
+        if not isinstance(value, ast.Call):
+            return None, None, 'constructor_unavailable'
+        constructor_name = ast.unparse(value.func)
+        if constructor_name.partition('.')[0] in self.module_bindings.get(module, set()):
+            return None, None, 'constructor_unavailable'
+        module_ref = FunctionRef(module, '', path)
+        constructed = self._resolve_class(module_ref, constructor_name)
+        if constructed is None:
+            return None, None, 'constructor_unavailable'
+        class_ref, cls = constructed
+        if cls.decorator_list or cls.keywords:
+            return None, None, 'dynamic_class'
+        hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
+        if hierarchy is None or any(base.decorator_list for _, base in hierarchy):
+            return None, None, 'dynamic_class'
+        if any(isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and member.name == '__new__'
+               for _, base in hierarchy for member in base.body):
+            return None, None, 'dynamic_constructor'
+        methods = [member for member in cls.body
+                   if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        init = [member for member in methods if member.name == '__init__']
+        if len(init) != 1 or init[0].decorator_list:
+            return None, None, 'dynamic_constructor'
+        calls = self._definition_index.find(
+            class_ref.module, class_ref.qualname + '.__call__')
+        if not calls:
+            inherited = self._inherited_method(
+                class_ref.module, class_ref.qualname, '__call__')
+            calls = [inherited] if inherited else []
+        if len(calls) != 1 or calls[0][1].decorator_list:
+            return None, None, 'dynamic_method_write'
+        if any(isinstance(member, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+               and any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+                       and node.id == '__call__' for node in ast.walk(member))
+               for member in cls.body):
+            return None, None, 'dynamic_method_write'
+        class_name = constructor_name.partition('.')[0]
+        for statement in statements(body):
+            if not isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign,
+                                          ast.Delete)):
+                continue
+            targets = (statement.targets if isinstance(statement, (ast.Assign, ast.Delete))
+                       else [statement.target])
+            for target in targets:
+                if (root_name(target) in (class_name, variable)
+                        and isinstance(target, ast.Attribute)
+                        and target.attr == '__call__'):
+                    return None, None, 'dynamic_method_write'
+        selected = init[0].args.posonlyargs + init[0].args.args
+        records, reasons = bind_ast_call(
+            value, FunctionSignature.from_ast(init[0].args, selected[1:]))
+        if reasons or any(record['status'] != 'exact' for record in records):
+            return None, None, 'constructor_binding_uncertain'
+        return calls[0], {
+            'qualified_name': qualified, 'module_ref': module_ref,
+            'assignment': assignment, 'constructor': value,
+            'class_ref': class_ref, 'arguments': records,
+            'source_body': body}, None
+
     def _captures(self, ref, node):
         facts = self._scope_facts(node)
         outer = set()
@@ -883,6 +1036,49 @@ class _Summary:
                 'source_text': snippet.decode('utf-8')}
         self.evidence_cache[key] = value
         return value
+
+    def module_callable_evidence(self, facts, node):
+        ref = facts['module_ref']
+        arguments = []
+        for record in facts['arguments']:
+            expression = record['node']
+            source = {'kind': 'expression', 'text': ast.unparse(expression)}
+            assignments = []
+            if isinstance(expression, ast.Constant):
+                source = {'kind': 'literal', 'value': expression.value}
+            elif isinstance(expression, ast.Name):
+                imported = self.analyzer.imports.get(ref.module, {}).get(expression.id)
+                if expression.id in self.analyzer.module_bindings.get(ref.module, set()):
+                    source = {'kind': 'module_symbol',
+                              'qualified_name': ref.module + '.' + expression.id}
+                    for statement in facts['source_body']:
+                        if statement.lineno > facts['assignment'].lineno or not isinstance(
+                                statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                            continue
+                        targets = (statement.targets if isinstance(statement, ast.Assign)
+                                   else [statement.target])
+                        for target in targets:
+                            root = target
+                            while isinstance(root, (ast.Subscript, ast.Attribute)):
+                                root = root.value
+                            if isinstance(root, ast.Name) and root.id == expression.id:
+                                assignments.append(self.evidence_at(ref, statement))
+                                break
+                elif imported:
+                    source = {'kind': 'import', 'qualified_name': imported}
+                else:
+                    source = {'kind': 'unresolved', 'name': expression.id}
+            arguments.append({
+                'argument': record['argument'], 'parameter': record['parameter'],
+                'source': source, 'expression': ast.unparse(expression),
+                'evidence': self.evidence_at(ref, expression),
+                'source_assignments': assignments})
+        return {'qualified_name': facts['qualified_name'],
+                'instance_type': asdict(facts['class_ref']),
+                'assignment': self.evidence_at(ref, facts['assignment']),
+                'constructor': self.evidence_at(ref, facts['constructor']),
+                'constructor_arguments': arguments,
+                'call': self.evidence(node)}
 
     def marked(self, values, node, relation=None):
         result = [dict(v, relation=relation or v['relation'], evidence=v['evidence'] + [self.evidence(node)],
@@ -1183,6 +1379,8 @@ class _Summary:
             target = self.analyzer._resolve(self.ref, name) if binding is None else None
             canonical = self.ref.module + '.' + name
             constructor_class = None
+            callable_instance_fact = None
+            callable_instance_cause = None
             bounded_targets = []
             receiver_values = (self.expression(node.func.value, env)
                                 if isinstance(node.func, ast.Attribute) else [])
@@ -1322,6 +1520,24 @@ class _Summary:
                     module, qualname = next(iter(targets))
                     matches = self.analyzer._definition_index.find(module, qualname)
                     target = matches[0] if matches else None
+            if target is None:
+                target, callable_instance_fact, callable_instance_cause = (
+                    self.analyzer._module_callable_instance(
+                        self.ref, name, binding))
+                if target is not None:
+                    bound_receiver = True
+                    dispatch_kind = 'callable_instance_candidate'
+                    assignment_evidence = self.evidence_at(
+                        callable_instance_fact['module_ref'],
+                        callable_instance_fact['assignment'])
+                    receiver_sources = [{
+                        'kind': 'module_callable_instance',
+                        'source': callable_instance_fact['qualified_name'],
+                        'instance_type': asdict(
+                            callable_instance_fact['class_ref']),
+                        'relation': 'direct',
+                        'evidence': [assignment_evidence, self.evidence(node)],
+                        'conditions': list(self.conditions)}]
             decorated_target_candidate = False
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
@@ -1353,6 +1569,9 @@ class _Summary:
                 call.target_candidates = [asdict(candidate[0])
                                           for candidate in bounded_targets]
             call.receiver_sources = receiver_sources
+            if callable_instance_fact is not None:
+                call.callable_instance_evidence = self.module_callable_evidence(
+                    callable_instance_fact, node)
             if returned_field_receiver:
                 call.receiver_type_evidence = _unique([
                     dict(fact, receiver_call=self.evidence(node))
@@ -1369,6 +1588,19 @@ class _Summary:
                 call.target_status = 'constructor_field_candidate'
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
                     'reason': 'constructor_field_assumption', 'evidence': self.evidence(field_evidence)})
+            if callable_instance_cause is not None:
+                self.result.boundaries.append({
+                    'call_id': call_id, 'callee_name': name,
+                    'reason': 'module_callable_instance_unresolved',
+                    'cause': callable_instance_cause,
+                    'affected_scope': 'unknown', 'affected_values': [],
+                    'evidence': self.evidence(node)})
+            if callable_instance_fact is not None:
+                self.result.boundaries.append({
+                    'call_id': call_id, 'callee_name': name,
+                    'reason': 'dynamic_callable_instance_override_possible',
+                    'affected_scope': 'unknown', 'affected_values': [],
+                    'evidence': self.evidence(node)})
             if (target and dispatch_kind in (
                     'super_method', 'super_new', 'instance_method')
                     and getattr(self.node, 'decorator_list', [])
