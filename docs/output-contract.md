@@ -140,6 +140,7 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 |---|---|---|
 | `calls[*]` | `target_candidates` | Bounded source targets; a single `target` remains the selected static candidate when available. |
 | `calls[*]` | `receiver_type_evidence` | For a constructor-backed field returned by a local accessor, records the field, nominal instance type, assignment, all proven return statements, accessor call, and downstream receiver call. These are source candidates, not runtime dispatch guarantees. |
+| `calls[*]` | `callable_instance_evidence` | For a uniquely assigned module-level constructor-backed callable object, records the object assignment, nominal class, constructor argument sources, and invocation site. Its `__call__` target is a source candidate, not a runtime dispatch guarantee. |
 | `calls[*]` | `binding_status`, `binding_issues` | Complete/uncertain/invalid binding state and statically proven missing, duplicate, unresolved, or dynamic-expansion facts. |
 | `calls[*].parameter_bindings[*]` | `destination_kind` | `parameter`, `var_positional`, `var_keyword`, or `unresolved`; variadic element positions remain in `target_path`. |
 | `calls[*]` | `result_sources` | Sources of supported local container protocol results, used to relate later boundaries to input roots. |

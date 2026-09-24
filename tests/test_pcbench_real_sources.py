@@ -56,7 +56,8 @@ def test_tornado_constructor_and_explicit_super():
 
 def test_pandas_inherited_entry_and_mapping_as_ordinary_argument():
     result = analyze('pandas-2.0.0',
-                     ['core/frame.py', 'core/generic.py', 'core/arraylike.py'],
+                     ['core/frame.py', 'core/generic.py', 'core/arraylike.py',
+                      'compat/numpy/function.py'],
                      'pandas.core.frame', 'DataFrame.take')
     assert result.entry.module == 'pandas.core.generic'
     assert result.entry.qualname == 'NDFrame.take'
@@ -66,10 +67,18 @@ def test_pandas_inherited_entry_and_mapping_as_ordinary_argument():
     assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
                and value.get('output_path') == ['*']
                for value in mapping['sources'])
+    assert call.target.module == 'pandas.compat.numpy.function'
+    assert call.target.qualname == 'CompatValidator.__call__'
+    assert call.target_status == 'callable_instance_candidate'
+    assert call.callable_instance_evidence['constructor_arguments'][0][
+        'source']['qualified_name'] == 'pandas.compat.numpy.function.TAKE_DEFAULTS'
+    assert any(item['source'] == {'kind': 'literal', 'value': 'kwargs'}
+               for item in call.callable_instance_evidence['constructor_arguments'])
 
 
 def test_pandas_series_take_passes_kwargs_as_ordinary_mapping():
-    result = analyze('pandas-2.0.0', ['core/series.py'],
+    result = analyze('pandas-2.0.0',
+                     ['core/series.py', 'compat/numpy/function.py'],
                      'pandas.core.series', 'Series.take')
     call = result.find_calls(callee_name='nv.validate_take')[0]
     mapping = next(item for item in call.argument_sources
@@ -77,6 +86,10 @@ def test_pandas_series_take_passes_kwargs_as_ordinary_mapping():
     assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
                and value.get('output_path') == ['*']
                for value in mapping['sources'])
+    assert call.target.module == 'pandas.compat.numpy.function'
+    assert call.target.qualname == 'CompatValidator.__call__'
+    assert call.callable_instance_evidence['qualified_name'] == (
+        'pandas.compat.numpy.function.validate_take')
 
 
 def test_aiohttp_assignment_boundaries_do_not_name_kwargs():

@@ -362,6 +362,22 @@ the linked evidence for explanation. It must retain `dynamic_accessor_override_p
 `dynamic_method_override_possible`, decorator, depth, and budget boundaries as
 uncertainty; PCResolve does not decide whether a keyword is accepted or rejected.
 
+For a module-level variable assigned once by a source class constructor and
+called through a module or direct import alias, `target_candidates` may include
+the class's `__call__` definition. The selected source candidate has
+`target_status="callable_instance_candidate"`; it is not a guaranteed runtime
+target. `callable_instance_evidence` identifies the variable, class, assignment,
+constructor, constructor argument-to-parameter bindings and source expressions,
+and invocation. Local module-symbol constructor arguments include preceding
+source assignments when available. Existing invocation `argument_sources` and
+`parameter_bindings` remain separate. A
+`dynamic_callable_instance_override_possible` boundary accompanies the source
+candidate. Reassignment, conditional assignment, unknown construction, and
+visible method mutation leave a `module_callable_instance_unresolved` boundary
+and no candidate. VPPDetector can combine the candidate, constructor provenance,
+and ordinary argument flow to inspect a validator implementation; PCResolve
+does not derive allowed keys or compatibility outcomes.
+
 Calling a source class resolves to its `__init__`, or to `__new__` when no
 `__init__` definition is available. Both `super().method(...)` and the nominal
 two-argument `super(CurrentClass, receiver).method(...)` form traverse available
