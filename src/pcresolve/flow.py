@@ -68,6 +68,7 @@ class FlowCall:
     capture_bindings: list = field(default_factory=list)
     return_dependencies: list = field(default_factory=list)
     receiver_sources: list = field(default_factory=list)
+    receiver_type_evidence: list = field(default_factory=list)
     analysis_status: str = 'analyzed'
     target_status: str = 'definition_unavailable'
     mutation_flows: list = field(default_factory=list)
@@ -475,6 +476,164 @@ class FlowAnalyzer:
         target = self._definition_index.find(
             target_class[0].module, target_class[0].qualname + '.' + method)
         return (target[0], assignment) if len(target) == 1 and not target[0][1].decorator_list else None
+
+    ## Find constructor-backed field types shared by every normal return path.
+    #  @param target Local method definition.
+    #  @return Bounded field/type facts with assignment and return AST evidence.
+    def _returned_field_instances(self, target):
+        ref, accessor = target
+        owner = ref.qualname.rpartition('.')[0]
+        classes = self._definition_index.find(ref.module, owner, kind='class')
+        if len(classes) != 1 or classes[0][1].decorator_list or accessor.decorator_list:
+            return []
+        cls = classes[0][1]
+        owner_hierarchy = self._class_mro(ref.module, owner)
+        if owner_hierarchy is None or any(
+                base.decorator_list or any(
+                    isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and member.name in ('__getattr__', '__getattribute__',
+                                        '__setattr__', '__delattr__')
+                    for member in base.body)
+                for _, base in owner_hierarchy):
+            return []
+        params = accessor.args.posonlyargs + accessor.args.args
+        if not params or accessor.args.vararg or accessor.args.kwarg:
+            return []
+        receiver = params[0].arg
+        methods = [member for member in cls.body
+                   if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        if any(isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+               and any(isinstance(node, ast.Name)
+                       and isinstance(node.ctx, ast.Store)
+                       and node.id == accessor.name
+                       for node in ast.walk(statement))
+               for statement in cls.body):
+            return []
+
+        def returns_from(statements):
+            returns = []
+            open_path = True
+            for statement in statements:
+                if not open_path:
+                    break
+                if isinstance(statement, ast.Return):
+                    value = statement.value
+                    if not (isinstance(value, ast.Attribute)
+                            and isinstance(value.value, ast.Name)
+                            and value.value.id == receiver):
+                        return None
+                    returns.append(statement)
+                    open_path = False
+                elif isinstance(statement, ast.If):
+                    if not (isinstance(statement.test, ast.Constant)
+                            or (isinstance(statement.test, ast.Name)
+                                and statement.test.id != receiver)):
+                        return None
+                    left = returns_from(statement.body)
+                    right = returns_from(statement.orelse)
+                    if left is None or right is None:
+                        return None
+                    returns.extend(left[0] + right[0])
+                    open_path = left[1] or right[1]
+                elif isinstance(statement, ast.Pass) or (
+                        isinstance(statement, ast.Expr)
+                        and isinstance(statement.value, ast.Constant)
+                        and isinstance(statement.value.value, str)):
+                    continue
+                else:
+                    return None
+            return returns, open_path
+
+        paths = returns_from(accessor.body)
+        if paths is None or paths[1] or not paths[0]:
+            return []
+        fields = {statement.value.attr for statement in paths[0]}
+        if len(fields) != 1:
+            return []
+        field = next(iter(fields))
+        if any(any(getattr(member, 'name', None) == field or
+                   (isinstance(member, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+                    and any(isinstance(node, ast.Name)
+                            and isinstance(node.ctx, ast.Store)
+                            and node.id == field
+                            for node in ast.walk(member)))
+                   for member in base.body)
+               for _, base in owner_hierarchy):
+            return []
+        writes = [node for member in methods for node in ast.walk(member)
+                  if isinstance(node, ast.Attribute) and node.attr == field
+                  and isinstance(node.ctx, (ast.Store, ast.Del))]
+        initializers = [member for member in methods if member.name == '__init__']
+        if (len(writes) != 1 or len(initializers) != 1
+                or initializers[0].decorator_list):
+            return []
+        init = initializers[0]
+        if any(isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+               and any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+                       and node.id == '__init__' for node in ast.walk(statement))
+               for statement in cls.body):
+            return []
+        assignment = next((statement for statement in init.body
+                           if isinstance(statement, ast.Assign)
+                           and len(statement.targets) == 1
+                           and statement.targets[0] is writes[0]
+                           and isinstance(writes[0].value, ast.Name)
+                           and writes[0].value.id == receiver), None)
+        if assignment is None:
+            return []
+        if any(statement is not assignment and not isinstance(statement, ast.Pass)
+               and not (isinstance(statement, ast.Expr)
+                        and isinstance(statement.value, ast.Constant)
+                        and isinstance(statement.value.value, str))
+               for statement in init.body):
+            return []
+        if any((isinstance(node, ast.Attribute)
+                and node.attr == '__dict__')
+               or isinstance(node, ast.NamedExpr)
+               or (isinstance(node, ast.Call)
+                   and ((isinstance(node.func, ast.Name)
+                         and node.func.id in ('setattr', 'delattr', 'vars'))
+                        or (isinstance(node.func, ast.Attribute)
+                            and node.func.attr in ('__setattr__', '__delattr__'))))
+               for member in methods for node in ast.walk(member)
+               if node is not assignment.value):
+            return []
+
+        def constructors(value):
+            if isinstance(value, ast.IfExp):
+                if any(isinstance(node, (ast.Call, ast.NamedExpr))
+                       for node in ast.walk(value.test)):
+                    return None
+                left, right = constructors(value.body), constructors(value.orelse)
+                return left + right if left is not None and right is not None else None
+            if not isinstance(value, ast.Call):
+                return None
+            name = ast.unparse(value.func)
+            first = name.partition('.')[0]
+            if (first in self.module_bindings.get(ref.module, set())
+                    or first in self._scope_facts(init).bound):
+                return None
+            match = self._resolve_class(ref, name)
+            if match is None or match[1].decorator_list or match[1].keywords:
+                return None
+            hierarchy = self._class_mro(match[0].module, match[0].qualname)
+            if hierarchy is None or any(
+                    base.decorator_list or any(
+                        isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and member.name in ('__new__', '__getattribute__',
+                                            '__getattr__')
+                        for member in base.body)
+                    for _, base in hierarchy):
+                return None
+            return [match[0]]
+
+        types = constructors(assignment.value)
+        if not types:
+            return []
+        return [{'field': field, 'instance_type': asdict(class_ref),
+                 'assignment_ref': ref, 'assignment_node': assignment,
+                 'return_ref': ref, 'return_nodes': paths[0]}
+                for class_ref in _unique(types)]
 
     def _descriptor_kind(self, target):
         ref, node = target
@@ -1028,6 +1187,8 @@ class _Summary:
             receiver_values = (self.expression(node.func.value, env)
                                 if isinstance(node.func, ast.Attribute) else [])
             receiver_sources = self.materialize(receiver_values, env)
+            returned_field_receiver = bool(receiver_values) and all(
+                value.get('receiver_type_evidence') for value in receiver_values)
             bound_receiver = False
             dispatch_kind = None
             field_evidence = None
@@ -1116,26 +1277,32 @@ class _Summary:
                     receiver_values = env.get(receiver_name, [])
                     receiver_sources = self.materialize(receiver_values, env)
             if (target is None and isinstance(node.func, ast.Attribute)
-                    and receiver_values):
+                    and receiver_values and all(value.get('instance_type')
+                                                for value in receiver_values)):
                 instance_types = {
                     (value['instance_type']['module'],
                      value['instance_type']['qualname'])
                     for value in receiver_values
                     if value.get('instance_type')}
                 candidates = []
+                complete_candidates = True
                 for module, class_name in sorted(instance_types):
                     matches = self.analyzer._definition_index.find(
                         module, class_name + '.' + node.func.attr)
                     candidate = (matches[0] if len(matches) == 1 else
                                  self.analyzer._inherited_method(
                                      module, class_name, node.func.attr))
-                    if candidate and candidate not in candidates:
+                    if candidate is None:
+                        complete_candidates = False
+                    elif candidate not in candidates:
                         candidates.append(candidate)
-                if len(candidates) == 1:
+                if complete_candidates and len(candidates) == 1:
                     target = candidates[0]
                     bound_receiver = True
-                    dispatch_kind = 'receiver_type_evidence'
-                elif len(candidates) > 1:
+                    dispatch_kind = ('returned_field_candidate'
+                                     if returned_field_receiver else
+                                     'receiver_type_evidence')
+                elif complete_candidates and len(candidates) > 1:
                     bounded_targets = candidates
                     dispatch_kind = 'bounded_alternatives'
             if binding and all(v['kind'] == 'import' for v in binding):
@@ -1160,7 +1327,8 @@ class _Summary:
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
                 if dispatch_kind in (
                         'constructor', 'instance_method', 'field_method',
-                        'receiver_type_evidence', 'super_method', 'super_new'):
+                        'receiver_type_evidence', 'returned_field_candidate',
+                        'super_method', 'super_new'):
                     decorated_target_candidate = True
                 else:
                     replacement = self.analyzer._decorated_target(target)
@@ -1185,6 +1353,11 @@ class _Summary:
                 call.target_candidates = [asdict(candidate[0])
                                           for candidate in bounded_targets]
             call.receiver_sources = receiver_sources
+            if returned_field_receiver:
+                call.receiver_type_evidence = _unique([
+                    dict(fact, receiver_call=self.evidence(node))
+                    for value in receiver_values
+                    for fact in value['receiver_type_evidence']])
             call.target_status = ('bounded_alternatives' if bounded_targets else
                                   dispatch_kind if target and dispatch_kind else
                                   'constructor_unavailable' if constructor_class else
@@ -1264,9 +1437,16 @@ class _Summary:
                             and node.func.attr == 'join' and len(node.args) == 1 and not node.keywords
                             and not isinstance(node.args[0], ast.Starred))
             if target and bound_receiver and dispatch_kind in (
-                    'instance_method', 'field_method', 'receiver_type_evidence'):
+                    'instance_method', 'field_method', 'receiver_type_evidence',
+                    'returned_field_candidate'):
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
                                                'reason': 'dynamic_method_override_possible'})
+            if returned_field_receiver and (target or bounded_targets):
+                self.result.boundaries.append({
+                    'call_id': call_id, 'callee_name': name,
+                    'reason': 'dynamic_accessor_override_possible',
+                    'affected_scope': 'unknown', 'affected_values': [],
+                    'evidence': self.evidence(node)})
             capture_values = {}
             if target:
                 for capture in self.analyzer._captures(*target):
@@ -1397,6 +1577,28 @@ class _Summary:
                             'conditions': list(self.conditions)}
             if constructor_class is not None:
                 result_value['instance_type'] = asdict(constructor_class)
+            elif (target and dispatch_kind == 'instance_method'
+                  and isinstance(node.func, ast.Attribute)
+                  and isinstance(node.func.value, ast.Name)
+                  and call.binding_status == 'complete'):
+                field_types = self.analyzer._returned_field_instances(target)
+                if field_types:
+                    values = []
+                    for item in field_types:
+                        fact = {'field': item['field'],
+                                'instance_type': item['instance_type'],
+                                'assignment': self.evidence_at(
+                                    item['assignment_ref'], item['assignment_node']),
+                                'returns': [self.evidence_at(item['return_ref'], path)
+                                            for path in item['return_nodes']],
+                                'accessor_call': self.evidence(node)}
+                        call.receiver_type_evidence.append(fact)
+                        values.append(dict(result_value,
+                            instance_type=item['instance_type'],
+                            receiver_type_evidence=[fact],
+                            evidence=result_value['evidence'] +
+                                     [fact['assignment']] + fact['returns']))
+                    return values
             return [result_value]
         if isinstance(node, (ast.Lambda, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
             self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_expression', 'evidence': self.evidence(node)})
@@ -2071,7 +2273,8 @@ class _Summary:
                 if previous.target != call.target:
                     previous.target = None
                 for attribute in ('parameter_bindings', 'parameter_flows', 'argument_sources', 'argument_flows',
-                                   'capture_bindings', 'receiver_sources', 'mutation_flows',
+                                   'capture_bindings', 'receiver_sources',
+                                   'receiver_type_evidence', 'mutation_flows',
                                    'return_dependencies', 'effects', 'target_candidates',
                                    'result_sources', 'binding_issues'):
                     setattr(previous, attribute, _unique(getattr(previous, attribute) + getattr(call, attribute)))
