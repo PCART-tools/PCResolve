@@ -390,9 +390,30 @@ runtime dispatch.
 
 Unshadowed builtin `staticmethod` and `classmethod` decorators use their Python
 descriptor binding rules. A simple local decorator that accepts one function
-and returns one nested callable can resolve to that replacement. Other
-descriptors, unknown bases, decorator factories, and dynamic replacement remain
-boundaries.
+and returns one nested callable can resolve to that replacement. A single
+synchronous source decorator with one parameter can preserve the original
+target when every normal return returns that unchanged parameter, a final
+return prevents implicit fallthrough, and the supported statements contain
+no parameter rebinding or direct callable mutation. Its source definition,
+parameter, and returns appear in `decorator_identity_evidence`. Metadata writes
+and opaque calls retain `identity_decorator_effects_unmodeled`: preserved object
+identity does not prove the absence of effects. Replacement, capture wrappers,
+unknown decorators, unsupported control flow, and proofs exceeding the bounded
+AST size are not stripped to the original function. Other descriptors, unknown
+bases, decorator factories, and dynamic replacement remain boundaries.
+
+Established function-local import bindings continue through the shared bounded
+module alias/reexport lookup without falling back to caller methods or unrelated
+same-named functions. The imported binding and each export must be unique and
+unconditional in the available source; local rebinding, conditional bindings,
+cyclic exports, and ambiguous exports retain unresolved-target boundaries.
+Import-source provenance can carry `import_incomplete=True` after a merge that
+includes a path without the binding (including zero loop iterations), or
+`import_modified=True` after an explicit attribute write. Either flag prevents
+unique-target selection from that import binding.
+Target resolution and binding precision are independent: a resolved fixed
+signature can coexist with `binding_status="uncertain"` and unresolved dynamic
+`*args`/`**kwargs` expansions, while their root provenance is still present.
 
 Conditional expressions preserve the two value branches separately from their
 test. Tuple/list destructuring records element projections; matching literal

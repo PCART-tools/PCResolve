@@ -91,6 +91,20 @@ def test_alias_chain_and_cycle_are_bounded_without_reading_more_sources():
     assert index.resolve_name('main', 'entry', 'convert', imports) is None
 
 
+def test_explicit_import_resolution_does_not_use_caller_lexical_names():
+    index = _index()
+    imports = {'facade': {'exported': 'bridge.convert'},
+               'bridge': {'convert': 'lib.helper'}}
+    assert index.resolve_qualified(['facade.exported'], imports) == 'imported'
+    assert index.resolve_qualified(
+        ['facade.exported'], imports,
+        qualified_guard=lambda name: name != 'bridge.convert') is None
+    assert index.resolve_qualified(
+        ['facade.exported'], imports, max_alias_hops=2) is None
+    imports['bridge']['convert'] = 'facade.exported'
+    assert index.resolve_qualified(['facade.exported'], imports) is None
+
+
 def test_context_chain_preserves_order_and_legacy_import():
     assert LegacyContext is CallContext
     root = CallContext('main', FunctionId('main', 'entry'), None)

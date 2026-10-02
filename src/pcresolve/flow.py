@@ -12,7 +12,8 @@ from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import (SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
                               module_name_for_path)
 from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
-from .scope_facts import FLOW_SCOPE, captured_names, function_scope_facts
+from .scope_facts import (FLOW_SCOPE, captured_names, function_scope_facts,
+                          statement_scope_facts)
 from .return_resolution import (CallBinding, ReturnCall,
                                 resolve_return_dependencies,
                                 select_dependencies)
@@ -29,6 +30,23 @@ def _exception_class(name):
 def _may_raise(node):
     return any(isinstance(n, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Attribute,
                               ast.Subscript, ast.Compare)) for n in ast.walk(node))
+
+
+def _attribute_write_roots(node):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                         ast.Lambda)):
+        return set()
+    roots = set()
+    if isinstance(node, (ast.Attribute, ast.Subscript)) and isinstance(
+            node.ctx, (ast.Store, ast.Del)):
+        root = node.value
+        while isinstance(root, (ast.Attribute, ast.Subscript)):
+            root = root.value
+        if isinstance(root, ast.Name):
+            roots.add(root.id)
+    for child in ast.iter_child_nodes(node):
+        roots.update(_attribute_write_roots(child))
+    return roots
 
 
 def _call_key(path, node):
@@ -70,6 +88,7 @@ class FlowCall:
     receiver_sources: list = field(default_factory=list)
     receiver_type_evidence: list = field(default_factory=list)
     callable_instance_evidence: dict = field(default_factory=dict)
+    decorator_identity_evidence: list = field(default_factory=list)
     analysis_status: str = 'analyzed'
     target_status: str = 'definition_unavailable'
     mutation_flows: list = field(default_factory=list)
@@ -172,7 +191,14 @@ def _unique(values):
 
 def _merge_env(environments):
     keys = set().union(*(e.keys() for e in environments))
-    return {k: _unique([v for e in environments for v in e.get(k, [])]) for k in keys}
+    merged = {}
+    for key in keys:
+        values = _unique([value for env in environments for value in env.get(key, [])])
+        if any(not env.get(key) for env in environments):
+            values = [dict(value, import_incomplete=True)
+                      if value.get('kind') == 'import' else value for value in values]
+        merged[key] = values
+    return merged
 
 
 def _loop_key(value):
@@ -241,6 +267,7 @@ class FlowAnalyzer:
         self.imports = {}
         self.module_bindings = {}
         self.module_bodies = {}
+        self.import_binding_facts = {}
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
@@ -263,6 +290,20 @@ class FlowAnalyzer:
             self.hashes[path] = document.sha256
             module = self._module_index.file_to_module[path]
             self.module_bodies.setdefault(module, []).append((path, tree.body))
+            bindings = {}
+            for statement in tree.body:
+                names = (list(fact.python_binding for fact in import_facts(statement))
+                         if isinstance(statement, (ast.Import, ast.ImportFrom))
+                         else statement_scope_facts([statement]).bound
+                         | _attribute_write_roots(statement))
+                for name in names:
+                    bindings.setdefault(name, []).append(statement)
+                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for nested in ast.walk(statement):
+                        if isinstance(nested, ast.Global):
+                            for name in nested.names:
+                                bindings.setdefault(name, []).append(nested)
+            self.import_binding_facts.setdefault(module, []).append(bindings)
             aliases = {}
             for node in tree.body:
                 for fact in import_facts(node):
@@ -666,13 +707,93 @@ class FlowAnalyzer:
                     return None
         return name
 
-    def _decorated_target(self, target):
+    def _decorator_definition(self, target):
         ref, node = target
         decorators = getattr(node, 'decorator_list', [])
-        if len(decorators) != 1 or isinstance(decorators[0], ast.Call):
+        if len(decorators) != 1 or not isinstance(
+                decorators[0], (ast.Name, ast.Attribute)):
             return None
-        decorator = self._resolve(ref, ast.unparse(decorators[0]))
+        name = ast.unparse(decorators[0])
+        first, dot, rest = name.partition('.')
+        owner = ref.qualname.rpartition('.')[0]
+        if owner:
+            ancestors = owner.split('.')
+            if any(self._definition_index.find(ref.module, '.'.join(
+                    ancestors[:length])) for length in range(1, len(ancestors))):
+                return None
+            enclosing = self._definition_index.find(ref.module, owner, kind='class')
+            if len(enclosing) != 1:
+                return None
+            preceding = []
+            for statement in enclosing[0][1].body:
+                if statement is node:
+                    break
+                preceding.append(statement)
+            if first in statement_scope_facts(preceding).bound:
+                return None
+        imported = self.imports.get(ref.module, {}).get(first)
+        qualified = imported + (dot + rest if dot else '') if imported else ref.module + '.' + name
+        if not self._stable_import_name(ref.module + '.' + first):
+            return None
+        decorator = self._resolve_import_binding(qualified)
         if decorator is None or getattr(decorator[1], 'decorator_list', []):
+            return None
+        return decorator
+
+    ## Prove that every normal decorator return preserves its input identity.
+    #  @param target Decorated source definition.
+    #  @return Source proof facts, or None outside the bounded supported shape.
+    def _identity_decorator(self, target):
+        decorator = self._decorator_definition(target)
+        if decorator is None or not isinstance(decorator[1], ast.FunctionDef):
+            return None
+        ref, node = decorator
+        arguments = node.args
+        positional = arguments.posonlyargs + arguments.args
+        if (len(positional) != 1 or arguments.vararg or arguments.kwonlyargs
+                or arguments.kwarg or arguments.defaults):
+            return None
+        parameter = positional[0].arg
+        body = node.body
+        if (not body or not isinstance(body[-1], ast.Return)
+                or parameter in statement_scope_facts(body).bound):
+            return None
+        nodes = list(ast.walk(node))
+        if len(nodes) > 256:
+            return None
+        allowed = (ast.If, ast.Assign, ast.AnnAssign, ast.AugAssign,
+                   ast.Expr, ast.Return, ast.Raise, ast.Pass)
+        returns = []
+        for child in nodes[1:]:
+            if (isinstance(child, ast.stmt) and not isinstance(child, allowed)
+                    or isinstance(child, (ast.Lambda, ast.Yield, ast.YieldFrom,
+                                          ast.Await, ast.ListComp, ast.SetComp,
+                                          ast.DictComp, ast.GeneratorExp))):
+                return None
+            if isinstance(child, ast.Return):
+                if not isinstance(child.value, ast.Name) or child.value.id != parameter:
+                    return None
+                returns.append(child)
+            if (isinstance(child, (ast.Assign, ast.AnnAssign))
+                    and isinstance(child.value, ast.Name)
+                    and child.value.id == parameter):
+                return None
+            if isinstance(child, (ast.Attribute, ast.Subscript)) and isinstance(
+                    child.ctx, (ast.Store, ast.Del)):
+                root = child.value
+                while isinstance(root, (ast.Attribute, ast.Subscript)):
+                    root = root.value
+                if isinstance(root, ast.Name) and root.id == parameter:
+                    return None
+        return {'decorator': ref, 'definition': node,
+                'parameter': parameter, 'returns': returns,
+                'effects_unmodeled': any(isinstance(child, ast.Call) or
+                    isinstance(child, (ast.Attribute, ast.Subscript)) and
+                    isinstance(child.ctx, ast.Store) for child in nodes)}
+
+    def _decorated_target(self, target):
+        decorator = self._decorator_definition(target)
+        if decorator is None or not isinstance(decorator[1], ast.FunctionDef):
             return None
         arguments = decorator[1].args
         positional = arguments.posonlyargs + arguments.args
@@ -698,6 +819,37 @@ class FlowAnalyzer:
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports)
 
+    def _stable_import_name(self, qualified):
+        module, _, name = qualified.rpartition('.')
+        while module and module not in self.import_binding_facts:
+            module, _, prefix = module.rpartition('.')
+            name = prefix + '.' + name
+        sources = self.import_binding_facts.get(module, [])
+        if len(sources) != 1:
+            return False
+        bindings_by_name = sources[0]
+        parts = name.split('.')
+        for index, part in enumerate(parts):
+            bindings = bindings_by_name.get(part, [])
+            if len(bindings) != 1 or not isinstance(bindings[0], (
+                    ast.Import, ast.ImportFrom, ast.FunctionDef,
+                    ast.AsyncFunctionDef, ast.ClassDef)):
+                return False
+            if index == len(parts) - 1:
+                return True
+            if not isinstance(bindings[0], ast.ClassDef):
+                return False
+            bindings_by_name = {}
+            for statement in bindings[0].body:
+                for member in (statement_scope_facts([statement]).bound
+                               | _attribute_write_roots(statement)):
+                    bindings_by_name.setdefault(member, []).append(statement)
+        return False
+
+    def _resolve_import_binding(self, qualified):
+        return self._definition_index.resolve_qualified(
+            [qualified], self.imports, qualified_guard=self._stable_import_name)
+
     def _resolve_class(self, caller, name):
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports, kind='class')
@@ -711,6 +863,10 @@ class FlowAnalyzer:
         first, dot, rest = name.partition('.')
         if binding is not None and not (
                 binding and all(item.get('kind') == 'import' for item in binding)):
+            return None, None, None
+        if binding and any(value.get('import_modified')
+                           or value.get('import_incomplete')
+                           or value.get('conditions') for value in binding):
             return None, None, None
         if first in self.module_bindings.get(caller.module, set()) and dot:
             return None, None, None
@@ -1507,8 +1663,11 @@ class _Summary:
                 imported = {v['source'] for v in binding}
                 if len(imported) == 1:
                     canonical = next(iter(imported)) + ('.' + name.split('.', 1)[1] if '.' in name else '')
-                    matches = self.analyzer._definition_index.find_qualified([canonical])
-                    target = matches[0] if len(matches) == 1 else None
+                    target = (self.analyzer._resolve_import_binding(canonical)
+                              if not any(value.get('conditions')
+                                         or value.get('import_modified')
+                                         or value.get('import_incomplete')
+                                         for value in binding) else None)
             elif binding is None:
                 alias, dot, rest = name.partition('.')
                 imported = self.analyzer.imports.get(self.ref.module, {}).get(alias)
@@ -1539,9 +1698,13 @@ class _Summary:
                         'evidence': [assignment_evidence, self.evidence(node)],
                         'conditions': list(self.conditions)}]
             decorated_target_candidate = False
+            identity_decorator = None
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
-                if dispatch_kind in (
+                identity_decorator = self.analyzer._identity_decorator(target)
+                if identity_decorator is not None:
+                    pass
+                elif dispatch_kind in (
                         'constructor', 'instance_method', 'field_method',
                         'receiver_type_evidence', 'returned_field_candidate',
                         'super_method', 'super_new'):
@@ -1569,6 +1732,21 @@ class _Summary:
                 call.target_candidates = [asdict(candidate[0])
                                           for candidate in bounded_targets]
             call.receiver_sources = receiver_sources
+            if identity_decorator is not None:
+                call.decorator_identity_evidence = [{
+                    'decorator': asdict(identity_decorator['decorator']),
+                    'parameter': identity_decorator['parameter'],
+                    'returns': [self.evidence_at(
+                        identity_decorator['decorator'], returned)
+                        for returned in identity_decorator['returns']]}]
+                if identity_decorator['effects_unmodeled']:
+                    self.result.boundaries.append({
+                        'call_id': call_id, 'callee_name': name,
+                        'reason': 'identity_decorator_effects_unmodeled',
+                        'affected_scope': 'unknown', 'affected_values': [],
+                        'evidence': self.evidence_at(
+                            identity_decorator['decorator'],
+                            identity_decorator['definition'])})
             if callable_instance_fact is not None:
                 call.callable_instance_evidence = self.module_callable_evidence(
                     callable_instance_fact, node)
@@ -2330,6 +2508,17 @@ class _Summary:
         return [('unknown', env, [], None)]
 
     def assign_target(self, target, values, env, node):
+        for name in _attribute_write_roots(target):
+            imported = env.get(name, [])
+            if not imported and name not in env:
+                source = self.analyzer.imports.get(self.ref.module, {}).get(name)
+                if source:
+                    imported = [{'kind': 'import', 'source': source,
+                                 'relation': 'direct',
+                                 'evidence': [self.evidence(node)],
+                                 'conditions': list(self.conditions)}]
+            if imported and all(value.get('kind') == 'import' for value in imported):
+                env[name] = [dict(value, import_modified=True) for value in imported]
         if isinstance(target, ast.Name):
             env[target.id] = self.marked(values, node)
         elif isinstance(target, (ast.Tuple, ast.List)) and not any(isinstance(t, ast.Starred) for t in target.elts):
@@ -2507,6 +2696,7 @@ class _Summary:
                 for attribute in ('parameter_bindings', 'parameter_flows', 'argument_sources', 'argument_flows',
                                    'capture_bindings', 'receiver_sources',
                                    'receiver_type_evidence', 'mutation_flows',
+                                   'decorator_identity_evidence',
                                    'return_dependencies', 'effects', 'target_candidates',
                                    'result_sources', 'binding_issues'):
                     setattr(previous, attribute, _unique(getattr(previous, attribute) + getattr(call, attribute)))
