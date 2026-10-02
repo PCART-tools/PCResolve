@@ -92,6 +92,41 @@ def test_pandas_series_take_passes_kwargs_as_ordinary_mapping():
         'pandas.compat.numpy.function.validate_take')
 
 
+def test_sympy_local_import_reexport_and_identity_decorator_keep_variadic_facts():
+    result = analyze('sympy-1.5', [
+        'core/expr.py', 'polys/__init__.py', 'polys/rationaltools.py',
+        'utilities/__init__.py', 'utilities/decorator.py'],
+        'sympy.core.expr', 'Expr.together')
+    call = result.find_calls(callee_name='together')[0]
+    assert (call.target.module, call.target.qualname, call.target.lineno) == (
+        'sympy.polys.rationaltools', 'together', 11)
+    assert call.target_status == 'resolved'
+    assert call.target_candidates == [result.to_dict()['calls'][0]['target']]
+    assert call.binding_status == 'uncertain'
+    assert call.decorator_identity_evidence[0]['decorator']['qualname'] == 'public'
+    assert call.decorator_identity_evidence[0]['decorator']['module'] == (
+        'sympy.utilities.decorator')
+    for parameter, expansion in [('args', 'dynamic_starred'),
+                                 ('kwargs', 'dynamic_keyword')]:
+        binding = next(item for item in call.parameter_bindings
+                       if item.get('binding_kind') == expansion)
+        assert binding['status'] == 'unresolved'
+        argument = next(item for item in call.argument_sources
+                        if item['argument'] == binding['argument'])
+        assert any(item['kind'] == 'parameter'
+                   and item['source'] == parameter
+                   and item.get('output_path') == ['*']
+                   for item in argument['sources'])
+        assert any(item['source_parameter'] == parameter
+                   and item.get('output_path') == ['*']
+                   for item in call.parameter_flows)
+    reasons = {item['reason'] for item in result.boundaries
+               if item.get('call_id') == call.id}
+    assert 'identity_decorator_effects_unmodeled' in reasons
+    assert 'dynamic_argument_expansion' in reasons
+    assert 'definition_unavailable' not in reasons
+
+
 def test_aiohttp_assignment_boundaries_do_not_name_kwargs():
     result = analyze('aiohttp-0.8.2', ['connector.py'],
                      'aiohttp.connector', 'BaseConnector.__init__')

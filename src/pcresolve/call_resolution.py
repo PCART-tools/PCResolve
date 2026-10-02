@@ -129,10 +129,30 @@ class DefinitionIndex:
         imported = imports.get(module, {}).get(alias)
         if imported:
             names = [imported + (dot + rest if dot else '')]
+        return self.resolve_qualified(names, imports, max_alias_hops, kind)
+
+    ## Continue import-backed lookup from qualified names without lexical fallback.
+    #  @param names Fully qualified names from established import bindings.
+    #  @param imports Module-to-alias lookup supplied by the adapter.
+    #  @param max_alias_hops Maximum qualified candidate rounds.
+    #  @param kind Definition category to resolve.
+    #  @param qualified_guard Optional adapter predicate for binding stability.
+    #  @return Unique opaque payload or None for absent/ambiguous/blocked names.
+    def resolve_qualified(self, names, imports, max_alias_hops=20,
+                          kind='function', qualified_guard=None):
+        names = list(names)
+        seen = set()
         for _ in range(max_alias_hops):
+            state = tuple(names)
+            if state in seen or (qualified_guard is not None and any(
+                    not qualified_guard(name) for name in names)):
+                return None
+            seen.add(state)
             matches = self.find_qualified(names, kind=kind)
             if len(matches) == 1:
                 return matches[0]
+            if matches:
+                return None
             expanded = []
             for candidate in names:
                 mod, _, symbol = candidate.rpartition('.')
