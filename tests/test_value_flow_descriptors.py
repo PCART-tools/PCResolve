@@ -25,7 +25,9 @@ def test_builtin_staticmethod_and_classmethod_binding():
     receiver = next(binding for binding in class_call.argument_sources
                     if binding['argument'] == {'receiver': True})
     assert receiver['parameter'] == 'cls'
-    assert not receiver['sources']
+    assert receiver['sources']
+    assert all(source['class_type']['qualname'] == 'Descriptors'
+               for source in receiver['sources'])
     assert class_call.parameter_bindings[0]['parameter'] == 'data'
 
 

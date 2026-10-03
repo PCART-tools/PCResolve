@@ -26,7 +26,7 @@ def source(source_id):
     return root
 
 
-def analyze(source_id, files, module, qualname, extra_files=()):
+def analyze(source_id, files, module, qualname, extra_files=(), max_depth=1):
     package = source(source_id)
     selected = [package / name for name in files]
     selected.extend(extra_files)
@@ -35,7 +35,8 @@ def analyze(source_id, files, module, qualname, extra_files=()):
     analyzer = FlowAnalyzer(
         source_files=selected,
         import_roots=[package.parent, FIXTURES])
-    return analyzer.analyze(FunctionRef(module=module, qualname=qualname))
+    return analyzer.analyze(
+        FunctionRef(module=module, qualname=qualname), max_depth=max_depth)
 
 
 def test_tornado_constructor_and_explicit_super():
@@ -52,6 +53,91 @@ def test_tornado_constructor_and_explicit_super():
         callee_name='super(AsyncHTTPClient, cls).__new__')[0]
     assert super_call.target.qualname == 'Configurable.__new__'
     assert super_call.target.module == 'tornado.util'
+
+
+@pytest.mark.parametrize('qualname,module,class_name', [
+    ('AsyncHTTPClient.configurable_base', 'tornado.httpclient', 'AsyncHTTPClient'),
+    ('AsyncHTTPClient.configurable_default',
+     'tornado.simple_httpclient', 'SimpleAsyncHTTPClient')])
+def test_tornado_helpers_return_source_classes(qualname, module, class_name):
+    result = analyze('tornado-3.0',
+                     ['httpclient.py', 'util.py', 'simple_httpclient.py'],
+                     'tornado.httpclient', qualname)
+    returned = result.functions[0]['returns']
+    assert returned
+    assert {(value['module'], value['source']) for value in returned} == {
+        (module, class_name)}
+    assert all(value['kind'] == 'class'
+               and value['class_type']['module'] == module
+               and value['class_type']['qualname'] == class_name
+               for value in returned)
+    assert any(evidence['source_text'] == 'return ' + class_name
+               for value in returned for evidence in value['evidence'])
+    if class_name == 'SimpleAsyncHTTPClient':
+        assert any('from tornado.simple_httpclient import SimpleAsyncHTTPClient'
+                   == evidence['source_text']
+                   for value in returned for evidence in value['evidence'])
+
+
+@pytest.mark.parametrize('depth', [2, 4])
+def test_tornado_inherited_new_preserves_class_context_and_unknown_configuration(depth):
+    result = analyze('tornado-3.0',
+                     ['httpclient.py', 'util.py', 'simple_httpclient.py'],
+                     'tornado.httpclient', 'AsyncHTTPClient.__new__',
+                     max_depth=depth)
+    inherited = result.find_calls(
+        callee_name='super(AsyncHTTPClient, cls).__new__')[0]
+    assert inherited.target.module == 'tornado.util'
+    assert inherited.target.qualname == 'Configurable.__new__'
+    first_argument = next(argument for argument in inherited.argument_sources
+                          if argument['parameter'] == 'cls')
+    assert all(value['class_type']['qualname'] == 'AsyncHTTPClient'
+               for value in first_argument['sources'])
+
+    base_calls = result.find_calls(callee_name='cls.configurable_base')
+    assert base_calls
+    assert all(call.target.module == 'tornado.httpclient'
+               and call.target.qualname == 'AsyncHTTPClient.configurable_base'
+               for call in base_calls)
+    assert all(value['class_type']['module'] == 'tornado.httpclient'
+               and value['class_type']['qualname'] == 'AsyncHTTPClient'
+               for call in base_calls for value in call.receiver_sources)
+    if depth == 4:
+        default_calls = result.find_calls(callee_name='cls.configurable_default')
+        assert default_calls
+        assert all(call.target.module == 'tornado.httpclient'
+                   and call.target.qualname == 'AsyncHTTPClient.configurable_default'
+                   for call in default_calls)
+        assert all(value['class_type']['qualname'] == 'AsyncHTTPClient'
+                   for call in default_calls for value in call.receiver_sources)
+        configuration = next(summary for summary in result.functions
+                             if summary['function']['qualname'] ==
+                             'Configurable.configured_class')
+        assert not any(value.get('class_type') for value in configuration['returns'])
+        assert any(boundary['reason'] == 'unsupported_assignment'
+                   and boundary.get('function', {}).get('qualname') ==
+                   'Configurable.configured_class'
+                   for boundary in result.boundaries)
+
+    for name in ('super(Configurable, cls).__new__', 'instance.initialize'):
+        call = result.find_calls(callee_name=name)[0]
+        assert call.target is None
+        assert call.target_candidates == []
+        assert call.target_status == 'receiver_unresolved'
+        assert any(boundary.get('call_id') == call.id
+                   and boundary['reason'] == 'receiver_unresolved'
+                   for boundary in result.boundaries)
+
+    update = next(call for call in result.find_calls(callee_name='args.update')
+                  if any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+                         for argument in call.argument_sources
+                         for value in argument['sources']))
+    initialize = result.find_calls(callee_name='instance.initialize')[0]
+    for call in (update, initialize):
+        assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+                   and value.get('output_path') == ['*']
+                   for argument in call.argument_sources
+                   for value in argument['sources'])
 
 
 def test_pandas_inherited_entry_and_mapping_as_ordinary_argument():

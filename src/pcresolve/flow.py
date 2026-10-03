@@ -196,7 +196,10 @@ def _merge_env(environments):
         values = _unique([value for env in environments for value in env.get(key, [])])
         if any(not env.get(key) for env in environments):
             values = [dict(value, import_incomplete=True)
-                      if value.get('kind') == 'import' else value for value in values]
+                      if value.get('kind') == 'import' else
+                      dict(value, value_incomplete=True) if value.get('kind') in (
+                          'class', 'call_result') or value.get('class_type') else value
+                      for value in values]
         merged[key] = values
     return merged
 
@@ -272,6 +275,12 @@ class FlowAnalyzer:
         self.hashes = {}
         self.index_boundaries = []
         self._scope_fact_cache = {}
+        self._class_return_cache = {}
+        self._class_return_stack = []
+        self._context_summaries = {}
+        self._context_call_count = 0
+        self._fact_functions = 500
+        self._fact_calls = 2000
         self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
         # Preserve the prior behavior of deriving names only for parseable files.
         self._module_index = ModuleIndex.build(
@@ -364,7 +373,10 @@ class FlowAnalyzer:
         for base in cls.bases:
             expression = base.value if isinstance(base, ast.Subscript) else base
             name = ast.unparse(expression)
-            if name == 'object' and 'object' not in self.imports.get(module, {}):
+            if (name == 'object' and 'object' not in self.imports.get(module, {})
+                    and 'object' not in self.module_bindings.get(module, set())
+                    and not self._definition_index.find(module, 'object')
+                    and not self._definition_index.find(module, 'object', kind='class')):
                 continue
             first, dot, rest = name.partition('.')
             if first in self.module_bindings.get(module, set()):
@@ -689,7 +701,8 @@ class FlowAnalyzer:
             return None
         if (name in self.imports.get(ref.module, {})
                 or name in self.module_bindings.get(ref.module, set())
-                or self._definition_index.find(ref.module, name)):
+                or self._definition_index.find(ref.module, name)
+                or self._definition_index.find(ref.module, name, kind='class')):
             return None
         owner = ref.qualname.rpartition('.')[0]
         classes = self._definition_index.find(ref.module, owner, kind='class')
@@ -700,7 +713,8 @@ class FlowAnalyzer:
             if statement is node:
                 break
             if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Import,
-                                      ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef)):
+                                      ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef,
+                                      ast.ClassDef)):
                 names = {item.id for item in ast.walk(statement)
                          if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Store)}
                 if name in names or getattr(statement, 'name', None) == name:
@@ -853,6 +867,110 @@ class FlowAnalyzer:
     def _resolve_class(self, caller, name):
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports, kind='class')
+
+    def _class_symbol(self, qualified, seen=()):
+        if qualified in seen or len(seen) >= 20:
+            return None
+        target = self._definition_index.resolve_qualified(
+            [qualified], self.imports, kind='class',
+            qualified_guard=self._stable_import_name)
+        if target is not None:
+            return target
+        module, _, name = qualified.rpartition('.')
+        bodies = self.module_bodies.get(module, [])
+        bindings = self.import_binding_facts.get(module, [])
+        if len(bodies) != 1 or len(bindings) != 1:
+            return None
+        statements = bindings[0].get(name, [])
+        if len(statements) != 1 or statements[0] not in bodies[0][1]:
+            return None
+        statement = statements[0]
+        if not isinstance(statement, (ast.Assign, ast.AnnAssign)) or not isinstance(
+                statement.value, (ast.Name, ast.Attribute)):
+            return None
+        expression = ast.unparse(statement.value)
+        first, dot, rest = expression.partition('.')
+        imported = self.imports.get(module, {}).get(first)
+        if imported and not self._stable_import_name(module + '.' + first):
+            return None
+        next_name = (imported + (dot + rest if dot else '') if imported
+                     else module + '.' + expression)
+        return self._class_symbol(next_name, seen + (qualified,))
+
+    def _ordinary_construction(self, class_ref):
+        hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
+        if hierarchy is None:
+            return False
+        return all(not cls.decorator_list and not cls.keywords and not any(
+            isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and member.name == '__new__' or
+            '__new__' in statement_scope_facts([member]).bound
+            for member in cls.body) for _, cls in hierarchy)
+
+    def _receiver_class(self, definition, call=None):
+        ref, node = definition
+        positional = node.args.posonlyargs + node.args.args
+        if not positional or not (self._descriptor_kind(definition) == 'classmethod'
+                                  or getattr(node, 'name', None) == '__new__'):
+            return None
+        if call is not None:
+            values = [value for item in call.argument_sources
+                      if item.get('parameter') == positional[0].arg
+                      for value in item.get('sources', [])]
+            types = [value.get('class_type') for value in values]
+            if (values and all(types) and len(_unique(types)) == 1
+                    and all(value.get('relation') == 'direct'
+                            and not value.get('projection')
+                            and not value.get('output_path')
+                            and not value.get('value_incomplete') for value in values)):
+                return FunctionRef(**types[0])
+            return None
+        owner = ref.qualname.rpartition('.')[0]
+        classes = self._definition_index.find(ref.module, owner, kind='class')
+        return classes[0][0] if len(classes) == 1 else None
+
+    def _class_returns(self, definition, receiver_class):
+        ref, node = definition
+        key = (ref, receiver_class)
+        if key in self._class_return_cache:
+            return self._class_return_cache[key]
+        if key in self._class_return_stack:
+            return [], 'class_return_recursion'
+        if (len(self._class_return_stack) >= 8 or self._fact_functions <= 0
+                or self._fact_calls <= 0):
+            return [], 'class_return_budget'
+        if isinstance(node, ast.AsyncFunctionDef) or contains_yield(node):
+            return [], None
+        if self._descriptor_kind(definition) == 'classmethod' and receiver_class is None:
+            return [], None
+        if ('.' not in ref.qualname and not self._stable_import_name(
+                ref.module + '.' + ref.qualname)):
+            return [], None
+        if (node.decorator_list and self._descriptor_kind(definition) is None
+                and self._identity_decorator(definition) is None):
+            return [], None
+        self._fact_functions -= 1
+        self._class_return_stack.append(key)
+        scratch = FlowAnalysis(ref, {})
+        summary = _Summary(self, scratch, ref, node, self._fact_calls,
+                           receiver_class)
+        try:
+            summary.run()
+            values = []
+            complete = bool(summary.normal_returns) and not summary.incomplete_return
+            for returned in summary.normal_returns:
+                known = summary.class_values(returned)
+                if not known:
+                    complete = False
+                values.extend(known)
+            values = _unique(values) if complete else []
+            cause = next((item['reason'] for item in scratch.boundaries
+                          if item['reason'] in ('class_return_recursion',
+                                                'class_return_budget', 'budget_exceeded')), None)
+            self._class_return_cache[key] = (values, cause)
+            return values, cause
+        finally:
+            self._class_return_stack.pop()
 
     ## Find a source __call__ candidate for one imported module-level instance.
     #  @param caller Function containing the invocation.
@@ -1065,6 +1183,7 @@ class FlowAnalyzer:
         if min(max_depth, max_functions, max_call_contexts) < 1:
             raise ValueError('Depth and budgets must be positive')
         self._index()
+        self._fact_functions, self._fact_calls = max_functions, max_call_contexts
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         if not matches and not entry.lineno and '.' in entry.qualname:
             owner, _, method = entry.qualname.rpartition('.')
@@ -1100,19 +1219,27 @@ class FlowAnalyzer:
         if ref in context.ancestors:
             result.boundaries.append({'function': asdict(ref), 'reason': 'recursion'})
             return
-        existing = any(f['function'] == asdict(ref) for f in result.functions)
-        if existing:
-            calls = [c for c in result.calls if c.caller == ref]
+        receiver_class = self._receiver_class(definition, context.edge)
+        key = (ref, receiver_class)
+        if key in self._context_summaries:
+            calls = self._context_summaries[key]
         else:
-            if len(result.functions) >= max_functions or len(result.calls) >= max_calls:
+            if (len(self._context_summaries) >= max_functions
+                    or self._context_call_count >= max_calls):
                 result.boundaries.append({'function': asdict(ref), 'reason': 'budget_exceeded'})
                 return
-            summary = _Summary(self, result, ref, node, max_calls - len(result.calls))
+            scratch = FlowAnalysis(ref, {})
+            summary = _Summary(self, scratch, ref, node,
+                               max_calls - self._context_call_count, receiver_class)
             summary.run()
             calls = summary.calls
+            self._context_summaries[key] = calls
+            self._context_call_count += len(calls)
+            self._merge_summary(result, scratch)
         for call in calls:
             if call.target is None:
-                if call.target_status not in ('python_protocol', 'local_container_protocol'):
+                if call.target_status not in ('python_protocol', 'local_container_protocol',
+                                              'builtin_allocation'):
                     result.boundaries.append({'call_id': call.id, 'callee_name': call.callee_name,
                                               'reason': call.target_status})
             elif depth > 1:
@@ -1123,6 +1250,45 @@ class FlowAnalyzer:
                 self._walk(result, target, depth - 1, child, max_functions, max_calls)
             else:
                 result.boundaries.append({'call_id': call.id, 'reason': 'depth_limit'})
+
+    def _merge_summary(self, result, summary):
+        result.boundaries.extend(summary.boundaries)
+        for function in summary.functions:
+            previous = next((item for item in result.functions
+                             if item['function'] == function['function']), None)
+            if previous is None:
+                result.functions.append(copy.deepcopy(function))
+            else:
+                for field in ('returns', 'mapping_effects', 'loops', 'receiver_contexts'):
+                    if field in function:
+                        previous[field] = _unique(previous.get(field, []) + function[field])
+        for call in summary.calls:
+            previous = next((item for item in result.calls if item.id == call.id), None)
+            if previous is None:
+                result.calls.append(copy.deepcopy(call))
+            else:
+                unresolved = any(item.target is None and item.target_status not in (
+                    'bounded_alternatives', 'builtin_allocation', 'python_protocol',
+                    'local_container_protocol') for item in (previous, call))
+                if previous.target != call.target:
+                    previous.target = None
+                    previous.target_status = 'bounded_alternatives'
+                if unresolved:
+                    previous.target = None
+                    previous.target_status = ('receiver_unresolved'
+                        if '.' in previous.callee_name else 'definition_unavailable')
+                for field in ('target_candidates', 'argument_sources', 'argument_flows',
+                              'parameter_bindings', 'parameter_flows', 'return_flows',
+                              'receiver_sources', 'receiver_type_evidence', 'result_sources',
+                              'binding_issues', 'mutation_flows', 'effects', 'capture_bindings',
+                              'return_dependencies', 'decorator_identity_evidence'):
+                    setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
+                if unresolved:
+                    previous.result_sources = [dict(value, value_incomplete=True)
+                        if value.get('class_type') or value.get('instance_type') else value
+                        for value in previous.result_sources]
+                if previous.binding_status != call.binding_status:
+                    previous.binding_status = 'uncertain'
 
     ## Expand the selected call target, retaining existing function summaries.
     #  @param result Previous snapshot from this source set.
@@ -1154,7 +1320,7 @@ class FlowAnalyzer:
 
 
 class _Summary:
-    def __init__(self, analyzer, result, ref, node, remaining):
+    def __init__(self, analyzer, result, ref, node, remaining, receiver_class=None):
         self.analyzer, self.result, self.ref, self.node = analyzer, result, ref, node
         self.calls = []
         self.returns = []
@@ -1167,6 +1333,65 @@ class _Summary:
                              self.analyzer.texts[ref.file_path].split('\n')]
         self.evidence_cache = {}
         self.mapping_effects = []
+        self.receiver_class = receiver_class
+        self.normal_returns = []
+        self.incomplete_return = False
+
+    def class_value(self, class_ref, node):
+        return {'kind': 'class', 'module': class_ref.module,
+                'source': class_ref.qualname, 'class_type': asdict(class_ref),
+                'relation': 'direct', 'evidence': [self.evidence(node)],
+                'conditions': list(self.conditions)}
+
+    def class_values(self, values):
+        known = []
+        for value in values:
+            if (value.get('relation') != 'direct' or value.get('projection')
+                    or value.get('output_path') or value.get('import_modified')
+                    or value.get('import_incomplete') or value.get('value_incomplete')):
+                return []
+            if value.get('kind') == 'class' or value.get('class_type'):
+                identity = value.get('class_type')
+                matches = self.analyzer._definition_index.find(
+                    identity['module'] if identity else value['module'],
+                    identity['qualname'] if identity else value['source'], kind='class')
+                if len(matches) != 1:
+                    return []
+                known.append(dict(value, kind='class', module=matches[0][0].module,
+                                  source=matches[0][0].qualname,
+                                  class_type=asdict(matches[0][0])))
+            elif value.get('kind') == 'import':
+                target = self.analyzer._class_symbol(value['source'])
+                if target is None:
+                    return []
+                known.append(dict(value, kind='class', module=target[0].module,
+                                  source=target[0].qualname,
+                                  class_type=asdict(target[0])))
+            elif value.get('kind') == 'call_result':
+                call = next((call for call in self.calls if call.id == value['source']), None)
+                if call is None or call.target is None:
+                    return []
+                matches = self.analyzer._definition_index.find(
+                    call.target.module, call.target.qualname)
+                definition = next((item for item in matches if item[0] == call.target), None)
+                if definition is None:
+                    return []
+                returned, cause = self.analyzer._class_returns(
+                    definition, self.analyzer._receiver_class(definition, call))
+                if cause:
+                    self.result.boundaries.append({'call_id': call.id,
+                        'reason': cause, 'callee_name': call.callee_name})
+                if not returned:
+                    return []
+                returned = [dict(item,
+                    evidence=item.get('evidence', []) + value.get('evidence', []),
+                    conditions=item.get('conditions', []) + value.get('conditions', []))
+                    for item in returned]
+                call.result_sources = _unique(call.result_sources + returned)
+                known.extend(returned)
+            else:
+                return []
+        return _unique(known)
 
     def evidence(self, node):
         return self.evidence_at(self.ref, node)
@@ -1331,16 +1556,46 @@ class _Summary:
             return []
         if isinstance(node, ast.Name):
             if node.id in env:
+                if env[node.id] and all(value.get('kind') == 'import' for value in env[node.id]):
+                    classes = self.class_values(env[node.id])
+                    if classes:
+                        return self.marked(classes, node)
                 return env[node.id]
-            target = self.analyzer._resolve(self.ref, node.id)
-            if target:
-                return [self.callable_value(target[0], node)]
             imported = self.analyzer.imports.get(self.ref.module, {}).get(node.id)
+            stable_import = not imported or self.analyzer._stable_import_name(
+                self.ref.module + '.' + node.id)
+            class_target = self.analyzer._class_symbol(
+                imported or self.ref.module + '.' + node.id) if stable_import else None
+            if class_target is not None:
+                return [self.class_value(class_target[0], node)]
+            target = self.analyzer._resolve(self.ref, node.id)
+            if target and stable_import:
+                return [self.callable_value(target[0], node)]
             if imported:
                 return [{'kind': 'import', 'source': imported, 'relation': 'direct',
+                         'import_modified': not stable_import,
                          'evidence': [self.evidence(node)],
                          'conditions': list(self.conditions)}]
             return []
+        if isinstance(node, ast.Attribute):
+            name = ast.unparse(node)
+            first, dot, rest = name.partition('.')
+            binding = env.get(first)
+            if binding and all(value.get('kind') == 'import' and not any(
+                    value.get(flag) for flag in ('import_modified', 'import_incomplete'))
+                    for value in binding):
+                identities = {value['source'] + dot + rest for value in binding}
+                class_target = self.analyzer._class_symbol(next(iter(identities))) if len(identities) == 1 else None
+            elif first not in env:
+                imported = self.analyzer.imports.get(self.ref.module, {}).get(first)
+                class_target = self.analyzer._class_symbol(
+                    imported + dot + rest if imported else self.ref.module + '.' + name
+                ) if not imported or self.analyzer._stable_import_name(
+                    self.ref.module + '.' + first) else None
+            else:
+                class_target = None
+            if class_target is not None:
+                return [self.class_value(class_target[0], node)]
         if isinstance(node, ast.Constant):
             return []
         if isinstance(node, (ast.Yield, ast.YieldFrom)):
@@ -1484,7 +1739,10 @@ class _Summary:
             env.clear()
             env.update(_merge_env([positive, negative]))
             self.conditions = before
-            return left + right
+            values = left + right
+            if not left or not right:
+                values = [dict(value, value_incomplete=True) for value in values]
+            return values
         if (isinstance(node, ast.Compare) and len(node.ops) == 1
                 and isinstance(node.ops[0], (ast.In, ast.NotIn))
                 and len(node.comparators) == 1):
@@ -1524,6 +1782,12 @@ class _Summary:
             return values
         if isinstance(node, ast.Call):
             location = _call_span(node)
+            if location not in self.evaluated_calls and self.analyzer._class_return_stack:
+                if self.analyzer._fact_calls <= 0:
+                    self.result.boundaries.append({'function': asdict(self.ref),
+                        'reason': 'class_return_budget', 'evidence': self.evidence(node)})
+                    return []
+                self.analyzer._fact_calls -= 1
             if location not in self.evaluated_calls and self.remaining <= 0:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'budget_exceeded', 'evidence': self.evidence(node)})
                 return []
@@ -1535,6 +1799,9 @@ class _Summary:
             target = self.analyzer._resolve(self.ref, name) if binding is None else None
             canonical = self.ref.module + '.' + name
             constructor_class = None
+            allocation_class = None
+            allocation_values = []
+            construction_safe = False
             callable_instance_fact = None
             callable_instance_cause = None
             bounded_targets = []
@@ -1548,23 +1815,43 @@ class _Summary:
             field_evidence = None
             owner = self.ref.qualname.rpartition('.')[0]
             function_names = self.analyzer._definition_index.scopes(self.ref.module)
-            if target is None and (binding is None or
-                                   binding and all(value.get('kind') == 'class'
-                                                   for value in binding)):
-                if binding:
+            callee_classes = self.class_values(binding) if binding and isinstance(node.func, ast.Name) else []
+            if target is None:
+                if callee_classes:
                     identities = {(value['module'], value['source'])
-                                  for value in binding}
+                                  for value in callee_classes}
                     class_target = None
                     if len(identities) == 1:
                         module, qualname = next(iter(identities))
                         matches = self.analyzer._definition_index.find(
                             module, qualname, kind='class')
                         class_target = matches[0] if len(matches) == 1 else None
-                else:
+                elif binding is None:
                     class_target = self.analyzer._resolve_class(self.ref, name)
+                    alias = name.split('.')[0]
+                    if (alias in self.analyzer.imports.get(self.ref.module, {})
+                            and not self.analyzer._stable_import_name(
+                                self.ref.module + '.' + alias)):
+                        class_target = None
+                    if class_target and not self.analyzer._stable_import_name(
+                            class_target[0].module + '.' + class_target[0].qualname):
+                        class_target = None
+                elif all(value.get('kind') == 'import' for value in binding):
+                    callee_classes = self.class_values([dict(value,
+                        source=value['source'] + ('.' + name.split('.', 1)[1]
+                            if '.' in name else '')) for value in binding])
+                    class_target = None
+                    identities = {(value['module'], value['source']) for value in callee_classes}
+                    if len(identities) == 1:
+                        module, qualname = next(iter(identities))
+                        matches = self.analyzer._definition_index.find(module, qualname, kind='class')
+                        class_target = matches[0] if len(matches) == 1 else None
+                else:
+                    class_target = None
                 if class_target is not None:
                     constructor = self.analyzer._constructor_target(class_target)
                     constructor_class = class_target[0]
+                    construction_safe = self.analyzer._ordinary_construction(constructor_class)
                     if constructor is not None:
                         target = constructor
                         bound_receiver = True
@@ -1573,10 +1860,29 @@ class _Summary:
                         dispatch_kind = 'constructor_unavailable'
                     canonical = (constructor_class.module + '.' +
                                  constructor_class.qualname)
-            if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+            receiver_types = {tuple((value.get('class_type') or {}).get(key, '')
+                              for key in ('module', 'qualname')) for value in receiver_values}
+            if (target is None and isinstance(node.func, ast.Attribute)
+                    and receiver_values and all(value.get('class_type')
+                                                and not value.get('value_incomplete')
+                                                and value.get('relation') == 'direct'
+                                                and not value.get('projection')
+                                                and not value.get('output_path')
+                                                for value in receiver_values)
+                    and len(receiver_types) == 1):
+                module, class_name = next(iter(receiver_types))
+                matches = self.analyzer._definition_index.find(module, class_name + '.' + node.func.attr)
+                candidate = matches[0] if len(matches) == 1 else self.analyzer._inherited_method(
+                    module, class_name, node.func.attr)
+                if candidate is not None:
+                    target = candidate
+                    bound_receiver = False
+                    dispatch_kind = 'class_receiver_candidate'
+            if (target is None and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
                     and owner and owner not in function_names
                     and (self.node.args.posonlyargs or self.node.args.args)
                     and receiver_sources and all(v['kind'] == 'parameter' and v['relation'] == 'direct'
+                        and not v.get('value_incomplete')
                         and v['source'] == (self.node.args.posonlyargs + self.node.args.args)[0].arg
                         for v in receiver_sources)):
                 matches = self.analyzer._definition_index.find(self.ref.module, owner + '.' + node.func.attr)
@@ -1615,7 +1921,17 @@ class _Summary:
                 and node.func.value.args[0].id == owner.rpartition('.')[2])
             current_descriptor = self.analyzer._descriptor_kind(
                 (self.ref, self.node))
-            if ((is_zero_super or is_explicit_super) and owner):
+            builtin_super = ('super' not in env
+                and 'super' not in self.analyzer.imports.get(self.ref.module, {})
+                and 'super' not in self.analyzer.module_bindings.get(self.ref.module, set())
+                and self.analyzer._resolve(self.ref, 'super') is None
+                and self.analyzer._resolve_class(self.ref, 'super') is None)
+            current_class_known = (not is_explicit_super or (
+                node.func.value.args[0].id not in env
+                and self.analyzer._class_symbol(self.ref.module + '.' + owner)
+                is not None))
+            if ((is_zero_super or is_explicit_super) and owner and builtin_super
+                    and current_class_known):
                 inherited = self.analyzer._inherited_method(
                     self.ref.module, owner, node.func.attr,
                     skip_current_members=True)
@@ -1630,8 +1946,46 @@ class _Summary:
                                      else 'super_method')
                     receiver_values = env.get(receiver_name, [])
                     receiver_sources = self.materialize(receiver_values, env)
+                if (inherited is None and node.func.attr == '__new__'
+                        and len(node.args) == 1 and not node.keywords):
+                    receiver = self.class_values(env.get(receiver_name, []))
+                    types = _unique([value.get('class_type') for value in receiver])
+                    if receiver and all(types) and len(types) == 1:
+                        class_ref = FunctionRef(**types[0])
+                        hierarchy = self.analyzer._class_mro(class_ref.module, class_ref.qualname)
+                        owner_index = next((index for index, (ref, _) in enumerate(hierarchy or ())
+                            if ref.module == self.ref.module and ref.qualname == owner), None)
+                        if owner_index is not None and not any(
+                                self.analyzer._definition_index.find(ref.module, ref.qualname + '.__new__')
+                                or cls.keywords or cls.decorator_list
+                                for ref, cls in hierarchy[owner_index + 1:]):
+                            classes = self.class_values(self.expression(node.args[0], env))
+                            if classes and len({(value['module'], value['source']) for value in classes}) == 1:
+                                allocation_class = FunctionRef(**classes[0]['class_type'])
+                                allocation_values = classes
+                                dispatch_kind = 'builtin_allocation'
+            if (target is None and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == 'object' and node.func.attr == '__new__'
+                    and len(node.args) == 1 and not node.keywords
+                    and 'object' not in env
+                    and 'object' not in self.analyzer.imports.get(self.ref.module, {})
+                    and 'object' not in self.analyzer.module_bindings.get(self.ref.module, set())
+                    and self.analyzer._resolve(self.ref, 'object') is None
+                    and self.analyzer._resolve_class(self.ref, 'object') is None):
+                classes = self.class_values(self.expression(node.args[0], env))
+                if classes and len({(value['module'], value['source']) for value in classes}) == 1:
+                    allocation_class = FunctionRef(**classes[0]['class_type'])
+                    allocation_values = classes
+                    dispatch_kind = 'builtin_allocation'
+            if allocation_class and not self.analyzer._ordinary_construction(allocation_class):
+                allocation_class = None
             if (target is None and isinstance(node.func, ast.Attribute)
                     and receiver_values and all(value.get('instance_type')
+                                                and not value.get('value_incomplete')
+                                                and value.get('relation') == 'direct'
+                                                and not value.get('projection')
+                                                and not value.get('output_path')
                                                 for value in receiver_values)):
                 instance_types = {
                     (value['instance_type']['module'],
@@ -1659,7 +2013,7 @@ class _Summary:
                 elif complete_candidates and len(candidates) > 1:
                     bounded_targets = candidates
                     dispatch_kind = 'bounded_alternatives'
-            if binding and all(v['kind'] == 'import' for v in binding):
+            if target is None and binding and all(v['kind'] == 'import' for v in binding):
                 imported = {v['source'] for v in binding}
                 if len(imported) == 1:
                     canonical = next(iter(imported)) + ('.' + name.split('.', 1)[1] if '.' in name else '')
@@ -1721,8 +2075,6 @@ class _Summary:
             elif descriptor_kind == 'classmethod':
                 bound_receiver = True
                 dispatch_kind = 'classmethod'
-                receiver_values = []
-                receiver_sources = []
             call_id = _call_key(self.ref.file_path, node)
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
@@ -1732,6 +2084,11 @@ class _Summary:
                 call.target_candidates = [asdict(candidate[0])
                                           for candidate in bounded_targets]
             call.receiver_sources = receiver_sources
+            if (target and receiver_sources and (descriptor_kind == 'classmethod'
+                    or any(value.get('class_type') for value in receiver_sources))):
+                self.result.boundaries.append({'call_id': call_id,
+                    'reason': 'dynamic_class_receiver_override_possible',
+                    'evidence': self.evidence(node)})
             if identity_decorator is not None:
                 call.decorator_identity_evidence = [{
                     'decorator': asdict(identity_decorator['decorator']),
@@ -1756,12 +2113,20 @@ class _Summary:
                     for value in receiver_values
                     for fact in value['receiver_type_evidence']])
             call.target_status = ('bounded_alternatives' if bounded_targets else
+                                  'builtin_allocation' if allocation_class else
                                   dispatch_kind if target and dispatch_kind else
                                   'constructor_unavailable' if constructor_class else
                                   'lexical_method_candidate' if target and bound_receiver else
                                   'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
                                   else 'builtin_boundary' if binding is None and hasattr(builtins, name)
                                   else 'definition_unavailable')
+            if constructor_class is not None and not construction_safe:
+                self.result.boundaries.append({'call_id': call_id,
+                    'reason': 'dynamic_construction', 'evidence': self.evidence(node)})
+            if allocation_class is not None:
+                self.result.boundaries.append({'call_id': call_id,
+                    'reason': 'builtin_allocator_source_unavailable',
+                    'evidence': self.evidence(node)})
             if field_evidence:
                 call.target_status = 'constructor_field_candidate'
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
@@ -1985,8 +2350,18 @@ class _Summary:
                             'relation': 'direct',
                             'evidence': [self.evidence(node)],
                             'conditions': list(self.conditions)}
-            if constructor_class is not None:
+            if constructor_class is not None and construction_safe:
                 result_value['instance_type'] = asdict(constructor_class)
+                result_value['evidence'] = _unique(result_value['evidence'] + [
+                    evidence for value in callee_classes
+                    for evidence in value.get('evidence', [])])
+                call.result_sources = [result_value]
+            elif allocation_class is not None:
+                result_value['instance_type'] = asdict(allocation_class)
+                result_value['evidence'] = _unique(result_value['evidence'] + [
+                    evidence for value in allocation_values
+                    for evidence in value.get('evidence', [])])
+                call.result_sources = [result_value]
             elif (target and dispatch_kind == 'instance_method'
                   and isinstance(node.func, ast.Attribute)
                   and isinstance(node.func.value, ast.Name)
@@ -2417,6 +2792,11 @@ class _Summary:
             return [('break' if isinstance(node, ast.Break) else 'continue', env, [], None)]
         if isinstance(node, ast.Delete):
             for target in node.targets:
+                if isinstance(target, ast.Name):
+                    values = env.get(target.id, [])
+                    self.add_boundary('unsupported_assignment', node, env, values)
+                    env[target.id] = []
+                    continue
                 if isinstance(target, ast.Subscript):
                     receivers = self.expression(target.value, env)
                     self.expression(target.slice, env)
@@ -2510,6 +2890,14 @@ class _Summary:
     def assign_target(self, target, values, env, node):
         for name in _attribute_write_roots(target):
             imported = env.get(name, [])
+            modified = {value['source'] for value in imported
+                        if value.get('instance_type') or value.get('class_type')}
+            if modified:
+                for key, sources in env.items():
+                    env[key] = [dict(value, value_incomplete=True)
+                                if value.get('source') in modified and (
+                                    value.get('instance_type') or value.get('class_type'))
+                                else value for value in sources]
             if not imported and name not in env:
                 source = self.analyzer.imports.get(self.ref.module, {}).get(name)
                 if source:
@@ -2648,6 +3036,8 @@ class _Summary:
         parameters += [a for a in (args.vararg, args.kwarg) if a]
         env = {a.arg: [{'kind': 'parameter', 'source': a.arg, 'relation': 'direct',
                         'evidence': [self.evidence(a)], 'conditions': []}] for a in parameters}
+        if self.receiver_class is not None and parameters:
+            env[parameters[0].arg][0]['class_type'] = asdict(self.receiver_class)
         for parameter, shape in ((args.vararg, 'tuple'), (args.kwarg, 'dict')):
             if parameter is None:
                 continue
@@ -2681,7 +3071,11 @@ class _Summary:
         generator = contains_yield(self.node)
         for kind, state, values, _ in outcomes:
             if kind == 'return' and not generator:
-                self.returns.extend(self.materialize(values, state))
+                returned = self.materialize(values, state)
+                self.normal_returns.append(returned)
+                self.returns.extend(returned)
+            elif kind in ('normal', 'unknown'):
+                self.incomplete_return = True
         if generator:
             self.returns.extend(self.yields)
         self.returns = _unique(self.returns)
@@ -2731,4 +3125,6 @@ class _Summary:
                                       'loops': self.loops,
                                       'mapping_effects': self.mapping_effects,
                                       'returns': self.returns})
+        if self.receiver_class is not None:
+            self.result.functions[-1]['receiver_contexts'] = [asdict(self.receiver_class)]
         self.result.calls.extend(self.calls)

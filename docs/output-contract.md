@@ -142,17 +142,26 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | `calls[*]` | `receiver_type_evidence` | For a constructor-backed field returned by a local accessor, records the field, nominal instance type, assignment, all proven return statements, accessor call, and downstream receiver call. These are source candidates, not runtime dispatch guarantees. |
 | `calls[*]` | `callable_instance_evidence` | For a uniquely assigned module-level constructor-backed callable object, records the object assignment, nominal class, constructor argument sources, and invocation site. Its `__call__` target is a source candidate, not a runtime dispatch guarantee. |
 | `calls[*]` | `decorator_identity_evidence` | For a source-proven identity-return decorator, records its definition, unchanged input parameter, and normal return statements. This proves returned object identity; unmodeled decorator effects remain a boundary. |
-| import-source provenance | `import_incomplete`, `import_modified` | Optional true flags for a merge containing a missing binding, or a visible attribute write to an imported object. Either prevents unique-target resolution from that binding. |
+| import-source provenance | `import_incomplete`, `import_modified` | Optional flags for a merge containing a missing binding, or a visible attribute write to an imported object. A true flag prevents unique-target resolution from that binding. |
 | `calls[*]` | `binding_status`, `binding_issues` | Complete/uncertain/invalid binding state and statically proven missing, duplicate, unresolved, or dynamic-expansion facts. |
 | `calls[*].parameter_bindings[*]` | `destination_kind` | `parameter`, `var_positional`, `var_keyword`, or `unresolved`; variadic element positions remain in `target_path`. |
-| `calls[*]` | `result_sources` | Sources of supported local container protocol results, used to relate later boundaries to input roots. |
+| `calls[*]` | `result_sources` | Supported local container results, source-proven class-valued returns, and nominal constructor/allocation results, with evidence and conditions. This does not substitute arbitrary parameter types or prove runtime dispatch. |
+| value-source provenance | `class_type`, `instance_type` | Optional serialized `FunctionRef` for a source class value or nominal instance. Class-valued returns retain `kind="class"`, `module`, and `source`; receiver parameters keep their parameter roots. |
+| value-source provenance | `value_incomplete` | Optional true flag for a missing/unknown alternative or visible receiver attribute mutation. Prevents unique class/instance inference while retaining dependency roots. |
 | `functions[*]` | `mapping_effects` | Element-specific membership, pop, delete, update, and merge facts with bounded state and branch conditions. |
+| `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
 | source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
 
 Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
 continue to treat a selected method or decorated target/class as conservative
 when a corresponding override/decorator boundary is present.
+`target_status="builtin_allocation"` reports a supported unshadowed builtin
+allocator result without inventing a Python definition or target candidate.
+`builtin_allocator_source_unavailable` retains the allocator body boundary.
+`dynamic_construction`, `dynamic_class_receiver_override_possible`,
+`class_return_recursion`, and `class_return_budget` preserve uncertainty in
+construction, class dispatch, and bounded class-return proofs.
 
 The CLI selects this contract with `--value-flow` and
 `--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the

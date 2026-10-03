@@ -74,8 +74,8 @@ defaults to the file's basename.
 | `--source-file PATH` | Explicit source file; repeat instead of positional `PATH` |
 | `--import-root PATH` | Module mapping root; repeat without adding sources |
 | `--depth N` | Call-edge depth, default 1 |
-| `--max-functions N` | Distinct function summary budget, default 500 |
-| `--max-call-contexts N` | Collected call-site budget, default 2000 |
+| `--max-functions N` | Function / source-class receiver summary budget, default 500 |
+| `--max-call-contexts N` | Evaluated call-site/context budget, default 2000 |
 | `--json` | Emit `FlowAnalysis.to_dict()`, including evidence and boundaries |
 | `--output PATH` | Write the selected text/JSON format to a UTF-8 file instead of stdout |
 | `--stdin` | Read the single positional input path from stdin |
@@ -303,11 +303,18 @@ following a mutable value across a resolved call.
 Depth one summarizes the entry body, including its direct calls and available
 callee signatures. Depth two also summarizes their bodies. `expand` starts at
 the selected call target and analyzes the requested number of layers below it.
-Function summaries are shared; call-result substitution retains call-site
-identity. Call IDs are opaque identifiers built from the complete source range
+Ordinary function summaries are shared; classmethod and `__new__` summaries
+also retain a source-proven class receiver context. Call-result substitution
+retains call-site identity. Call IDs are opaque identifiers built from the complete source range
 and are stable only for unchanged source snapshots. Function selectors may
 include a definition line to resolve
 duplicate definitions.
+
+Bounded class-return proofs may inspect available factory bodies even at depth
+one, without adding those bodies to the public expanded graph. These proofs
+have separate limits within the supplied function/call budgets, a maximum
+proof-stack depth of eight, and explicit recursion/budget boundaries. Ordinary
+parameter-to-return composition still uses only public expanded summaries.
 
 ## Facts
 
@@ -341,6 +348,46 @@ resolved class construction retain nominal receiver evidence. If branch merges
 produce multiple receiver types, `target_candidates` reports bounded
 alternatives instead of selecting one. `dynamic_method_override_possible`
 remains explicit: these are source candidates, not guaranteed runtime dispatch.
+
+Source-proven class names, aliases, imports, and nested classes retain
+`kind="class"` and a structured `class_type`. When every normal factory return
+has a known direct class identity and there is no implicit fallthrough, a later
+local `impl = factory(); instance = impl()` can use that identity. The factory
+call's `result_sources` records the class and return/call evidence; the
+constructor result records `instance_type` and the linked class evidence.
+Multiple known class returns remain alternatives, not a unique constructor or
+instance type. Unknown returns, ordinary parameter-return dependencies, missing
+branch bindings, rebinding, and incomplete proofs do not acquire a class type.
+Custom metaclasses, decorated classes, unavailable MROs, and custom `__new__`
+semantics retain `dynamic_construction` and do not supply an instance result.
+
+Unshadowed `object.__new__(known_class)` can report a nominal instance result
+without a Python allocator definition. A supported
+`super(CurrentClass, known_receiver).__new__(known_class)` additionally requires
+a complete MRO proving that the next allocator is the builtin. Its
+`target_status="builtin_allocation"` has no selected Python target;
+`builtin_allocator_source_unavailable` records the unexpanded builtin body.
+Unknown classes, shadowed builtins, custom allocators, and visible receiver
+attribute mutation leave subsequent receiver calls unresolved.
+
+For a source-class receiver, classmethod binding preserves the first parameter's
+root and adds `class_type`. In a `Derived.root` context, a super call into a base
+helper can therefore resolve `cls.default()` to `Derived.default`. Generic base
+entry analysis retains the base context. Internal summaries are keyed by both
+function and class receiver, and fresh analyses reset those caches. Public
+`functions[*].receiver_contexts` records the contexts used; a source call reached
+through different contexts unions its candidates and never selects a conflicting
+unique target. `dynamic_class_receiver_override_possible` remains explicit.
+If any context lacks a complete receiver proof, known candidates may remain
+listed but the merged call stays unresolved; typed result sources carry
+`value_incomplete` rather than claiming all contexts have that type.
+
+Consumers can follow `result_sources`, `receiver_sources`, implicit
+`argument_sources`, and `target_candidates` while retaining their evidence,
+conditions, and boundaries. Class attributes holding configuration state are
+not a general heap model: a default factory returning a class does not prove
+that a mutable configuration attribute currently holds that default. Neither
+these receiver facts nor existing mapping effects decide keyword compatibility.
 
 A narrow return-to-receiver rule handles `self.accessor().method(...)` when
 every normal return of the local, undecorated accessor reads the same instance
