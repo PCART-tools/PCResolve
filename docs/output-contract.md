@@ -147,7 +147,10 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | `calls[*].parameter_bindings[*]` | `destination_kind` | `parameter`, `var_positional`, `var_keyword`, or `unresolved`; variadic element positions remain in `target_path`. |
 | `calls[*]` | `result_sources` | Supported local container results, source-proven class-valued returns, and nominal constructor/allocation results, with evidence and conditions. This does not substitute arbitrary parameter types or prove runtime dispatch. |
 | value-source provenance | `class_type`, `instance_type` | Optional serialized `FunctionRef` for a source class value or nominal instance. Class-valued returns retain `kind="class"`, `module`, and `source`; receiver parameters keep their parameter roots. |
-| value-source provenance | `value_incomplete` | Optional true flag for a missing/unknown alternative or visible receiver attribute mutation. Prevents unique class/instance inference while retaining dependency roots. |
+| value-source provenance | `container_object` | Source-proven ordinary-argument alias returned by a narrow local helper. Contains the opaque caller-local object `source`, builtin `container_shape` (`dict`, `list`, `tuple`), `identity="argument_alias"`, returned `parameter`, target `function`, and optional `parameter_container`. Evidence remains on the value source. |
+| value-source provenance | `object_only` | True on a returned-container call endpoint: it records object identity, not an element dependency. Consumers must not substitute this endpoint through the helper's old input contents; current element roots are materialized separately. |
+| value-source provenance | `value_incomplete` | Optional true flag for a missing/unknown alternative or visible receiver attribute mutation. Prevents unique class/instance/container-object inference while retaining dependency roots. |
+| `functions[*]` | `return_objects` | Optional symbolic ordinary-parameter alias proof (`parameter`, `identity`, assignment/return `evidence`), without caller-local object IDs. This is separate from element `returns`. |
 | `functions[*]` | `mapping_effects` | Element-specific membership, pop, delete, update, and merge facts with bounded state and branch conditions. |
 | `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
@@ -162,6 +165,13 @@ allocator result without inventing a Python definition or target candidate.
 `dynamic_construction`, `dynamic_class_receiver_override_possible`,
 `class_return_recursion`, and `class_return_budget` preserve uncertainty in
 construction, class dispatch, and bounded class-return proofs.
+Returned-container proofs also require complete binding and an already proven
+builtin input shape. `container_return_unproven` includes an explanatory
+`detail` and affected input roots; `container_return_budget` preserves proof
+truncation. Capture dictionaries, copies, mixed returns, generators, decorators,
+and helpers with unmodeled effects do not acquire an original-object alias.
+See [returned container objects](value-flow.md#returned-container-objects) for
+the distinction between dependencies, shape, identity, and current contents.
 
 The CLI selects this contract with `--value-flow` and
 `--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the

@@ -489,6 +489,70 @@ calls carry a builtin derived-result dependency. This is input dependence, not
 identity or owner preservation. Arbitrary receiver methods do not inherit this
 rule; external return contracts remain opt-in.
 
+### Returned container objects
+
+A uniquely resolved local helper can retain a proven builtin `dict`, `list`,
+or `tuple` object through an ordinary parameter return:
+
+```python
+def identity(mapping):
+    alias = mapping
+    return alias
+
+def root(**kwargs):
+    mapping = identity(kwargs)
+    mapping.pop("out", None)
+    return fixed(**mapping)
+```
+
+With complete argument binding, the helper call keeps a `kind="call_result"`
+endpoint whose `container_object` records the original caller-local object ID,
+builtin shape, returned parameter, and source function. Its value `evidence`
+includes input, alias assignment, return, and invocation sites. Function
+`return_objects` summaries hold only symbolic parameter identities: actual
+object IDs are instantiated per call, never cached across inputs or analyses.
+Object IDs are opaque analysis-local references, not runtime addresses.
+
+The downstream `pop` uses the existing `local_container_protocol`, records
+`out` removal against the correct roots, and retains the open remainder with
+`excluded_paths=[["out"]]`. `clear` and `update` act on the same object; existing
+exact helper effects can also consume that reference. Materialized returns
+and argument sources carry the current element dependencies alongside the
+endpoint. A cleared container retains an object endpoint but has no old element
+dependencies. Elements included inside a new literal container retain their
+outer paths and current state.
+
+Consumers of `FlowAnalysis`, including downstream detectors, must distinguish
+three independent facts: a dependency root, a builtin container shape, and
+shared object identity. `object_only=true` marks the returned object endpoint,
+not a content dependency. Do not follow that endpoint through the helper's
+pre-mutation argument sources to restore deleted elements. Use the separately
+materialized element roots, exclusions, `effects`/`mapping_effects`, conditions,
+and boundaries; `trace_parameter()` already observes this distinction. Source
+evidence and object identity remain available even when the elements are empty.
+These facts do not make compatibility or rejection decisions.
+
+The proof supports only ordinary-parameter direct returns and straight-line
+local-name aliases, with already proven builtin input objects. It may inspect
+the helper body at depth one without publishing an expanded body. Separate
+proof-function and statement limits use the supplied function/call budgets.
+Uncertain binding, unknown shapes, decorated/dynamic targets, generators,
+branch-dependent or implicit returns, projections, derived values, recursion,
+and unmodeled writes, escapes or calls do not establish object identity.
+Visible writes to a helper callable (including its local aliases) prevent
+instantiation of its return-object proof. Merged call contexts containing an
+unknown object result retain `value_incomplete=true`; an earlier known result
+cannot turn all iterations into a proven container protocol.
+`container_return_unproven` records the reason in `detail` and affected inputs;
+proof exhaustion additionally records `container_return_budget`.
+
+In particular, `def recapture(**mapping): return mapping` creates a new capture
+dictionary; equal origins do not make it an alias of the expanded input.
+Copies and finite reconstruction are likewise not restored as the open original
+container. This narrow proof leaves such helper results unresolved rather than
+inventing their object state. Arbitrary helper mutation summaries, tuple-return
+slot identities, and general heap/escape analysis remain outside this subset.
+
 This implementation supports named functions, direct lambda values, local
 callable aliases, explicit imports and simple
 re-exports, positional/keyword/default binding, parameter aliases, expressions,

@@ -300,3 +300,28 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
     assert any(item.get('call_id') == call.id
                and item['reason'] == 'receiver_unresolved'
                for item in result.boundaries)
+
+
+@pytest.mark.parametrize('entry', ['cdist', 'pdist'])
+def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
+    result = analyze('scipy-1.0.0', ['spatial/distance.py'],
+                     'scipy.spatial.distance', entry, max_depth=2)
+    helper = result.find_calls(callee_name='_args_to_kwargs_xdist')[0]
+    assert helper.target.qualname == '_args_to_kwargs_xdist'
+    assert helper.binding_status == 'complete'
+    assert not any(value.get('container_object') for value in helper.result_sources)
+    assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+               and value.get('output_path') == ['*']
+               for argument in helper.argument_sources for value in argument['sources'])
+    pop = next(call for call in result.find_calls(callee_name='kwargs.pop')
+               if call.caller.qualname == entry)
+    assert pop.target_status == 'receiver_unresolved' and not pop.effects
+    assert any(value['kind'] == 'call_result' and value['source'] == helper.id
+               for value in pop.receiver_sources)
+    for call in (helper, result.find_calls(callee_name='_filter_deprecated_kwargs')[0]):
+        boundary = next(value for value in result.boundaries
+                        if value['reason'] == 'container_return_unproven'
+                        and value.get('call_id') == call.id)
+        assert boundary['detail'] == 'unmodeled_helper_effects'
+        assert boundary['affected_scope'] == 'known'
+        assert any(value['name'] == 'kwargs' for value in boundary['affected_values'])
