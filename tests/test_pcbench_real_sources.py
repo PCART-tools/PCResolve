@@ -319,9 +319,15 @@ def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry
     assert any(value['kind'] == 'call_result' and value['source'] == helper.id
                for value in pop.receiver_sources)
     for call in (helper, result.find_calls(callee_name='_filter_deprecated_kwargs')[0]):
+        assert not call.effects
         boundary = next(value for value in result.boundaries
                         if value['reason'] == 'container_return_unproven'
                         and value.get('call_id') == call.id)
         assert boundary['detail'] == 'unmodeled_helper_effects'
         assert boundary['affected_scope'] == 'known'
         assert any(value['name'] == 'kwargs' for value in boundary['affected_values'])
+        effect_boundary = next(value for value in result.boundaries
+                               if value['reason'] == 'mapping_effect_unproven'
+                               and value.get('call_id') == call.id)
+        assert effect_boundary['detail'] == 'unsupported_helper_body'
+        assert any(value['name'] == 'kwargs' for value in effect_boundary['affected_values'])

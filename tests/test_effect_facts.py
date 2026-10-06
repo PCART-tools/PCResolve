@@ -3,6 +3,8 @@
 
 import ast
 
+import pytest
+
 from pcresolve.effect_facts import (container_method_effect, contains_yield,
                                     function_effects)
 
@@ -83,3 +85,38 @@ def values():
 ''')
     assert contains_yield(direct)
     assert not contains_yield(nested)
+
+
+def test_mapping_parameter_effects_are_symbolic_and_shape_constrained():
+    node = _function('''
+def clean(mapping):
+    alias = mapping
+    alias.pop("out", None)
+    del mapping["other"]
+    return alias
+''')
+    effects = function_effects(node)
+    assert effects is not None
+    assert [(value.kind, value.target, value.element_path, value.receiver_shape)
+            for value in effects] == [
+                ('mapping_pop', 'mapping', ('out',), 'dict'),
+                ('mapping_delete', 'mapping', ('other',), 'dict')]
+    assert effects[0].may_raise is None and effects[1].may_raise == 'KeyError'
+
+
+@pytest.mark.parametrize('body', [
+    'mapping.pop(key, None)',
+    'mapping.pop("out", factory())',
+    'mapping.pop("out", None)\n    external(mapping)',
+    'mapping.pop("out", None)\n    mapping["out"] = None',
+    'if flag:\n        mapping.pop("out", None)',
+    'for key in ("out", "other"):\n        mapping.pop(key, None)',
+])
+def test_mapping_summary_does_not_return_partial_effects(body):
+    assert function_effects(_function('def clean(mapping, key=None, flag=False):\n    ' + body)) is None
+
+
+def test_returned_popped_value_retains_write_not_container_identity():
+    effects = function_effects(_function('def popped(mapping):\n    return mapping.pop("out", None)'))
+    assert effects is not None and len(effects) == 1
+    assert effects[0].kind == 'mapping_pop'

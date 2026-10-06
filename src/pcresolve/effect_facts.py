@@ -30,6 +30,12 @@ class FunctionEffect:
     source: object
     ## AST statement providing source evidence.
     statement: object
+    ## Required builtin receiver shape; None for the older protocol summaries.
+    receiver_shape: object = None
+    ## Constant element path, empty for whole-container effects.
+    element_path: tuple = ()
+    ## Possible exception before normal completion, when known.
+    may_raise: object = None
 
 
 ## Match a builtin container method by receiver shapes and positional arity.
@@ -95,6 +101,9 @@ def contains_yield(node):
 ## Extract all effects from a supported straight-line function body.
 #  A partial summary is never returned: unsupported statements and generators
 #  produce None so callers do not apply an incomplete set of writes.
+#  Ordinary-parameter aliases and constant-string-key pop/delete facts retain
+#  receiver shape prerequisites, not an inferred type for generic parameters.
+#  Effects describe normal completion; required-key removals may raise KeyError.
 #  @param node Candidate function definition.
 #  @return FunctionEffect tuple, or None when the whole body is unsupported.
 def function_effects(node):
@@ -104,20 +113,72 @@ def function_effects(node):
             if not (isinstance(statement, ast.Expr)
                     and isinstance(statement.value, ast.Constant)
                     and isinstance(statement.value.value, str))]
+    if any(isinstance(statement, ast.Global) for statement in body):
+        return None
     nonlocal_names = {
         name for statement in body if isinstance(statement, ast.Nonlocal)
         for name in statement.names}
+    ordinary = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+    aliases = {argument.arg: argument.arg for argument in ordinary}
+
+    def mapping_pop(value, statement):
+        if (not isinstance(value, ast.Call)
+                or not isinstance(value.func, ast.Attribute)
+                or value.func.attr != 'pop'
+                or not isinstance(value.func.value, ast.Name)
+                or value.func.value.id not in aliases
+                or value.keywords or len(value.args) not in (1, 2)
+                or not isinstance(value.args[0], ast.Constant)
+                or not isinstance(value.args[0].value, str)
+                or (len(value.args) == 2
+                    and not isinstance(value.args[1], ast.Constant))):
+            return None
+        return FunctionEffect('mapping_pop', aliases[value.func.value.id], None,
+                              statement, 'dict', (value.args[0].value,),
+                              'KeyError' if len(value.args) == 1 else None)
+
     effects = []
     for statement in body:
-        if isinstance(statement, ast.Nonlocal):
+        if isinstance(statement, (ast.Nonlocal, ast.Pass)):
             continue
+        if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+                and statement.targets[0].id not in nonlocal_names
+                and isinstance(statement.value, ast.Name)
+                and statement.value.id in aliases):
+            aliases[statement.targets[0].id] = aliases[statement.value.id]
+            continue
+        if isinstance(statement, (ast.Expr, ast.Return)):
+            effect = mapping_pop(statement.value, statement)
+            if effect is not None:
+                effects.append(effect)
+                if isinstance(statement, ast.Return):
+                    return tuple(effects)
+                continue
+        if isinstance(statement, ast.Delete) and len(statement.targets) == 1:
+            target = statement.targets[0]
+            if (isinstance(target, ast.Subscript)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id in aliases
+                    and isinstance(target.slice, ast.Constant)
+                    and isinstance(target.slice.value, str)):
+                effects.append(FunctionEffect(
+                    'mapping_delete', aliases[target.value.id], None,
+                    statement, 'dict', (target.slice.value,), 'KeyError'))
+                continue
+        if isinstance(statement, ast.Return):
+            if (statement.value is None or isinstance(statement.value, ast.Constant)
+                    or isinstance(statement.value, ast.Name)
+                    and statement.value.id in aliases):
+                return tuple(effects)
+            return None
         if (isinstance(statement, ast.Expr)
                 and isinstance(statement.value, ast.Call)
                 and isinstance(statement.value.func, ast.Attribute)
                 and isinstance(statement.value.func.value, ast.Name)
                 and not statement.value.keywords):
             call = statement.value
-            target = call.func.value.id
+            target = aliases.get(call.func.value.id, call.func.value.id)
             if (call.func.attr == 'append' and len(call.args) == 1
                     and isinstance(call.args[0], ast.Name)):
                 effects.append(FunctionEffect(

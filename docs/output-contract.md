@@ -152,6 +152,8 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | value-source provenance | `value_incomplete` | Optional true flag for a missing/unknown alternative or visible receiver attribute mutation. Prevents unique class/instance/container-object inference while retaining dependency roots. |
 | `functions[*]` | `return_objects` | Optional symbolic ordinary-parameter alias proof (`parameter`, `identity`, assignment/return `evidence`), without caller-local object IDs. This is separate from element `returns`. |
 | `functions[*]` | `mapping_effects` | Element-specific membership, pop, delete, update, and merge facts with bounded state and branch conditions. |
+| instantiated helper mapping effects | `completion`, `may_raise`, `binding`, `call_id`, `call_evidence` | A complete straight-line constant-string-key dict removal instantiated from a proven ordinary argument. `completion="normal_return"` excludes exceptional completion; `may_raise="KeyError"` applies to required-key pop/delete. Binding and both source sites explain which actual object was modified. |
+| `functions[*].return_objects[*]` | `requires_shapes`, `completion` | Optional receiver-parameter shape constraints and normal-completion scope for a symbolic alias proof that includes fully modeled effects. No caller-local object IDs are stored in the symbolic summary. |
 | `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
 | source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
@@ -172,6 +174,12 @@ truncation. Capture dictionaries, copies, mixed returns, generators, decorators,
 and helpers with unmodeled effects do not acquire an original-object alias.
 See [returned container objects](value-flow.md#returned-container-objects) for
 the distinction between dependencies, shape, identity, and current contents.
+`mapping_effect_unproven` prevents partial, unknown-shape, unstable-callable,
+or uncertain-binding helper summaries from imposing strong updates;
+`mapping_effect_budget` records truncated proofs. Required-key removals retain
+`mapping_effect_exception_path`. Effects joined with an unproven context have
+`state_after="conditional"` and `status="partial_context"`, not an unconditional
+final-absence guarantee. All extensions stay in `flow-0.2`.
 
 The CLI selects this contract with `--value-flow` and
 `--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the

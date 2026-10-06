@@ -295,6 +295,9 @@ class FlowAnalyzer:
         self._object_return_cache = {}
         self._object_fact_functions = 500
         self._object_fact_steps = 2000
+        self._function_effect_cache = {}
+        self._effect_fact_functions = 500
+        self._effect_fact_steps = 2000
         self._fact_functions = 500
         self._fact_calls = 2000
         self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
@@ -923,6 +926,20 @@ class FlowAnalyzer:
             '__new__' in statement_scope_facts([member]).bound
             for member in cls.body) for _, cls in hierarchy)
 
+    def _function_effects(self, definition):
+        ref, node = definition
+        if ref in self._function_effect_cache:
+            return self._function_effect_cache[ref]
+        steps = len(getattr(node, 'body', ())) if isinstance(node, ast.FunctionDef) else 1
+        if self._effect_fact_functions <= 0 or steps > self._effect_fact_steps:
+            result = None, 'mapping_effect_budget'
+        else:
+            self._effect_fact_functions -= 1
+            self._effect_fact_steps -= steps
+            result = function_effects(node), 'unsupported_helper_body'
+        self._function_effect_cache[ref] = result
+        return result
+
     def _object_returns(self, definition):
         ref, node = definition
         if ref in self._object_return_cache:
@@ -942,6 +959,7 @@ class FlowAnalyzer:
             ordinary = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
             aliases = {argument.arg: argument.arg for argument in ordinary}
             evidence = []
+            modeled_effects = None
             for statement in node.body:
                 if self._object_fact_steps <= 0:
                     cause = 'container_return_budget'
@@ -965,12 +983,26 @@ class FlowAnalyzer:
                                 aliases[target.id] = parameter
                         evidence.append(statement)
                         continue
+                if isinstance(statement, (ast.Expr, ast.Delete)):
+                    effects, effect_cause = self._function_effects(definition)
+                    if (effects is not None
+                            and all(effect.kind in ('mapping_pop', 'mapping_delete',
+                                                    'container_clear') for effect in effects)
+                            and any(effect.statement is statement for effect in effects)):
+                        modeled_effects = effects
+                        evidence.append(statement)
+                        continue
+                    if effect_cause == 'mapping_effect_budget':
+                        cause = 'container_return_budget'
+                        break
                 if isinstance(statement, ast.Return):
                     if isinstance(statement.value, ast.Name):
                         parameter = aliases.get(statement.value.id)
                         if parameter is not None:
                             fact = {'parameter': parameter, 'identity': 'argument_alias',
                                     'evidence': evidence + [statement]}
+                            if modeled_effects:
+                                fact['effects'] = modeled_effects
                             cause = None
                         elif node.args.kwarg and statement.value.id == node.args.kwarg.arg:
                             cause = 'fresh_variadic_capture'
@@ -1261,6 +1293,8 @@ class FlowAnalyzer:
         self._fact_functions, self._fact_calls = max_functions, max_call_contexts
         self._object_fact_functions = max_functions
         self._object_fact_steps = max_call_contexts
+        self._effect_fact_functions = max_functions
+        self._effect_fact_steps = max_call_contexts
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         if not matches and not entry.lineno and '.' in entry.qualname:
             owner, _, method = entry.qualname.rpartition('.')
@@ -2424,8 +2458,10 @@ class _Summary:
                         if binding and all(v['kind'] == 'callable' for v in binding):
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
+            effects_complete = False
             if target and not invalid_binding:
-                self.apply_effects(target, actual_values, capture_values, call, env, node)
+                effects_complete = self.apply_effects(
+                    target, actual_values, capture_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env)
             self.calls.append(call)
             if invalid_binding:
@@ -2436,7 +2472,8 @@ class _Summary:
                             'relation': 'direct',
                             'evidence': [self.evidence(node)],
                             'conditions': list(self.conditions)}
-            returned_object = self.returned_container(target, call, actual_values, env, node)
+            returned_object = self.returned_container(
+                target, call, actual_values, env, node, effects_complete)
             if returned_object is not None:
                 result_value['container_object'] = returned_object
                 result_value['object_only'] = True
@@ -2444,6 +2481,8 @@ class _Summary:
                     returned_object.pop('evidence'))
                 call.result_sources = [result_value]
                 return [result_value]
+            if effects_complete and call.result_sources:
+                return [result_value] + call.result_sources
             if constructor_class is not None and construction_safe:
                 result_value['instance_type'] = asdict(constructor_class)
                 result_value['evidence'] = _unique(result_value['evidence'] + [
@@ -2504,7 +2543,7 @@ class _Summary:
                 converted.append(value)
         return converted
 
-    def returned_container(self, target, call, actuals, env, node):
+    def returned_container(self, target, call, actuals, env, node, effects_complete=False):
         references = [value for values in actuals.values()
                       for value in self.container_values(values)
                       if value.get('kind') == 'container']
@@ -2516,6 +2555,8 @@ class _Summary:
         values = self.container_values(actuals.get(fact['parameter'], [])) if fact else []
         if fact and call.binding_status != 'complete':
             cause = 'uncertain_object_binding'
+        elif fact and fact.get('effects') and not effects_complete:
+            cause = 'unmodeled_helper_effects'
         elif fact and not (values and all(
                 value.get('kind') == 'container' and value.get('relation') == 'direct'
                 and not value.get('value_incomplete') and not value.get('projection')
@@ -2572,6 +2613,8 @@ class _Summary:
                 if value.get('parameter_container') and index != '*':
                     for item in content:
                         if item.get('output_path') == ['*']:
+                            if [index] in item.get('excluded_paths', []):
+                                continue
                             projected = dict(
                                 item, projection=item.get('projection', []) + [index])
                             projected.pop('output_path', None)
@@ -2794,15 +2837,75 @@ class _Summary:
         return None  # Preserve the mutator's call-result endpoint (the runtime value is None).
 
     def apply_effects(self, definition, actuals, captures, call, env, node):
-        # Apply only unconditional, statically bound writes. Unsupported body
-        # statements leave the caller environment unchanged.
+        # Apply complete summaries to proven objects on normal completion.
+        # Unsupported mapping effects widen exclusions without inventing writes.
         target_ref, target = definition
-        effects = function_effects(target)
+        effects, cause = self.analyzer._function_effects(definition)
+        mapping_candidate = any(
+            isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
+            and child.func.attr == 'pop' or
+            isinstance(child, ast.Delete) and any(isinstance(item, ast.Subscript)
+                                                 for item in child.targets)
+            or isinstance(child, ast.Subscript) and isinstance(child.ctx, ast.Store)
+            for child in ast.walk(target))
+        affected = [value for inputs in actuals.values() for value in inputs]
+        affected_roots, affected_unknown = self.mapping_affected_values(affected, env)
+        impact = {'affected_values': affected_roots,
+                  'affected_scope': 'unknown' if affected_unknown else
+                                    'known' if affected_roots else 'none'}
         if effects is None:
-            return
+            if mapping_candidate:
+                self.add_boundary('mapping_effect_unproven', node, env, affected,
+                                  call_id=call.id, detail=cause, **impact)
+                self.widen_mapping_exclusions(actuals, env)
+                if cause == 'mapping_effect_budget':
+                    self.add_boundary(cause, node, env, affected, call_id=call.id, **impact)
+            return False
         values_by_name = dict(captures)
         values_by_name.update({name: self.container_values(values)
                                for name, values in actuals.items()})
+        if effects:
+            owner = target_ref.qualname.rpartition('.')[0]
+            if (call.binding_status != 'complete' or target.decorator_list
+                    or self.analyzer._definition_index.find(target_ref.module, owner, kind='class')
+                    or (not owner and not self.analyzer._stable_import_name(
+                        target_ref.module + '.' + target_ref.qualname))
+                    or (target_ref.module, target_ref.qualname) in self.modified_return_callables):
+                self.add_boundary('mapping_effect_unproven' if mapping_candidate else
+                                  'container_effect_unknown', node, env, affected,
+                                  call_id=call.id, detail='unstable_callable_or_binding', **impact)
+                self.widen_mapping_exclusions(actuals, env)
+                return False
+            ordinary = {argument.arg for argument in
+                        target.args.posonlyargs + target.args.args + target.args.kwonlyargs}
+            if any(effect.kind != 'nonlocal_write' and effect.target not in ordinary
+                   for effect in effects):
+                self.add_boundary('container_effect_unknown', node, env, affected,
+                                  call_id=call.id, detail='non_ordinary_receiver', **impact)
+                return False
+        mapping_effects = [effect for effect in effects if effect.receiver_shape == 'dict']
+        if mapping_effects:
+            cause = None
+            for effect in effects:
+                receivers = values_by_name.get(effect.target, [])
+                shapes = ('dict',) if effect.receiver_shape else (
+                    ('list',) if effect.kind == 'container_append' else ('dict', 'list', 'set'))
+                if (effect.kind == 'nonlocal_write' or not receivers or not all(
+                        value.get('kind') == 'container'
+                        and value.get('container_shape') in shapes
+                        and value.get('relation') == 'direct'
+                        and not value.get('value_incomplete')
+                        and not value.get('projection') and not value.get('output_path')
+                        and value['source'] in env for value in receivers)
+                        or len({value['source'] for value in receivers}) != 1):
+                    cause = 'unproven_dict_object'
+                    break
+            if cause:
+                self.add_boundary('mapping_effect_unproven', node, env, affected,
+                                  call_id=call.id, detail=cause, **impact)
+                self.widen_mapping_exclusions(actuals, env)
+                return False
+        complete = True
         for effect in effects:
             kind = effect.kind
             target_name = effect.target
@@ -2824,6 +2927,63 @@ class _Summary:
                     and (expected_shape is None or value.get('container_shape') == expected_shape)
                     for value in receivers)
                     or len({value['source'] for value in receivers}) != 1):
+                complete = False
+                continue
+            if kind in ('mapping_pop', 'mapping_delete'):
+                key = effect.element_path[0]
+                if isinstance(effect.statement, ast.Return):
+                    call.result_sources = self.marked(self.materialize(
+                        self.project(receivers, key, env), env), node)
+                    for value in call.result_sources:
+                        value['evidence'] = _unique(value['evidence'] + [
+                            self.evidence_at(target_ref, effect.statement)])
+                roots, unknown = self.mapping_affected_values(receivers, env)
+                binding = next(item for item in call.parameter_bindings
+                               if item.get('parameter') == target_name
+                               and item.get('status') == 'exact')
+                mapping_effect = {
+                    'operation': 'pop' if kind == 'mapping_pop' else 'delete',
+                    'mapping': roots, 'element_path': [key],
+                    'state_after': 'conditional' if self.conditions else 'absent',
+                    'status': 'unknown' if unknown else 'bounded',
+                    'completion': 'normal_return', 'may_raise': effect.may_raise,
+                    'conditions': copy.deepcopy(self.conditions),
+                    'call_id': call.id,
+                    'binding': copy.deepcopy(binding),
+                    'evidence': [self.evidence_at(target_ref, effect.statement)],
+                    'call_evidence': self.evidence(node)}
+                self.mapping_effects.append(mapping_effect)
+                call.effects.append(dict(mapping_effect, kind='mapping_element'))
+                if effect.may_raise:
+                    self.add_boundary('mapping_effect_exception_path', node, env, receivers,
+                                      call_id=call.id, exception=effect.may_raise,
+                                      completion='normal_return',
+                                      effect_evidence=mapping_effect['evidence'],
+                                      affected_values=roots,
+                                      affected_scope='unknown' if unknown else
+                                                     'known' if roots else 'none')
+                for reference in receivers:
+                    remaining = []
+                    for value in env.get(reference['source'], []):
+                        path = value.get('output_path', [None])
+                        if path[0] == key:
+                            continue
+                        if path[0] == '*':
+                            value = dict(value, excluded_paths=_unique(
+                                value.get('excluded_paths', []) + [[key]]),
+                                evidence=value.get('evidence', []) + mapping_effect['evidence'],
+                                conditions=value.get('conditions', []) + list(self.conditions))
+                        remaining.append(value)
+                    env[reference['source']] = remaining
+                    markers = []
+                    for marker in env.get(reference['source'] + '$keys', []):
+                        if marker['key'] == key:
+                            continue
+                        if marker['key'] == '*':
+                            marker = dict(marker, excluded_keys=_unique(
+                                marker.get('excluded_keys', []) + [key]))
+                        markers.append(marker)
+                    env[reference['source'] + '$keys'] = markers
                 continue
             if kind == 'container_clear':
                 for reference in receivers:
@@ -2850,6 +3010,31 @@ class _Summary:
                                  'source': source_name, 'status': 'exact',
                                  'evidence': [self.evidence_at(
                                      target_ref, effect.statement)]})
+        return complete
+
+    def mapping_affected_values(self, values, env):
+        roots, unknown = self.affected_values(values, env)
+        for reference in self.container_values(values):
+            name = reference.get('parameter_container')
+            if (reference.get('kind') == 'container' and name
+                    and not any(root['kind'] == 'parameter' and root['name'] == name
+                                for root in roots)):
+                roots.append({'kind': 'parameter', 'name': name, 'element_path': []})
+        return roots, unknown
+
+    def widen_mapping_exclusions(self, actuals, env):
+        for inputs in actuals.values():
+            for reference in self.container_values(inputs):
+                if reference.get('kind') != 'container' or reference.get('container_shape') != 'dict':
+                    continue
+                source = reference['source']
+                env[source] = [dict(value, excluded_paths=[])
+                               if value.get('excluded_paths') else value
+                               for value in env.get(source, [])]
+                env[source + '$keys'] = _unique([
+                    dict(marker, excluded_keys=[]) if marker.get('excluded_keys') else marker
+                    for marker in env.get(source + '$keys', [])] +
+                    [{'kind': 'key', 'source': '*', 'key': '*'}])
 
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
@@ -3266,6 +3451,16 @@ class _Summary:
                 if previous.binding_status != call.binding_status:
                     previous.binding_status = 'uncertain'
         self.calls = list(merged.values())
+        partial_effect_calls = {boundary.get('call_id') for boundary in self.result.boundaries
+                                if boundary['reason'] == 'mapping_effect_unproven'}
+        for call in self.calls:
+            if call.id in partial_effect_calls:
+                for effect in call.effects:
+                    if effect.get('completion') == 'normal_return':
+                        effect.update(state_after='conditional', status='partial_context')
+        for effect in self.mapping_effects:
+            if effect.get('call_id') in partial_effect_calls:
+                effect.update(state_after='conditional', status='partial_context')
         def collect(node):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
                 return
@@ -3300,6 +3495,12 @@ class _Summary:
                 'parameter': object_fact['parameter'], 'identity': 'argument_alias',
                 'evidence': [self.evidence(statement)
                              for statement in object_fact['evidence']]}]
+            if object_fact.get('effects'):
+                self.result.functions[-1]['return_objects'][0].update(
+                    completion='normal_return', requires_shapes=_unique([
+                        {'parameter': effect.target,
+                         'shapes': ['dict'] if effect.receiver_shape else ['dict', 'list', 'set']}
+                        for effect in object_fact['effects']]))
         if self.receiver_class is not None:
             self.result.functions[-1]['receiver_contexts'] = [asdict(self.receiver_class)]
         self.result.calls.extend(self.calls)

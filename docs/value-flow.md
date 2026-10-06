@@ -484,6 +484,73 @@ feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
+### Ordinary-parameter dict removals
+
+A complete straight-line helper can expose shape-constrained constant-string-key
+`pop` and `del` effects on an ordinary parameter or its local-name alias:
+
+```python
+def remove_out(mapping):
+    mapping.pop("out", None)
+
+def clean(mapping):
+    mapping.pop("out", None)
+    return mapping
+
+def root(**kwargs):
+    remove_out(kwargs)
+    forwarded = clean(kwargs)
+    return fixed(**forwarded)
+```
+
+The owner-neutral effect extractor stores formal names, constant paths, dict
+shape requirements and source statements only. A generic helper summary does
+not acquire a builtin receiver from a name, annotation or `.pop` spelling.
+Instantiation requires a unique stable source callable, complete binding,
+one unprojected caller-local builtin dict identity per receiver, and a complete
+supported body. All prerequisites are checked before any write is applied.
+Neither decorated/dynamic methods nor visibly modified/rebound callables bypass
+these guards. Literal argument expansion and explicit keyword binding may be
+used when exact; dynamic expansion and multiple possible objects remain partial.
+Cached summaries contain no actual object IDs and have separate function and
+statement limits within the supplied analysis budgets.
+
+The helper call's existing `effects` contain `kind="mapping_element"`, mapping
+roots, constant `element_path`, operation, state, conditions, normal-completion
+scope, exact binding, effect-source `evidence`, and `call_evidence`. Caller
+`mapping_effects` keep the same fact, correlated by `call_id`. Removing `out`
+updates the actual shared object: the open wildcard remainder acquires
+`excluded_paths=[["out"]]`, while finite contents stay finite and independent
+allocations remain separate. Caller branches retain conditional state. Repeated
+call-site contexts joined with unknown inputs retain only `partial_context`
+effects; they cannot claim unconditional final absence.
+
+`pop("out")` and `del mapping["out"]` carry `may_raise="KeyError"` and a
+`mapping_effect_exception_path` boundary. Their `completion="normal_return"`
+is a postcondition, not proof that the key existed or the call succeeds.
+Caller exception-handler paths do not inherit the normal-path strong update.
+An unsupported/partial helper, dynamic key, uncertain receiver/binding, escape,
+unknown write/call, recursion, generator, decorator or exhausted proof records
+`mapping_effect_unproven` (plus `mapping_effect_budget` for truncation), not a
+partial strong update. A later unproven mapping effect widens old exclusions
+and key-presence markers, so an earlier pop cannot establish final absence
+across an unknown write. No arbitrary new values or origins are invented.
+An empty capture container still retains its parameter object root for effect
+impact, even when no current element dependencies remain.
+
+Only when every effect prerequisite is satisfied may a helper with modeled
+removals and a direct ordinary-parameter/local-alias return instantiate
+`container_object`. Effects are applied first; all reads of the original and
+returned object see current contents. Symbolic `return_objects` then include
+`requires_shapes` and `completion="normal_return"`. Existing clear handling and
+identity-only endpoints prevent old content from reappearing.
+`return mapping.pop(...)` instead retains the removed element's pre-write
+dependency, not the mapping's object identity. Fresh `**kwargs` captures,
+copies and reconstructed dictionaries are not aliases of the expanded input.
+Finite-key loops, branch-dependent helper effects/returns, general heap writes,
+unknown callable propagation and configuration factories are not supported by
+this narrow summary.
+
 One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
 calls carry a builtin derived-result dependency. This is input dependence, not
 identity or owner preservation. Arbitrary receiver methods do not inherit this
@@ -532,8 +599,10 @@ and boundaries; `trace_parameter()` already observes this distinction. Source
 evidence and object identity remain available even when the elements are empty.
 These facts do not make compatibility or rejection decisions.
 
-The proof supports only ordinary-parameter direct returns and straight-line
-local-name aliases, with already proven builtin input objects. It may inspect
+The proof supports ordinary-parameter direct returns and straight-line
+local-name aliases, with already proven builtin input objects. Fully modeled
+constant-key dict removals and existing clear effects can precede that return
+only when their receiver constraints and bindings are satisfied. It may inspect
 the helper body at depth one without publishing an expanded body. Separate
 proof-function and statement limits use the supplied function/call budgets.
 Uncertain binding, unknown shapes, decorated/dynamic targets, generators,
