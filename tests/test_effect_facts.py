@@ -3,6 +3,8 @@
 
 import ast
 
+import pytest
+
 from pcresolve.effect_facts import (container_method_effect, contains_yield,
                                     function_effects)
 
@@ -83,3 +85,61 @@ def values():
 ''')
     assert contains_yield(direct)
     assert not contains_yield(nested)
+
+
+def test_mapping_parameter_effects_are_symbolic_and_shape_constrained():
+    node = _function('''
+def clean(mapping):
+    alias = mapping
+    alias.pop("out", None)
+    del mapping["other"]
+    return alias
+''')
+    effects = function_effects(node)
+    assert effects is not None
+    assert [(value.kind, value.target, value.element_path, value.receiver_shape)
+            for value in effects] == [
+                ('mapping_pop', 'mapping', ('out',), 'dict'),
+                ('mapping_delete', 'mapping', ('other',), 'dict')]
+    assert effects[0].may_raise is None and effects[1].may_raise == 'KeyError'
+
+
+@pytest.mark.parametrize('body', [
+    'mapping.pop(key, None)',
+    'mapping.pop("out", factory())',
+    'mapping.pop("out", None)\n    external(mapping)',
+    'mapping.pop("out", None)\n    mapping["out"] = None',
+    'if flag:\n        mapping.pop("out", None)',
+    'for key in ("out", "other"):\n        mapping.pop(key, None)',
+])
+def test_mapping_summary_does_not_return_partial_effects(body):
+    assert function_effects(_function('def clean(mapping, key=None, flag=False):\n    ' + body)) is None
+
+
+def test_returned_popped_value_retains_write_not_container_identity():
+    effects = function_effects(_function('def popped(mapping):\n    return mapping.pop("out", None)'))
+    assert effects is not None and len(effects) == 1
+    assert effects[0].kind == 'mapping_pop'
+
+
+def test_finite_key_loop_summary_keeps_sequence_constraint_not_concrete_keys():
+    node = _function('''
+def remove_keys(mapping, keys):
+    for key in keys:
+        if key in mapping:
+            del mapping[key]
+''')
+    effects = function_effects(node)
+    assert effects is not None and len(effects) == 1
+    assert effects[0].kind == 'mapping_delete_keys'
+    assert effects[0].source == 'keys' and effects[0].target == 'mapping'
+    assert effects[0].receiver_shape == 'dict' and not effects[0].element_path
+
+
+@pytest.mark.parametrize('body', [
+    'for key in keys:\n        del mapping[key]',
+    'for key in keys:\n        if key in mapping:\n            unknown(key)\n            del mapping[key]',
+    'for key in keys:\n        if key in mapping:\n            del mapping[key]\n            break',
+])
+def test_finite_key_loop_summary_rejects_unclosed_operation_body(body):
+    assert function_effects(_function('def remove_keys(mapping, keys):\n    ' + body)) is None

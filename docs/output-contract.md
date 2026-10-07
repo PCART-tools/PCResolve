@@ -142,17 +142,51 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | `calls[*]` | `receiver_type_evidence` | For a constructor-backed field returned by a local accessor, records the field, nominal instance type, assignment, all proven return statements, accessor call, and downstream receiver call. These are source candidates, not runtime dispatch guarantees. |
 | `calls[*]` | `callable_instance_evidence` | For a uniquely assigned module-level constructor-backed callable object, records the object assignment, nominal class, constructor argument sources, and invocation site. Its `__call__` target is a source candidate, not a runtime dispatch guarantee. |
 | `calls[*]` | `decorator_identity_evidence` | For a source-proven identity-return decorator, records its definition, unchanged input parameter, and normal return statements. This proves returned object identity; unmodeled decorator effects remain a boundary. |
-| import-source provenance | `import_incomplete`, `import_modified` | Optional true flags for a merge containing a missing binding, or a visible attribute write to an imported object. Either prevents unique-target resolution from that binding. |
+| import-source provenance | `import_incomplete`, `import_modified` | Optional flags for a merge containing a missing binding, or a visible attribute write to an imported object. A true flag prevents unique-target resolution from that binding. |
 | `calls[*]` | `binding_status`, `binding_issues` | Complete/uncertain/invalid binding state and statically proven missing, duplicate, unresolved, or dynamic-expansion facts. |
 | `calls[*].parameter_bindings[*]` | `destination_kind` | `parameter`, `var_positional`, `var_keyword`, or `unresolved`; variadic element positions remain in `target_path`. |
-| `calls[*]` | `result_sources` | Sources of supported local container protocol results, used to relate later boundaries to input roots. |
+| `calls[*]` | `result_sources` | Supported local container results, source-proven class-valued returns, and nominal constructor/allocation results, with evidence and conditions. This does not substitute arbitrary parameter types or prove runtime dispatch. |
+| value-source provenance | `class_type`, `instance_type` | Optional serialized `FunctionRef` for a source class value or nominal instance. Class-valued returns retain `kind="class"`, `module`, and `source`; receiver parameters keep their parameter roots. |
+| value-source provenance | `container_object` | Source-proven ordinary-argument alias returned by a narrow local helper. Contains the opaque caller-local object `source`, builtin `container_shape` (`dict`, `list`, `tuple`), `identity="argument_alias"`, returned `parameter`, target `function`, and optional `parameter_container`. Evidence remains on the value source. |
+| value-source provenance | `object_only` | True on a returned-container call endpoint: it records object identity, not an element dependency. Consumers must not substitute this endpoint through the helper's old input contents; current element roots are materialized separately. |
+| value-source provenance | `value_incomplete` | Optional true flag for a missing/unknown alternative or visible receiver attribute mutation. Prevents unique class/instance/container-object inference while retaining dependency roots. |
+| `functions[*]` | `return_objects` | Optional symbolic ordinary-parameter alias proof (`parameter`, `identity`, assignment/return `evidence`), without caller-local object IDs. This is separate from element `returns`. |
 | `functions[*]` | `mapping_effects` | Element-specific membership, pop, delete, update, and merge facts with bounded state and branch conditions. |
+| instantiated helper mapping effects | `completion`, `may_raise`, `binding`, `call_id`, `call_evidence` | A complete straight-line constant-string-key dict removal instantiated from a proven ordinary argument. `completion="normal_return"` excludes exceptional completion; `may_raise="KeyError"` applies to required-key pop/delete. Binding and both source sites explain which actual object was modified. |
+| `functions[*].return_objects[*]` | `requires_shapes`, `completion` | Optional receiver-parameter shape constraints and normal-completion scope for a symbolic alias proof that includes fully modeled effects. No caller-local object IDs are stored in the symbolic summary. |
+| `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
+| `calls[*]` | `callable_sources` | Callable expression provenance, including an optional source-proven `callable_type` and `callable_evidence` on ordinary parameter roots. String values or annotations do not establish callable identity. |
+| `calls[*]` | `analysis_contexts` | Per-expansion facts tied to `incoming_call_id`: symbolic `parameter_facts`, target/candidates/status, binding status, argument/callable/result sources, effects, conditional returns and conditions. The top-level call is a conservative union; do not combine facts from different contexts. |
+| `calls[*]` | `conditional_returns` | Guarded ordinary-parameter alias facts for a supported early-return path, with `requires_literal_guard`. Proven incoming objects optionally add `container_shape`, caller-local `object_source`, `binding` and `input_evidence`. `completeness="partial_paths"` does not authorize unconditional alias/content updates or prove the whole helper pure. |
+| `calls[*].argument_sources[*]` | `literal`, `value_evidence` | Bounded source-proven builtin scalar/tuple/list values used for branch selection and finite-key constraints, separate from dependency roots. Mutable-container writes and unknown escapes invalidate stale literal facts. |
+| returned object facts | `conditions` | Branch evidence and the exact incoming literal binding selecting the alias path. Effects are applied before alias instantiation, and the caller-local object identity refers to current contents. |
+| mapping element effects | `sequence_binding`, `loop_evidence`, `operation_conditions` | Finite incoming tuple/list string keys, their binding/source evidence, and the per-iteration membership guard. A complete summary describes `normal_return`; a partial source site has `completion="unproven"`, `reachability="not_proven"`, no strong update and unknown final state. |
+| class/instance sources | `attribute_provenance`, `instance_candidates` | Restricted class-attribute write/read evidence and source allocation alternatives. `value_incomplete=true` marks an open configuration state; the downstream call remains unresolved even when known source candidates exist. Initial `None` is not a runtime configuration proof. |
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
 | source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
 
 Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
 continue to treat a selected method or decorated target/class as conservative
 when a corresponding override/decorator boundary is present.
+`target_status="builtin_allocation"` reports a supported unshadowed builtin
+allocator result without inventing a Python definition or target candidate.
+`builtin_allocator_source_unavailable` retains the allocator body boundary.
+`dynamic_construction`, `dynamic_class_receiver_override_possible`,
+`class_return_recursion`, and `class_return_budget` preserve uncertainty in
+construction, class dispatch, and bounded class-return proofs.
+Returned-container proofs also require complete binding and an already proven
+builtin input shape. `container_return_unproven` includes an explanatory
+`detail` and affected input roots; `container_return_budget` preserves proof
+truncation. Capture dictionaries, copies, mixed returns, generators, decorators,
+and helpers with unmodeled effects do not acquire an original-object alias.
+See [returned container objects](value-flow.md#returned-container-objects) for
+the distinction between dependencies, shape, identity, and current contents.
+`mapping_effect_unproven` prevents partial, unknown-shape, unstable-callable,
+or uncertain-binding helper summaries from imposing strong updates;
+`mapping_effect_budget` records truncated proofs. Required-key removals retain
+`mapping_effect_exception_path`. Effects joined with an unproven context have
+`state_after="conditional"` and `status="partial_context"`, not an unconditional
+final-absence guarantee. All extensions stay in `flow-0.2`.
 
 The CLI selects this contract with `--value-flow` and
 `--entry MODULE:QUALNAME`. In that mode, `--json` emits flow JSON rather than the

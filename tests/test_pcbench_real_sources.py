@@ -26,7 +26,7 @@ def source(source_id):
     return root
 
 
-def analyze(source_id, files, module, qualname, extra_files=()):
+def analyze(source_id, files, module, qualname, extra_files=(), max_depth=1):
     package = source(source_id)
     selected = [package / name for name in files]
     selected.extend(extra_files)
@@ -35,7 +35,8 @@ def analyze(source_id, files, module, qualname, extra_files=()):
     analyzer = FlowAnalyzer(
         source_files=selected,
         import_roots=[package.parent, FIXTURES])
-    return analyzer.analyze(FunctionRef(module=module, qualname=qualname))
+    return analyzer.analyze(
+        FunctionRef(module=module, qualname=qualname), max_depth=max_depth)
 
 
 def test_tornado_constructor_and_explicit_super():
@@ -52,6 +53,92 @@ def test_tornado_constructor_and_explicit_super():
         callee_name='super(AsyncHTTPClient, cls).__new__')[0]
     assert super_call.target.qualname == 'Configurable.__new__'
     assert super_call.target.module == 'tornado.util'
+
+
+@pytest.mark.parametrize('qualname,module,class_name', [
+    ('AsyncHTTPClient.configurable_base', 'tornado.httpclient', 'AsyncHTTPClient'),
+    ('AsyncHTTPClient.configurable_default',
+     'tornado.simple_httpclient', 'SimpleAsyncHTTPClient')])
+def test_tornado_helpers_return_source_classes(qualname, module, class_name):
+    result = analyze('tornado-3.0',
+                     ['httpclient.py', 'util.py', 'simple_httpclient.py'],
+                     'tornado.httpclient', qualname)
+    returned = result.functions[0]['returns']
+    assert returned
+    assert {(value['module'], value['source']) for value in returned} == {
+        (module, class_name)}
+    assert all(value['kind'] == 'class'
+               and value['class_type']['module'] == module
+               and value['class_type']['qualname'] == class_name
+               for value in returned)
+    assert any(evidence['source_text'] == 'return ' + class_name
+               for value in returned for evidence in value['evidence'])
+    if class_name == 'SimpleAsyncHTTPClient':
+        assert any('from tornado.simple_httpclient import SimpleAsyncHTTPClient'
+                   == evidence['source_text']
+                   for value in returned for evidence in value['evidence'])
+
+
+@pytest.mark.parametrize('depth', [2, 4])
+def test_tornado_inherited_new_preserves_class_context_and_unknown_configuration(depth):
+    result = analyze('tornado-3.0',
+                     ['httpclient.py', 'util.py', 'simple_httpclient.py'],
+                     'tornado.httpclient', 'AsyncHTTPClient.__new__',
+                     max_depth=depth)
+    inherited = result.find_calls(
+        callee_name='super(AsyncHTTPClient, cls).__new__')[0]
+    assert inherited.target.module == 'tornado.util'
+    assert inherited.target.qualname == 'Configurable.__new__'
+    first_argument = next(argument for argument in inherited.argument_sources
+                          if argument['parameter'] == 'cls')
+    assert all(value['class_type']['qualname'] == 'AsyncHTTPClient'
+               for value in first_argument['sources'])
+
+    base_calls = result.find_calls(callee_name='cls.configurable_base')
+    assert base_calls
+    assert all(call.target.module == 'tornado.httpclient'
+               and call.target.qualname == 'AsyncHTTPClient.configurable_base'
+               for call in base_calls)
+    assert all(value['class_type']['module'] == 'tornado.httpclient'
+               and value['class_type']['qualname'] == 'AsyncHTTPClient'
+               for call in base_calls for value in call.receiver_sources)
+    if depth == 4:
+        default_calls = result.find_calls(callee_name='cls.configurable_default')
+        assert default_calls
+        assert all(call.target.module == 'tornado.httpclient'
+                   and call.target.qualname == 'AsyncHTTPClient.configurable_default'
+                   for call in default_calls)
+        assert all(value['class_type']['qualname'] == 'AsyncHTTPClient'
+                   for call in default_calls for value in call.receiver_sources)
+        configuration = next(summary for summary in result.functions
+                             if summary['function']['qualname'] ==
+                             'Configurable.configured_class')
+        candidates = [value for value in configuration['returns'] if value.get('class_type')]
+        assert candidates and all(value.get('value_incomplete') for value in candidates)
+        assert {value['class_type']['qualname'] for value in candidates} == {'SimpleAsyncHTTPClient'}
+        assert all(value['conditions'] and value['attribute_provenance'] for value in candidates)
+        assert any(boundary['reason'] == 'class_attribute_state_unknown'
+                   for boundary in result.boundaries)
+
+    for name in ('super(Configurable, cls).__new__', 'instance.initialize'):
+        call = result.find_calls(callee_name=name)[0]
+        assert call.target is None
+        assert call.target_candidates == []
+        assert call.target_status == 'receiver_unresolved'
+        assert any(boundary.get('call_id') == call.id
+                   and boundary['reason'] == 'receiver_unresolved'
+                   for boundary in result.boundaries)
+
+    update = next(call for call in result.find_calls(callee_name='args.update')
+                  if any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+                         for argument in call.argument_sources
+                         for value in argument['sources']))
+    initialize = result.find_calls(callee_name='instance.initialize')[0]
+    for call in (update, initialize):
+        assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+                   and value.get('output_path') == ['*']
+                   for argument in call.argument_sources
+                   for value in argument['sources'])
 
 
 def test_pandas_inherited_entry_and_mapping_as_ordinary_argument():
@@ -214,3 +301,69 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
     assert any(item.get('call_id') == call.id
                and item['reason'] == 'receiver_unresolved'
                for item in result.boundaries)
+
+
+@pytest.mark.parametrize('entry', ['cdist', 'pdist'])
+def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
+    result = analyze('scipy-1.0.0', ['spatial/distance.py'],
+                     'scipy.spatial.distance', entry, max_depth=2)
+    helper = result.find_calls(callee_name='_args_to_kwargs_xdist')[0]
+    assert helper.target.qualname == '_args_to_kwargs_xdist'
+    assert helper.binding_status == 'complete'
+    assert helper.conditional_returns
+    assert helper.conditional_returns[0]['parameter'] == 'kwargs'
+    assert helper.conditional_returns[0]['completeness'] == 'partial_paths'
+    assert not any(value.get('container_object') for value in helper.result_sources)
+    assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+               and value.get('output_path') == ['*']
+               for argument in helper.argument_sources for value in argument['sources'])
+    pop = next(call for call in result.find_calls(callee_name='kwargs.pop')
+               if call.caller.qualname == entry)
+    assert pop.target_status == 'receiver_unresolved' and not pop.effects
+    assert any(value['kind'] == 'call_result' and value['source'] == helper.id
+               for value in pop.receiver_sources)
+    for call in (helper, result.find_calls(callee_name='_filter_deprecated_kwargs')[0]):
+        assert not call.effects
+        boundary = next(value for value in result.boundaries
+                        if value['reason'] == 'container_return_unproven'
+                        and value.get('call_id') == call.id)
+        assert boundary['detail'] == 'unmodeled_helper_effects'
+        assert boundary['affected_scope'] == 'known'
+        assert any(value['name'] == 'kwargs' for value in boundary['affected_values'])
+        effect_boundary = next(value for value in result.boundaries
+                               if value['reason'] == 'mapping_effect_unproven'
+                               and value.get('call_id') == call.id)
+        assert effect_boundary['detail'] == 'unsupported_helper_body'
+        assert any(value['name'] == 'kwargs' for value in effect_boundary['affected_values'])
+
+
+@pytest.mark.parametrize('entry', ['callback_control', 'early_control', 'deletion_control'])
+def test_scipy_source_controls_instantiate_only_proven_incoming_context(entry):
+    result = analyze('scipy-1.0.0', ['spatial/distance.py'], 'scipy_context', entry,
+                     extra_files=[FIXTURES / 'scipy_context.py'], max_depth=3)
+    if entry == 'callback_control':
+        call = result.find_calls(callee_name='metric')[0]
+        assert call.target.module == 'scipy.spatial.distance'
+        assert call.target.qualname == 'euclidean' and call.target.lineno == 525
+        assert call.target_status == 'incoming_callable'
+        assert call.analysis_contexts[0]['incoming_call_id']
+        assert any(value['source'] == 'mapping' for argument in call.argument_sources
+                   for value in argument['sources'] if value['kind'] == 'parameter')
+    elif entry == 'early_control':
+        helper = result.find_calls(callee_name='_args_to_kwargs_xdist')[0]
+        assert helper.result_sources[0]['container_object']['identity'] == 'argument_alias'
+        assert helper.result_sources[0]['conditions'][0]['test']['source_text'] == 'not args'
+        pop = result.find_calls(callee_name='mapping.pop')[0]
+        assert pop.target_status == 'local_container_protocol'
+        assert pop.effects[0]['element_path'] == ['out']
+        assert all(['out'] in value.get('excluded_paths', [])
+                   for value in result.trace_parameter('kwargs')['return_paths'])
+    else:
+        call = result.find_calls(callee_name='_filter_deprecated_kwargs')[0]
+        assert {tuple(effect['element_path']) for effect in call.effects} == {('out',), ('p',)}
+        assert all(effect['completion'] == 'unproven' and effect['state_after'] == 'unknown'
+                   for effect in call.effects)
+        assert any(boundary['reason'] == 'mapping_effect_unproven'
+                   and boundary.get('call_id') == call.id for boundary in result.boundaries)
+        assert all(not value.get('excluded_paths')
+                   for value in result.trace_parameter('kwargs')['return_paths'])

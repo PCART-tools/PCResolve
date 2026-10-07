@@ -74,8 +74,8 @@ defaults to the file's basename.
 | `--source-file PATH` | Explicit source file; repeat instead of positional `PATH` |
 | `--import-root PATH` | Module mapping root; repeat without adding sources |
 | `--depth N` | Call-edge depth, default 1 |
-| `--max-functions N` | Distinct function summary budget, default 500 |
-| `--max-call-contexts N` | Collected call-site budget, default 2000 |
+| `--max-functions N` | Function / source-class receiver summary budget, default 500 |
+| `--max-call-contexts N` | Evaluated call-site/context budget, default 2000 |
 | `--json` | Emit `FlowAnalysis.to_dict()`, including evidence and boundaries |
 | `--output PATH` | Write the selected text/JSON format to a UTF-8 file instead of stdout |
 | `--stdin` | Read the single positional input path from stdin |
@@ -303,11 +303,18 @@ following a mutable value across a resolved call.
 Depth one summarizes the entry body, including its direct calls and available
 callee signatures. Depth two also summarizes their bodies. `expand` starts at
 the selected call target and analyzes the requested number of layers below it.
-Function summaries are shared; call-result substitution retains call-site
-identity. Call IDs are opaque identifiers built from the complete source range
+Ordinary function summaries are shared; classmethod and `__new__` summaries
+also retain a source-proven class receiver context. Call-result substitution
+retains call-site identity. Call IDs are opaque identifiers built from the complete source range
 and are stable only for unchanged source snapshots. Function selectors may
 include a definition line to resolve
 duplicate definitions.
+
+Bounded class-return proofs may inspect available factory bodies even at depth
+one, without adding those bodies to the public expanded graph. These proofs
+have separate limits within the supplied function/call budgets, a maximum
+proof-stack depth of eight, and explicit recursion/budget boundaries. Ordinary
+parameter-to-return composition still uses only public expanded summaries.
 
 ## Facts
 
@@ -326,6 +333,99 @@ not runtime path-feasibility proofs. A found path does not promise execution.
 
 ## Current supported subset and boundaries
 
+### Source-proven callable arguments and literal dispatch
+
+`analyze()` and `expand()` specialize ordinary parameters using complete,
+exact incoming bindings to source callables. Parameter dependency roots remain
+parameters; optional `callable_type`/`callable_evidence` retain the source identity
+and incoming evidence. Aliases and multi-hop helpers preserve this fact until
+rebinding, attribute mutation or unknown escape invalidates it. Strings, names,
+annotations and `callable()` tests do not prove a particular function identity.
+
+`calls[*].callable_sources` records the callable expression. `analysis_contexts`
+keeps each incoming call's target and argument facts together. Consumers can
+follow `incoming_call_id` using the existing `FlowAnalysis` objects; no JSON
+handoff is required. The top-level call conservatively unions contexts, so it
+may have bounded candidates or no target even when one context has a unique
+source target. These are source facts, not guaranteed runtime identities.
+
+Closed local and module-level literal dictionaries can select source callables
+by constant key. Dynamic keys retain bounded alternatives and a possible-key
+failure boundary. Module tables must have one literal assignment and no visible
+write or escape; unknown/incomplete sources cannot produce a unique target.
+Module tables are limited to 64 literal entries. Callable expansion shares the
+existing function/call budgets and recursion protection, with incoming facts
+included in the cache key; generic helpers never inherit another caller's
+callback identity. Decorator and import-rebinding guards continue to apply.
+Candidate lists are limited to 64 sources. An incomplete callable identity
+keeps its known candidates but reports `definition_unavailable` and
+`callable_identity_incomplete`, not a closed set of runtime alternatives.
+
+### Literal-selected early returns and finite-key deletion
+
+For complete ordinary bindings, bounded builtin scalar/tuple/list `literal`
+facts can select a side-effect-free truth test such as `if not values`.
+The selected source body reuses the existing effect and returned-object proofs.
+A modeled pop/clear before that return applies first; the alias then observes
+current contents. Guard `conditions` include the incoming literal binding and
+source evidence. Unknown calls, writes or escapes invalidate mutable literal
+facts, including local aliases. Tuple/list literals have at most 64 scalar
+elements (128 AST nodes); branch selection is restricted to eight decisions.
+Exhausting that limit reports `literal_branch_budget` and prevents an alias
+strong update.
+The existing proof/function/call budgets and recursion boundaries still apply.
+
+Generic early-return summaries expose `return_objects` and callers expose
+`conditional_returns` with `completeness="partial_paths"`. These symbolic facts
+describe only the guarded alias path, not the whole helper's purity, definite
+runtime branch or unconditional returned container. Unknown/mixed returns,
+copies/reconstruction, exception/finally paths and unmodeled mutations remain
+boundaries; partial path facts never authorize an unconditional strong update.
+
+A complete helper can summarize `for key in keys: if key in mapping:
+del mapping[key]` over an ordinary mapping parameter. Application requires a
+proven shared builtin dict, complete binding and a source-proven tuple/list of
+finite string keys. Existing mapping removal machinery preserves open remainder
+roots and adds each removed key to `excluded_paths`; finite allocations remain
+finite. `sequence_binding`, `loop_evidence` and `operation_conditions` explain
+the incoming keys and membership guard. The deletion applies on normal helper
+completion, not on caller exception-handler paths. Guarded absence avoids the
+unguarded required-key `KeyError` assumption; it does not prove every behavior
+of the helper can complete successfully.
+
+Unknown calls, extra writes, escape, exception handling and unknown sequences
+prevent the complete summary. Where the mapping/sequence identity is still
+proven, a conditional deletion *site* may remain in `effects` with
+`status="partial_behavior"`, `completion="unproven"`,
+`reachability="not_proven"` and unknown final state. It does not mutate caller
+state or prove final key absence. In particular, no function named
+`warnings.warn` is assumed pure or non-throwing. A later unmodeled ordinary
+mapping helper widens prior exclusions, rather than retaining stale absence.
+An earlier helper mutation of the incoming key list, including through another
+formal bound to the same object, invalidates finite iteration inference with
+`mapping_effect_unproven` / `modified_finite_sequence`; old incoming keys are
+not used as a deletion postcondition.
+
+### Restricted source class-attribute state
+
+Class receivers with a known ordinary source MRO can retain a source class
+written to an attribute and subsequently read on the same receiver. Structured
+`attribute_provenance` keeps receiver identity, assignment/read locations and
+conditions; private attribute storage respects the lexical class's name
+mangling. State stays local to that summary/context, never in a global heap
+cache. Calls invalidate pending attribute state, and method monkeypatches,
+custom metaclasses/decorators, unknown writes or receivers cannot use this proof.
+
+Initial `None` does not select an unconfigured branch. A write in only one branch
+keeps a conditional source class with `value_incomplete=true` and
+`class_attribute_state_unknown`. A supported allocator/ordinary constructor can
+carry `instance_candidates` from that source path; downstream method candidates
+remain `receiver_unresolved` when configuration alternatives are open. Complete
+write/read paths can use `instance_type`; closed different class paths have
+bounded method alternatives. Existing dynamic override/construction boundaries
+remain. This is not general global configuration/heap analysis, and neither a
+default factory nor a source candidate proves the actual configured backend.
+
 The analyzer now separates syntactic call coverage from flow evaluation.
 Calls behind unsupported statements or unreachable exits are retained with
 `analysis_status="not_analyzed"`; they do not claim executable flow paths.
@@ -341,6 +441,46 @@ resolved class construction retain nominal receiver evidence. If branch merges
 produce multiple receiver types, `target_candidates` reports bounded
 alternatives instead of selecting one. `dynamic_method_override_possible`
 remains explicit: these are source candidates, not guaranteed runtime dispatch.
+
+Source-proven class names, aliases, imports, and nested classes retain
+`kind="class"` and a structured `class_type`. When every normal factory return
+has a known direct class identity and there is no implicit fallthrough, a later
+local `impl = factory(); instance = impl()` can use that identity. The factory
+call's `result_sources` records the class and return/call evidence; the
+constructor result records `instance_type` and the linked class evidence.
+Multiple known class returns remain alternatives, not a unique constructor or
+instance type. Unknown returns, ordinary parameter-return dependencies, missing
+branch bindings, rebinding, and incomplete proofs do not acquire a class type.
+Custom metaclasses, decorated classes, unavailable MROs, and custom `__new__`
+semantics retain `dynamic_construction` and do not supply an instance result.
+
+Unshadowed `object.__new__(known_class)` can report a nominal instance result
+without a Python allocator definition. A supported
+`super(CurrentClass, known_receiver).__new__(known_class)` additionally requires
+a complete MRO proving that the next allocator is the builtin. Its
+`target_status="builtin_allocation"` has no selected Python target;
+`builtin_allocator_source_unavailable` records the unexpanded builtin body.
+Unknown classes, shadowed builtins, custom allocators, and visible receiver
+attribute mutation leave subsequent receiver calls unresolved.
+
+For a source-class receiver, classmethod binding preserves the first parameter's
+root and adds `class_type`. In a `Derived.root` context, a super call into a base
+helper can therefore resolve `cls.default()` to `Derived.default`. Generic base
+entry analysis retains the base context. Internal summaries are keyed by both
+function and class receiver, and fresh analyses reset those caches. Public
+`functions[*].receiver_contexts` records the contexts used; a source call reached
+through different contexts unions its candidates and never selects a conflicting
+unique target. `dynamic_class_receiver_override_possible` remains explicit.
+If any context lacks a complete receiver proof, known candidates may remain
+listed but the merged call stays unresolved; typed result sources carry
+`value_incomplete` rather than claiming all contexts have that type.
+
+Consumers can follow `result_sources`, `receiver_sources`, implicit
+`argument_sources`, and `target_candidates` while retaining their evidence,
+conditions, and boundaries. Class attributes holding configuration state are
+not a general heap model: a default factory returning a class does not prove
+that a mutable configuration attribute currently holds that default. Neither
+these receiver facts nor existing mapping effects decide keyword compatibility.
 
 A narrow return-to-receiver rule handles `self.accessor().method(...)` when
 every normal return of the local, undecorated accessor reads the same instance
@@ -437,10 +577,143 @@ feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
+### Ordinary-parameter dict removals
+
+A complete straight-line helper can expose shape-constrained constant-string-key
+`pop` and `del` effects on an ordinary parameter or its local-name alias:
+
+```python
+def remove_out(mapping):
+    mapping.pop("out", None)
+
+def clean(mapping):
+    mapping.pop("out", None)
+    return mapping
+
+def root(**kwargs):
+    remove_out(kwargs)
+    forwarded = clean(kwargs)
+    return fixed(**forwarded)
+```
+
+The owner-neutral effect extractor stores formal names, constant paths, dict
+shape requirements and source statements only. A generic helper summary does
+not acquire a builtin receiver from a name, annotation or `.pop` spelling.
+Instantiation requires a unique stable source callable, complete binding,
+one unprojected caller-local builtin dict identity per receiver, and a complete
+supported body. All prerequisites are checked before any write is applied.
+Neither decorated/dynamic methods nor visibly modified/rebound callables bypass
+these guards. Literal argument expansion and explicit keyword binding may be
+used when exact; dynamic expansion and multiple possible objects remain partial.
+Cached summaries contain no actual object IDs and have separate function and
+statement limits within the supplied analysis budgets.
+
+The helper call's existing `effects` contain `kind="mapping_element"`, mapping
+roots, constant `element_path`, operation, state, conditions, normal-completion
+scope, exact binding, effect-source `evidence`, and `call_evidence`. Caller
+`mapping_effects` keep the same fact, correlated by `call_id`. Removing `out`
+updates the actual shared object: the open wildcard remainder acquires
+`excluded_paths=[["out"]]`, while finite contents stay finite and independent
+allocations remain separate. Caller branches retain conditional state. Repeated
+call-site contexts joined with unknown inputs retain only `partial_context`
+effects; they cannot claim unconditional final absence.
+
+`pop("out")` and `del mapping["out"]` carry `may_raise="KeyError"` and a
+`mapping_effect_exception_path` boundary. Their `completion="normal_return"`
+is a postcondition, not proof that the key existed or the call succeeds.
+Caller exception-handler paths do not inherit the normal-path strong update.
+An unsupported/partial helper, dynamic key, uncertain receiver/binding, escape,
+unknown write/call, recursion, generator, decorator or exhausted proof records
+`mapping_effect_unproven` (plus `mapping_effect_budget` for truncation), not a
+partial strong update. A later unproven mapping effect widens old exclusions
+and key-presence markers, so an earlier pop cannot establish final absence
+across an unknown write. No arbitrary new values or origins are invented.
+An empty capture container still retains its parameter object root for effect
+impact, even when no current element dependencies remain.
+
+Only when every effect prerequisite is satisfied may a helper with modeled
+removals and a direct ordinary-parameter/local-alias return instantiate
+`container_object`. Effects are applied first; all reads of the original and
+returned object see current contents. Symbolic `return_objects` then include
+`requires_shapes` and `completion="normal_return"`. Existing clear handling and
+identity-only endpoints prevent old content from reappearing.
+`return mapping.pop(...)` instead retains the removed element's pre-write
+dependency, not the mapping's object identity. Fresh `**kwargs` captures,
+copies and reconstructed dictionaries are not aliases of the expanded input.
+More general loops, non-literal branch-dependent helper effects/returns,
+general heap writes, dynamic callable propagation and global configuration
+factories remain unsupported outside the restricted extensions described above.
+
 One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
 calls carry a builtin derived-result dependency. This is input dependence, not
 identity or owner preservation. Arbitrary receiver methods do not inherit this
 rule; external return contracts remain opt-in.
+
+### Returned container objects
+
+A uniquely resolved local helper can retain a proven builtin `dict`, `list`,
+or `tuple` object through an ordinary parameter return:
+
+```python
+def identity(mapping):
+    alias = mapping
+    return alias
+
+def root(**kwargs):
+    mapping = identity(kwargs)
+    mapping.pop("out", None)
+    return fixed(**mapping)
+```
+
+With complete argument binding, the helper call keeps a `kind="call_result"`
+endpoint whose `container_object` records the original caller-local object ID,
+builtin shape, returned parameter, and source function. Its value `evidence`
+includes input, alias assignment, return, and invocation sites. Function
+`return_objects` summaries hold only symbolic parameter identities: actual
+object IDs are instantiated per call, never cached across inputs or analyses.
+Object IDs are opaque analysis-local references, not runtime addresses.
+
+The downstream `pop` uses the existing `local_container_protocol`, records
+`out` removal against the correct roots, and retains the open remainder with
+`excluded_paths=[["out"]]`. `clear` and `update` act on the same object; existing
+exact helper effects can also consume that reference. Materialized returns
+and argument sources carry the current element dependencies alongside the
+endpoint. A cleared container retains an object endpoint but has no old element
+dependencies. Elements included inside a new literal container retain their
+outer paths and current state.
+
+Consumers of `FlowAnalysis`, including downstream detectors, must distinguish
+three independent facts: a dependency root, a builtin container shape, and
+shared object identity. `object_only=true` marks the returned object endpoint,
+not a content dependency. Do not follow that endpoint through the helper's
+pre-mutation argument sources to restore deleted elements. Use the separately
+materialized element roots, exclusions, `effects`/`mapping_effects`, conditions,
+and boundaries; `trace_parameter()` already observes this distinction. Source
+evidence and object identity remain available even when the elements are empty.
+These facts do not make compatibility or rejection decisions.
+
+The proof supports ordinary-parameter direct returns and straight-line
+local-name aliases, with already proven builtin input objects. Fully modeled
+constant-key dict removals and existing clear effects can precede that return
+only when their receiver constraints and bindings are satisfied. It may inspect
+the helper body at depth one without publishing an expanded body. Separate
+proof-function and statement limits use the supplied function/call budgets.
+Uncertain binding, unknown shapes, decorated/dynamic targets, generators,
+branch-dependent or implicit returns, projections, derived values, recursion,
+and unmodeled writes, escapes or calls do not establish object identity.
+Visible writes to a helper callable (including its local aliases) prevent
+instantiation of its return-object proof. Merged call contexts containing an
+unknown object result retain `value_incomplete=true`; an earlier known result
+cannot turn all iterations into a proven container protocol.
+`container_return_unproven` records the reason in `detail` and affected inputs;
+proof exhaustion additionally records `container_return_budget`.
+
+In particular, `def recapture(**mapping): return mapping` creates a new capture
+dictionary; equal origins do not make it an alias of the expanded input.
+Copies and finite reconstruction are likewise not restored as the open original
+container. This narrow proof leaves such helper results unresolved rather than
+inventing their object state. Arbitrary helper mutation summaries, tuple-return
+slot identities, and general heap/escape analysis remain outside this subset.
 
 This implementation supports named functions, direct lambda values, local
 callable aliases, explicit imports and simple
