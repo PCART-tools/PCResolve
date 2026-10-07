@@ -120,3 +120,26 @@ def test_returned_popped_value_retains_write_not_container_identity():
     effects = function_effects(_function('def popped(mapping):\n    return mapping.pop("out", None)'))
     assert effects is not None and len(effects) == 1
     assert effects[0].kind == 'mapping_pop'
+
+
+def test_finite_key_loop_summary_keeps_sequence_constraint_not_concrete_keys():
+    node = _function('''
+def remove_keys(mapping, keys):
+    for key in keys:
+        if key in mapping:
+            del mapping[key]
+''')
+    effects = function_effects(node)
+    assert effects is not None and len(effects) == 1
+    assert effects[0].kind == 'mapping_delete_keys'
+    assert effects[0].source == 'keys' and effects[0].target == 'mapping'
+    assert effects[0].receiver_shape == 'dict' and not effects[0].element_path
+
+
+@pytest.mark.parametrize('body', [
+    'for key in keys:\n        del mapping[key]',
+    'for key in keys:\n        if key in mapping:\n            unknown(key)\n            del mapping[key]',
+    'for key in keys:\n        if key in mapping:\n            del mapping[key]\n            break',
+])
+def test_finite_key_loop_summary_rejects_unclosed_operation_body(body):
+    assert function_effects(_function('def remove_keys(mapping, keys):\n    ' + body)) is None

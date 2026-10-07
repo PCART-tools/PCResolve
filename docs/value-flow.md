@@ -333,6 +333,99 @@ not runtime path-feasibility proofs. A found path does not promise execution.
 
 ## Current supported subset and boundaries
 
+### Source-proven callable arguments and literal dispatch
+
+`analyze()` and `expand()` specialize ordinary parameters using complete,
+exact incoming bindings to source callables. Parameter dependency roots remain
+parameters; optional `callable_type`/`callable_evidence` retain the source identity
+and incoming evidence. Aliases and multi-hop helpers preserve this fact until
+rebinding, attribute mutation or unknown escape invalidates it. Strings, names,
+annotations and `callable()` tests do not prove a particular function identity.
+
+`calls[*].callable_sources` records the callable expression. `analysis_contexts`
+keeps each incoming call's target and argument facts together. Consumers can
+follow `incoming_call_id` using the existing `FlowAnalysis` objects; no JSON
+handoff is required. The top-level call conservatively unions contexts, so it
+may have bounded candidates or no target even when one context has a unique
+source target. These are source facts, not guaranteed runtime identities.
+
+Closed local and module-level literal dictionaries can select source callables
+by constant key. Dynamic keys retain bounded alternatives and a possible-key
+failure boundary. Module tables must have one literal assignment and no visible
+write or escape; unknown/incomplete sources cannot produce a unique target.
+Module tables are limited to 64 literal entries. Callable expansion shares the
+existing function/call budgets and recursion protection, with incoming facts
+included in the cache key; generic helpers never inherit another caller's
+callback identity. Decorator and import-rebinding guards continue to apply.
+Candidate lists are limited to 64 sources. An incomplete callable identity
+keeps its known candidates but reports `definition_unavailable` and
+`callable_identity_incomplete`, not a closed set of runtime alternatives.
+
+### Literal-selected early returns and finite-key deletion
+
+For complete ordinary bindings, bounded builtin scalar/tuple/list `literal`
+facts can select a side-effect-free truth test such as `if not values`.
+The selected source body reuses the existing effect and returned-object proofs.
+A modeled pop/clear before that return applies first; the alias then observes
+current contents. Guard `conditions` include the incoming literal binding and
+source evidence. Unknown calls, writes or escapes invalidate mutable literal
+facts, including local aliases. Tuple/list literals have at most 64 scalar
+elements (128 AST nodes); branch selection is restricted to eight decisions.
+Exhausting that limit reports `literal_branch_budget` and prevents an alias
+strong update.
+The existing proof/function/call budgets and recursion boundaries still apply.
+
+Generic early-return summaries expose `return_objects` and callers expose
+`conditional_returns` with `completeness="partial_paths"`. These symbolic facts
+describe only the guarded alias path, not the whole helper's purity, definite
+runtime branch or unconditional returned container. Unknown/mixed returns,
+copies/reconstruction, exception/finally paths and unmodeled mutations remain
+boundaries; partial path facts never authorize an unconditional strong update.
+
+A complete helper can summarize `for key in keys: if key in mapping:
+del mapping[key]` over an ordinary mapping parameter. Application requires a
+proven shared builtin dict, complete binding and a source-proven tuple/list of
+finite string keys. Existing mapping removal machinery preserves open remainder
+roots and adds each removed key to `excluded_paths`; finite allocations remain
+finite. `sequence_binding`, `loop_evidence` and `operation_conditions` explain
+the incoming keys and membership guard. The deletion applies on normal helper
+completion, not on caller exception-handler paths. Guarded absence avoids the
+unguarded required-key `KeyError` assumption; it does not prove every behavior
+of the helper can complete successfully.
+
+Unknown calls, extra writes, escape, exception handling and unknown sequences
+prevent the complete summary. Where the mapping/sequence identity is still
+proven, a conditional deletion *site* may remain in `effects` with
+`status="partial_behavior"`, `completion="unproven"`,
+`reachability="not_proven"` and unknown final state. It does not mutate caller
+state or prove final key absence. In particular, no function named
+`warnings.warn` is assumed pure or non-throwing. A later unmodeled ordinary
+mapping helper widens prior exclusions, rather than retaining stale absence.
+An earlier helper mutation of the incoming key list, including through another
+formal bound to the same object, invalidates finite iteration inference with
+`mapping_effect_unproven` / `modified_finite_sequence`; old incoming keys are
+not used as a deletion postcondition.
+
+### Restricted source class-attribute state
+
+Class receivers with a known ordinary source MRO can retain a source class
+written to an attribute and subsequently read on the same receiver. Structured
+`attribute_provenance` keeps receiver identity, assignment/read locations and
+conditions; private attribute storage respects the lexical class's name
+mangling. State stays local to that summary/context, never in a global heap
+cache. Calls invalidate pending attribute state, and method monkeypatches,
+custom metaclasses/decorators, unknown writes or receivers cannot use this proof.
+
+Initial `None` does not select an unconfigured branch. A write in only one branch
+keeps a conditional source class with `value_incomplete=true` and
+`class_attribute_state_unknown`. A supported allocator/ordinary constructor can
+carry `instance_candidates` from that source path; downstream method candidates
+remain `receiver_unresolved` when configuration alternatives are open. Complete
+write/read paths can use `instance_type`; closed different class paths have
+bounded method alternatives. Existing dynamic override/construction boundaries
+remain. This is not general global configuration/heap analysis, and neither a
+default factory nor a source candidate proves the actual configured backend.
+
 The analyzer now separates syntactic call coverage from flow evaluation.
 Calls behind unsupported statements or unreachable exits are retained with
 `analysis_status="not_analyzed"`; they do not claim executable flow paths.
@@ -547,9 +640,9 @@ identity-only endpoints prevent old content from reappearing.
 `return mapping.pop(...)` instead retains the removed element's pre-write
 dependency, not the mapping's object identity. Fresh `**kwargs` captures,
 copies and reconstructed dictionaries are not aliases of the expanded input.
-Finite-key loops, branch-dependent helper effects/returns, general heap writes,
-unknown callable propagation and configuration factories are not supported by
-this narrow summary.
+More general loops, non-literal branch-dependent helper effects/returns,
+general heap writes, dynamic callable propagation and global configuration
+factories remain unsupported outside the restricted extensions described above.
 
 One-argument unshadowed `str`, `repr`, `bool`, `len`, `list`, `tuple`, and `set`
 calls carry a builtin derived-result dependency. This is input dependence, not
