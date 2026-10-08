@@ -8,6 +8,7 @@ from .call_graph import ProjectCallGraph
 from .classification import classify_confidence
 from .ir import ClassificationResult, REASON_DIRECT_IMPORT
 from .ownership_contracts import _match_result_owner, _is_verified_result_owner
+from .ownership_model import bounded_ownership_query
 from .sources import (
     CallResult, ContainerItem, ContainerIter, DerivedResult, InstanceMethod,
     PythonShape, SourceSet, SuperMethod, UnknownSource,
@@ -442,6 +443,7 @@ class ProjectCallClassificationMixin:
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param include_local Whether to include "local" in results.
     #  @return List of candidate top strings.
+    @bounded_ownership_query(lambda: ['unknown'])
     def _origin_candidates(self, module, source, tracers, include_local=True,
                            _seen=None):
         if _seen is None:

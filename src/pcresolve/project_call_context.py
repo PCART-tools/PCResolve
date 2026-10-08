@@ -8,6 +8,7 @@ from .program_facts import (
     CONTEXT_BINDING, OWNERSHIP_BINDING,
 )
 from .return_resolution import CallBinding, first_bound_value
+from .ownership_model import bounded_ownership_query
 from .sources import (
     CallResult, ContainerItem, DerivedResult, InstanceMethod, ParameterSource,
     SourceSet, TupleSource, UnknownSource, normalize_source, source_display,
@@ -1006,10 +1007,38 @@ class ProjectCallContextMixin:
     #  @param allow_inherited_dispatch Match inherited and overridden methods
     #  for parameter-flow analysis.
     #  @return True when the edge resolves to the target function.
+    @bounded_ownership_query(lambda: False)
     def _edge_targets_local_function(self, edge, caller_module,
                                      target_module, scope_name,
                                      caller_tracer, tracers,
                                      allow_inherited_dispatch=False):
+        # Receiver provenance can request parameter arguments or return
+        # contexts that re-enter this exact target query before their own
+        # source guards are installed. A cycle supplies no target evidence.
+        key = (id(edge), caller_module, target_module, scope_name,
+               allow_inherited_dispatch)
+        if key in self._edge_target_in_progress:
+            return False
+        self._edge_target_in_progress.add(key)
+        try:
+            return self._unguarded_edge_targets_local_function(
+                edge, caller_module, target_module, scope_name,
+                caller_tracer, tracers, allow_inherited_dispatch)
+        finally:
+            self._edge_target_in_progress.remove(key)
+
+    ## Match a call target while the receiver-resolution guard is held.
+    #  @param edge Project call-graph edge.
+    #  @param caller_module Module containing the call.
+    #  @param target_module Defining module.
+    #  @param scope_name Qualified target function name.
+    #  @param caller_tracer Analyzer for caller module.
+    #  @param tracers Dict of module name to analyzer.
+    #  @param allow_inherited_dispatch Include inherited method candidates.
+    #  @return True when available evidence resolves the edge to the target.
+    def _unguarded_edge_targets_local_function(
+            self, edge, caller_module, target_module, scope_name,
+            caller_tracer, tracers, allow_inherited_dispatch=False):
         mapping_targets = getattr(edge, "mapping_targets", None)
         if mapping_targets is not None:
             return FunctionId(target_module, scope_name) in mapping_targets

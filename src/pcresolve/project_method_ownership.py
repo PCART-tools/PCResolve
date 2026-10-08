@@ -3,6 +3,7 @@
 
 from .builtin_ownership import _has_builtin_shape_method
 from .container_resolution import _tuple_source_item
+from .ownership_model import bounded_ownership_query
 from .sources import (
     CallResult, ContainerItem, ContainerIter, DerivedResult,
     InstanceAttribute, InstanceMethod, ParameterSource, PythonShape,
@@ -573,6 +574,7 @@ class ProjectMethodOwnershipMixin:
     #  class context retained while following forwarded parameters.
     #  @param _context Exact local return context, before owner projection.
     #  @return Candidate owner strings.
+    @bounded_ownership_query(lambda: ['unknown'])
     def _argument_method_owner_candidates(
             self, module, source, method, tracers, _seen=None,
             receiver_class_filter=None, _context=None):

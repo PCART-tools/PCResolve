@@ -23,7 +23,7 @@ from .sources import (
     CallResult, ParameterSource, SourceSet, normalize_source, source_display,
 )
 from .source_snapshot import SourceStore, OWNERSHIP_SOURCE
-from .ownership_model import OwnershipRun, ProjectSnapshot
+from .ownership_model import OwnershipProofBudget, OwnershipRun, ProjectSnapshot
 from .classification import ClassificationPipeline
 from .decorator_provenance import build_decorator_index, lookup_decorated_by
 from .library_usage import build_library_usage
@@ -129,6 +129,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.all_calls = {}
         self._python_shape_in_progress = set()
         self._callable_field_in_progress = set()
+        self._edge_target_in_progress = set()
+        self._ownership_proof_budget = OwnershipProofBudget()
         self._constructor_only_fields = None
         self._source_resolver = SourceSetResolver(
             top_source_cb=self._top_source,
@@ -170,6 +172,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.all_calls = run.all_calls
         self._python_shape_in_progress = run.python_shape_in_progress
         self._callable_field_in_progress = run.callable_field_in_progress
+        self._edge_target_in_progress = run.edge_target_in_progress
+        self._ownership_proof_budget = run.proof_budget
         self._constructor_only_fields = run.constructor_only_fields
 
         for module in all_modules:
