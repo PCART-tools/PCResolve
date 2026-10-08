@@ -2,9 +2,53 @@
 #  Explicit internal state for one ownership analysis run.
 
 from dataclasses import dataclass, field
+from functools import wraps
 
 from .call_graph import ProjectCallGraph
 from .source_snapshot import SourceSnapshot
+
+
+## Work budget shared by mutually recursive ownership proof queries.
+@dataclass
+class OwnershipProofBudget:
+    ## Maximum query entries in one independent proof.
+    max_queries: int = 4096
+    ## Maximum nested query entries, independent of Python's stack limit.
+    max_depth: int = 32
+    ## Current nesting depth.
+    depth: int = 0
+    ## Query entries consumed by the active proof.
+    queries: int = 0
+    ## Whether any part of the active proof exceeded its limits.
+    exhausted: bool = False
+
+
+## Bound cross-resolver work and discard proofs with incomplete candidates.
+#  @param fallback Factory producing the query's conservative unknown result.
+#  @return Decorator sharing one budget across nested ownership queries.
+def bounded_ownership_query(fallback):
+    def decorate(query):
+        @wraps(query)
+        def bounded(self, *args, **kwargs):
+            budget = self._ownership_proof_budget
+            if budget.depth == 0:
+                budget.queries = 0
+                budget.exhausted = False
+            if (budget.exhausted or budget.queries >= budget.max_queries
+                    or budget.depth >= budget.max_depth):
+                budget.exhausted = True
+                return fallback()
+            budget.depth += 1
+            budget.queries += 1
+            try:
+                result = query(self, *args, **kwargs)
+                # A cutoff in a nested candidate must invalidate the outer
+                # proof too; a surviving subset cannot establish convergence.
+                return fallback() if budget.exhausted else result
+            finally:
+                budget.depth -= 1
+        return bounded
+    return decorate
 
 
 ## Immutable project inputs observed by one ownership analysis run.
@@ -55,5 +99,9 @@ class OwnershipRun:
     python_shape_in_progress: set = field(default_factory=set)
     ## Active callable-field queries used to stop recursive resolution cycles.
     callable_field_in_progress: set = field(default_factory=set)
+    ## Active call-edge target queries, including receiver provenance lookup.
+    edge_target_in_progress: set = field(default_factory=set)
+    ## Fresh cross-resolver proof limits for this analysis generation.
+    proof_budget: OwnershipProofBudget = field(default_factory=OwnershipProofBudget)
     ## Lazily computed fields whose writes are confined to constructors.
     constructor_only_fields: object = None

@@ -213,6 +213,17 @@ Ownership remains conservative for unresolved dynamic imports, reflection,
 monkey patching, arbitrary descriptors, runtime-only dispatch, ambiguous
 multiple inheritance, and external implementations without source evidence.
 
+Call-edge target matching holds a run-local cycle guard before inspecting
+receiver provenance: parameter and return lookup may re-enter target matching
+before a call context exists. Target matching, origin candidates, receiver
+method candidates, and returned Python shapes also share a proof budget of
+4096 query entries and 32 nested queries. This bounds cross-resolver expansion
+as well as direct cycles. A cutoff invalidates the enclosing proof, preserving
+`unknown` ownership or an unresolved shape rather than converging from a
+truncated candidate set. Each independent query starts a fresh budget, and each
+analysis run replaces the guard and budget state. These are internal ownership
+limits; they do not change the stable JSON schema or the value-flow budgets.
+
 Value flow is additionally bounded by the selected source set, call depth,
 function budget, call-context budget, supported control flow, and modeled
 effects. Boundaries are part of the result and must be inspected by consumers.

@@ -5,6 +5,7 @@
 #  project call contexts, recursive source resolution, and owner candidates.
 
 from .builtin_ownership import _builtin_method_return_shape
+from .ownership_model import bounded_ownership_query
 from .ownership_contracts import (
     _has_result_owner_contract, _match_result_python_shape,
 )
@@ -140,6 +141,7 @@ class ContainerResolutionMixin:
     #  @param context Enclosing local call context, when available.
     #  @param seen Recursion guard.
     #  @return Uniform PythonShape, or None for mixed or unsupported values.
+    @bounded_ownership_query(lambda: None)
     def _returned_python_shape(self, module, source, tracers,
                                context=None, seen=None):
         key = (module, repr(source),
