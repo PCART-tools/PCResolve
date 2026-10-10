@@ -282,15 +282,8 @@ class FlowAnalyzer:
         self.files.update(os.path.abspath(p) for p in files if str(p).endswith(('.py', '.pyi')))
 
     def _index(self):
-        self.definitions = []
-        self.classes = []
-        self.imports = {}
-        self.module_bindings = {}
-        self.module_bodies = {}
-        self.import_binding_facts = {}
-        self.texts = {}
-        self.hashes = {}
-        self.index_boundaries = []
+        # Budgets, contracts and incoming contexts belong to one query even
+        # when the source facts are unchanged.
         self._scope_fact_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
@@ -305,6 +298,26 @@ class FlowAnalyzer:
         self._fact_functions = 500
         self._fact_calls = 2000
         self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
+        previous = getattr(self, '_indexed_snapshot', None)
+        if (previous is not None
+                and previous.files == self._source_snapshot.files
+                and previous.policy == self._source_snapshot.policy
+                and self._indexed_roots == tuple(self.roots)
+                and all(previous.documents[path] is self._source_snapshot.documents[path]
+                        for path in previous.files)):
+            return
+        # Clear the reusable generation before construction so an interrupted
+        # or failed build cannot expose partially rebuilt facts on the next query.
+        self._indexed_snapshot = None
+        self.definitions = []
+        self.classes = []
+        self.imports = {}
+        self.module_bindings = {}
+        self.module_bodies = {}
+        self.import_binding_facts = {}
+        self.texts = {}
+        self.hashes = {}
+        self.index_boundaries = []
         # Preserve the prior behavior of deriving names only for parseable files.
         self._module_index = ModuleIndex.build(
             [path for path in sorted(self.files)
@@ -384,6 +397,8 @@ class FlowAnalyzer:
             [DefinitionRecord(ref.module, ref.qualname, (ref, node), kind='class',
                               source_span=SourceSpan.from_ast(ref.file_path, node))
              for ref, node in self.classes])
+        self._indexed_snapshot = self._source_snapshot
+        self._indexed_roots = tuple(self.roots)
 
     def _base_classes(self, module, owner):
         classes = self._definition_index.find(module, owner, kind='class')
