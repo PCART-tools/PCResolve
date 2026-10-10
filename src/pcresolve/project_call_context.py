@@ -1045,23 +1045,22 @@ class ProjectCallContextMixin:
         param_index = summary.params.index(pack_source.name)
         found = []
         seen = set()
-        for caller_module, caller_cg in cg.modules.items():
+        for caller_module, edge in self._target_call_edges(module, pack_source.scope):
             caller_tracer = tracers.get(caller_module)
-            for edge in caller_cg.edges:
-                if not self._edge_targets_local_function(
-                        edge, caller_module, module, pack_source.scope,
-                        caller_tracer, tracers):
-                    continue
-                selected = self._edge_pack_item_source(
-                    edge, summary, pack_source.name, index)
-                if selected is None:
-                    continue
-                key = (caller_module, edge.call_lineno,
-                       edge.call_col_offset, source_display(selected))
-                if key in seen:
-                    continue
-                seen.add(key)
-                found.append((caller_module, selected))
+            if not self._edge_targets_local_function(
+                    edge, caller_module, module, pack_source.scope,
+                    caller_tracer, tracers):
+                continue
+            selected = self._edge_pack_item_source(
+                edge, summary, pack_source.name, index)
+            if selected is None:
+                continue
+            key = (caller_module, edge.call_lineno,
+                   edge.call_col_offset, source_display(selected))
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append((caller_module, selected))
         return found
 
     ## Select one item from a variadic parameter on one call edge.

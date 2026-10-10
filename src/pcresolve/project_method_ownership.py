@@ -1133,29 +1133,28 @@ class ProjectMethodOwnershipMixin:
 
         base_identity = (module, source.class_name)
         runtime_classes = []
-        for caller_module, caller_cg in self.project_cg.modules.items():
+        for caller_module, edge in self._target_call_edges(module, source.scope):
             caller_tracer = tracers.get(caller_module)
-            for edge in caller_cg.edges:
-                if not self._edge_targets_local_function(
-                        edge, caller_module, module, source.scope,
-                        caller_tracer, tracers,
-                        allow_inherited_dispatch=True):
-                    continue
-                candidates = self._local_class_candidates(
-                    caller_module, edge.receiver_source, tracers)
-                if (not candidates and edge.receiver_source == "self"):
-                    caller_parts = edge.caller.qualname.rsplit(".", 1)
-                    if len(caller_parts) == 2:
-                        caller_class = caller_parts[0]
-                        module_cg = self.project_cg.modules.get(caller_module)
-                        if (module_cg is not None
-                                and caller_class in module_cg.classes):
-                            candidates = [(caller_module, caller_class)]
-                for candidate in candidates:
-                    if self._local_class_is_or_derives(
-                            candidate[0], candidate[1],
-                            base_identity[0], base_identity[1], tracers):
-                        runtime_classes.append(candidate)
+            if not self._edge_targets_local_function(
+                    edge, caller_module, module, source.scope,
+                    caller_tracer, tracers,
+                    allow_inherited_dispatch=True):
+                continue
+            candidates = self._local_class_candidates(
+                caller_module, edge.receiver_source, tracers)
+            if (not candidates and edge.receiver_source == "self"):
+                caller_parts = edge.caller.qualname.rsplit(".", 1)
+                if len(caller_parts) == 2:
+                    caller_class = caller_parts[0]
+                    module_cg = self.project_cg.modules.get(caller_module)
+                    if (module_cg is not None
+                            and caller_class in module_cg.classes):
+                        candidates = [(caller_module, caller_class)]
+            for candidate in candidates:
+                if self._local_class_is_or_derives(
+                        candidate[0], candidate[1],
+                        base_identity[0], base_identity[1], tracers):
+                    runtime_classes.append(candidate)
 
         runtime_classes = self._dedupe_list(runtime_classes)
         if not runtime_classes:
