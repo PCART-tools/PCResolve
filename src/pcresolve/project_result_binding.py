@@ -342,6 +342,7 @@ class ProjectResultBindingMixin:
                 future_edge.callee = InstanceMethod(
                     result_call, future_edge.callee.method)
             future_edge.callee_source = result_call
+            self._invalidate_edge_lookup(future_edge)
     ## Bind one converged local callback return to a Pool.map result field.
     #
     #  The existing callback edge proves which project function is invoked.
@@ -537,6 +538,7 @@ class ProjectResultBindingMixin:
                 else InstanceMethod(result_source, method))
             future_edge.callee = source
             future_edge.callee_source = source
+            self._invalidate_edge_lookup(future_edge)
             if method:
                 future_edge.receiver_source = result_source
 
@@ -591,6 +593,7 @@ class ProjectResultBindingMixin:
                 else InstanceMethod(result_source, method))
             edge.callee = source
             edge.callee_source = source
+            self._invalidate_edge_lookup(edge)
             if method:
                 edge.receiver_source = result_source
 
@@ -889,6 +892,7 @@ class ProjectResultBindingMixin:
             edge.callee = InstanceMethod(
                 yield_source, edge.callee_name.rsplit(".", 1)[-1])
             edge.callee_source = edge.callee
+            self._invalidate_edge_lookup(edge)
 
     ## Propagate proven receivers through assigned method calls.
     #  @param tracers Dict of module name to analyzer.
@@ -951,6 +955,7 @@ class ProjectResultBindingMixin:
         edge.receiver_source = receiver
         edge.callee = method_source
         edge.callee_source = method_source
+        self._invalidate_edge_lookup(edge)
         for record in records:
             method = record.get("func_name", "").rsplit(".", 1)[-1]
             record["base"] = InstanceMethod(receiver, method)

@@ -82,6 +82,7 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
         self._super_base_path_stack = []
         self._seen_api_call_ids = set()
         self._receiver_owner_guards = []
+        self._expression_query_cache = None
         self.defined_functions = set()
         self.function_params = {}
         self.parameter_sources = {}
