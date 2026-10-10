@@ -274,6 +274,10 @@ For other callees, supplying the project can resolve additional Python
 definitions, but cannot remove unsupported-language or external-library
 boundaries. Whole-project mode currently parses/indexes available files before
 generating reachable flow summaries; it can cost more than single-file mode.
+Repeated analyses on the same `FlowAnalyzer` reuse unchanged source indexes.
+Every analysis still reads current file contents and starts fresh query caches
+and budgets. Source or import-root changes rebuild the index; changing depth,
+budgets, or contracts always produces a new analysis snapshot.
 
 To make additional files available in explicit-file mode:
 

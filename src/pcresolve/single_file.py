@@ -85,6 +85,7 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
         self._expression_query_cache = None
         self.defined_functions = set()
         self.function_params = {}
+        self._parameter_name_index = None
         self.parameter_sources = {}
         self._assigned_call_sources = {}
         self.container_items = {}
@@ -181,6 +182,21 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
         self.generic_visit(node)
         for edge, value in self._mapping_edges:
             edge.mapping_targets, edge.mapping_targets_complete = value.targets()
+
+    ## Find signatures containing a parameter in original definition order.
+    #  @param name Parameter name.
+    #  @return Ordered (function name, first positional index) pairs.
+    def _parameter_definitions(self, name):
+        if self._parameter_name_index is None:
+            index = {}
+            for function, parameters in self.function_params.items():
+                seen = set()
+                for position, parameter in enumerate(parameters):
+                    if parameter not in seen:
+                        index.setdefault(parameter, []).append((function, position))
+                        seen.add(parameter)
+            self._parameter_name_index = index
+        return self._parameter_name_index.get(name, ())
 
     ## Look up mapping facts without importing a deferred closure's bindings.
     #  @param name Lexical name.

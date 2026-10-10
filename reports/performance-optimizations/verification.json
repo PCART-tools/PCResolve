@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-10",
+  "pytest": {
+    "command": "python -m pytest -q --disable-warnings",
+    "exit_code": 0,
+    "passed": 2545,
+    "warnings": 44,
+    "wall_seconds": 183.75
+  },
+  "value_flow_matrix": {
+    "command": "python scripts/evaluate_value_flow_matrix.py --strict",
+    "exit_code": 0,
+    "cases": 83
+  },
+  "ground_truth": {
+    "command": "python scripts/evaluate_ground_truth.py --view all",
+    "exit_code": 0,
+    "scored": 5788,
+    "primary_hit": 5548,
+    "primary_miss": 240
+  },
+  "release_gate": {
+    "command": "python scripts/classify_ground_truth_failures.py --release-check",
+    "exit_code": 0,
+    "existing_mismatches": 240
+  },
+  "source_grammar": {"feature_version": "3.9", "passed": true},
+  "diff_check": {"passed": true},
+  "new_regression_tests": 14,
+  "remaining_scope_timeouts": ["pandas-full", "pcresolve-self"]
+}

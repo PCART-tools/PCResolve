@@ -1,0 +1,126 @@
+{
+  "baseline_longest": {
+    "path": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-performance-audit\\profiles\\step2-2-longest-4wa4qyl7\\analysis.pstats",
+    "profile_total_seconds": 186.3453412,
+    "functions": {
+      "_trace_parameter_source": {
+        "primitive_calls": 9400,
+        "total_calls": 9436,
+        "self_seconds": 0.8326183,
+        "cumulative_seconds": 2.0241298000000003
+      },
+      "_get_edge_lookup": {
+        "primitive_calls": 36005,
+        "total_calls": 36005,
+        "self_seconds": 0.31555540000000004,
+        "cumulative_seconds": 0.9328095000000001
+      },
+      "_local_callable_class_candidates": {
+        "primitive_calls": 2751397,
+        "total_calls": 2755829,
+        "self_seconds": 20.221257100000003,
+        "cumulative_seconds": 91.6960475
+      },
+      "_edge_targets_local_function": {
+        "primitive_calls": 2742585,
+        "total_calls": 2807491,
+        "self_seconds": 5.6281837,
+        "cumulative_seconds": 135.35581290000002
+      },
+      "list_index_from_parameter_trace": 1278138
+    }
+  },
+  "baseline_timeout": {
+    "path": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-performance-audit\\profiles\\step2-2-timeout-ivn9r4dt\\analysis.pstats",
+    "profile_total_seconds": 206.77121670000005,
+    "functions": {
+      "_trace_parameter_source": {
+        "primitive_calls": 143751,
+        "total_calls": 143756,
+        "self_seconds": 29.6693336,
+        "cumulative_seconds": 68.4576412
+      },
+      "_get_edge_lookup": {
+        "primitive_calls": 154906,
+        "total_calls": 154906,
+        "self_seconds": 1.3387762,
+        "cumulative_seconds": 4.14705
+      },
+      "_local_callable_class_candidates": {
+        "primitive_calls": 381771,
+        "total_calls": 389362,
+        "self_seconds": 3.1955677000000002,
+        "cumulative_seconds": 16.6376017
+      },
+      "_edge_targets_local_function": {
+        "primitive_calls": 193957,
+        "total_calls": 811065,
+        "self_seconds": 1.8625024000000001,
+        "cumulative_seconds": 149.1300414
+      },
+      "list_index_from_parameter_trace": 49731113
+    }
+  },
+  "step1_timeout": {
+    "path": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\step1-timeout\\analysis.pstats",
+    "profile_total_seconds": 167.2372881000001,
+    "functions": {
+      "_get_edge_lookup": {
+        "primitive_calls": 154906,
+        "total_calls": 154906,
+        "self_seconds": 1.7433149000000001,
+        "cumulative_seconds": 5.2918827
+      },
+      "_trace_parameter_source": {
+        "primitive_calls": 143751,
+        "total_calls": 143756,
+        "self_seconds": 0.21507040000000002,
+        "cumulative_seconds": 1.7231381000000001
+      },
+      "_local_callable_class_candidates": {
+        "primitive_calls": 381771,
+        "total_calls": 389362,
+        "self_seconds": 3.9406933000000004,
+        "cumulative_seconds": 18.305690600000002
+      },
+      "_edge_targets_local_function": {
+        "primitive_calls": 193957,
+        "total_calls": 811065,
+        "self_seconds": 2.344415,
+        "cumulative_seconds": 105.43815020000001
+      },
+      "list_index_from_parameter_trace": 0
+    }
+  },
+  "final_longest": {
+    "path": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\final-profile-longest\\analysis.pstats",
+    "profile_total_seconds": 41.59678299999996,
+    "functions": {
+      "_trace_parameter_source": {
+        "primitive_calls": 9400,
+        "total_calls": 9436,
+        "self_seconds": 0.0123412,
+        "cumulative_seconds": 0.114524
+      },
+      "_get_edge_lookup": {
+        "primitive_calls": 36589,
+        "total_calls": 36589,
+        "self_seconds": 0.2812616,
+        "cumulative_seconds": 0.8333885000000001
+      },
+      "_local_callable_class_candidates": {
+        "primitive_calls": 169301,
+        "total_calls": 172497,
+        "self_seconds": 0.6529137,
+        "cumulative_seconds": 15.326625900000002
+      },
+      "_edge_targets_local_function": {
+        "primitive_calls": 196342,
+        "total_calls": 225408,
+        "self_seconds": 0.4527107,
+        "cumulative_seconds": 21.417107100000003
+      },
+      "list_index_from_parameter_trace": 0
+    }
+  }
+}

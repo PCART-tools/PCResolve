@@ -128,11 +128,7 @@ class ProjectMethodOwnershipMixin:
     #  @param visited Set of visited trace keys.
     #  @return Chain from display_symbol to argument origin, or None.
     def _trace_parameter_source(self, module, param_name, display_symbol, tracer, tracers, visited):
-        for func_name, params in tracer.function_params.items():
-            try:
-                param_idx = params.index(param_name)
-            except ValueError:
-                continue
+        for func_name, param_idx in tracer._parameter_definitions(param_name):
             for call_site in tracer.call_sites.get(func_name, []):
                 if param_idx >= len(call_site["args"]):
                     continue

@@ -1,0 +1,3329 @@
+{
+  "baseline_commit": "25e58e21df14c24a2ade5646cdffdd90c13abfa7",
+  "raw_directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results",
+  "groups": {
+    "paired": [
+      {
+        "name": "step2-2-longest-4wa4qyl7-0",
+        "status": "ok",
+        "baseline": true,
+        "wall": 55.40906769997673,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-0",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-baseline\\repo\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-longest-4wa4qyl7\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-0"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.002476800000295043,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.26668030000291765,
+                "cpu": 0.21875,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 2.196856399998069,
+                "cpu": 2.15625,
+                "count": 20
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 1.013663900026586,
+                "cpu": 1.0,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0012427999754436314,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.008198400028049946,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.0851012000348419,
+                "cpu": 0.09375,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.0868239999981597,
+                "cpu": 0.078125,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 3.811246099998243,
+                "cpu": 3.21875,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 46.33471369999461,
+                "cpu": 43.53125,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0005771000287495553,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.04007430002093315,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.0402419000165537,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.07639469997957349,
+                "cpu": 0.078125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 53.9741151999915,
+                "cpu": 50.484375,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.6044833000050858,
+                "cpu": 0.609375,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.12778860004618764,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.050462599960155785,
+                "cpu": 0.046875,
+                "count": 1
+              }
+            },
+            "modules": 20,
+            "calls": 4790,
+            "gc_events_during_analysis": [],
+            "provenance": 7176,
+            "diagnostics": 0,
+            "output_bytes": 13948783,
+            "sha256": "7de2521e9bad77ad863748cfc9d11652233ddbf298b3ff371bd1ba18ecd046cb",
+            "memory": {
+              "rss": 122671104,
+              "peak_rss": 165572608,
+              "private_commit": 111538176,
+              "peak_commit": 154591232
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-longest-4wa4qyl7-1",
+        "status": "ok",
+        "baseline": false,
+        "wall": 17.22588079998968,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-1",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-longest-4wa4qyl7\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-1"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0018765000277198851,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.2194624000112526,
+                "cpu": 0.171875,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 1.910725900088437,
+                "cpu": 1.90625,
+                "count": 20
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 1.1089247000054456,
+                "cpu": 1.0,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.001290300046093762,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.004899499996099621,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.06882829999085516,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.03470339998602867,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 2.343368300003931,
+                "cpu": 1.890625,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 9.01777639996726,
+                "cpu": 8.46875,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0006760000251233578,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.05097329994896427,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.2237031999975443,
+                "cpu": 0.203125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.11137700005201623,
+                "cpu": 0.109375,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 15.106899500009604,
+                "cpu": 13.90625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.9521668000379577,
+                "cpu": 0.890625,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.2640895000076853,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.07746930001303554,
+                "cpu": 0.046875,
+                "count": 1
+              }
+            },
+            "modules": 20,
+            "calls": 4790,
+            "gc_events_during_analysis": [],
+            "provenance": 7176,
+            "diagnostics": 0,
+            "output_bytes": 13948783,
+            "sha256": "7de2521e9bad77ad863748cfc9d11652233ddbf298b3ff371bd1ba18ecd046cb",
+            "memory": {
+              "rss": 121311232,
+              "peak_rss": 164220928,
+              "private_commit": 111128576,
+              "peak_commit": 154144768
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-longest-4wa4qyl7-2",
+        "status": "ok",
+        "baseline": false,
+        "wall": 19.07101169996895,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-2",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-longest-4wa4qyl7\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-2"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0013516999897547066,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.25155759998597205,
+                "cpu": 0.234375,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 1.7189214000827633,
+                "cpu": 1.71875,
+                "count": 20
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.6517727000173181,
+                "cpu": 0.640625,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0021762000396847725,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.004374800017103553,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.06219620001502335,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.026038000010885298,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 2.5910649000434205,
+                "cpu": 2.421875,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 11.252031399984844,
+                "cpu": 10.65625,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0005914000212214887,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.06401169998571277,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.18495100003201514,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.11354580003535375,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 16.932502699957695,
+                "cpu": 16.125,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.9327549999579787,
+                "cpu": 0.875,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.21838100004242733,
+                "cpu": 0.21875,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.06842800002777949,
+                "cpu": 0.078125,
+                "count": 1
+              }
+            },
+            "modules": 20,
+            "calls": 4790,
+            "gc_events_during_analysis": [],
+            "provenance": 7176,
+            "diagnostics": 0,
+            "output_bytes": 13948783,
+            "sha256": "7de2521e9bad77ad863748cfc9d11652233ddbf298b3ff371bd1ba18ecd046cb",
+            "memory": {
+              "rss": 122408960,
+              "peak_rss": 165318656,
+              "private_commit": 112193536,
+              "peak_commit": 155250688
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-longest-4wa4qyl7-3",
+        "status": "ok",
+        "baseline": true,
+        "wall": 62.63259990001097,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-3",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-baseline\\repo\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-longest-4wa4qyl7\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-longest-4wa4qyl7-3"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0012625999515876174,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.19387519999872893,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 1.7689439000678249,
+                "cpu": 1.6875,
+                "count": 20
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 1.1520714000216685,
+                "cpu": 1.15625,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0019132000161334872,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.00828509998973459,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.17835200001718476,
+                "cpu": 0.171875,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.15357909997692332,
+                "cpu": 0.15625,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 4.022446100017987,
+                "cpu": 3.984375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 53.530140200047754,
+                "cpu": 50.5,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.00038139999378472567,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.03281590004917234,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.035680599976330996,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.09498059999896213,
+                "cpu": 0.09375,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 61.18252189998748,
+                "cpu": 58.046875,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.5994122999836691,
+                "cpu": 0.59375,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.13847339997300878,
+                "cpu": 0.140625,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.053202100039925426,
+                "cpu": 0.0625,
+                "count": 1
+              }
+            },
+            "modules": 20,
+            "calls": 4790,
+            "gc_events_during_analysis": [],
+            "provenance": 7176,
+            "diagnostics": 0,
+            "output_bytes": 13948783,
+            "sha256": "7de2521e9bad77ad863748cfc9d11652233ddbf298b3ff371bd1ba18ecd046cb",
+            "memory": {
+              "rss": 119611392,
+              "peak_rss": 162516992,
+              "private_commit": 109244416,
+              "peak_commit": 152289280
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-timeout-ivn9r4dt-0",
+        "status": "ok",
+        "baseline": true,
+        "wall": 114.82778150000377,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-0",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-baseline\\repo\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-timeout-ivn9r4dt\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-0"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.002301700005773455,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.3356340000173077,
+                "cpu": 0.328125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 3.511028800101485,
+                "cpu": 3.453125,
+                "count": 18
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 6.144645799999125,
+                "cpu": 6.078125,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0021433999645523727,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.550460500002373,
+                "cpu": 0.546875,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.25379859999520704,
+                "cpu": 0.25,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.21519860002445057,
+                "cpu": 0.21875,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 30.20585700002266,
+                "cpu": 29.203125,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 68.73430030001327,
+                "cpu": 66.125,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0020256999996490777,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.12343179999152198,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.3163067999994382,
+                "cpu": 0.3125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.35159209999255836,
+                "cpu": 0.34375,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 110.75886999996146,
+                "cpu": 106.984375,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 2.4154218999901786,
+                "cpu": 2.328125,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.3335561000276357,
+                "cpu": 0.3125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.21197210001992062,
+                "cpu": 0.171875,
+                "count": 1
+              }
+            },
+            "modules": 18,
+            "calls": 8395,
+            "gc_events_during_analysis": [],
+            "provenance": 12815,
+            "diagnostics": 0,
+            "output_bytes": 24623001,
+            "sha256": "2282f6db89e2cc2a698d3adbace656fa0ab072cb0da81f8fe70f33d9430a6b87",
+            "memory": {
+              "rss": 190582784,
+              "peak_rss": 266326016,
+              "private_commit": 180244480,
+              "peak_commit": 256147456
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-timeout-ivn9r4dt-1",
+        "status": "ok",
+        "baseline": false,
+        "wall": 58.37385000003269,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-1",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-timeout-ivn9r4dt\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-1"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0016661000554449856,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.31477040000027046,
+                "cpu": 0.3125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 4.128980099922046,
+                "cpu": 3.9375,
+                "count": 18
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 5.494767199968919,
+                "cpu": 5.3125,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.002648299967404455,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.2890501999645494,
+                "cpu": 0.28125,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.3519397000200115,
+                "cpu": 0.359375,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.06433670001570135,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 15.795654900022782,
+                "cpu": 15.375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 28.122750799986534,
+                "cpu": 27.21875,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0012005000025965273,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.10198229999514297,
+                "cpu": 0.109375,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.0756186000071466,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.19478299998445436,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 54.949540700006764,
+                "cpu": 53.234375,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 1.841659100027755,
+                "cpu": 1.75,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.3700801000231877,
+                "cpu": 0.328125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.14937070000451058,
+                "cpu": 0.140625,
+                "count": 1
+              }
+            },
+            "modules": 18,
+            "calls": 8395,
+            "gc_events_during_analysis": [],
+            "provenance": 12815,
+            "diagnostics": 0,
+            "output_bytes": 24623001,
+            "sha256": "2282f6db89e2cc2a698d3adbace656fa0ab072cb0da81f8fe70f33d9430a6b87",
+            "memory": {
+              "rss": 192598016,
+              "peak_rss": 268349440,
+              "private_commit": 181981184,
+              "peak_commit": 257916928
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-timeout-ivn9r4dt-2",
+        "status": "ok",
+        "baseline": false,
+        "wall": 62.238704499963205,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-2",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-timeout-ivn9r4dt\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-2"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0010892999707721174,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.3377065000240691,
+                "cpu": 0.3125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 4.4498709999606945,
+                "cpu": 4.0,
+                "count": 18
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 5.938063699984923,
+                "cpu": 5.828125,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.002264200011268258,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.4389128999901004,
+                "cpu": 0.421875,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.2926733000203967,
+                "cpu": 0.265625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.08237210003426298,
+                "cpu": 0.078125,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 18.562220100022387,
+                "cpu": 16.609375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 26.03714020003099,
+                "cpu": 24.578125,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0029628000338561833,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.2197174999746494,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.16361250000772998,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.5883817999856547,
+                "cpu": 0.328125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 57.12790770002175,
+                "cpu": 52.78125,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 3.5878391999867745,
+                "cpu": 3.171875,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.3786822000402026,
+                "cpu": 0.359375,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.12959359999513254,
+                "cpu": 0.109375,
+                "count": 1
+              }
+            },
+            "modules": 18,
+            "calls": 8395,
+            "gc_events_during_analysis": [],
+            "provenance": 12815,
+            "diagnostics": 0,
+            "output_bytes": 24623001,
+            "sha256": "2282f6db89e2cc2a698d3adbace656fa0ab072cb0da81f8fe70f33d9430a6b87",
+            "memory": {
+              "rss": 192585728,
+              "peak_rss": 268337152,
+              "private_commit": 181981184,
+              "peak_commit": 257912832
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "step2-2-timeout-ivn9r4dt-3",
+        "status": "ok",
+        "baseline": true,
+        "wall": 89.61518919997616,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-3",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-baseline\\repo\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-timeout-ivn9r4dt\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\paired\\step2-2-timeout-ivn9r4dt-3"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0018786999862641096,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.32933009997941554,
+                "cpu": 0.328125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 5.639851599989925,
+                "cpu": 5.375,
+                "count": 18
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 11.231939500023145,
+                "cpu": 10.921875,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.001830299966968596,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 1.0218945000087842,
+                "cpu": 1.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.40429509995738044,
+                "cpu": 0.40625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.3816823000088334,
+                "cpu": 0.390625,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 29.838971199991647,
+                "cpu": 28.796875,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 37.953584800008684,
+                "cpu": 37.359375,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0007689000340178609,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.06731259997468442,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.2517365000094287,
+                "cpu": 0.234375,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.12545910000335425,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 87.26238699996611,
+                "cpu": 85.03125,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 1.2612047999864444,
+                "cpu": 1.25,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.22371099999872968,
+                "cpu": 0.203125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.08953260001726449,
+                "cpu": 0.09375,
+                "count": 1
+              }
+            },
+            "modules": 18,
+            "calls": 8395,
+            "gc_events_during_analysis": [],
+            "provenance": 12815,
+            "diagnostics": 0,
+            "output_bytes": 24623001,
+            "sha256": "2282f6db89e2cc2a698d3adbace656fa0ab072cb0da81f8fe70f33d9430a6b87",
+            "memory": {
+              "rss": 189038592,
+              "peak_rss": 264753152,
+              "private_commit": 178601984,
+              "peak_commit": 254504960
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      }
+    ],
+    "batches": [
+      {
+        "name": "step2-2-longest-4wa4qyl7",
+        "status": "ok",
+        "baseline": false,
+        "wall": 19.543425699986983,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-longest-4wa4qyl7",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-longest-4wa4qyl7\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-longest-4wa4qyl7"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.002359699981752783,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.2618019000510685,
+                "cpu": 0.234375,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 2.2684573998558335,
+                "cpu": 2.25,
+                "count": 20
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.9722654999932274,
+                "cpu": 0.96875,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0016884999931789935,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.004093200026545674,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.07388849998824298,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.024269400048069656,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 2.5189995000255294,
+                "cpu": 2.4375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 11.013410900020972,
+                "cpu": 10.765625,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0004678000113926828,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.061290299985557795,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.2152384999790229,
+                "cpu": 0.21875,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.13460400002077222,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 17.561913099954836,
+                "cpu": 17.1875,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.9087550000404008,
+                "cpu": 0.921875,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.19689639995340258,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.05919619998894632,
+                "cpu": 0.0625,
+                "count": 1
+              }
+            },
+            "modules": 20,
+            "calls": 4790,
+            "gc_events_during_analysis": [],
+            "provenance": 7176,
+            "diagnostics": 0,
+            "output_bytes": 13948783,
+            "sha256": "7de2521e9bad77ad863748cfc9d11652233ddbf298b3ff371bd1ba18ecd046cb",
+            "memory": {
+              "rss": 121245696,
+              "peak_rss": 164155392,
+              "private_commit": 111636480,
+              "peak_commit": 154689536
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": false,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-2-normal-nupr61k8",
+        "status": "ok",
+        "baseline": false,
+        "wall": 5.152560600021388,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-normal-nupr61k8",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-normal-nupr61k8\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-normal-nupr61k8"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0029084000270813704,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.10243450000416487,
+                "cpu": 0.09375,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.9806365999393165,
+                "cpu": 0.96875,
+                "count": 13
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.3515369000378996,
+                "cpu": 0.34375,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0005861999816261232,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.008242600015364587,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.010328500007744879,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.00515450001694262,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.5672767999931239,
+                "cpu": 0.578125,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 1.7707339000189677,
+                "cpu": 1.734375,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0006986999651417136,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.03376389999175444,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.025030599965248257,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.0540350999799557,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 3.920810999989044,
+                "cpu": 3.859375,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.5344232000061311,
+                "cpu": 0.53125,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.10409799998160452,
+                "cpu": 0.09375,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.04427640000358224,
+                "cpu": 0.046875,
+                "count": 1
+              }
+            },
+            "modules": 13,
+            "calls": 2987,
+            "gc_events_during_analysis": [],
+            "provenance": 4383,
+            "diagnostics": 0,
+            "output_bytes": 8589753,
+            "sha256": "97c881d442a0c54ec0a3e220f90cc76bc0a44f0cd05f32e0f21e16cfe7dad470",
+            "memory": {
+              "rss": 88399872,
+              "peak_rss": 114823168,
+              "private_commit": 78106624,
+              "peak_commit": 104640512
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-2-shortest-qohva6lz",
+        "status": "ok",
+        "baseline": false,
+        "wall": 0.4486615000059828,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-shortest-qohva6lz",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-shortest-qohva6lz\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-shortest-qohva6lz"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0016988000134006143,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.002037900034338236,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.00474549998762086,
+                "cpu": 0.015625,
+                "count": 2
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.00013919995399191976,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 2.4600012693554163e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 1.8499966245144606e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.00010529998689889908,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.00021680002100765705,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.00147870002547279,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 0.0012874999665655196,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 3.3699965570122004e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.0001385000068694353,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 9.26000066101551e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.0009037999552674592,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 0.015463099989574403,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.0028495999868027866,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.0004607999580912292,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.0017852999735623598,
+                "cpu": 0.0,
+                "count": 1
+              }
+            },
+            "modules": 2,
+            "calls": 13,
+            "gc_events_during_analysis": [],
+            "provenance": 26,
+            "diagnostics": 0,
+            "output_bytes": 46499,
+            "sha256": "827efb56bccf6e4bc985edf2f4c4b7c3c73208345dd6ff21c29b1d249d083bd1",
+            "memory": {
+              "rss": 29020160,
+              "peak_rss": 29020160,
+              "private_commit": 18493440,
+              "peak_commit": 18493440
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-2-timeout-ivn9r4dt",
+        "status": "ok",
+        "baseline": false,
+        "wall": 44.29862030001823,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-timeout-ivn9r4dt",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-2-timeout-ivn9r4dt\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-2-timeout-ivn9r4dt"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0016459000180475414,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.32779369998024777,
+                "cpu": 0.328125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 3.434819200076163,
+                "cpu": 3.375,
+                "count": 18
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 4.0678845999646,
+                "cpu": 4.046875,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.002140500000678003,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.24521079997066408,
+                "cpu": 0.25,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.12590539996745065,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.057461699994746596,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 12.39023250003811,
+                "cpu": 12.359375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 20.185370899969712,
+                "cpu": 20.09375,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0018974999547936022,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.09662910003680736,
+                "cpu": 0.09375,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.05991190002532676,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.19663339998805895,
+                "cpu": 0.1875,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 41.20327230001567,
+                "cpu": 41.0,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 1.562892500020098,
+                "cpu": 1.5625,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.35154089995194227,
+                "cpu": 0.359375,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.16640470002312213,
+                "cpu": 0.125,
+                "count": 1
+              }
+            },
+            "modules": 18,
+            "calls": 8395,
+            "gc_events_during_analysis": [],
+            "provenance": 12815,
+            "diagnostics": 0,
+            "output_bytes": 24623001,
+            "sha256": "2282f6db89e2cc2a698d3adbace656fa0ab072cb0da81f8fe70f33d9430a6b87",
+            "memory": {
+              "rss": 192659456,
+              "peak_rss": 268410880,
+              "private_commit": 182050816,
+              "peak_commit": 257953792
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": false,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-3-error-window-sum-tzeu_m9n",
+        "status": "ok",
+        "baseline": false,
+        "wall": 0.8854725999990478,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-error-window-sum-tzeu_m9n",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-3-error-window-sum-tzeu_m9n\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-error-window-sum-tzeu_m9n"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0004480000352486968,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.021329500013962388,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.175552099943161,
+                "cpu": 0.15625,
+                "count": 2
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.01551820000167936,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.00010250002378597856,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 1.71000137925148e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.0024462000001221895,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.0008319999906234443,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.04880370001774281,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 0.1450922000221908,
+                "cpu": 0.140625,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.00014100002590566874,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.004009400028735399,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.003061799972783774,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.00885849999031052,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 0.42917279998073354,
+                "cpu": 0.40625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.07487959996797144,
+                "cpu": 0.078125,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.014148699992801994,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.006747799983713776,
+                "cpu": 0.0,
+                "count": 1
+              }
+            },
+            "modules": 2,
+            "calls": 621,
+            "gc_events_during_analysis": [],
+            "provenance": 932,
+            "diagnostics": 0,
+            "output_bytes": 1825799,
+            "sha256": "d45c09ae71362e15ac4021394176810bf54a4da35948c97d8342ddfab9bb631b",
+            "memory": {
+              "rss": 40009728,
+              "peak_rss": 45625344,
+              "private_commit": 28528640,
+              "peak_commit": 34205696
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-3-longest-7_n2696y",
+        "status": "ok",
+        "baseline": false,
+        "wall": 5.315630000026431,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-longest-7_n2696y",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-3-longest-7_n2696y\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-longest-7_n2696y"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0006744000129401684,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.05145440000342205,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.5676578999264166,
+                "cpu": 0.578125,
+                "count": 3
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.23411230003694072,
+                "cpu": 0.234375,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0003522000042721629,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.0037006999482400715,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.02502430003369227,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.001814599963836372,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.3430999999982305,
+                "cpu": 0.34375,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 3.1007298000040464,
+                "cpu": 3.078125,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0003399999695830047,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.020405700022820383,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.020047099969815463,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.04769919998943806,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 4.421120399958454,
+                "cpu": 4.390625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.3378704999922775,
+                "cpu": 0.3125,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.06273839995265007,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.019298499973956496,
+                "cpu": 0.03125,
+                "count": 1
+              }
+            },
+            "modules": 3,
+            "calls": 1551,
+            "gc_events_during_analysis": [],
+            "provenance": 2634,
+            "diagnostics": 0,
+            "output_bytes": 4831008,
+            "sha256": "75f5f9c2a750e7f1c26860eb7bf9ec607ad92c0fd2c91265354797b4fb206970",
+            "memory": {
+              "rss": 62038016,
+              "peak_rss": 76898304,
+              "private_commit": 51978240,
+              "peak_commit": 66924544
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-3-normal-hfjpr9bj",
+        "status": "ok",
+        "baseline": false,
+        "wall": 0.9962211999809369,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-normal-hfjpr9bj",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-3-normal-hfjpr9bj\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-normal-hfjpr9bj"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.0010207000304944813,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.016877199988812208,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.15733200003160164,
+                "cpu": 0.15625,
+                "count": 4
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.024756700033321977,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 9.180000051856041e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.0036368999863043427,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.0011548000038601458,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.000830999983008951,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.025317199993878603,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 0.145836399984546,
+                "cpu": 0.15625,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 8.079997496679425e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.002861899964045733,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.0036899999831803143,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.005281999998260289,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 0.39175240002805367,
+                "cpu": 0.390625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.06521450000582263,
+                "cpu": 0.0625,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.012444799998775125,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.007188300020061433,
+                "cpu": 0.015625,
+                "count": 1
+              }
+            },
+            "modules": 4,
+            "calls": 546,
+            "gc_events_during_analysis": [],
+            "provenance": 975,
+            "diagnostics": 0,
+            "output_bytes": 1704755,
+            "sha256": "e1fa77e4517c694eca86c51531b59015338ef0ccf7361cb8764ef52ed78de764",
+            "memory": {
+              "rss": 40374272,
+              "peak_rss": 45629440,
+              "private_commit": 29331456,
+              "peak_commit": 34598912
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      },
+      {
+        "name": "step2-3-shortest-xuqe1dv3",
+        "status": "ok",
+        "baseline": false,
+        "wall": 0.4589795999927446,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-shortest-xuqe1dv3",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\step2-3-shortest-xuqe1dv3\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\batches\\step2-3-shortest-xuqe1dv3"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.00224320002598688,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.003679899964481592,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.02068489999510348,
+                "cpu": 0.015625,
+                "count": 3
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.0007192000048235059,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 2.4099950678646564e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 3.920000744983554e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.00038219999987632036,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.0001637000241316855,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.004637799982447177,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 0.007508200011216104,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 2.1199986804276705e-05,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.00040330004412680864,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.0003367000026628375,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.0007571000023745,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 0.04385979997459799,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.007231399999000132,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.001720600004773587,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.0019851000397466123,
+                "cpu": 0.0,
+                "count": 1
+              }
+            },
+            "modules": 3,
+            "calls": 85,
+            "gc_events_during_analysis": [],
+            "provenance": 111,
+            "diagnostics": 0,
+            "output_bytes": 227412,
+            "sha256": "0bb3824068931bed4fd6d357c568f8ba8b21d4057b0a6ec97698818ef22effa2",
+            "memory": {
+              "rss": 30064640,
+              "peak_rss": 30937088,
+              "private_commit": 19656704,
+              "peak_commit": 20639744
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0",
+        "matches_prior_payload_hash": true,
+        "matches_prior_full_json": true
+      }
+    ],
+    "scope": [
+      {
+        "name": "pandas-full",
+        "status": "timeout",
+        "baseline": false,
+        "wall": 180.16764499997953,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\pandas-full",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0\\pandas",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\pandas-full"
+        ],
+        "limit_seconds": 180,
+        "last_events": [
+          {
+            "kind": "begin",
+            "phase": "visit:_libs.tslibs",
+            "at_wall": 72.76835159998154,
+            "at_cpu": 71.96875
+          },
+          {
+            "kind": "end",
+            "phase": "visit:_libs.tslibs",
+            "at_wall": 72.76859499997227,
+            "at_cpu": 71.96875,
+            "wall": 6.2700011767447e-05,
+            "cpu": 0.0,
+            "memory": {
+              "rss": 1155715072,
+              "peak_rss": 1155715072,
+              "private_commit": 1148067840,
+              "peak_commit": 1148067840
+            }
+          },
+          {
+            "kind": "begin",
+            "phase": "_bind_bounded_local_call_results",
+            "at_wall": 72.76866240001982,
+            "at_cpu": 71.96875
+          }
+        ],
+        "analysis_completed": false
+      },
+      {
+        "name": "pcresolve-self",
+        "status": "timeout",
+        "baseline": false,
+        "wall": 180.08124410000164,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\pcresolve-self",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\GitHub\\PCResolve\\src\\pcresolve",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\pcresolve-self"
+        ],
+        "limit_seconds": 180,
+        "last_events": [
+          {
+            "kind": "begin",
+            "phase": "get_calls",
+            "at_wall": 13.573665799980517,
+            "at_cpu": 12.609375
+          },
+          {
+            "kind": "end",
+            "phase": "get_calls",
+            "at_wall": 39.839130399981514,
+            "at_cpu": 36.53125,
+            "wall": 26.265243599948008,
+            "cpu": 23.921875,
+            "memory": {
+              "rss": 127680512,
+              "peak_rss": 127680512,
+              "private_commit": 117497856,
+              "peak_commit": 117497856
+            }
+          },
+          {
+            "kind": "begin",
+            "phase": "_build_symbol_provenance",
+            "at_wall": 39.83929309999803,
+            "at_cpu": 36.53125
+          }
+        ],
+        "analysis_completed": false
+      },
+      {
+        "name": "base-single",
+        "status": "ok",
+        "baseline": false,
+        "wall": 3.5677159000188112,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\base-single",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0\\pandas\\core\\indexes\\base.py",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\base-single"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.00012149999383836985,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.041339399991557,
+                "cpu": 0.046875,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.4648594000027515,
+                "cpu": 0.46875,
+                "count": 1
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.5275718999910168,
+                "cpu": 0.515625,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.0002880999818444252,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.0006012000376358628,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.004464500001631677,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.002853799960575998,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.7732807999709621,
+                "cpu": 0.78125,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 1.018136599974241,
+                "cpu": 0.96875,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.00021869997726753354,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.006404299987480044,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.009614599985070527,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.01738390000537038,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 2.870752499962691,
+                "cpu": 2.8125,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.12259460001951084,
+                "cpu": 0.125,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.03234030003659427,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.0136631999630481,
+                "cpu": 0.015625,
+                "count": 1
+              }
+            },
+            "modules": 1,
+            "calls": 1030,
+            "gc_events_during_analysis": [],
+            "provenance": 1590,
+            "diagnostics": 0,
+            "output_bytes": 3114280,
+            "sha256": "21fa5e0435fc8bbf80b73f6870493c5388e8681e74901fcf46295a162317d619",
+            "memory": {
+              "rss": 51048448,
+              "peak_rss": 60624896,
+              "private_commit": 40755200,
+              "peak_commit": 50413568
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "allnews",
+        "status": "ok",
+        "baseline": false,
+        "wall": 3.4928041999810375,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\allnews",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\ownership_probe.py",
+          "C:\\GitHub\\PCResolve\\tests\\fixtures\\tested_projects\\allnews",
+          "--out",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\scope\\allnews"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "phases": {
+              "scan": {
+                "wall": 0.00179130001924932,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "source_read_parse": {
+                "wall": 0.052477499993983656,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "single_file_visit": {
+                "wall": 0.5188427001121454,
+                "cpu": 0.53125,
+                "count": 9
+              },
+              "_bind_bounded_local_call_results": {
+                "wall": 0.18053429998690262,
+                "cpu": 0.171875,
+                "count": 1
+              },
+              "_bind_bounded_callback_map_results": {
+                "wall": 0.00034030003007501364,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_bind_bounded_local_iteration_results": {
+                "wall": 0.00593669997761026,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_bind_proven_result_method_results": {
+                "wall": 0.004433800000697374,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "resolve_cross_file_symbols": {
+                "wall": 0.003855800023302436,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "get_calls": {
+                "wall": 0.5345029999734834,
+                "cpu": 0.53125,
+                "count": 1
+              },
+              "_build_symbol_provenance": {
+                "wall": 1.4822087000356987,
+                "cpu": 1.4375,
+                "count": 1
+              },
+              "_build_decorator_index": {
+                "wall": 0.0002489000326022506,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_file_analysis": {
+                "wall": 0.008428599976468831,
+                "cpu": 0.0,
+                "count": 1
+              },
+              "_build_all_api_calls": {
+                "wall": 0.007494799967389554,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "_build_library_usage": {
+                "wall": 0.020639700000174344,
+                "cpu": 0.015625,
+                "count": 1
+              },
+              "analysis": {
+                "wall": 2.829121499962639,
+                "cpu": 2.765625,
+                "count": 1
+              },
+              "full_view": {
+                "wall": 0.14100990002043545,
+                "cpu": 0.140625,
+                "count": 1
+              },
+              "json_encode": {
+                "wall": 0.0352277000201866,
+                "cpu": 0.03125,
+                "count": 1
+              },
+              "json_write": {
+                "wall": 0.015036500000860542,
+                "cpu": 0.015625,
+                "count": 1
+              }
+            },
+            "modules": 9,
+            "calls": 1013,
+            "gc_events_during_analysis": [],
+            "provenance": 1508,
+            "diagnostics": 0,
+            "output_bytes": 3032480,
+            "sha256": "ccf19c4307ce2f4b7f2b1ccc7a9a92f6162b6dd3fdb9be076a1ef733b2ffe30e",
+            "memory": {
+              "rss": 50262016,
+              "peak_rss": 59625472,
+              "private_commit": 39448576,
+              "peak_commit": 51978240
+            }
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      }
+    ],
+    "flow": [
+      {
+        "name": "flow-baseline",
+        "status": "ok",
+        "baseline": true,
+        "wall": 26.670636199996807,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\flow\\flow-baseline",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-baseline\\repo\\reports\\performance-audit\\flow_probe.py",
+          "--project-root",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0\\pandas",
+          "--import-root",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0",
+          "--entry",
+          "pandas.core.indexes.base:Index.append",
+          "--depth",
+          "3",
+          "--repeat",
+          "3",
+          "--output",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\flow\\flow-baseline\\metrics.json"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "repetition": 1,
+            "analyze": {
+              "wall_seconds": 14.693601100007072,
+              "cpu_seconds": 13.125
+            },
+            "index": {
+              "wall_seconds": 14.355793099966832,
+              "cpu_seconds": 12.78125
+            },
+            "source_snapshot": {
+              "wall_seconds": 7.828635199985001,
+              "cpu_seconds": 6.921875
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.3378080000402406,
+              "cpu_seconds": 0.34375
+            },
+            "serialize": {
+              "wall_seconds": 0.016213700000662357,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0008981000282801688,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0009752999758347869,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0005468999734148383,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0005469999741762877,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          },
+          {
+            "repetition": 2,
+            "analyze": {
+              "wall_seconds": 3.5085907999891788,
+              "cpu_seconds": 3.46875
+            },
+            "index": {
+              "wall_seconds": 3.1115300999954343,
+              "cpu_seconds": 3.078125
+            },
+            "source_snapshot": {
+              "wall_seconds": 0.05923060001805425,
+              "cpu_seconds": 0.0625
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.3970606999937445,
+              "cpu_seconds": 0.390625
+            },
+            "serialize": {
+              "wall_seconds": 0.016191300004720688,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0006247999845072627,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0008279000176116824,
+                  "cpu_seconds": 0.015625
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0008072999771684408,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0008181000011973083,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          },
+          {
+            "repetition": 3,
+            "analyze": {
+              "wall_seconds": 3.983580800006166,
+              "cpu_seconds": 3.859375
+            },
+            "index": {
+              "wall_seconds": 3.507365800032858,
+              "cpu_seconds": 3.40625
+            },
+            "source_snapshot": {
+              "wall_seconds": 0.1033490999834612,
+              "cpu_seconds": 0.078125
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.4762149999733083,
+              "cpu_seconds": 0.453125
+            },
+            "serialize": {
+              "wall_seconds": 0.02490590000525117,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0010381999891251326,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0007020999910309911,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0005184999899938703,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0004950000438839197,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      },
+      {
+        "name": "flow-optimized",
+        "status": "ok",
+        "baseline": false,
+        "wall": 19.189078300027177,
+        "directory": "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\flow\\flow-optimized",
+        "command": [
+          "C:\\Users\\xiaog\\anaconda3\\python.exe",
+          "C:\\GitHub\\PCResolve\\reports\\performance-audit\\flow_probe.py",
+          "--project-root",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0\\pandas",
+          "--import-root",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-pandas-batch-repro\\pandas-0.21.0",
+          "--entry",
+          "pandas.core.indexes.base:Index.append",
+          "--depth",
+          "3",
+          "--repeat",
+          "3",
+          "--output",
+          "C:\\Users\\xiaog\\AppData\\Local\\Temp\\pcresolve-priority-results\\flow\\flow-optimized\\metrics.json"
+        ],
+        "limit_seconds": 180,
+        "runs": [
+          {
+            "repetition": 1,
+            "analyze": {
+              "wall_seconds": 13.728041899972595,
+              "cpu_seconds": 12.921875
+            },
+            "index": {
+              "wall_seconds": 13.36482989997603,
+              "cpu_seconds": 12.5625
+            },
+            "source_snapshot": {
+              "wall_seconds": 8.200632799998857,
+              "cpu_seconds": 7.453125
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.3632119999965653,
+              "cpu_seconds": 0.359375
+            },
+            "serialize": {
+              "wall_seconds": 0.014904799987562,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0006074999691918492,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.00048429996240884066,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.00044249999336898327,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0004408999811857939,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          },
+          {
+            "repetition": 2,
+            "analyze": {
+              "wall_seconds": 0.45323759998427704,
+              "cpu_seconds": 0.421875
+            },
+            "index": {
+              "wall_seconds": 0.07993530004750937,
+              "cpu_seconds": 0.078125
+            },
+            "source_snapshot": {
+              "wall_seconds": 0.07950890000211075,
+              "cpu_seconds": 0.078125
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.37330229993676767,
+              "cpu_seconds": 0.34375
+            },
+            "serialize": {
+              "wall_seconds": 0.01390489999903366,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0006379999686032534,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0005107999895699322,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0004086000262759626,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.00040530000114813447,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          },
+          {
+            "repetition": 3,
+            "analyze": {
+              "wall_seconds": 0.4109871999826282,
+              "cpu_seconds": 0.421875
+            },
+            "index": {
+              "wall_seconds": 0.059039599960669875,
+              "cpu_seconds": 0.0625
+            },
+            "source_snapshot": {
+              "wall_seconds": 0.058743299974594265,
+              "cpu_seconds": 0.0625
+            },
+            "gc_events_during_analysis": [],
+            "analyze_excluding_index": {
+              "wall_seconds": 0.35194760002195835,
+              "cpu_seconds": 0.359375
+            },
+            "serialize": {
+              "wall_seconds": 0.016041100025177002,
+              "cpu_seconds": 0.015625
+            },
+            "json_bytes": 726672,
+            "snapshot_sha256": "733f4ccde3db18e362e2cca179e2335a88a5852b9dea7c8e40fb167db5b93385",
+            "function_count": 5,
+            "call_count": 31,
+            "boundary_count": 26,
+            "boundaries": {
+              "dynamic_method_override_possible": 2,
+              "container_return_unproven": 1,
+              "builtin_boundary": 7,
+              "mapping_effect_unproven": 2,
+              "depth_limit": 9,
+              "receiver_unresolved": 4,
+              "unsupported_assignment": 1
+            },
+            "targets": {
+              "builtin_boundary": 7,
+              "python_protocol": 6,
+              "local_container_protocol": 1,
+              "instance_method": 2,
+              "resolved": 11,
+              "receiver_unresolved": 4
+            },
+            "bindings": {
+              "unavailable": 12,
+              "complete": 19
+            },
+            "parameter_flow_statuses": {
+              "flow_found": 39
+            },
+            "context_summary_count": 5,
+            "context_call_count": 31,
+            "source_error_count": 0,
+            "traces": [
+              {
+                "parameter": "self",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.0006015999824739993,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "self",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.00044680002611130476,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 1,
+                "timing": {
+                  "wall_seconds": 0.000424400030169636,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              },
+              {
+                "parameter": "other",
+                "repetition": 2,
+                "timing": {
+                  "wall_seconds": 0.0004300999571569264,
+                  "cpu_seconds": 0.0
+                },
+                "status": "unknown",
+                "return_path_count": 0,
+                "summary_status": "converged",
+                "summary_iterations": 1,
+                "boundary_count": 26,
+                "boundaries": {
+                  "dynamic_method_override_possible": 2,
+                  "container_return_unproven": 1,
+                  "builtin_boundary": 7,
+                  "mapping_effect_unproven": 2,
+                  "depth_limit": 9,
+                  "receiver_unresolved": 4,
+                  "unsupported_assignment": 1
+                }
+              }
+            ]
+          }
+        ],
+        "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.26300-SP0"
+      }
+    ]
+  },
+  "paired_fingerprints": {
+    "step2-2-longest": {
+      "complete": true,
+      "equal": true
+    },
+    "step2-2-timeout": {
+      "complete": true,
+      "equal": true
+    }
+  },
+  "flow_fingerprints_equal": true
+}

@@ -242,6 +242,7 @@ class ProjectResultBindingMixin:
                      or current_position == (
                          edge.call_lineno, edge.call_col_offset))):
             tracer.symbols.direct[assigned_name] = result_call
+            self._invalidate_callable_lookup()
         self._rewrite_assigned_result_records(
             tracer, edge, target, assigned_name, current,
             result_call, next_position)
@@ -657,6 +658,7 @@ class ProjectResultBindingMixin:
                             and current.call_col_offset
                             == binding.call_col_offset):
                         tracer.symbols.direct[target_name] = yield_source
+                        self._invalidate_callable_lookup()
 
     ## Substitute exact call-edge arguments into a local generator yield.
     #
@@ -971,6 +973,7 @@ class ProjectResultBindingMixin:
         for name in edge.assigned_to:
             flow[(edge.caller.qualname, name)] = result_call
             tracer.symbols.direct[name] = result_call
+            self._invalidate_callable_lookup()
         return True
 
     ## Return call records located at one receiver-method edge.

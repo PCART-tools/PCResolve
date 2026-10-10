@@ -64,21 +64,98 @@ class ProjectCallContextMixin:
     ## Select possible definitions without inspecting unrelated receivers.
     #  @param edge Call edge to resolve.
     #  @return Definitions in their original collection order.
-    def _edge_target_candidates(self, edge):
+    def _edge_target_candidates(self, edge, caller_module=None):
         index = self._get_definition_index()
         names = self._edge_callable_names(edge)
-        # Callable instances can reach __call__ under any syntactic spelling.
-        # Keep those candidates and let the existing receiver proof decide.
-        names.add('__call__')
         ordinals = set()
         for name in names:
             ordinals.update(self._edge_target_name_index.get(name, ()))
+        ordinals.update(self._callable_method_candidates(edge, caller_module))
         return tuple(index.records[ordinal] for ordinal in sorted(ordinals))
+
+    ## Discard callable facts after edge or module-binding changes.
+    def _invalidate_callable_lookup(self):
+        self._callable_lookup_graph = None
+
+    ## Initialize static callable facts for this binding generation.
+    def _ensure_callable_lookup(self):
+        if getattr(self, '_callable_lookup_graph', None) is not self.project_cg:
+            self._callable_lookup_graph = self.project_cg
+            self._callable_lookup_edges = None
+            self._static_callable_cache = {}
+            self._callable_reverse_lookup = None
+
+    ## Reuse only callable classes independent of recursive parameter proofs.
+    #  @return Class identities, or None when parameter evidence is required.
+    def _static_callable_classes(self, edge, module, tracers):
+        def dynamic(source):
+            source = normalize_source(source)
+            if isinstance(source, SourceSet):
+                return any(dynamic(item) for item in source.sources)
+            return (isinstance(source, InstanceMethod) and source.parameter_scope
+                    and source.receiver == source.parameter_name)
+
+        if dynamic(edge.callee):
+            return None
+        self._ensure_callable_lookup()
+        key = (module, id(edge))
+        cached = self._static_callable_cache.get(key)
+        if (cached is None or cached[1] is not edge.callee
+                or cached[2] != edge.callee_name):
+            classes = self._local_callable_class_candidates(
+                module, edge.callee, tracers.get(module), tracers,
+                display_name=edge.callee_name)
+            # Retain the edge itself, preventing identity reuse for temporary edges.
+            cached = (edge, edge.callee, edge.callee_name, tuple(classes))
+            self._static_callable_cache[key] = cached
+        return cached[3]
+
+    ## Select callable-instance methods using source facts, not bounded proofs.
+    #  Unknown parameter sources and inherited classes retain every candidate.
+    #  @return Definition ordinals requiring the existing exact target check.
+    def _callable_method_candidates(self, edge, module):
+        self._get_definition_index()
+        ordinals = self._edge_target_name_index.get('__call__', ())
+        if not ordinals or module is None:
+            return ordinals
+        tracers = self._ownership_run.program.module_tracers
+        classes = self._static_callable_classes(edge, module, tracers)
+        if classes is None:
+            return ordinals
+        if any(tracers.get(owner) is not None
+               and tracers[owner].class_bases.get(name)
+               for owner, name in classes):
+            return ordinals
+        identities = set(classes)
+        return tuple(ordinal for ordinal in ordinals
+                     if (self._definition_index.records[ordinal].module,
+                         self._local_target_metadata(
+                             self._definition_index.records[ordinal].module,
+                             self._definition_index.records[ordinal].qualname)[1])
+                     in identities)
+
+    ## Index possible incoming callable-instance edges in original order.
+    #  @return Target identity to edge ordinals; exact matching stays query-local.
+    def _get_callable_reverse_lookup(self):
+        edges, _, _, _ = self._get_edge_lookup()
+        self._ensure_callable_lookup()
+        if self._callable_lookup_edges is not self._edge_lookup:
+            self._callable_lookup_edges = self._edge_lookup
+            self._callable_reverse_lookup = None
+        if self._callable_reverse_lookup is None:
+            lookup = {}
+            for edge_ordinal, (module, edge) in enumerate(edges):
+                for ordinal in self._callable_method_candidates(edge, module):
+                    record = self._definition_index.records[ordinal]
+                    lookup.setdefault((record.module, record.qualname), set()).add(edge_ordinal)
+            self._callable_reverse_lookup = lookup
+        return self._callable_reverse_lookup
 
     ## Update syntactic edge indexes after a callable-source rewrite.
     #  @param edge Rewritten edge, or None to discard all indexed facts.
     #  @return None; resolution results themselves are never cached here.
     def _invalidate_edge_lookup(self, edge=None):
+        self._invalidate_callable_lookup()
         if (edge is None
                 or getattr(self, '_edge_lookup_graph', None) is not self.project_cg):
             self._edge_lookup_graph = None
@@ -145,11 +222,11 @@ class ProjectCallContextMixin:
         if metadata is None:
             return tuple(edges[ordinal] for ordinal in mapped)
         _, class_name, name, constructor, method = metadata
-        if method and name == '__call__':
-            return tuple(edges)
         callable_name = class_name if constructor else name
         ordinals = set(names.get(callable_name, ()))
         ordinals.update(mapped)
+        if method and name == '__call__':
+            ordinals.update(self._get_callable_reverse_lookup().get((module, scope_name), ()))
         return tuple(edges[ordinal] for ordinal in sorted(ordinals))
 
     ## Find all project-local functions reached by one call edge.
@@ -165,7 +242,7 @@ class ProjectCallContextMixin:
             return list(edge.mapping_targets)
         targets = []
         caller_tracer = tracers.get(caller_module)
-        candidates = self._edge_target_candidates(edge)
+        candidates = self._edge_target_candidates(edge, caller_module)
         for candidate in candidates:
             if self._edge_targets_local_function(
                     edge, caller_module, candidate.module, candidate.qualname,
@@ -1224,13 +1301,15 @@ class ProjectCallContextMixin:
     def _callable_instance_targets_method(
             self, edge, caller_module, target_module, class_name,
             caller_tracer, tracers):
-        callable_classes = self._local_callable_class_candidates(
-            caller_module,
-            getattr(edge, "callee", None),
-            caller_tracer,
-            tracers,
-            display_name=getattr(edge, "callee_name", ""),
-        )
+        callable_classes = self._static_callable_classes(edge, caller_module, tracers)
+        if callable_classes is None:
+            callable_classes = self._local_callable_class_candidates(
+                caller_module,
+                getattr(edge, "callee", None),
+                caller_tracer,
+                tracers,
+                display_name=getattr(edge, "callee_name", ""),
+            )
         return any(
             self._local_class_is_or_derives(
                 candidate_module, candidate_class,
