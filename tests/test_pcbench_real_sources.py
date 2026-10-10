@@ -179,6 +179,36 @@ def test_pandas_series_take_passes_kwargs_as_ordinary_mapping():
         'pandas.compat.numpy.function.validate_take')
 
 
+@pytest.mark.parametrize('entry,depth', [('date_range', 1), ('bdate_range', 2)])
+def test_pandas_datetime_range_has_explicit_source_classmethod_binding(entry, depth):
+    result = analyze('pandas-2.0.0', ['core/indexes/datetimes.py', 'core/arrays/datetimes.py'],
+        'pandas.core.indexes.datetimes', entry, max_depth=depth)
+    call = result.find_calls(callee_name='DatetimeArray._generate_range')[0]
+    assert (call.target.module, call.target.qualname, call.target.lineno) == (
+        'pandas.core.arrays.datetimes', 'DatetimeArray._generate_range', 375)
+    fact = call.class_method_bindings[0]
+    assert fact['status'] == 'source_bound'
+    assert fact['receiver_class']['qualname'] == 'DatetimeArray'
+    assert fact['definition_class'] == fact['receiver_class']
+    assert fact['implicit_binding']['parameter'] == 'cls'
+    assert fact['descriptor']['kind'] == 'builtin_classmethod'
+    assert not fact['runtime_target_confirmed']
+    assert 'unresolved_bases_use_standard_metaclass_lookup' in fact['assumptions']
+    assert any(argument['parameter'] == 'cls' and argument['argument'] == {'receiver': True}
+               for argument in call.argument_sources)
+    assert any(value['source'] == 'kwargs' for argument in call.argument_sources
+               if argument['argument'] == {'keyword': None} for value in argument['sources'])
+    boundary = next(boundary for boundary in result.boundaries
+        if boundary.get('call_id') == call.id
+        and boundary['reason'] == 'dynamic_class_receiver_override_possible')
+    assert boundary['boundary_kind'] == 'assumption'
+    assert call.binding_status == 'uncertain'
+    expanded = FlowAnalyzer(source_files=[Path(path) for path in result.inputs['source_files']],
+        import_roots=[source('pandas-2.0.0').parent, FIXTURES]).expand(result, call.id)
+    assert any(item['function']['qualname'] == 'DatetimeArray._generate_range'
+               for item in expanded.functions)
+
+
 def test_sympy_local_import_reexport_and_identity_decorator_keep_variadic_facts():
     result = analyze('sympy-1.5', [
         'core/expr.py', 'polys/__init__.py', 'polys/rationaltools.py',

@@ -337,6 +337,57 @@ not runtime path-feasibility proofs. A found path does not promise execution.
 
 ## Current supported subset and boundaries
 
+### Explicit source classmethod bindings
+
+`FlowCall.class_method_bindings` separates a source lookup/binding explanation
+from runtime target confirmation. For a direct source class, stable import or
+simple alias, a uniquely selected builtin `@classmethod` can report
+`status="source_bound"` with `basis="source_snapshot"`. Facts distinguish the
+`receiver_class` from `definition_class`: an inherited method binds `cls` to the
+derived receiver, not to its defining base. `implicit_binding` describes that
+receiver binding; existing argument sources and binding issues still describe
+the remaining positional/keyword/variadic arguments. An unknown `**kwargs`
+expansion can therefore remain `binding_status="uncertain"`.
+
+The explanation includes descriptor, class/name-binding and call-site evidence,
+`source_hashes`, branch conditions and explicit assumptions.
+`runtime_target_confirmed` is always false. In particular, source snapshot
+bindings, standard builtin descriptor/metaclass lookup and absence of external
+monkeypatch/import-hook or unmodeled indirect mutation are assumptions, not
+discovered runtime guarantees. A method in the receiver's own class dictionary
+can be explained without resolving every base; unresolved bases add the explicit
+`unresolved_bases_use_standard_metaclass_lookup` assumption. Inherited selection
+requires a source MRO. Source-defined custom metaclasses, class decorators,
+creation hooks, shadowed descriptors, extra method decorators, conflicting member
+bindings, recognized method/code writes and ordinary class-argument escape
+prevent the proof. Unknown/mixed/parameter/factory/configuration receivers are not
+promoted to a direct source binding merely because one candidate exists.
+
+The existing `dynamic_class_receiver_override_possible` boundary is not removed.
+Only a proved direct source binding annotates it with
+`boundary_kind="assumption"` and `binding_status="source_bound"`. Other cases
+retain uncertainty; evidence-bearing issues appear in
+`class_method_binding_unconfirmed` and the binding record. Visible writes across
+the supplied source snapshot are conservative hazards with
+`reachability="not_proven"`, not assertions that the writer executed. Dynamic
+attribute mutators are recognized syntactically as possible writes even if their
+names could be rebound. The bounded scan follows only simple source class/import
+aliases, not arbitrary heap aliases or general mutation summaries. Ordinary class
+aliases are accumulated conservatively across assignments/branches, so a writer
+cannot silently lose another possible source class; this may retain unreachable
+hazards and is not a path-feasibility proof. Ordinary class
+arguments to earlier calls remain escape hazards even when the call has a source
+target; this narrow proof does not prove that helper pure.
+
+Bindings are retained within `analysis_contexts` and merged conservatively.
+Downstream tools should pair the fact with its receiver, target, arguments,
+conditions and incoming call ID, and inspect all associated boundaries. A proved
+context does not authorize treating another merged context as confirmed or
+discarding other boundaries. No compatibility/rejection/repair policy is encoded.
+The source-write scan is capped at 100,000 AST nodes and receiver/base inspection
+at 64 classes; exhaustion reports `class_binding_budget` as an unconfirmed issue.
+The existing query/expansion budgets and recursion guards remain in effect.
+
 ### Source-proven callable arguments and literal dispatch
 
 `analyze()` and `expand()` specialize ordinary parameters using complete,
