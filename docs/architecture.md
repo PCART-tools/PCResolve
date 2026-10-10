@@ -245,6 +245,22 @@ across those rewrites. Unrelated negative target checks no longer consume nested
 proof entries, so some previously budget-limited unknown results can retain
 additional evidence without raising either proof limit.
 
+Parameter provenance uses a reverse signature index, preserving definition
+order and the first position of each parameter name. Definition collection
+invalidates this index; call-site evidence is read afresh. Callable-instance
+dispatch reuses static class candidates and incoming-edge buckets. Sources that
+require recursive parameter proofs and classes with inherited dispatch retain
+all `__call__` candidates. Exact target checks remain query-local; edge and
+module-binding rewrites invalidate the callable indexes.
+
+Repeated `FlowAnalyzer.analyze()` calls reuse the latest source definition,
+import, and module indexes when all source documents, the source set, and ordered
+import roots are unchanged. Each call still rereads source contents, including
+files with unchanged size and mtime. Changed, added, removed, or unreadable files
+invalidate the generation. Query summaries, contexts, budget counters, effect
+facts, and returned-object facts reset for every analysis, including cache hits.
+This reuse is local to one analyzer and adds no public session or output fields.
+
 Value flow is additionally bounded by the selected source set, call depth,
 function budget, call-context budget, supported control flow, and modeled
 effects. Boundaries are part of the result and must be inspected by consumers.

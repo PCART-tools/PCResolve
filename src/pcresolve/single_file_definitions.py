@@ -324,6 +324,7 @@ class SingleFileDefinitionMixin:
     #  @param facts Precomputed declaration facts.
     #  @return Qualified function name.
     def _enter_function_body(self, node, facts):
+        self._parameter_name_index = None
         params = list(facts.params)
         self.function_params[node.name] = params
         if self._class_stack:
@@ -457,6 +458,7 @@ class SingleFileDefinitionMixin:
         if node.args.kwarg is not None:
             self._bind_target_name(
                 kwarg_name, "local", node.args.kwarg, "parameter")
+        self._parameter_name_index = None
         self.function_params[qualname] = list(params)
         self._func_stack.append(qualname.rsplit(".", 1)[-1])
         fid = FunctionId(self.module_name or "", qualname)
