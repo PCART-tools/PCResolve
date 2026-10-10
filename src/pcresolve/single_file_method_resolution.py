@@ -5,6 +5,7 @@
 #  isolating receiver-shape and method-source policy from AST orchestration.
 
 import ast
+from .single_file_query import memoized_expression_query
 
 from .builtin_ownership import _has_builtin_shape_method
 from .ownership_contracts import (
@@ -25,6 +26,7 @@ class SingleFileMethodResolutionMixin:
     #  Handles self.method(), known_object.method(), and chained attribute calls.
     #  @param node The Call AST node.
     #  @return Method name, structured ("instance_method", ...) tuple, or None.
+    @memoized_expression_query(lambda: None)
     def _resolve_methods(self, node):
         if not isinstance(node, ast.Call):
             return None

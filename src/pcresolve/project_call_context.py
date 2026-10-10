@@ -34,7 +34,123 @@ class ProjectCallContextMixin:
                                    for qualname, summary in summaries.items())
             self._definition_index = DefinitionIndex(records)
             self._definition_index_graph = self.project_cg
+            self._edge_target_name_index = {}
+            for ordinal, record in enumerate(self._definition_index.records):
+                if record.kind != 'function':
+                    continue
+                _, class_name, name, constructor, _ = self._local_target_metadata(
+                    record.module, record.qualname)
+                callable_name = class_name if constructor else name
+                self._edge_target_name_index.setdefault(
+                    callable_name, []).append(ordinal)
         return self._definition_index
+
+    ## Collect callable spellings that the existing target matcher accepts.
+    #  @param edge Call edge with syntactic and explicit callable sources.
+    #  @return Set of terminal names; these are candidates, not target proofs.
+    def _edge_callable_names(self, edge):
+        names = set()
+        callee_name = getattr(edge, 'callee_name', '') or ''
+        if callee_name:
+            names.add(callee_name.rsplit('.', 1)[-1])
+        source = normalize_source(getattr(edge, 'callee_source', None))
+        sources = source.sources if isinstance(source, SourceSet) else (source,)
+        for item in sources:
+            item = normalize_source(item)
+            if isinstance(item, str):
+                names.add(item.rsplit('.', 1)[-1])
+        return names
+
+    ## Select possible definitions without inspecting unrelated receivers.
+    #  @param edge Call edge to resolve.
+    #  @return Definitions in their original collection order.
+    def _edge_target_candidates(self, edge):
+        index = self._get_definition_index()
+        names = self._edge_callable_names(edge)
+        # Callable instances can reach __call__ under any syntactic spelling.
+        # Keep those candidates and let the existing receiver proof decide.
+        names.add('__call__')
+        ordinals = set()
+        for name in names:
+            ordinals.update(self._edge_target_name_index.get(name, ()))
+        return tuple(index.records[ordinal] for ordinal in sorted(ordinals))
+
+    ## Update syntactic edge indexes after a callable-source rewrite.
+    #  @param edge Rewritten edge, or None to discard all indexed facts.
+    #  @return None; resolution results themselves are never cached here.
+    def _invalidate_edge_lookup(self, edge=None):
+        if (edge is None
+                or getattr(self, '_edge_lookup_graph', None) is not self.project_cg):
+            self._edge_lookup_graph = None
+            return
+        ordinal = self._edge_lookup_ordinals.get(id(edge))
+        if ordinal is None:
+            self._edge_lookup_graph = None
+            return
+        names = self._edge_lookup[1]
+        previous = self._edge_lookup_names[ordinal]
+        current = self._edge_callable_names(edge)
+        for name in previous - current:
+            names[name].discard(ordinal)
+        for name in current - previous:
+            names.setdefault(name, set()).add(ordinal)
+        self._edge_lookup_names[ordinal] = current
+
+    ## Index call spellings and source locations for the current edge facts.
+    #  @return Ordered edges, name buckets, mapping edges, and location buckets.
+    def _get_edge_lookup(self):
+        graph = self.project_cg
+        generation = tuple((module, id(cg.edges), len(cg.edges))
+                           for module, cg in graph.modules.items())
+        if (getattr(self, '_edge_lookup_graph', None) is not graph
+                or self._edge_lookup_generation != generation):
+            edges, names, mapped, sites = [], {}, [], {}
+            edge_names, ordinals = {}, {}
+            for module, cg in graph.modules.items():
+                for edge in cg.edges:
+                    ordinal = len(edges)
+                    edges.append((module, edge))
+                    ordinals[id(edge)] = ordinal
+                    edge_names[ordinal] = self._edge_callable_names(edge)
+                    for name in edge_names[ordinal]:
+                        names.setdefault(name, set()).add(ordinal)
+                    if getattr(edge, 'mapping_targets', None) is not None:
+                        mapped.append(ordinal)
+                    sites.setdefault((module, edge.call_lineno,
+                                      edge.call_col_offset), []).append(edge)
+            self._edge_lookup = (edges, names, mapped, sites)
+            self._edge_lookup_names = edge_names
+            self._edge_lookup_ordinals = ordinals
+            self._edge_lookup_graph = graph
+            self._edge_lookup_generation = generation
+        return self._edge_lookup
+
+    ## Select candidate callback-contract edges by accepted callable spellings.
+    #  @param names Terminal callable spellings accepted by the contract.
+    #  @return Ordered caller-module and edge pairs, requiring contract checks.
+    def _call_edges_named(self, *names):
+        edges, lookup, _, _ = self._get_edge_lookup()
+        ordinals = set()
+        for name in names:
+            ordinals.update(lookup.get(name, ()))
+        return tuple(edges[ordinal] for ordinal in sorted(ordinals))
+
+    ## Select possible callers of one definition, retaining exact dispatch checks.
+    #  @param module Target module.
+    #  @param scope_name Target lexical qualified name.
+    #  @return Ordered caller-module and edge pairs.
+    def _target_call_edges(self, module, scope_name):
+        edges, names, mapped, _ = self._get_edge_lookup()
+        metadata = self._local_target_metadata(module, scope_name)
+        if metadata is None:
+            return tuple(edges[ordinal] for ordinal in mapped)
+        _, class_name, name, constructor, method = metadata
+        if method and name == '__call__':
+            return tuple(edges)
+        callable_name = class_name if constructor else name
+        ordinals = set(names.get(callable_name, ()))
+        ordinals.update(mapped)
+        return tuple(edges[ordinal] for ordinal in sorted(ordinals))
 
     ## Find all project-local functions reached by one call edge.
     #
@@ -49,7 +165,7 @@ class ProjectCallContextMixin:
             return list(edge.mapping_targets)
         targets = []
         caller_tracer = tracers.get(caller_module)
-        candidates = self._get_definition_index().records_for()
+        candidates = self._edge_target_candidates(edge)
         for candidate in candidates:
             if self._edge_targets_local_function(
                     edge, caller_module, candidate.module, candidate.qualname,
@@ -162,11 +278,8 @@ class ProjectCallContextMixin:
         module_cg = self.project_cg.modules.get(caller_module)
         if module_cg is None or not call_lineno:
             return []
-        edges = [
-            edge for edge in module_cg.edges
-            if edge.call_lineno == call_lineno
-            and edge.call_col_offset == call_col_offset
-        ]
+        edges = self._get_edge_lookup()[3].get(
+            (caller_module, call_lineno, call_col_offset), ())
         if len(edges) > 1 and callee_name:
             edges = [edge for edge in edges
                      if edge.callee_name == callee_name]
@@ -753,60 +866,56 @@ class ProjectCallContextMixin:
     ## Collect the supported multiprocessing.Pool.map callback argument.
     def _collect_pool_map_arguments(self, scope_name, tracers, found, seen):
         target_name = scope_name.rsplit(".", 1)[-1]
-        cg = getattr(self, "project_cg", ProjectCallGraph())
-        for caller_module, caller_cg in cg.modules.items():
+        for caller_module, edge in self._call_edges_named('map'):
             caller_tracer = tracers.get(caller_module)
-            for edge in caller_cg.edges:
-                if not self._is_multiprocessing_map_edge(
-                        edge, caller_tracer):
-                    continue
-                callback_positions = [
-                    position for position, callback_name
-                    in getattr(edge, "callback_args", {}).items()
-                    if callback_name == target_name
-                ]
-                if len(callback_positions) != 1:
-                    continue
-                iterable_position = callback_positions[0] + 1
-                element_source = getattr(
-                    edge, "iterable_arg_sources", {}).get(
-                        "pos", {}).get(iterable_position)
-                if (element_source is None
-                        or isinstance(element_source, UnknownSource)):
-                    continue
-                key = (caller_module, edge.call_lineno,
-                       edge.call_col_offset, source_display(element_source))
-                self._append_parameter_argument(
-                    found, seen, key, caller_module, element_source)
+            if not self._is_multiprocessing_map_edge(
+                    edge, caller_tracer):
+                continue
+            callback_positions = [
+                position for position, callback_name
+                in getattr(edge, "callback_args", {}).items()
+                if callback_name == target_name
+            ]
+            if len(callback_positions) != 1:
+                continue
+            iterable_position = callback_positions[0] + 1
+            element_source = getattr(
+                edge, "iterable_arg_sources", {}).get(
+                    "pos", {}).get(iterable_position)
+            if (element_source is None
+                    or isinstance(element_source, UnknownSource)):
+                continue
+            key = (caller_module, edge.call_lineno,
+                   edge.call_col_offset, source_display(element_source))
+            self._append_parameter_argument(
+                found, seen, key, caller_module, element_source)
 
     ## Collect the supported multiprocessing.Process callback arguments.
     def _collect_process_callback_arguments(
             self, module, scope_name, param_index, tracers, found, seen):
         target_name = scope_name.rsplit(".", 1)[-1]
-        cg = getattr(self, "project_cg", ProjectCallGraph())
-        for caller_module, caller_cg in cg.modules.items():
+        for caller_module, edge in self._call_edges_named('Process'):
             caller_tracer = tracers.get(caller_module)
-            for edge in caller_cg.edges:
-                if not self._is_multiprocessing_process_edge(
-                        edge, caller_tracer):
+            if not self._is_multiprocessing_process_edge(
+                    edge, caller_tracer):
+                continue
+            for binding in getattr(edge, "callback_bindings", []):
+                if binding.get("callback") != target_name:
                     continue
-                for binding in getattr(edge, "callback_bindings", []):
-                    if binding.get("callback") != target_name:
-                        continue
-                    target_module_cg = self.project_cg.modules.get(module)
-                    if (target_module_cg is None
-                            or target_name not in target_module_cg.functions):
-                        continue
-                    callback_args = normalize_source(binding.get("args"))
-                    if not isinstance(callback_args, TupleSource):
-                        continue
-                    if param_index >= len(callback_args.items):
-                        continue
-                    arg_source = callback_args.items[param_index]
-                    key = (caller_module, edge.call_lineno,
-                           edge.call_col_offset, source_display(arg_source))
-                    self._append_parameter_argument(
-                        found, seen, key, caller_module, arg_source)
+                target_module_cg = self.project_cg.modules.get(module)
+                if (target_module_cg is None
+                        or target_name not in target_module_cg.functions):
+                    continue
+                callback_args = normalize_source(binding.get("args"))
+                if not isinstance(callback_args, TupleSource):
+                    continue
+                if param_index >= len(callback_args.items):
+                    continue
+                arg_source = callback_args.items[param_index]
+                key = (caller_module, edge.call_lineno,
+                       edge.call_col_offset, source_display(arg_source))
+                self._append_parameter_argument(
+                    found, seen, key, caller_module, arg_source)
 
     ## Collect arguments from exact project call-graph targets.
     def _collect_project_edge_arguments(
@@ -824,34 +933,33 @@ class ProjectCallContextMixin:
             target_summary = (
                 target_cg.functions.get(scope_name.rsplit(".", 1)[-1])
                 if target_cg is not None else None)
-        for caller_module, module_cg in cg.modules.items():
+        for caller_module, edge in self._target_call_edges(module, scope_name):
             caller_tracer = tracers.get(caller_module)
-            for edge in module_cg.edges:
-                if not self._edge_targets_local_function(
-                        edge, caller_module, module, scope_name,
-                        caller_tracer, tracers,
-                        allow_inherited_dispatch=True):
-                    continue
-                if (receiver_class_filter is not None
-                        and not self._edge_receiver_may_have_class(
-                            edge, caller_module, receiver_class_filter,
-                            tracers)):
-                    continue
-                edge_args = self._edge_parameter_sources(
-                    edge, target_summary, parameter, param_index,
-                    prefer_protocol_shape=prefer_protocol_shape,
-                    prefer_iterable_elements=prefer_iterable_elements)
-                if edge_args is None:
-                    continue
-                for arg_source in edge_args:
-                    key = (
-                        caller_module,
-                        edge.call_lineno,
-                        edge.call_col_offset,
-                        source_display(arg_source),
-                    )
-                    self._append_parameter_argument(
-                        found, seen, key, caller_module, arg_source)
+            if not self._edge_targets_local_function(
+                    edge, caller_module, module, scope_name,
+                    caller_tracer, tracers,
+                    allow_inherited_dispatch=True):
+                continue
+            if (receiver_class_filter is not None
+                    and not self._edge_receiver_may_have_class(
+                        edge, caller_module, receiver_class_filter,
+                        tracers)):
+                continue
+            edge_args = self._edge_parameter_sources(
+                edge, target_summary, parameter, param_index,
+                prefer_protocol_shape=prefer_protocol_shape,
+                prefer_iterable_elements=prefer_iterable_elements)
+            if edge_args is None:
+                continue
+            for arg_source in edge_args:
+                key = (
+                    caller_module,
+                    edge.call_lineno,
+                    edge.call_col_offset,
+                    source_display(arg_source),
+                )
+                self._append_parameter_argument(
+                    found, seen, key, caller_module, arg_source)
 
     ## Check the narrow standard-library callback contract supported above.
     #  @param edge Candidate call edge.

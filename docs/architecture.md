@@ -224,6 +224,24 @@ truncated candidate set. Each independent query starts a fresh budget, and each
 analysis run replaces the guard and budget state. These are internal ownership
 limits; they do not change the stable JSON schema or the value-flow budgets.
 
+Single-file method and container-shape queries reuse expression results within
+one uninterrupted lexical query. Their shared cache keys include the query,
+AST expression, and lexical scope; reentrant queries retain a conservative
+unknown result. The cache is discarded when the outer query finishes, including
+on exceptions, so later assignments, branch joins, and scope changes observe
+fresh facts. This avoids repeated expansion of unresolved method chains without
+persisting ownership evidence across visitor state changes.
+
+Project dispatch indexes retain definition and call-site collection order and
+only exclude names that the existing target matcher cannot accept. Constructors,
+explicit callable alternatives, nested functions, callable instances, and
+inherited dispatch still use the same target proofs. Reverse call lookup and
+exact source-position lookup share an edge index; callable-source rewrites
+update only the affected name buckets. Target-resolution results are not cached
+across those rewrites. Unrelated negative target checks no longer consume nested
+proof entries, so some previously budget-limited unknown results can retain
+additional evidence without raising either proof limit.
+
 Value flow is additionally bounded by the selected source set, call depth,
 function budget, call-context budget, supported control flow, and modeled
 effects. Boundaries are part of the result and must be inspected by consumers.

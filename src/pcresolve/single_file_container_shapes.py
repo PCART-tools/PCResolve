@@ -2,6 +2,7 @@
 #  Container, item, field, and Python value-shape facts for one source file.
 
 import ast
+from .single_file_query import memoized_expression_query
 
 from .builtin_ownership import _builtin_method_return_shape
 from .ownership_contracts import (
@@ -284,6 +285,7 @@ class SingleFileContainerShapeMixin:
     ## Infer a Python-provided container shape from local expression evidence.
     #  @param node Value expression.
     #  @return Pair of container kind and item kind, or empty strings.
+    @memoized_expression_query(lambda: ('', ''))
     def _expression_container_shape(self, node):
         direct_kind = _container_kind(node)
         if direct_kind is not None:
