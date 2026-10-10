@@ -235,8 +235,11 @@ persisting ownership evidence across visitor state changes.
 Project dispatch indexes retain definition and call-site collection order and
 only exclude names that the existing target matcher cannot accept. Constructors,
 explicit callable alternatives, nested functions, callable instances, and
-inherited dispatch still use the same target proofs. Reverse call lookup and
-exact source-position lookup share an edge index; callable-source rewrites
+inherited dispatch still use the same target proofs. Reverse call lookup is
+also used when reading an element of `*args` or `**kwargs` and when finding
+runtime subclasses that reach an inherited field read. These queries retain
+mapping and callable-instance candidates and still check each selected target.
+Exact source-position lookup shares the edge index; callable-source rewrites
 update only the affected name buckets. Target-resolution results are not cached
 across those rewrites. Unrelated negative target checks no longer consume nested
 proof entries, so some previously budget-limited unknown results can retain
