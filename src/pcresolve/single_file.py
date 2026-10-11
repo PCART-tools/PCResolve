@@ -32,6 +32,7 @@ from .import_facts import import_facts, resolve_relative_module
 from .scope import Scope, SCOPE_MODULE, SCOPE_CLASS
 from .sources import source_display
 from .call_graph import FunctionId, ModuleCallGraph
+from .fact_versions import FactStructure, VersionedList
 
 from .types import FileAnalysis, ApiCall
 
@@ -44,7 +45,7 @@ from .types import FileAnalysis, ApiCall
 #  - Resolve with/for return-value flows
 #  - Handle container indexing, class inheritance, method resolution
 #  - Detect and classify all API call expressions
-class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
+class SingleFileAnalyzer(FactStructure, SingleFileSourceResolutionMixin,
                          SingleFileMethodResolutionMixin,
                          SingleFileBindingResolutionMixin,
                          SingleFileParameterDependencyMixin,
@@ -56,10 +57,14 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
                          SingleFileControlFlowMixin,
                          SingleFileDefinitionMixin,
                          SingleFileContainerShapeMixin, ast.NodeVisitor):
+    _versioned_fields = {'symbol_refs': VersionedList}
     ## Initialize the analyzer with empty state.
     #  @param module_name Optional dotted module name for resolving relative imports.
     #  @param is_package Whether the file is a package __init__.py.
-    def __init__(self, module_name=None, is_package=False, file_path=""):
+    #  @param file_path Source location metadata.
+    #  @param analysis_budget Optional internal cooperative analysis budget.
+    def __init__(self, module_name=None, is_package=False, file_path="", analysis_budget=None):
+        self._analysis_budget = analysis_budget
         self.module_name = module_name
         self.is_package = is_package
         self._file_path = file_path
@@ -159,6 +164,8 @@ class SingleFileAnalyzer(SingleFileSourceResolutionMixin,
     #  Existing owner and protocol analysis remains unchanged.
     #  @param node AST node.
     def visit(self, node):
+        if self._analysis_budget is not None:
+            self._analysis_budget.checkpoint()
         if not isinstance(node, (ast.For, ast.AsyncFor, ast.While, ast.Try)):
             return super().visit(node)
         names = mapping_bound_names([node])

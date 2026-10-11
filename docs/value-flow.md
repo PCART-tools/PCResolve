@@ -1003,3 +1003,28 @@ documented string methods above. Other nonempty shape names are retained as
 provenance without changing value-flow semantics. PCResolve does not
 verify the supplied claim. Changing it requires a new analysis snapshot before
 expansion.
+
+## Source updates and resource limits
+
+The same analyzer can process edited source files. It rereads every selected
+file, reuses syntax/index facts from unchanged documents and rebuilds changed
+file facts. Semantic contexts, effects and return summaries remain query-local.
+Import-root changes, unavailable sources and changes with identical size/mtime
+are checked against the actual source version.
+
+Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
+
+```python
+from pcresolve import AnalysisLimits, AnalysisLimitExceeded, FlowAnalyzer
+
+analyzer = FlowAnalyzer(
+    project_root=root,
+    analysis_limits=AnalysisLimits(max_seconds=60, max_work=1_000_000),
+)
+```
+
+The CLI equivalents are `--max-seconds`, `--max-work` and `--max-memory-mb`.
+They are separate from `--max-functions` and `--max-call-contexts`. Crossing a
+resource limit raises `AnalysisLimitExceeded` instead of returning an incomplete
+analysis as complete. Checks are cooperative, not hard process limits. They do
+not cover serialization or later `trace_parameter()` calls on the result.

@@ -6,6 +6,7 @@ from functools import wraps
 
 from .call_graph import ProjectCallGraph
 from .source_snapshot import SourceSnapshot
+from .ast_facts import AstFactIndex
 
 
 ## Work budget shared by mutually recursive ownership proof queries.
@@ -30,6 +31,9 @@ def bounded_ownership_query(fallback):
     def decorate(query):
         @wraps(query)
         def bounded(self, *args, **kwargs):
+            resources = getattr(self, '_analysis_budget', None)
+            if resources is not None:
+                resources.checkpoint()
             budget = self._ownership_proof_budget
             if budget.depth == 0:
                 budget.queries = 0
@@ -83,6 +87,12 @@ class ProgramIndex:
 ## Mutable orchestration state owned by one ProjectAnalyzer.analyze() call.
 @dataclass
 class OwnershipRun:
+    ## Read-only AST lookup facts owned by this source generation.
+    ast_facts: AstFactIndex = field(default_factory=AstFactIndex, init=False)
+    ## Completed readonly proofs; recursive failures are never memoized.
+    readonly_proofs: set = field(default_factory=set, init=False)
+    ## Number of unmodified files whose pristine visitor facts were reused.
+    source_facts_reused: int = field(default=0, init=False)
     ## Fixed module and source inputs for the run.
     snapshot: ProjectSnapshot
     ## Tracers and project-wide indexes built from the snapshot.

@@ -2,6 +2,7 @@
 #  Owner-neutral call bindings and bounded return-dependency substitution.
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 
 
 ## Values supplied to one named parameter or lexical capture at a call site.
@@ -142,6 +143,7 @@ def select_dependencies(values, projection):
 #  @return ReturnResolution with composed paths and convergence state.
 def resolve_return_dependencies(entry_key, parameter, summaries, calls,
                                 limits=ResolutionLimits()):
+    summaries = {key: tuple(values) for key, values in summaries.items()}
     resolved = {key: [] for key in summaries}
     limited = False
 
@@ -211,18 +213,49 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
 
     status = 'bounded'
     iterations = 0
+    # A summary can read another summary through a returned call or through
+    # that call's actual arguments. Retain all such dependencies, including
+    # nested external-call bindings, without interpreting their values.
+    reverse = {key: set() for key in summaries}
+    for owner, summary in summaries.items():
+        pending, visited = list(summary), set()
+        while pending:
+            value = pending.pop()
+            if not isinstance(value, Mapping):
+                continue
+            if value.get('kind') in ('parameter', 'capture'):
+                continue
+            try:
+                call = calls.get(value.get('source'))
+            except TypeError:
+                continue
+            if call is None or call.id in visited:
+                continue
+            visited.add(call.id)
+            if call.target in reverse:
+                reverse[call.target].add(owner)
+            for binding in call.bindings:
+                pending.extend(binding.values)
+            if call.target is None:
+                pending.extend(call.return_dependencies)
+    dirty = set(summaries)
     for iteration in range(limits.max_iterations):
         iterations = iteration + 1
+        # Keep synchronous rounds, original record order and the final
+        # stabilization round so paths, limits and iteration counts agree.
         updated = {
-            key: compact(resolved[key] + sources(summary, ()))
+            key: (compact(resolved[key] + sources(summary, ()))
+                  if key in dirty else resolved[key])
             for key, summary in summaries.items()}
-        if all({dependency_key(value) for value in updated[key]} ==
-               {dependency_key(value) for value in resolved[key]}
-               for key in summaries):
+        changed = {key for key in dirty
+                   if {dependency_key(value) for value in updated[key]} !=
+                      {dependency_key(value) for value in resolved[key]}}
+        if not changed:
             resolved = updated
             status = 'bounded' if limited else 'converged'
             break
         resolved = updated
+        dirty = set().union(*(reverse[key] for key in changed))
     paths = tuple(value for value in resolved[entry_key]
                   if value['source'] == parameter
                   and value['kind'] == 'parameter')

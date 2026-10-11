@@ -75,6 +75,11 @@ printf '/path/to/project\n' | pcresolve --stdin --json-summary
   It is an alternative to the positional path; using both is an error. In
   value-flow mode it also conflicts with `--source-file`, so the selected input
   source never depends on whether stdin happens to be empty.
+- `--max-seconds`, `--max-work` and `--max-memory-mb` optionally limit one
+  ownership or value-flow analysis. Values must be positive and finite. An
+  exceeded limit exits 2 with an error on stderr and emits no result JSON.
+  Checks are cooperative; output serialization is outside the limit. These
+  options do not change semantic proof budgets or output schemas.
 
 File and directory inputs use the same ownership semantics. Given the same
 analyzed source set and module mapping root, their call classifications are
@@ -89,9 +94,9 @@ implementation owner.
 The stable entry points use these signatures:
 
 ```python
-analyze_project(project_root)
+analyze_project(project_root, analysis_limits=None, reuse_source_facts=False)
 analyze_source(source, file_path="<string>")
-ProjectAnalyzer(project_root)
+ProjectAnalyzer(project_root, analysis_limits=None, reuse_source_facts=False)
 SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
 ```
 
@@ -104,6 +109,14 @@ location metadata; it does not select or read a file from disk.
 
 PCResolve uses one lexical scope model. There is no public scope-model selector
 or `stats.scope_model` field.
+
+`AnalysisLimits(max_seconds=None, max_work=None, max_memory_mb=None)` applies
+optional resource limits; exhaustion raises `AnalysisLimitExceeded`. No partial
+`ProjectAnalysis` or `FlowAnalysis` is returned. `reuse_source_facts=True` on an
+ownership analyzer retains independent copies of pristine visitor facts for
+unchanged files across repeated runs. It is disabled by default and does not
+reuse completed cross-file semantic results. See [Architecture](architecture.md)
+for cache invalidation and resource-check details.
 
 ### Experimental value-flow contract
 

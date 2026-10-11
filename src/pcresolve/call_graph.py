@@ -8,6 +8,7 @@
 from dataclasses import dataclass, field
 from .program_facts import FunctionSignature
 from .call_resolution import CallContext
+from .fact_versions import FactStructure, VersionedDict, VersionedList
 
 
 ## Unique identifier for a function or method within the project.
@@ -75,7 +76,8 @@ class FunctionSummary:
 
 ## Per-class summary collected during single-file analysis.
 @dataclass
-class ClassSummary:
+class ClassSummary(FactStructure):
+    _versioned_fields = {'methods': VersionedDict}
     ## Unique identifier for the class.
     id: FunctionId
     ## Base class symbols (names or dotted paths).
@@ -167,7 +169,9 @@ class IterationBinding:
 
 ## Full call-graph facts for a module.
 @dataclass
-class ModuleCallGraph:
+class ModuleCallGraph(FactStructure):
+    _versioned_fields = {'functions': VersionedDict, 'classes': VersionedDict,
+                         'edges': VersionedList}
     ## Module name.
     module: str
     ## Function summaries keyed by qualname.
@@ -182,6 +186,7 @@ class ModuleCallGraph:
 
 ## Full call-graph facts for a project.
 @dataclass
-class ProjectCallGraph:
+class ProjectCallGraph(FactStructure):
+    _versioned_fields = {'modules': VersionedDict}
     ## Per-module call-graph facts.
     modules: dict = field(default_factory=dict)

@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass, field
 from .program_facts import SourceSpan
+from .fact_versions import FactStructure
 
 ## Classification reason constants.
 REASON_DIRECT_IMPORT = "DIRECT_IMPORT"
@@ -72,7 +73,12 @@ class CallSite:
 
 ## A symbol definition or reference whose origin should be tracked.
 @dataclass
-class SymbolRef:
+class SymbolRef(FactStructure):
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name in ('source', 'kind'):
+            self._notify()
+
     ## Display name, such as "df", "self.session", or "models[0]".
     symbol: str
     ## Source object currently bound to this symbol.

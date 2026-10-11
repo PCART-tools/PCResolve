@@ -131,6 +131,29 @@ flow = analyzer.analyze(
 )
 ```
 
+### Performance controls
+
+Optional resource controls apply to ownership and value-flow analysis:
+
+```bash
+pcresolve ./my_project --max-seconds 60 --max-work 1000000 --max-memory-mb 1024
+```
+
+Limits are cooperative checks during analysis; defaults are unrestricted.
+Exceeded limits produce an error without presenting a partial result as complete.
+Python callers can pass `AnalysisLimits` to either analyzer and catch
+`AnalysisLimitExceeded`. These controls do not cover output serialization or
+later queries on a returned result.
+
+For repeated ownership analysis, `ProjectAnalyzer(root, reuse_source_facts=True)`
+can reuse pristine facts from unchanged files. This optional mode copies mutable
+state for each run and still recomputes cross-file semantics. It trades additional
+memory and first-run copying for reduced visitor work; it is disabled by default.
+Flow automatically reuses unchanged file-index facts while resetting query state.
+
+Run `python scripts/perf_scalability.py --sizes 10 100 500 --repeats 3` to measure
+cold queries, unchanged queries and single-file edits on generated projects.
+
 ## Output
 
 In ownership mode, `--json` returns the stable provenance schema. With
