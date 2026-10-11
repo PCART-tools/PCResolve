@@ -384,9 +384,15 @@ Downstream tools should pair the fact with its receiver, target, arguments,
 conditions and incoming call ID, and inspect all associated boundaries. A proved
 context does not authorize treating another merged context as confirmed or
 discarding other boundaries. No compatibility/rejection/repair policy is encoded.
-The source-write scan is capped at 100,000 AST nodes and receiver/base inspection
+The source-write scan is capped at 1,000,000 AST nodes and receiver/base inspection
 at 64 classes; exhaustion reports `class_binding_budget` as an unconfirmed issue.
 The existing query/expansion budgets and recursion guards remain in effect.
+The larger finite cap accommodates full source import closures without dropping
+files or mutation checks; the write scan remains cached within each query.
+The optional pandas 2.0.0 regression uses the hash-pinned 280-file closure in
+`tests/fixtures/value_flow_classmethod_binding/pandas-2.0.0-import-closure.json`.
+Set `PCRESOLVE_PANDAS200_SOURCE` to the matching source package directory when
+running the real-source tests outside the local PCBench workspace.
 
 ### Source-proven callable arguments and literal dispatch
 

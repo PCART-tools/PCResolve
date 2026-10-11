@@ -1,0 +1,1126 @@
+{
+  "source_id": "pandas-2.0.0",
+  "entry_module": "pandas.core.indexes.datetimes",
+  "files": [
+    {
+      "path": "__init__.py",
+      "sha256": "44685f723a0c3cc7a092e1ac4241f154aef8441f5b3fc0c8e78571a53429af88"
+    },
+    {
+      "path": "_config/__init__.py",
+      "sha256": "40183eaa612a92c67b171c54595251352edfdda3fc9198114040254fc1728fa8"
+    },
+    {
+      "path": "_config/config.py",
+      "sha256": "35b7f91e41b9ea584a7923482574c39dd1c65bd9cb7472f6f83933b328a366f8"
+    },
+    {
+      "path": "_config/dates.py",
+      "sha256": "4f21a68538ab37a7f3202a27e78a0783229447e630db5a91c181e25a5571cd64"
+    },
+    {
+      "path": "_config/display.py",
+      "sha256": "948239a1a3150761981e75951b2aeb87c46f08df0c867faec7cdfb7d4b703151"
+    },
+    {
+      "path": "_config/localization.py",
+      "sha256": "ebbcfc900af62c3a447abfef08dca5f1127862913f2afc4ec7a55412ff3d9834"
+    },
+    {
+      "path": "_libs/__init__.py",
+      "sha256": "516669c9b54136815e3d17e77899aa3baded742de269536cff724527a7e960b1"
+    },
+    {
+      "path": "_libs/tslibs/__init__.py",
+      "sha256": "1ba93cb1f0b4a30346af6b6819049b8f35bd6bc0878d91eccbdf8fce0a8bd67e"
+    },
+    {
+      "path": "_testing/__init__.py",
+      "sha256": "be1ebdb369c4d619920accd5ce328a2429df16b93b77b33ed6330a53fd860251"
+    },
+    {
+      "path": "_testing/_io.py",
+      "sha256": "e3f7a68d23bbb0d7d2c43d04da3da9798a481b7d838afc381232fdd6cfcd66b6"
+    },
+    {
+      "path": "_testing/_random.py",
+      "sha256": "62018d0d4753f1bd7ad41bb0374d2710ee0a8c59b79c9abfa870c9fccdaf9435"
+    },
+    {
+      "path": "_testing/_warnings.py",
+      "sha256": "fb105ec191301d49023a98bcd2f7e469b96154d7cd0bd74c86e5ef78f6e1eef4"
+    },
+    {
+      "path": "_testing/asserters.py",
+      "sha256": "fc2c7fb9f6aad0dca7ea167dcf8cc7d7ccfbedd4f15f6d00550f7caf38f3168d"
+    },
+    {
+      "path": "_testing/compat.py",
+      "sha256": "027523787af89594cd7398b149e689081ebec32c0b6f83aa4902411bbc5573f7"
+    },
+    {
+      "path": "_testing/contexts.py",
+      "sha256": "bcdd5f835d6ab70b9fb9ef30bf46ef1b53585e04d7180115816bb2d43ce00235"
+    },
+    {
+      "path": "_typing.py",
+      "sha256": "7145656fc93c8f7ccbb95b141794077835e711a7aea023303def5febfbf0b89c"
+    },
+    {
+      "path": "_version.py",
+      "sha256": "c7f5eb704c17c9e88e2a05fa7a744bd1b36d4b8ed7599ab5ac14eb769c3e5b6f"
+    },
+    {
+      "path": "api/__init__.py",
+      "sha256": "c42202a93ec107021f3d4e3c235b5b74851d3b65d583fe1cfd4637610f2c825c"
+    },
+    {
+      "path": "api/extensions/__init__.py",
+      "sha256": "29b8ac8559a40eafc146bb6c48b5952453ed6d970dc994d3045eecccc0d571b4"
+    },
+    {
+      "path": "api/indexers/__init__.py",
+      "sha256": "37308933defe64b6cc786c9fe202a3381a2d8741ba36706533b33cb4c22d376f"
+    },
+    {
+      "path": "api/interchange/__init__.py",
+      "sha256": "c80fbc1356f41132463b6e37d71ae92caef912cdbbfe620d9a6544ce076a9c75"
+    },
+    {
+      "path": "api/types/__init__.py",
+      "sha256": "dfba9683c1a31e67ae2e8d7167a5c017ec0b889e22c3a3263ce864b0cc2e4997"
+    },
+    {
+      "path": "arrays/__init__.py",
+      "sha256": "9ea4615bcad1f1e3d481e35a9b234eeb9b5852b2b3c2e0f566085df1971fe765"
+    },
+    {
+      "path": "compat/__init__.py",
+      "sha256": "aa32c687543277f94b4e98ad50b50a73bdd34f77c938a5d2741010cb40b6a9c7"
+    },
+    {
+      "path": "compat/_constants.py",
+      "sha256": "df70234988e0355fb1e79bdbbe6bea6360a887faaa75b0efe1eb14d5557fb103"
+    },
+    {
+      "path": "compat/_optional.py",
+      "sha256": "c971b8d4674054879d8cf5427ec159641d92a19a860379e2134cb979e62d4ca3"
+    },
+    {
+      "path": "compat/compressors.py",
+      "sha256": "5725e5f5034f41347ca0e16114cb81f1e911eeef172622045f5227ea9581e7be"
+    },
+    {
+      "path": "compat/numpy/__init__.py",
+      "sha256": "1ffcb2d8258af2e70262130ee33475e900a74f57a311cd74c5194210cc8011fd"
+    },
+    {
+      "path": "compat/numpy/function.py",
+      "sha256": "690941b55fd5feb5f4366d9d355f08d98e9420959cb5b3f626b5452264f79448"
+    },
+    {
+      "path": "compat/pickle_compat.py",
+      "sha256": "4f26845da14e02a68f2a65db357bb42612a299c51b45e9606790148d3852007b"
+    },
+    {
+      "path": "compat/pyarrow.py",
+      "sha256": "55e684524c7889ac06de52409cc6a506740cada755e7e167017f6e811e20d08d"
+    },
+    {
+      "path": "core/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/_numba/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/_numba/executor.py",
+      "sha256": "6dcd3039ee77f15ebebfd85c79d4fd287c2a8f8edfc6e0c87bfcb16a22163561"
+    },
+    {
+      "path": "core/_numba/kernels/__init__.py",
+      "sha256": "b7b75cb04f8f62ea4efc52c9a1ee6b04b810624338a88994015782cfa26d5c05"
+    },
+    {
+      "path": "core/_numba/kernels/mean_.py",
+      "sha256": "22f86d4756e360c71d1be2901ebf7af1db9daf0a64f09e88df94c338fa24fafb"
+    },
+    {
+      "path": "core/_numba/kernels/min_max_.py",
+      "sha256": "a7389ee81c908bb9c36c19df7dba8a11d64367def6563a5b043b538b7ca1b30b"
+    },
+    {
+      "path": "core/_numba/kernels/shared.py",
+      "sha256": "b6c115c77f4cacde0acaff74a839f95d3cf02b56ae3c6a38fd259fce91d2f7d1"
+    },
+    {
+      "path": "core/_numba/kernels/sum_.py",
+      "sha256": "07712ca3171fe5288a221f1bf4b70dd93a8021325af8a042c8ab8faaa9c1c948"
+    },
+    {
+      "path": "core/_numba/kernels/var_.py",
+      "sha256": "40ac856d1a0b079d39ddf5283b7900b87d4a88530bc32ca39af0d3bfa17168b5"
+    },
+    {
+      "path": "core/accessor.py",
+      "sha256": "e639e46c935b0c56d49ee30bd972138be0d05218399c1ce3a203edc1a2c85253"
+    },
+    {
+      "path": "core/algorithms.py",
+      "sha256": "c39104e0805cd531d38d1e3b31be24b9c841d0b631ce696a91cfa5ff08856a69"
+    },
+    {
+      "path": "core/api.py",
+      "sha256": "320058b61349cc96de5a05a704886d7b01469eb6f34792c92279f252b429af72"
+    },
+    {
+      "path": "core/apply.py",
+      "sha256": "afb3df46f73f1557b33c5e55150ef61e68e0571dfaa05d6220ddff6c759f7edd"
+    },
+    {
+      "path": "core/array_algos/__init__.py",
+      "sha256": "08562438e3da92857b1b482dddfa09c7d2c2c5a557d41fd02ec0bdc784ad36a2"
+    },
+    {
+      "path": "core/array_algos/datetimelike_accumulations.py",
+      "sha256": "a0ab15223c9d7ff5a6804edd6b8076ed4e70bb26706457e97bfad5fac12b84a0"
+    },
+    {
+      "path": "core/array_algos/masked_accumulations.py",
+      "sha256": "aad3f070b63f84cedeae61b2f39b16e675a2a78f321a22483af4339f2f0f9dc5"
+    },
+    {
+      "path": "core/array_algos/masked_reductions.py",
+      "sha256": "b4abb85aaa3d3d836bc821bd9f66265bda1e56d0d9e986d67adfaa26af015c21"
+    },
+    {
+      "path": "core/array_algos/putmask.py",
+      "sha256": "50362b7bbe2c9e2f26abf15bc82ae2a9fc54bcb6b31e454ce425bb136cec89aa"
+    },
+    {
+      "path": "core/array_algos/quantile.py",
+      "sha256": "a797f94ae370d22a48da601ca79f887de731dac7c3f60544e8580abe74fdd4e1"
+    },
+    {
+      "path": "core/array_algos/replace.py",
+      "sha256": "677db444f6249ef29d5072bdc9d84d853dfa331d17a089374749068b2fd6798f"
+    },
+    {
+      "path": "core/array_algos/take.py",
+      "sha256": "8f9e920b6eb3810c26e3081b86ff89b6febba41c5f111b624de6d666b26678d5"
+    },
+    {
+      "path": "core/array_algos/transforms.py",
+      "sha256": "819f4af2009a7c573049d4fbdef8606820a9d91b7397c3797361f9f11f49bdb8"
+    },
+    {
+      "path": "core/arraylike.py",
+      "sha256": "3c28eacf2a88d6c847eef100952b7f9a166cc19bd3956bf73c83278a1e9832b8"
+    },
+    {
+      "path": "core/arrays/__init__.py",
+      "sha256": "c369e06ef1697b250e86e3475d97b9fa32c4e9f94d7744afc8cc0bdf6bdfd66c"
+    },
+    {
+      "path": "core/arrays/_mixins.py",
+      "sha256": "99f0367fa719801dd1dcead5e9b4dbed5a911f2e2c26ec7dd0cb44797b2d5f24"
+    },
+    {
+      "path": "core/arrays/_ranges.py",
+      "sha256": "1f6c3c02f9d7b5e62bac3995aaa99de775fe558a097b601094085ef2ef9f4410"
+    },
+    {
+      "path": "core/arrays/arrow/__init__.py",
+      "sha256": "09dc016d96c90e80f5ffe02845b036f8a733e516e97d7a28b8be27513f05bddd"
+    },
+    {
+      "path": "core/arrays/arrow/_arrow_utils.py",
+      "sha256": "fa3f6a42cad32e5fd3428c87975b5b5b4736ce73e3fd06d5a7ffa08b15c25a18"
+    },
+    {
+      "path": "core/arrays/arrow/array.py",
+      "sha256": "043e8dc0bf49fc5c486c59486a508f9482e3a66bf68d3e8935c90cefdf2d0745"
+    },
+    {
+      "path": "core/arrays/arrow/dtype.py",
+      "sha256": "0dd7b5f531fba39d4ae9268ed77a662dbb3d9fb5fd9212bd6cc07c41e54c3131"
+    },
+    {
+      "path": "core/arrays/arrow/extension_types.py",
+      "sha256": "722d445dda988fd7fbc0d47c3e4c939be63bb0d87811505a44008f07c7aeced5"
+    },
+    {
+      "path": "core/arrays/base.py",
+      "sha256": "9baba919bd00dccf8259983d153d814a4be9732d62174cfdd3a59d4122edec5a"
+    },
+    {
+      "path": "core/arrays/boolean.py",
+      "sha256": "ef412539b0b4b7856b7957c4779f396867643fd3b6e0e267a6a988ea781bd10f"
+    },
+    {
+      "path": "core/arrays/categorical.py",
+      "sha256": "d9565952c22fdc90857bd74ffc2060fcfe997fcebbb200ce3b7a4e789845b2c0"
+    },
+    {
+      "path": "core/arrays/datetimelike.py",
+      "sha256": "f0e0c2b816eaf27145fb918f123190580995b2cf39f98f8ec1d3861f4c838ef6"
+    },
+    {
+      "path": "core/arrays/datetimes.py",
+      "sha256": "c5f0ae24ce3d18f0c20860c1987df23e29231b766aa4811f8e4232f37de12b5f"
+    },
+    {
+      "path": "core/arrays/floating.py",
+      "sha256": "7b387aa23b0e32f0c797ba3808ed1102b67e93cd71f27239ff1fbb30c904d17d"
+    },
+    {
+      "path": "core/arrays/integer.py",
+      "sha256": "1fb8407198de9525617eeb39817a523f4d3e276d3b0f366a6abed8a7f09751fb"
+    },
+    {
+      "path": "core/arrays/interval.py",
+      "sha256": "490caaa2f76a5830b90b1bb986d2cd6f598184a1400789c934f608acff5c3ef8"
+    },
+    {
+      "path": "core/arrays/masked.py",
+      "sha256": "cb8e1296d0e4ff0399b5c2b82dd3ca627aa0dc06c2c81d1d6b477be1ca8f2481"
+    },
+    {
+      "path": "core/arrays/numeric.py",
+      "sha256": "2b53c1b70a142a6f2c4cb0e02d171c2e62eae1b9960d969c8fff4878f26f5fba"
+    },
+    {
+      "path": "core/arrays/numpy_.py",
+      "sha256": "92132e025a6704c48c8af2046639961205fcb7a3918e4ae7f1a8aa185929ae18"
+    },
+    {
+      "path": "core/arrays/period.py",
+      "sha256": "1af85dee593fcfe06f86f88bcd88a1f94446df91692b9df63ea607428e6bc5ca"
+    },
+    {
+      "path": "core/arrays/sparse/__init__.py",
+      "sha256": "ab6e2b65f70a4a6a5d62d6405cc171db134e400defd1f7f2c86e51aed11a8181"
+    },
+    {
+      "path": "core/arrays/sparse/accessor.py",
+      "sha256": "a8fb20d2ddf9ad926c84378793fe3893e2887e46749af37dd640cd6f91f7ad6b"
+    },
+    {
+      "path": "core/arrays/sparse/array.py",
+      "sha256": "471bf1e4951c21dd3ed17d18ad9932607f831595371f91f8cd5ff49c7ee08bfe"
+    },
+    {
+      "path": "core/arrays/sparse/dtype.py",
+      "sha256": "1567ae53f3e745861505a735379f6545034d129e702075f113e86ce2cd1d57ae"
+    },
+    {
+      "path": "core/arrays/sparse/scipy_sparse.py",
+      "sha256": "5dc296e13b10f8c973471f847cef9c7a0f828b061cd5bf2f073588f6a3d1dbf8"
+    },
+    {
+      "path": "core/arrays/string_.py",
+      "sha256": "fa8d62c0164d92967d6300083ef5c8da34ef28071f2b7df3286b483912a22a5a"
+    },
+    {
+      "path": "core/arrays/string_arrow.py",
+      "sha256": "36eb680787eeb954300f3f54803912ecd1685741b4ff2d02ccdcf65422527167"
+    },
+    {
+      "path": "core/arrays/timedeltas.py",
+      "sha256": "7e1d499d7458e9bc8ba11666f51cb9d5d6206945eee70e7aa6f596320af323f6"
+    },
+    {
+      "path": "core/base.py",
+      "sha256": "c13635c3d7cb06be47c4e0de61231ac85162ddd98eddd08bf8252407aef83153"
+    },
+    {
+      "path": "core/common.py",
+      "sha256": "a09eaf41844fe2bf1453a1a16221198f6d3d9d828cdeefa77042d40617bff47f"
+    },
+    {
+      "path": "core/computation/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/computation/align.py",
+      "sha256": "359e0c621c245cce20a5f46b74ad821249ef427c9ae3e7b02b3e3850b449b857"
+    },
+    {
+      "path": "core/computation/api.py",
+      "sha256": "255129bc4f6007b5b1244a46f8a272e71f3e30e47162c40d4344db9c00c42ce8"
+    },
+    {
+      "path": "core/computation/check.py",
+      "sha256": "6b08a14cb34c7a510ab0d428d3b21971599b43f1ca757b4e6505fdd64982ce8d"
+    },
+    {
+      "path": "core/computation/common.py",
+      "sha256": "4f73c3754295d7133182d65bec68b406c0226b17bcaf82b90b2a569dc2306b28"
+    },
+    {
+      "path": "core/computation/engines.py",
+      "sha256": "5c7251965252c5f72c16cd0169e6b29e82b05fa24a7c45231201f50f9991b49a"
+    },
+    {
+      "path": "core/computation/eval.py",
+      "sha256": "3036744d1db0266381686a25e1fe82b22a3517f106a528710dfba9f77de6d9f4"
+    },
+    {
+      "path": "core/computation/expr.py",
+      "sha256": "11590779d44c69b09a93ee25563ecfbb33d2b6b5cd87484ff68dd03ae3f72e19"
+    },
+    {
+      "path": "core/computation/expressions.py",
+      "sha256": "d4b87cf2bcc3c5a9c3795f488e15900ebc59242481f056d4f602f44aa7637bba"
+    },
+    {
+      "path": "core/computation/ops.py",
+      "sha256": "7f4b0ca44dd68fd2743fe838251ea13bc16795d7f1603224ee509a42ad1b5613"
+    },
+    {
+      "path": "core/computation/parsing.py",
+      "sha256": "60c6707fc9fd1ac6586e7f9aeaf3c459c65f48ebab706685adaa82ae0eea6c35"
+    },
+    {
+      "path": "core/computation/pytables.py",
+      "sha256": "698e93d57779d338125fc29778498af1b82997fc41f61d8535f6c6f099a88290"
+    },
+    {
+      "path": "core/computation/scope.py",
+      "sha256": "6c7d3037d9ee4df70bc085176348e5397d0508c003e1480b39b6fecc9049fde5"
+    },
+    {
+      "path": "core/config_init.py",
+      "sha256": "dd40c8b31e858d5922608299eea6d351d39ed5682a08a3a8b6f7fc7c6e70f19d"
+    },
+    {
+      "path": "core/construction.py",
+      "sha256": "0ba08126958717dcce70a9fc60d11d96d555fe21007ac2f96aa427a228b52114"
+    },
+    {
+      "path": "core/dtypes/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/dtypes/api.py",
+      "sha256": "e62ffdf3bdaac4d8e6a4a198bf46a441d3266434d8d90120d440906fe459824c"
+    },
+    {
+      "path": "core/dtypes/astype.py",
+      "sha256": "a220c8bd8888e9cc72995d4083e07b8bcc74788c96825c2b197591f72690c7c3"
+    },
+    {
+      "path": "core/dtypes/base.py",
+      "sha256": "7d51da8fbf866956783ee7f482d00ce12ce9cfebb9ea61f04471a08fdc908b63"
+    },
+    {
+      "path": "core/dtypes/cast.py",
+      "sha256": "cd578b051215e27b30e03e4e272efeaeaed069cbbacdf881848f456e8882594d"
+    },
+    {
+      "path": "core/dtypes/common.py",
+      "sha256": "cb047188fd68d9a335f85aef385170882840f44f3be0acbaa2048ee0a3670173"
+    },
+    {
+      "path": "core/dtypes/concat.py",
+      "sha256": "a8a8a1f095a36deffb17634a190301a01e8fafac28e31d390b28e9c8e8aaa236"
+    },
+    {
+      "path": "core/dtypes/dtypes.py",
+      "sha256": "5642d26a6f95477e8833c2b8bb9b426c2dcb86ffaceccd75097f21ad11224447"
+    },
+    {
+      "path": "core/dtypes/generic.py",
+      "sha256": "091e6165859e24078ab226307c34abec6414748fd29c4fe67dac8c2cce41fc0a"
+    },
+    {
+      "path": "core/dtypes/inference.py",
+      "sha256": "934dd1b2ef7e739e1e05dc22aceb9e50a73eda5881348bbeab05aa49c850bbe8"
+    },
+    {
+      "path": "core/dtypes/missing.py",
+      "sha256": "51eb983054812b4a3cbcbce6060c8c5f7a59394b63087b2d1a9455a2e2aed127"
+    },
+    {
+      "path": "core/flags.py",
+      "sha256": "a417323df6c3a129c5d80c3f481decaab9e0647858f451fc7ebb14fd9b35c889"
+    },
+    {
+      "path": "core/frame.py",
+      "sha256": "6c241314f1fea9bccc27d4d1ed6083f883f518c12a2d7d5577593fca6c79dc49"
+    },
+    {
+      "path": "core/generic.py",
+      "sha256": "8894150250c2f914b510009f0fb91be0e98cec1c6c64ed53bb1c20f677be64de"
+    },
+    {
+      "path": "core/groupby/__init__.py",
+      "sha256": "9a9fb0faa17759d776e69b1369985082cd57c7053515267e37eb10af69c60dae"
+    },
+    {
+      "path": "core/groupby/base.py",
+      "sha256": "37c6ca7f63521d00fa1ac3327bd0017de5d3aea7c77117372ae99337ec6e4af6"
+    },
+    {
+      "path": "core/groupby/categorical.py",
+      "sha256": "8ecab590b0f310ba3357ff6a1ff5f745bc0b4fd7a95b099f04735238fec4e196"
+    },
+    {
+      "path": "core/groupby/generic.py",
+      "sha256": "7e06bf1159bd21b5d738f495715b2d5840fbc0a24501e4cb224a563c8628e3be"
+    },
+    {
+      "path": "core/groupby/groupby.py",
+      "sha256": "56848509794a013465f735716eb49e6095027f205dfec2af8fdda4a1611626bb"
+    },
+    {
+      "path": "core/groupby/grouper.py",
+      "sha256": "e9a32878f55b7e28a73bcc1e4997d8ae79a196d73fed3a9dd9ef3dd7cbefabc5"
+    },
+    {
+      "path": "core/groupby/indexing.py",
+      "sha256": "edbf12f40fb70ebe342cee3221368544228577b80db42f93560d7179f324af5c"
+    },
+    {
+      "path": "core/groupby/numba_.py",
+      "sha256": "cee7925d14acc1cd740230fe5894df9bef1dfa113ba8320db96ea4b11ede2fb0"
+    },
+    {
+      "path": "core/groupby/ops.py",
+      "sha256": "7bf45493bc9dd5c4be05994f283ebb969fa4a59971b52baed9884bcf2c918b82"
+    },
+    {
+      "path": "core/indexers/__init__.py",
+      "sha256": "c03324283c1e820435aef98646255b91f106101727d0d3eb60eaf7bf51c204de"
+    },
+    {
+      "path": "core/indexers/objects.py",
+      "sha256": "39e2e24be55f04a49400f259f3dd5ca195f86f950fb7db5d8fb83ebbde79f411"
+    },
+    {
+      "path": "core/indexers/utils.py",
+      "sha256": "02b41cadc52f750ca5fac988b9af872161c5b4ae8bdfc71a9c98f0c47d4d6883"
+    },
+    {
+      "path": "core/indexes/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/indexes/accessors.py",
+      "sha256": "d2af9559f109b30f442f5ed76a0f500b8ac6feac16be093a4174d6495b02b6b5"
+    },
+    {
+      "path": "core/indexes/api.py",
+      "sha256": "2204885060bb18da62762acd384c064b8f39bfde58299a4451615b4aff745723"
+    },
+    {
+      "path": "core/indexes/base.py",
+      "sha256": "91c8cb4bcfabe76bb24165f023ae0f87a8f9d308ffea38d2172f27fbfacf3513"
+    },
+    {
+      "path": "core/indexes/category.py",
+      "sha256": "13c827fbe808b2f03fdb96bfdd92c32f1249db5801166016fe9e2ad970823924"
+    },
+    {
+      "path": "core/indexes/datetimelike.py",
+      "sha256": "967749b81aaf1e187ddbcdf024cc077be462db93b36f0cc27e7d363fb3386181"
+    },
+    {
+      "path": "core/indexes/datetimes.py",
+      "sha256": "5dbd03612ee5e7d5e92725cd87311e10e3a37c793edc70f36f327a371ca203dd"
+    },
+    {
+      "path": "core/indexes/extension.py",
+      "sha256": "05ff25eef3ca038e3a203929d3614f31f83464cc537e3d686dc43a81357d313e"
+    },
+    {
+      "path": "core/indexes/frozen.py",
+      "sha256": "04cf0da0b16968e2d2e4ae8dbf89f0b867ce450689310d7925b33edd71328d21"
+    },
+    {
+      "path": "core/indexes/interval.py",
+      "sha256": "656b6721c758bab91e691c38a11ebbb48e0de1368b83054a7e4a6e0f367fc439"
+    },
+    {
+      "path": "core/indexes/multi.py",
+      "sha256": "785a8a28dcaed384aa24c41371d06bbe2b50bbccf9aa80d940d8e78783fdf953"
+    },
+    {
+      "path": "core/indexes/period.py",
+      "sha256": "cc68335ac49a5f866131acc94652f5c0d7eb995d643b7841504877ce47eb2d5a"
+    },
+    {
+      "path": "core/indexes/range.py",
+      "sha256": "a06591bb1f12e62fb5f50821a26193515001370695bceaa1a1cec7f9855b0163"
+    },
+    {
+      "path": "core/indexes/timedeltas.py",
+      "sha256": "3099c933634ba2825f58ecda955091907c74d44bf69b14f17b04a3875e08d934"
+    },
+    {
+      "path": "core/indexing.py",
+      "sha256": "4e31cdd1eb9c03ab5b9fc9caa2ac4605a61442216efad1f9ab7627ad87330901"
+    },
+    {
+      "path": "core/interchange/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/interchange/buffer.py",
+      "sha256": "173fdf97052a2ac7c7481a7e9b3d3c7cb00cfc0db8cac63d87420ce47438ff4b"
+    },
+    {
+      "path": "core/interchange/column.py",
+      "sha256": "ffba4a87d0d1aaed60bf641a22f223e6d685825c1bfb4805a407278944dc2eec"
+    },
+    {
+      "path": "core/interchange/dataframe.py",
+      "sha256": "46c1220d935111d18ad4368d8d3e8e41daea707a48d95344ecc69d6076be078e"
+    },
+    {
+      "path": "core/interchange/dataframe_protocol.py",
+      "sha256": "51832c0148633ed571c2782ad125733929c3e1f2d747167140e21b60d193be7f"
+    },
+    {
+      "path": "core/interchange/from_dataframe.py",
+      "sha256": "557c1535187c1f260c36139ee6735c1503fc97e45cd3aa607a3bb06acf9656dd"
+    },
+    {
+      "path": "core/interchange/utils.py",
+      "sha256": "ed37f6002bd9acb117f8a87b709209e0d0ec9fdcd09e15c58be07134f5b09b37"
+    },
+    {
+      "path": "core/internals/__init__.py",
+      "sha256": "0e7553ba0a3ae24b3d99be7606a38c0f41a260d015b4aa77ce0a951d0cf54e11"
+    },
+    {
+      "path": "core/internals/api.py",
+      "sha256": "d97223c7258d463e81271bb31064537735df0df2fe5321be7c6f1db04bd5ae39"
+    },
+    {
+      "path": "core/internals/array_manager.py",
+      "sha256": "de5036dd097afc94025fdbc4ac1739938db34e6ec889ed7f476228e8f7eade82"
+    },
+    {
+      "path": "core/internals/base.py",
+      "sha256": "6577a2a44d4e5ef544da7cec16776a23ccf7c6368448b83718278cabebf99133"
+    },
+    {
+      "path": "core/internals/blocks.py",
+      "sha256": "e4bdc31c08d73571602ccd5b66205fc30ebacf4a4ed5d4c4469cc99507f65a0b"
+    },
+    {
+      "path": "core/internals/concat.py",
+      "sha256": "7ef116cd0c94e8b70ad7c83dd2840014ad4fa69c48fdef5bf4e6ee3c36620878"
+    },
+    {
+      "path": "core/internals/construction.py",
+      "sha256": "861a18918694720653459e48575ea62edbd90e85efb9cdc0e67ce3e492bd753c"
+    },
+    {
+      "path": "core/internals/managers.py",
+      "sha256": "2e27fc5d377fe94bf95ddd1c5f68f4b6ebe705a1c2371e9bc0e651f3680df2a5"
+    },
+    {
+      "path": "core/internals/ops.py",
+      "sha256": "dcfca29da25c9e1cb1137358f42d11fcc3e054f4dcb60f7114584184204275a0"
+    },
+    {
+      "path": "core/methods/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/methods/describe.py",
+      "sha256": "1ae5153acf2b41c84823a652bb983c9a9d819875ff70c3400ca459ea6337553d"
+    },
+    {
+      "path": "core/methods/selectn.py",
+      "sha256": "5740f37cec72ee8a9a8c886f61238f849a488aff642c89e9922fefa2d8c4834f"
+    },
+    {
+      "path": "core/methods/to_dict.py",
+      "sha256": "914f2d515022f6b5bf5dc95858e780d1dccfb9f7f89932665e40addaae625494"
+    },
+    {
+      "path": "core/missing.py",
+      "sha256": "62f50c28dc6fa9ce35b8a01dffa84d867d36e277f9d21286df4cfc5c4052db23"
+    },
+    {
+      "path": "core/nanops.py",
+      "sha256": "a73596d5df04bc296ec9b280153728c084754a3f523cab7ac785b1e4cbf40311"
+    },
+    {
+      "path": "core/ops/__init__.py",
+      "sha256": "4c9d88f9264d7be42cd25585aa39b130893fe9d10ea1ad807e54a54317033d6e"
+    },
+    {
+      "path": "core/ops/array_ops.py",
+      "sha256": "1035146eb776ba0230e9d7e7391cf09e69fa6fcda56e28e2c7d7c7f3a8fbf85a"
+    },
+    {
+      "path": "core/ops/common.py",
+      "sha256": "6e83a121673d5ae3566dabd741c80eb1ff120f1c2699942c3c28a639c7a3aa09"
+    },
+    {
+      "path": "core/ops/dispatch.py",
+      "sha256": "fb40696b9be20371717105acc71c790ff5d028bde33f4f8cb98af297326ecc22"
+    },
+    {
+      "path": "core/ops/docstrings.py",
+      "sha256": "517cdcc3887785bbbe621ab1a3f9fd72ae12ff7c6463b2f11daaba2800a422d0"
+    },
+    {
+      "path": "core/ops/invalid.py",
+      "sha256": "c1b2cf463cda6acfe7102bbffef71ca2f5df05d01cfa2c02ff14817e7d385ab2"
+    },
+    {
+      "path": "core/ops/mask_ops.py",
+      "sha256": "3cdbd1bca20740cd69040ceba922ea3796fff0d2773953a8708de23d31bcffca"
+    },
+    {
+      "path": "core/ops/methods.py",
+      "sha256": "d42e48040efcfd2ae35befa30ef7f259fed1b5c1c1c77e4145e015ca2bce8a77"
+    },
+    {
+      "path": "core/ops/missing.py",
+      "sha256": "b14a7e575b197577a1280c932442881b110654ee8c648fbef6446acb78f0daae"
+    },
+    {
+      "path": "core/resample.py",
+      "sha256": "abaabd6a988bff519884be9cd9255eec3f1d072c689e706efc8c99a21746fddb"
+    },
+    {
+      "path": "core/reshape/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/reshape/api.py",
+      "sha256": "2658949d3f323883e5093564a9810953f27ef05c832a88c62ae572dbcb262810"
+    },
+    {
+      "path": "core/reshape/concat.py",
+      "sha256": "6e3a5ff2db5ddc91af9aae9366906566b85fa9dacf43aa118823a25ffc45ddcb"
+    },
+    {
+      "path": "core/reshape/encoding.py",
+      "sha256": "fade71e15bcfb677565da5122c298b711c5242878076b7bbbe4125a0c0fa0c70"
+    },
+    {
+      "path": "core/reshape/melt.py",
+      "sha256": "67911cb7e0450e7a34fc52412fb4635a6cd1e5659a6e043d6ba137b18a901c12"
+    },
+    {
+      "path": "core/reshape/merge.py",
+      "sha256": "2001b43d22e02f3ac4ce18bbd09cca5574a35b8ec5c02beccf4e9f2b98ca9ac4"
+    },
+    {
+      "path": "core/reshape/pivot.py",
+      "sha256": "30997825cd6fa81d892ee6ef33a3ec1a22101558ca1c5b4248697ed73063cbcd"
+    },
+    {
+      "path": "core/reshape/reshape.py",
+      "sha256": "4c720f71ca57ec5cbb0d2e3ec29c020346c2916e62527762ca1b8648b95bcbdc"
+    },
+    {
+      "path": "core/reshape/tile.py",
+      "sha256": "c5a7e4cf053d5d20dd5abd0c4e5e66647dacd9f86decac43fc9862e9418f86af"
+    },
+    {
+      "path": "core/reshape/util.py",
+      "sha256": "c922f83c6cd6dbf99b7b7062c53f8f0553251f654f52acd38d1cbbfaf1cc24d0"
+    },
+    {
+      "path": "core/roperator.py",
+      "sha256": "e6f7bb4b38b5e4819954dcb90f9f064866b4e91c22be07ab54a5c2ef2d46cf5a"
+    },
+    {
+      "path": "core/sample.py",
+      "sha256": "833339f83da6ea1ab0da924a65ffa237c029aef5b1aaabeca1171ac64d3743e5"
+    },
+    {
+      "path": "core/series.py",
+      "sha256": "6df491240f6f6bdf4cb786a7d8d5b558f7a8769f2256b7b117448a801d92d8d0"
+    },
+    {
+      "path": "core/shared_docs.py",
+      "sha256": "01f84637c0730d5fa818373e0c8f4632f20c1477ed0ada4d8af664935c56d23d"
+    },
+    {
+      "path": "core/sorting.py",
+      "sha256": "5e42cf457a987243be1b5948258125c91e5d1d0b6c6f3e233978fe4ae34dea2c"
+    },
+    {
+      "path": "core/strings/__init__.py",
+      "sha256": "f77e38ca73d55ca7d906611e4a500ed9e6d2a8b1e61bf487f4c09eb1696c1842"
+    },
+    {
+      "path": "core/strings/accessor.py",
+      "sha256": "d83c9dfd351c7288370623b6b29e0bb3c887e3232a8bbd45da53b4ce2da5cb52"
+    },
+    {
+      "path": "core/strings/base.py",
+      "sha256": "60078dca7ee07b54338609df8b27cf9ab1bf7cb02e2267cff9a7590b2241fb00"
+    },
+    {
+      "path": "core/strings/object_array.py",
+      "sha256": "1f955d623e02138b4cf0258d5dd3541e86e139da0e3a8450fc0a89ee3bbf6b65"
+    },
+    {
+      "path": "core/tools/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/tools/datetimes.py",
+      "sha256": "9359f39b6b56491fb55d694ac5ce7c6b987925e0818eeb4eca47a9f6809488ad"
+    },
+    {
+      "path": "core/tools/numeric.py",
+      "sha256": "ceed756252230842b318e820cb2c183c7dd885cefcaeabcce36926701bd5031d"
+    },
+    {
+      "path": "core/tools/timedeltas.py",
+      "sha256": "7b3e2fe7a9e3f88c33f78f690e1b0ee267c44de29498979033a720f8479f7331"
+    },
+    {
+      "path": "core/tools/times.py",
+      "sha256": "1cfe421e01ef5a5ee1560e70c7906cc28c57919e216ef80f3081be7de7a3d392"
+    },
+    {
+      "path": "core/util/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "core/util/hashing.py",
+      "sha256": "cd98af71402920fb92bcdf701409d20e520c283e693ff9971433db5dbbc27908"
+    },
+    {
+      "path": "core/util/numba_.py",
+      "sha256": "532df046c7f6c479a7ad55de9607a5028929a9f3bc48ecd559bd85b37aac41c4"
+    },
+    {
+      "path": "core/window/__init__.py",
+      "sha256": "0a4da52d132a0f69a312d3128b1fb23f4a9623f8af84d49266a7681f15ed913d"
+    },
+    {
+      "path": "core/window/common.py",
+      "sha256": "dc5e6d36c959ab9ad42c49c5341b14dc9a4f1de01b194cd9924e6a78fa8e8e92"
+    },
+    {
+      "path": "core/window/doc.py",
+      "sha256": "ad9ab75a0c0f32fe7eac2f0be9ed4bed87614deb95a115f42fad2eb2827cec16"
+    },
+    {
+      "path": "core/window/ewm.py",
+      "sha256": "bb9d83624e3149c1c6539215d1124d9d509eadbe9e1c63294947d2e194399cbc"
+    },
+    {
+      "path": "core/window/expanding.py",
+      "sha256": "da4f10885b664afec7c00c3babe8c11a87d83fc0980efec3d02f6098fad438a7"
+    },
+    {
+      "path": "core/window/numba_.py",
+      "sha256": "6f9a6f87ce6c83f5202d991a07dcd188ee58ed3824af3297dc16cf7861f86761"
+    },
+    {
+      "path": "core/window/online.py",
+      "sha256": "bd12774edcc9147b5bd5dec1f0b5a642a14a96cc66c98cb14845829417e6658c"
+    },
+    {
+      "path": "core/window/rolling.py",
+      "sha256": "61fcd208e716fa57c28d1f105503e152ca72902cf691fb1964030ebef716ba1c"
+    },
+    {
+      "path": "errors/__init__.py",
+      "sha256": "c48aaebd198e3fb0433d1b67e4065fa13d2766abcee287fd3fe0e95ed4f0c6f8"
+    },
+    {
+      "path": "io/__init__.py",
+      "sha256": "96ec5a16da52430184dbff747c4be8ea01db941f54bcca3199be61450b97654b"
+    },
+    {
+      "path": "io/_util.py",
+      "sha256": "4600ce30396c296fae3754b53f70ab7b7f9c29aa081019d0d88f392582233129"
+    },
+    {
+      "path": "io/api.py",
+      "sha256": "3493e30fa6d782225e51c1e61aab405cbe72d8ee495264b3b72cfde3cd220880"
+    },
+    {
+      "path": "io/clipboard/__init__.py",
+      "sha256": "508f5b2a892b081e66772207a02b1445294e33fda238e1c056e1f0d3aa4a1a1a"
+    },
+    {
+      "path": "io/clipboards.py",
+      "sha256": "ba125e19a23f243ca5dbc3dbf14300dc0990903fb355e70cb06996fe9f66297e"
+    },
+    {
+      "path": "io/common.py",
+      "sha256": "d946c5e43bfa5919664fea2a4f07f3d4c89c0b9b3284b5b580724b8e45970452"
+    },
+    {
+      "path": "io/excel/__init__.py",
+      "sha256": "5c91075094d9d20df6d73f6f6788d664cd844e5e386c0f181bd9ea5f2c76015d"
+    },
+    {
+      "path": "io/excel/_base.py",
+      "sha256": "1a6a8b19f6f32767148f06ac28cca078cbf01c75f5ef79f2b03f175d058cab23"
+    },
+    {
+      "path": "io/excel/_odfreader.py",
+      "sha256": "491d7f2bf03890b3cedb69c7d5dcbf4190aed3a8ed559df5d7e6dad658a1c218"
+    },
+    {
+      "path": "io/excel/_odswriter.py",
+      "sha256": "cd0c8fc5586994beb4ad4803200e81104045d267b9e4938b6dda111b779f14aa"
+    },
+    {
+      "path": "io/excel/_openpyxl.py",
+      "sha256": "86426e70c9e2e4696e9dc83ab846c2d9a6eb239f421363c5e4f2058a5467094b"
+    },
+    {
+      "path": "io/excel/_pyxlsb.py",
+      "sha256": "96f71fb308af846936dbe80e23a6f736df4b5b72463b0adeedf7eb04142679d9"
+    },
+    {
+      "path": "io/excel/_util.py",
+      "sha256": "f246b47ec3a537beb5041630d04d857f35b253e03694e84fbb686fb551e71690"
+    },
+    {
+      "path": "io/excel/_xlrd.py",
+      "sha256": "5464ad695563c7ffff2f8c21c97612064b790130bb4ec09eef9ed7cf215b439e"
+    },
+    {
+      "path": "io/excel/_xlsxwriter.py",
+      "sha256": "7f6d4894cd62c1f0b006af9f869a3d92fc17e0e5f9ffdf271922438dbd8f5d53"
+    },
+    {
+      "path": "io/feather_format.py",
+      "sha256": "a643c71fbaaa97826edd1662d99c27586c98fabf7ff304863af553a09e5197e0"
+    },
+    {
+      "path": "io/formats/__init__.py",
+      "sha256": "e5f8ed682a08793d9fcee5e8d00c74e8402f973e736b6184198d436f0ea7bebe"
+    },
+    {
+      "path": "io/formats/_color_data.py",
+      "sha256": "eda6c7b5eb4182fc20b1c251ce4d5c42b92a43954e5a72956efb1739a10b9365"
+    },
+    {
+      "path": "io/formats/console.py",
+      "sha256": "417a38e209b16f4e0f733980052b419cc9e6fe43bf32abda248ba5a299e2f8cd"
+    },
+    {
+      "path": "io/formats/css.py",
+      "sha256": "f4974c7ad4314d2569a0d57d2eda521eadc5d7ac803511e0d4b99028e2417366"
+    },
+    {
+      "path": "io/formats/csvs.py",
+      "sha256": "1f7a788d8ea1d9441286c65cff9ba4df91c679d89ab1ddd3c52aa938677bb05e"
+    },
+    {
+      "path": "io/formats/excel.py",
+      "sha256": "be98d3cc7811c113d54ae1e5b9b4665e9648e51655b5ebd6d80b32f0df5330b3"
+    },
+    {
+      "path": "io/formats/format.py",
+      "sha256": "74198bdbbf36baf9198a2a7a5cf3a25d368e66a5e0c3e757a7396822bc9c5133"
+    },
+    {
+      "path": "io/formats/html.py",
+      "sha256": "823720f1144e7d113f65c4376a8a05ef59a7d21d6235333fbba448680a0057d1"
+    },
+    {
+      "path": "io/formats/info.py",
+      "sha256": "b18e19e6fc80f60b2b2df0fd6e6f83c9862ce7aed6e01c55873a17e3c6e7f456"
+    },
+    {
+      "path": "io/formats/latex.py",
+      "sha256": "d99016bc63d50186f816ef5d3649baada9941a4dc641fc34ca7c0a53a15a50b8"
+    },
+    {
+      "path": "io/formats/printing.py",
+      "sha256": "2532d2b37b36f1b2f71c488ad0ae17db8de1a70ff1f177e7ed65af3c43326af6"
+    },
+    {
+      "path": "io/formats/string.py",
+      "sha256": "5b26036e8cabf6598740128b1074ee07e4eec5e515d0ed93a51b3c7e2a4bff44"
+    },
+    {
+      "path": "io/formats/style.py",
+      "sha256": "5ad49478a7f7db78c452b728c87f5763f75a299eaddf864024390634c8e2c290"
+    },
+    {
+      "path": "io/formats/style_render.py",
+      "sha256": "c13871c402b908738f1e4f106ba4cf7201f79f370e0368ce63cc9d80f01006fb"
+    },
+    {
+      "path": "io/formats/xml.py",
+      "sha256": "edb0eb466fe78123eae7e4931e8d39c521dbf064477e82d15a95758324547fbd"
+    },
+    {
+      "path": "io/gbq.py",
+      "sha256": "5c13dc94f8fd1cc3b30ef903fc79722dc3dec78d3d60611e7cc0cac3a393899e"
+    },
+    {
+      "path": "io/html.py",
+      "sha256": "b3ed54ab208a5635d5892d3a41999fcbe1b4d7f0327b36759b262d1e1704f422"
+    },
+    {
+      "path": "io/json/__init__.py",
+      "sha256": "9c5efa989027c1a76ec85ac9763aebc863d77e6c64e8da919535d27ff7efb632"
+    },
+    {
+      "path": "io/json/_json.py",
+      "sha256": "c2dbd66b1211994f19b34acf4e1508ff7915224f6aacaba5a4f020aba81bff2b"
+    },
+    {
+      "path": "io/json/_normalize.py",
+      "sha256": "7cbbcda552f957f3f4597c7df20779fabe416efe1aa00991a380710ed36c8e07"
+    },
+    {
+      "path": "io/json/_table_schema.py",
+      "sha256": "a0aabded333718bbe651c9e1eeb82476cf6d8d550ae908cb493d16c1dc8b8ff9"
+    },
+    {
+      "path": "io/orc.py",
+      "sha256": "800d7fa5ebc562f5a5c21ae28b736b8e0b28f127a5800afb4723d3491aaed2ec"
+    },
+    {
+      "path": "io/parquet.py",
+      "sha256": "797c8d07ea40b667edc10bfdcf7a52f7bddc255214dc9a630686f645ddc99561"
+    },
+    {
+      "path": "io/parsers/__init__.py",
+      "sha256": "094616e00cddd4b4f164d7e8aa0ea6e08a82c4c4d0630948b459f19347090cb6"
+    },
+    {
+      "path": "io/parsers/arrow_parser_wrapper.py",
+      "sha256": "a54e1ccc0b9b21251785a966b78d86dbe59f389947a37ad4078f4d7729bdfd68"
+    },
+    {
+      "path": "io/parsers/base_parser.py",
+      "sha256": "7b41d6d4adbd81e7e22ffc93a2ac088167941f78f22e478780157abeae6bd3af"
+    },
+    {
+      "path": "io/parsers/c_parser_wrapper.py",
+      "sha256": "608f0949a68fe27ff72ec2997f3fdbf9fd0bfe149a40a56d755c6b6ae15b3bd1"
+    },
+    {
+      "path": "io/parsers/python_parser.py",
+      "sha256": "415e288935c368789ff59c92f1dabe9c32a6279b2e92a0d38a1eb17da5f8dcf3"
+    },
+    {
+      "path": "io/parsers/readers.py",
+      "sha256": "52d0de8d6ede149b1906266a32dc40555b45345e95086843cef43cf662e1a87c"
+    },
+    {
+      "path": "io/pickle.py",
+      "sha256": "04348b1d0dec16795ed560dfe36dc683b7076935abf904b43a11037836a169a6"
+    },
+    {
+      "path": "io/pytables.py",
+      "sha256": "d5168185c8182253b18fde0f27e7d3e083c17a26e01dec0c4dae0703b4f9aaa3"
+    },
+    {
+      "path": "io/sas/__init__.py",
+      "sha256": "7b3209bf43c90a7c93e2835f52dcbd58f729ca7bb478ae60baeed23728d5df4b"
+    },
+    {
+      "path": "io/sas/sas7bdat.py",
+      "sha256": "6d220dd575a4f9ef4a9dcd5bcebde2f0a193e44aee370b2f7222ff53c188693d"
+    },
+    {
+      "path": "io/sas/sas_constants.py",
+      "sha256": "c630664bea1ccd8efcd0a4871020ecc2954d164f903a87f822fce205c931dd84"
+    },
+    {
+      "path": "io/sas/sas_xport.py",
+      "sha256": "51a88447d8992ba8ba29ee08a8a50002f47acbe73950e5b8e659623b03d6edff"
+    },
+    {
+      "path": "io/sas/sasreader.py",
+      "sha256": "f5a580f30ef9113895e2172165deb502f200385e10ac1ca4f11de7d1eff79ed7"
+    },
+    {
+      "path": "io/spss.py",
+      "sha256": "6e237ff9b051c8176ec626476f8e9959230fe1ba4d52a9d338b12ce684fcd28b"
+    },
+    {
+      "path": "io/sql.py",
+      "sha256": "f142979feb25c6a551c59c2f4fa8d505b41bb57ac059eae1c1320b0f221a517b"
+    },
+    {
+      "path": "io/stata.py",
+      "sha256": "ef03db30429e6b2f040c720a43cc7f0a8e9369258fb4cf87ac34babedddca58b"
+    },
+    {
+      "path": "io/xml.py",
+      "sha256": "55af46b88ffb3eae900ee35169a9d1364d386a12cf8337d111c024a3c50097a0"
+    },
+    {
+      "path": "plotting/__init__.py",
+      "sha256": "fec7fc98eda4d0cc5705266ae4a57e30a41aeea1f4b9b726215a0b3a0d8fa65b"
+    },
+    {
+      "path": "plotting/_core.py",
+      "sha256": "5fe0c1e139fadda1ba3a72e6698136f9fbead000fa091aca77aec2f7e44fa8e8"
+    },
+    {
+      "path": "plotting/_misc.py",
+      "sha256": "0090feca7454b42280befa30ef83d6d5dff8c2cefddd240d2f3b6e4b6e2901f8"
+    },
+    {
+      "path": "testing.py",
+      "sha256": "896875101f2e31d703025f0be2933372a4a6af3e9cd3f7a89e2fbe80d3a2d03b"
+    },
+    {
+      "path": "tseries/__init__.py",
+      "sha256": "8132c28a8fad69c9961c1cee8dc0f9d911c422c9c1ae0178b398ab526b1e7aa0"
+    },
+    {
+      "path": "tseries/api.py",
+      "sha256": "9cadf6b68ecc67a114ec34037fdf3f73807fcc7b7dc164f6b8392c273bcecd93"
+    },
+    {
+      "path": "tseries/frequencies.py",
+      "sha256": "16f1579e38e10534ce7aace2da3bbb382dd42029759995b7a52837ee28fa7d47"
+    },
+    {
+      "path": "tseries/offsets.py",
+      "sha256": "a81bf355e8c2a825be707638daa4c2dd948e46c395e7ef988145a2589aa70dcd"
+    },
+    {
+      "path": "util/__init__.py",
+      "sha256": "4dcbd0c784ba1580f64440af4b0e5e755bee3bd115d82a825566f5fb8216c8ee"
+    },
+    {
+      "path": "util/_decorators.py",
+      "sha256": "d717f476ccbb849941fa011447f029d19bede9310f2896210ada4f4b7eaf9fea"
+    },
+    {
+      "path": "util/_exceptions.py",
+      "sha256": "535b26fb68b300dca8992d25ed1c53c5e8a9de53b49e2b8bb01d45354e79885c"
+    },
+    {
+      "path": "util/_print_versions.py",
+      "sha256": "4c63a473747972bc04864598f6ed4ee92c39a1fa9f3a5f3b6c1ef0d936baada1"
+    },
+    {
+      "path": "util/_str_methods.py",
+      "sha256": "c236ea4335fb2e4657328fd884408b942b87ee5554e93a859f99aa9d93ff8ddb"
+    },
+    {
+      "path": "util/_tester.py",
+      "sha256": "2173348442bac3a54680d1637330b891abd4e26bc2fe2744d901f1ab494e88fc"
+    },
+    {
+      "path": "util/_validators.py",
+      "sha256": "ae9f59284340e907af57031e9732a23ef9c098d4a16e7af1888e551ca4cfc125"
+    },
+    {
+      "path": "util/version/__init__.py",
+      "sha256": "257ae71435520fe8177254faadf9082f4aec31b04b142a6f5471ed95f3514e5a"
+    }
+  ]
+}

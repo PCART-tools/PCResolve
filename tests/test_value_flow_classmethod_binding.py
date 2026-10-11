@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+import pcresolve.flow as flow
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_classmethod_binding'
@@ -134,3 +135,45 @@ def test_merged_call_does_not_promote_factory_context_using_other_contexts_proof
     assert len({context['incoming_call_id'] for context in contexts}) == 2
     assert any(boundary.get('call_id') == call.id and boundary['reason'] == 'receiver_unresolved'
                for boundary in result.boundaries)
+
+
+@pytest.mark.parametrize('visible_write', [False, True])
+def test_large_unrelated_source_does_not_hide_a_later_visible_write(tmp_path, visible_write):
+    noise = tmp_path / 'a_noise.py'
+    noise.write_text('noise = (' + '0,' * 110000 + ')\n', encoding='utf-8')
+    selected = sorted(ROOT.glob('*.py')) + [noise]
+    if visible_write:
+        writer = tmp_path / 'z_writer.py'
+        writer.write_text('from targets import Backend\nBackend.generate = unknown_callable\n',
+                          encoding='utf-8')
+        selected.append(writer)
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[ROOT, tmp_path])
+    call = generate(analyze('direct', analyzer))
+    if visible_write:
+        order = list(analyzer.module_bodies)
+        assert order.index('a_noise') < order.index('z_writer')
+    writes, truncated = analyzer._class_binding_writes()
+    assert not truncated
+    fact = call.class_method_bindings[0]
+    assert fact['runtime_target_confirmed'] is False
+    assert fact['status'] == ('unconfirmed' if visible_write else 'source_bound')
+    if visible_write:
+        assert any(item['reason'] == 'visible_method_write' and item.get('evidence')
+                   for item in fact['issues'])
+        assert any(ref.qualname == 'Backend' and attribute == 'generate'
+                   for ref, attribute, _, _, _ in writes)
+
+
+def test_scan_budget_exhaustion_stays_unconfirmed_and_query_cache_resets(monkeypatch):
+    analyzer = FlowAnalyzer(project_root=ROOT)
+    with monkeypatch.context() as patch:
+        patch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+        result = analyze('direct', analyzer)
+        call = generate(result)
+        assert call.class_method_bindings[0]['status'] == 'unconfirmed'
+        assert analyzer._class_binding_writes()[1]
+        assert any(item['reason'] == 'class_binding_budget'
+                   for item in call.class_method_bindings[0]['issues'])
+        assert any(boundary['reason'] == 'class_method_binding_unconfirmed'
+                   and boundary.get('call_id') == call.id for boundary in result.boundaries)
+    assert generate(analyze('direct', analyzer)).class_method_bindings[0]['status'] == 'source_bound'

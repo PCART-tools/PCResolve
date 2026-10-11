@@ -22,6 +22,9 @@ from .effect_facts import (container_method_effect, contains_yield,
 from .import_facts import import_facts, resolve_relative_module
 
 
+_CLASS_BINDING_NODE_LIMIT = 1000000
+
+
 def _exception_class(name):
     value = getattr(builtins, name or '', None)
     return value if isinstance(value, type) and issubclass(value, BaseException) else None
@@ -764,7 +767,7 @@ class FlowAnalyzer:
     def _class_binding_writes(self):
         if self._class_binding_write_cache is not None:
             return self._class_binding_write_cache
-        writes, remaining = [], [100000]
+        writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
 
         def identity(expression, ref, aliases):
             if isinstance(expression, ast.IfExp):
