@@ -1,7 +1,9 @@
 ## @package tests.test_pcbench_real_sources
 #  Optional regressions against the hash-checked PCBench source inventory.
 
+import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,8 @@ from pcresolve import FlowAnalyzer, FunctionRef
 
 INVENTORY = Path('C:/GitHub/VPPDetector/tmp/pcbench_sources/sources.json')
 FIXTURES = Path(__file__).parent / 'fixtures' / 'pcbench_regressions'
+CLASSMETHOD_CLOSURE = (Path(__file__).parent / 'fixtures' / 'value_flow_classmethod_binding'
+                      / 'pandas-2.0.0-import-closure.json')
 
 
 def source(source_id):
@@ -177,6 +181,86 @@ def test_pandas_series_take_passes_kwargs_as_ordinary_mapping():
     assert call.target.qualname == 'CompatValidator.__call__'
     assert call.callable_instance_evidence['qualified_name'] == (
         'pandas.compat.numpy.function.validate_take')
+
+
+@pytest.mark.parametrize('entry,depth', [('date_range', 1), ('bdate_range', 2)])
+def test_pandas_datetime_range_has_explicit_source_classmethod_binding(entry, depth):
+    result = analyze('pandas-2.0.0', ['core/indexes/datetimes.py', 'core/arrays/datetimes.py'],
+        'pandas.core.indexes.datetimes', entry, max_depth=depth)
+    call = result.find_calls(callee_name='DatetimeArray._generate_range')[0]
+    assert (call.target.module, call.target.qualname, call.target.lineno) == (
+        'pandas.core.arrays.datetimes', 'DatetimeArray._generate_range', 375)
+    fact = call.class_method_bindings[0]
+    assert fact['status'] == 'source_bound'
+    assert fact['receiver_class']['qualname'] == 'DatetimeArray'
+    assert fact['definition_class'] == fact['receiver_class']
+    assert fact['implicit_binding']['parameter'] == 'cls'
+    assert fact['descriptor']['kind'] == 'builtin_classmethod'
+    assert not fact['runtime_target_confirmed']
+    assert 'unresolved_bases_use_standard_metaclass_lookup' in fact['assumptions']
+    assert any(argument['parameter'] == 'cls' and argument['argument'] == {'receiver': True}
+               for argument in call.argument_sources)
+    assert any(value['source'] == 'kwargs' for argument in call.argument_sources
+               if argument['argument'] == {'keyword': None} for value in argument['sources'])
+    boundary = next(boundary for boundary in result.boundaries
+        if boundary.get('call_id') == call.id
+        and boundary['reason'] == 'dynamic_class_receiver_override_possible')
+    assert boundary['boundary_kind'] == 'assumption'
+    assert call.binding_status == 'uncertain'
+    expanded = FlowAnalyzer(source_files=[Path(path) for path in result.inputs['source_files']],
+        import_roots=[source('pandas-2.0.0').parent, FIXTURES]).expand(result, call.id)
+    assert any(item['function']['qualname'] == 'DatetimeArray._generate_range'
+               for item in expanded.functions)
+
+
+@pytest.fixture(scope='module')
+def pandas_import_closure_analyzer():
+    package = Path(os.environ.get('PCRESOLVE_PANDAS200_SOURCE',
+        'C:/GitHub/VPPDetector/tmp/integration/pandas200/Lib/site-packages/pandas'))
+    if not package.is_dir():
+        pytest.skip('pandas 2.0.0 import-closure source snapshot is not available')
+    manifest = json.loads(CLASSMETHOD_CLOSURE.read_text(encoding='utf-8'))
+    assert len(manifest['files']) == 280
+    selected = [package / item['path'] for item in manifest['files']]
+    for item, path in zip(manifest['files'], selected):
+        assert path.is_file(), str(path)
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == item['sha256'], str(path)
+    return FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+
+
+@pytest.mark.parametrize('entry', ['date_range', 'bdate_range'])
+def test_pandas_full_import_closure_keeps_evidenced_classmethod_binding(
+        entry, pandas_import_closure_analyzer):
+    analyzer = pandas_import_closure_analyzer
+    result = analyzer.analyze(FunctionRef(module='pandas.core.indexes.datetimes', qualname=entry))
+    if entry == 'bdate_range':
+        result = analyzer.expand(result, result.find_calls(callee_name='date_range')[0].id)
+    assert len(result.inputs['source_files']) == 280
+    call = result.find_calls(callee_name='DatetimeArray._generate_range')[0]
+    assert (call.target.module, call.target.qualname, call.target.lineno) == (
+        'pandas.core.arrays.datetimes', 'DatetimeArray._generate_range', 375)
+    fact = call.class_method_bindings[0]
+    assert fact['status'] == 'source_bound' and not fact['issues']
+    assert fact['evidence'] and fact['receiver_binding_evidence'] and fact['source_hashes']
+    assert fact['receiver_class']['qualname'] == 'DatetimeArray'
+    assert fact['definition_class'] == fact['receiver_class']
+    assert fact['descriptor']['kind'] == 'builtin_classmethod'
+    assert fact['implicit_binding']['parameter'] == 'cls'
+    assert fact['implicit_binding']['status'] == 'static_bound'
+    assert fact['runtime_target_confirmed'] is False and fact['assumptions']
+    assert call.binding_status == 'uncertain'
+    assert any(value['source'] == 'kwargs' for argument in call.argument_sources
+               if argument['argument'] == {'keyword': None} for value in argument['sources'])
+    assert not analyzer._class_binding_writes()[1]
+    assert not any(boundary.get('call_id') == call.id and any(
+        issue['reason'] == 'class_binding_budget' for issue in boundary.get('issues', []))
+        for boundary in result.boundaries)
+    boundary = next(boundary for boundary in result.boundaries
+        if boundary.get('call_id') == call.id
+        and boundary['reason'] == 'dynamic_class_receiver_override_possible')
+    assert boundary['boundary_kind'] == 'assumption'
+    if entry == 'bdate_range':
+        assert call.analysis_contexts[0]['class_method_bindings'] == [fact]
 
 
 def test_sympy_local_import_reexport_and_identity_decorator_keep_variadic_facts():

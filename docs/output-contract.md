@@ -156,6 +156,7 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | `functions[*].return_objects[*]` | `requires_shapes`, `completion` | Optional receiver-parameter shape constraints and normal-completion scope for a symbolic alias proof that includes fully modeled effects. No caller-local object IDs are stored in the symbolic summary. |
 | `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
 | `calls[*]` | `callable_sources` | Callable expression provenance, including an optional source-proven `callable_type` and `callable_evidence` on ordinary parameter roots. String values or annotations do not establish callable identity. |
+| `calls[*]` | `class_method_bindings` | Source-snapshot classmethod lookup/binding explanations. `source_bound` requires a direct source class/import/alias, a proven builtin descriptor, matching local member or source MRO, and no recognized mutation/escape/customization. Records receiver versus definition class, implicit binding, source hashes/evidence, conditions, assumptions and issues; `runtime_target_confirmed` is always false. `unconfirmed` is not a binding proof. |
 | `calls[*]` | `analysis_contexts` | Per-expansion facts tied to `incoming_call_id`: symbolic `parameter_facts`, target/candidates/status, binding status, argument/callable/result sources, effects, conditional returns and conditions. The top-level call is a conservative union; do not combine facts from different contexts. |
 | `calls[*]` | `conditional_returns` | Guarded ordinary-parameter alias facts for a supported early-return path, with `requires_literal_guard`. Proven incoming objects optionally add `container_shape`, caller-local `object_source`, `binding` and `input_evidence`. `completeness="partial_paths"` does not authorize unconditional alias/content updates or prove the whole helper pure. |
 | `calls[*].argument_sources[*]` | `literal`, `value_evidence` | Bounded source-proven builtin scalar/tuple/list values used for branch selection and finite-key constraints, separate from dependency roots. Mutable-container writes and unknown escapes invalidate stale literal facts. |
@@ -174,6 +175,17 @@ allocator result without inventing a Python definition or target candidate.
 `dynamic_construction`, `dynamic_class_receiver_override_possible`,
 `class_return_recursion`, and `class_return_budget` preserve uncertainty in
 construction, class dispatch, and bounded class-return proofs.
+For a proven source classmethod binding, the existing
+`dynamic_class_receiver_override_possible` boundary remains but has
+`boundary_kind="assumption"`, `binding_status="source_bound"` and explicit
+`assumptions`. This distinguishes theoretical external replacement from a
+recognized uncertainty; it does not confirm a runtime target or make argument
+binding complete. Unproved binding or a visible change retains an uncertainty
+boundary, with `class_method_binding_unconfirmed` exposing evidence-bearing
+`issues`. Per-expansion `analysis_contexts` also carries `class_method_bindings`;
+consumers must keep a proof with its corresponding incoming context. A merged
+call can contain both proven and unproved facts, so a single `source_bound`
+record does not cover other contexts.
 Returned-container proofs also require complete binding and an already proven
 builtin input shape. `container_return_unproven` includes an explanatory
 `detail` and affected input roots; `container_return_budget` preserves proof
