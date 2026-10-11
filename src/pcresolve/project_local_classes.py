@@ -11,6 +11,46 @@ from .sources import (
 
 ## Project local-class reasoning mixed into ProjectAnalyzer.
 class ProjectLocalClassesMixin:
+    ## Index method spellings while retaining original class/method order.
+    #  @return Records and qualified/local/import-alias candidate buckets.
+    def _get_method_result_index(self):
+        generation = self.project_cg.version
+        if (getattr(self, '_method_result_graph', None) is not self.project_cg
+                or getattr(self, '_method_result_generation', None) != generation):
+            records, qualified, local, classes, exact = [], {}, {}, {}, {}
+            for owner, graph in self.project_cg.modules.items():
+                for name, summary in graph.classes.items():
+                    for method, payload in summary.methods.items():
+                        ordinal = len(records)
+                        records.append((owner, name, method, payload))
+                        qualified.setdefault(owner + '.' + name + '.' + method, []).append(ordinal)
+                        local.setdefault((owner, name + '.' + method), []).append(ordinal)
+                        classes.setdefault(owner + '.' + name, []).append(ordinal)
+                        exact.setdefault((owner, name, method), []).append(ordinal)
+            self._method_result_index = records, qualified, local, classes, exact
+            self._method_result_generation = generation
+            self._method_result_graph = self.project_cg
+        return self._method_result_index
+
+    ## Select possible spellings; the existing return proof remains authoritative.
+    #  @param module Caller module.
+    #  @param callee Syntactic method spelling.
+    #  @param caller_tracer Caller facts, including live alias bindings.
+    #  @return Candidate records in their original order.
+    def _method_result_candidates(self, module, callee, caller_tracer):
+        records, qualified, local, classes, exact = self._get_method_result_index()
+        ordinals = set(qualified.get(callee, ()))
+        ordinals.update(local.get((module, callee), ()))
+        parts = callee.split('.')
+        if caller_tracer is not None:
+            imported = caller_tracer.import_from_symbols.get(parts[0])
+            if isinstance(imported, str):
+                ordinals.update(classes.get(imported, ()))
+            direct = normalize_source(caller_tracer.symbols.direct.get(parts[0]))
+            if isinstance(direct, str) and len(parts) == 3:
+                ordinals.update(exact.get((direct, parts[1], parts[2]), ()))
+        return tuple(records[i] for i in sorted(ordinals))
+
     ## Find one instance-field binding on a local class or its local bases.
     #  @param module Defining module of the candidate class.
     #  @param class_name Candidate class name.
@@ -91,58 +131,57 @@ class ProjectLocalClassesMixin:
             return []
         caller_tracer = tracers.get(module)
         identities = []
-        for candidate_module, module_cg in self.project_cg.modules.items():
-            for class_name, class_summary in module_cg.classes.items():
-                for method_name, method_summary in class_summary.methods.items():
-                    qualified_class = candidate_module + "." + class_name
-                    qualified_method = qualified_class + "." + method_name
-                    spellings = {qualified_method}
-                    if candidate_module == module:
-                        spellings.add(class_name + "." + method_name)
-                    if caller_tracer is not None:
-                        parts = callee.split(".")
-                        prefix = parts[0]
-                        imported = caller_tracer.import_from_symbols.get(
-                            prefix)
-                        if (isinstance(imported, str)
-                                and imported + "." + method_name
-                                == qualified_method):
-                            spellings.add(callee)
-                        direct = normalize_source(
-                            caller_tracer.symbols.direct.get(prefix))
-                        if (isinstance(direct, str)
-                                and direct == candidate_module
-                                and len(parts) == 3
-                                and parts[1] == class_name
-                                and parts[2] == method_name):
-                            spellings.add(callee)
-                    if callee not in spellings:
-                        continue
-                    returns = normalize_source(method_summary.returns)
-                    if returns is None:
-                        continue
-                    return_sources = (
-                        list(returns.sources)
-                        if isinstance(returns, SourceSet)
-                        else [returns]
-                    )
+        for candidate_module, class_name, method_name, method_summary in self._method_result_candidates(
+                module, callee, caller_tracer):
+            qualified_class = candidate_module + "." + class_name
+            qualified_method = qualified_class + "." + method_name
+            spellings = {qualified_method}
+            if candidate_module == module:
+                spellings.add(class_name + "." + method_name)
+            if caller_tracer is not None:
+                parts = callee.split(".")
+                prefix = parts[0]
+                imported = caller_tracer.import_from_symbols.get(
+                    prefix)
+                if (isinstance(imported, str)
+                        and imported + "." + method_name
+                        == qualified_method):
+                    spellings.add(callee)
+                direct = normalize_source(
+                    caller_tracer.symbols.direct.get(prefix))
+                if (isinstance(direct, str)
+                        and direct == candidate_module
+                        and len(parts) == 3
+                        and parts[1] == class_name
+                        and parts[2] == method_name):
+                    spellings.add(callee)
+            if callee not in spellings:
+                continue
+            returns = normalize_source(method_summary.returns)
+            if returns is None:
+                continue
+            return_sources = (
+                list(returns.sources)
+                if isinstance(returns, SourceSet)
+                else [returns]
+            )
+            returned_classes = []
+            for returned in return_sources:
+                returned = normalize_source(returned)
+                if returned == "self":
+                    returned_classes.append(
+                        (candidate_module, class_name))
+                    continue
+                if isinstance(returned, CallResult):
+                    returned = returned.callee
+                identity = self._local_class_from_source(
+                    candidate_module, returned)
+                if identity is None:
                     returned_classes = []
-                    for returned in return_sources:
-                        returned = normalize_source(returned)
-                        if returned == "self":
-                            returned_classes.append(
-                                (candidate_module, class_name))
-                            continue
-                        if isinstance(returned, CallResult):
-                            returned = returned.callee
-                        identity = self._local_class_from_source(
-                            candidate_module, returned)
-                        if identity is None:
-                            returned_classes = []
-                            break
-                        returned_classes.append(identity)
-                    if returned_classes:
-                        identities.extend(self._dedupe_list(returned_classes))
+                    break
+                returned_classes.append(identity)
+            if returned_classes:
+                identities.extend(self._dedupe_list(returned_classes))
         return self._dedupe_list(identities)
 
     ## Resolve local classes returned by a project-local function.
@@ -397,29 +436,8 @@ class ProjectLocalClassesMixin:
         # A write outside an initializer invalidates constructor-only evidence.
         run = self._ownership_run
         if run.constructor_only_fields is None:
-            fields, blocked = set(), set()
-            for candidate in tracers.values():
-                tree = candidate._module_tree
-                if tree is None:
-                    continue
-                parents = {id(child): node for node in ast.walk(tree)
-                           for child in ast.iter_child_nodes(node)}
-                for node in ast.walk(tree):
-                    if (not isinstance(node, ast.Attribute)
-                            or not isinstance(node.ctx, (ast.Store, ast.Del))):
-                        continue
-                    parent = parents.get(id(node))
-                    while parent is not None and not isinstance(
-                            parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        parent = parents.get(id(parent))
-                    fields.add(node.attr)
-                    if (not isinstance(node.ctx, ast.Store)
-                            or not isinstance(node.value, ast.Name)
-                            or node.value.id != 'self'
-                            or parent is None or parent.name != '__init__'
-                            or not isinstance(parents.get(id(parent)), ast.ClassDef)):
-                        blocked.add(node.attr)
-            run.constructor_only_fields = fields - blocked
+            from .ast_facts import constructor_only_fields
+            run.constructor_only_fields = constructor_only_fields(tracers, self._analysis_budget)
             self._constructor_only_fields = run.constructor_only_fields
         if source.method not in run.constructor_only_fields:
             return []
@@ -486,8 +504,9 @@ class ProjectLocalClassesMixin:
                     identity, '__init__', source.method, tracers):
                 return True
             identities.append(identity)
-            cg = self.project_cg.modules.get(origin)
-            for edge in cg.edges if cg is not None else ():
+            edges = self._get_edge_lookup()[3].get(
+                (origin, receiver.call_lineno, receiver.call_col_offset), ())
+            for edge in edges:
                 if (edge.call_lineno == receiver.call_lineno
                         and edge.call_col_offset == receiver.call_col_offset):
                     names.setdefault((origin, edge.caller.qualname), set()).update(
@@ -503,22 +522,18 @@ class ProjectLocalClassesMixin:
 
         for (origin, scope), tracked in names.items():
             tree = tracers[origin]._module_tree
-            calls = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    calls.setdefault((node.lineno, node.col_offset), []).append(node)
+            facts = self._ownership_run.ast_facts.get(tree)
+            calls = facts.calls
             # Alias assignments may hide an escape inside a container argument.
             # Keep this constructor-only path conservative until aliases carry
             # object mutation facts of their own.
-            for node in ast.walk(tree):
+            for node in facts.assignments:
                 if (isinstance(node, (ast.Assign, ast.AnnAssign))
                         and node.value is not None
                         and carries_name(node.value, tracked)
                         and isinstance(node.value, (ast.Name, ast.List, ast.Tuple, ast.Dict))):
                     return True
-            for edge in self.project_cg.modules[origin].edges:
-                if edge.caller.qualname != scope:
-                    continue
+            for edge in self._call_edges_in_scope(origin, scope):
                 candidates = calls.get((edge.call_lineno, edge.call_col_offset), [])
                 if len(candidates) > 1:
                     candidates = [node for node in candidates
@@ -563,13 +578,28 @@ class ProjectLocalClassesMixin:
     #  @return True only for inspectable non-escaping instance method bodies.
     def _constructor_field_method_is_readonly(
             self, identity, method, field, tracers, seen=None):
+        context = frozenset(seen or ())
+        proof = (identity, method, field, context)
+        completed = self._ownership_run.readonly_proofs
+        if proof in completed:
+            return True
+        result = self._prove_constructor_field_readonly(
+            identity, method, field, tracers, seen)
+        if result:
+            completed.add(proof)
+        return result
+
+    ## Complete one syntax-only proof under an explicit recursive context.
+    #  @return True only after checking every relevant method node.
+    def _prove_constructor_field_readonly(
+            self, identity, method, field, tracers, seen=None):
         key = (identity, method)
         seen = set(seen or ())
         if key in seen:
             return False
         seen.add(key)
         tree = tracers[identity[0]]._module_tree
-        classes = [node for node in ast.walk(tree)
+        classes = [node for node in self._ownership_run.ast_facts.get(tree).classes
                    if isinstance(node, ast.ClassDef) and node.name == identity[1]]
         if len(classes) != 1:
             return False
@@ -585,9 +615,9 @@ class ProjectLocalClassesMixin:
             if not args or function.decorator_list:
                 return False
             receiver = args[0].arg
-            parents = {id(child): node for node in ast.walk(function)
-                       for child in ast.iter_child_nodes(node)}
-            for node in ast.walk(function):
+            facts = self._ownership_run.ast_facts.get(function)
+            parents = facts.parents
+            for node in facts.nodes:
                 if (isinstance(node, ast.Name) and node.id == receiver
                         and isinstance(node.ctx, ast.Load)
                         and not isinstance(parents.get(id(node)), ast.Attribute)):

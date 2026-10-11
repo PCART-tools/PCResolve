@@ -53,14 +53,19 @@ class SourceStore:
     ## Capture files in caller-selected order without discovering extra sources.
     #  @param files Source paths chosen by the consumer's input policy.
     #  @param policy Decode policy; text-mode universal newlines remain unchanged.
+    #  @param budget Optional cooperative resource checks during reads.
     #  @return Read-only snapshot, including read and syntax failures per file.
-    def snapshot(self, files, policy):
+    def snapshot(self, files, policy, budget=None):
         paths = tuple(files)
         documents, next_cache = {}, {}
         for path in paths:
+            if budget is not None:
+                budget.checkpoint(force=True)
             try:
                 with open(path, encoding=policy.encoding) as stream:
                     text = stream.read()
+                if budget is not None:
+                    budget.checkpoint(force=True)
             except (OSError, UnicodeError) as error:
                 documents[path] = SourceDocument(path, error=error.with_traceback(None),
                                                  error_stage='read')

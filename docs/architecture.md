@@ -261,6 +261,49 @@ invalidate the generation. Query summaries, contexts, budget counters, effect
 facts, and returned-object facts reset for every analysis, including cache hits.
 This reuse is local to one analyzer and adds no public session or output fields.
 
+When one Flow source changes, definition collection, imports and binding syntax
+facts are rebuilt only for changed files. Unchanged files retain facts keyed by
+the exact source document, module identity, reading policy and ordered import
+roots. Aggregate name indexes are rebuilt in the original file order; semantic
+summaries and budgets still reset. Failed and removed files drop their facts.
+
+Ownership method-result candidates and import-source prefixes use versioned
+fact indexes. Collection changes notify dependent indexes; existing edge/source
+rewrite routines invalidate callable evidence. Cache hits do not scan every
+module to establish a generation. AST calls, assignments, classes and parent
+relationships are indexed lazily within the run. Completed constructor-field
+readonly proofs can be reused under the same field and recursive context;
+failed or cyclic proofs are not retained. Return dependencies use reverse
+dependencies to schedule changed summaries, preserving synchronous rounds,
+original path ordering, iteration counts and limits.
+
+`ProjectAnalyzer(root, reuse_source_facts=True)` optionally retains pristine
+single-file visitor facts captured before project propagation. Repeated calls
+copy these facts for unchanged source documents, sharing only read-only ASTs
+and rebinding visitor callbacks. File edits, additions, deletions and parse
+failures update the cache. Every run still performs cross-file propagation,
+classification and provenance construction. This mode increases memory and
+first-run copying cost and is disabled by default; it is not persistent storage
+or an incremental cache of semantic answers.
+
+`AnalysisLimits` provides optional time, work and resident-memory checks for one
+`analyze()` call. Ownership and Flow maintain separate resource counters. A
+limit raises `AnalysisLimitExceeded`; the CLI exits with an error and does not
+emit a partial result as complete. Defaults are unrestricted and do not change
+the ownership proof budget or Flow boundaries. Checks are cooperative at files,
+syntax visits, records and resolver entries, not OS-enforced hard limits:
+individual parsing/copying operations can finish before the next check. Memory
+uses current RSS on Windows/Linux and peak RSS on the resource fallback.
+Output serialization and later queries on a returned result are outside these
+analysis limits.
+
+`scripts/perf_scalability.py` measures synthetic projects at multiple sizes,
+unchanged queries and single-file edits, including cold ownership with and
+without the optional fact cache. It checks reused results against complete fresh
+outputs and records wall/CPU time, current RSS and implementation identity.
+RSS readings are not isolated per-run peaks; generated workloads supplement
+real-project measurements rather than establishing a universal complexity bound.
+
 Value flow is additionally bounded by the selected source set, call depth,
 function budget, call-context budget, supported control flow, and modeled
 effects. Boundaries are part of the result and must be inspected by consumers.

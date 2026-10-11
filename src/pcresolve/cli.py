@@ -15,6 +15,7 @@ import json
 import os
 import sys
 from .cross_file import analyze_project
+from .analysis_limits import AnalysisLimits, AnalysisLimitExceeded
 from .views import (build_summary_view, build_full_view,
                      build_explain_library_view, build_explain_symbol_view,
                      build_explain_call_view)
@@ -361,7 +362,8 @@ def _run_value_flow(parser, args, input_path):
     calls = args.max_call_contexts if args.max_call_contexts is not None else 2000
     try:
         analyzer = FlowAnalyzer(project_root=project_root,
-                                source_files=source_files, import_roots=args.import_root)
+                                source_files=source_files, import_roots=args.import_root,
+                                analysis_limits=args.analysis_limits)
         result = analyzer.analyze(FunctionRef(module=module, qualname=qualname),
                                   max_depth=depth, max_functions=functions,
                                   max_call_contexts=calls)
@@ -371,7 +373,7 @@ def _run_value_flow(parser, args, input_path):
                 stream.write(payload + '\n')
         else:
             print(payload)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, AnalysisLimitExceeded) as error:
         parser.error(str(error))
 
 
@@ -388,6 +390,9 @@ def main():
                         help="Project directory or one .py/.pyi source file.")
     parser.add_argument("--json", action="store_true",
                         help="Full provenance JSON, or flow JSON with --value-flow.")
+    parser.add_argument('--max-seconds', type=float, help='Cooperative analysis time limit; default unrestricted.')
+    parser.add_argument('--max-work', type=int, help='Total analysis work-unit limit; default unrestricted.')
+    parser.add_argument('--max-memory-mb', type=float, help='Resident-memory limit checked during analysis.')
     parser.add_argument("--json-summary", action="store_true",
                         help="Summary JSON profile (small, stable, for CI).")
     parser.add_argument("--json-full", action="store_true",
@@ -424,6 +429,11 @@ def main():
     flow.add_argument('--max-call-contexts', type=int, help='Collected call-site budget, default 2000.')
     flow.add_argument('--output', help='Write flow output to a UTF-8 file instead of stdout; overwrites existing file.')
     args = parser.parse_args()
+    try:
+        args.analysis_limits = (AnalysisLimits(args.max_seconds, args.max_work, args.max_memory_mb)
+            if any(value is not None for value in (args.max_seconds, args.max_work, args.max_memory_mb)) else None)
+    except ValueError as error:
+        parser.error(str(error))
     if args.top is not None and args.top < 0:
         parser.error("--top must be a non-negative integer (0 = unlimited)")
     if args.value_flow:
@@ -451,7 +461,11 @@ def main():
             or (os.path.isfile(input_path) and input_path.endswith(('.py', '.pyi')))):
         parser.error('input must be a directory or a .py/.pyi file: %s' % input_path)
 
-    result = analyze_project(input_path)
+    try:
+        result = (analyze_project(input_path, analysis_limits=args.analysis_limits)
+                  if args.analysis_limits is not None else analyze_project(input_path))
+    except AnalysisLimitExceeded as error:
+        parser.error(str(error))
 
     # ── explain modes ────────────────────────────────────────────────
     text_printed = False

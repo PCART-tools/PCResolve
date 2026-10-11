@@ -6,6 +6,8 @@
 #  and collecting all API calls with their top-level library origins.
 
 import os
+from .analysis_limits import AnalysisBudget
+from .source_fact_cache import clone_source_facts
 from .module_mapper import ModuleMapper
 from .call_result_resolution import CallResultResolutionMixin
 from .instance_method_resolution import InstanceMethodResolutionMixin
@@ -49,6 +51,29 @@ def _dedup_consecutive(chain):
 def _is_import_origin(tracer, symbol):
     if tracer is None or not isinstance(symbol, str):
         return False
+    if not getattr(tracer, '_ownership_import_unstable', False):
+        direct = tracer.symbols.direct
+        refs = getattr(tracer, 'symbol_refs', ())
+        generation = (direct.version, tracer.version)
+        cached = getattr(tracer, '_import_origin_index', None)
+        if (cached is None or cached[0] is not direct or cached[1] is not refs
+                or cached[2] != generation):
+            values = set()
+            for value in direct.values():
+                sources = value.sources if isinstance(value, SourceSet) else (value,)
+                values.update(item for item in sources if isinstance(item, str))
+            for ref in refs:
+                if ref.kind == 'import':
+                    value = normalize_source(ref.source)
+                    if isinstance(value, str):
+                        values.add(value)
+            prefixes = set(values)
+            for value in values:
+                prefixes.update(value[:i] for i, char in enumerate(value) if char == '.')
+            cached = tracer._import_origin_index = direct, refs, generation, values, prefixes
+        _, _, _, values, prefixes = cached
+        return (symbol in prefixes or any(symbol[:i] in values
+                for i, char in enumerate(symbol) if char == '.'))
     def _matches(value):
         if not isinstance(value, str):
             return False
@@ -118,7 +143,13 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
 
     ## Initialize the analyzer for a project directory or one Python source file.
     #  @param project_root Path to the project directory or a .py/.pyi file.
-    def __init__(self, project_root):
+    #  @param analysis_limits Optional cooperative whole-analysis limits.
+    #  @param reuse_source_facts Opt-in pristine per-file visitor fact cache.
+    def __init__(self, project_root, analysis_limits=None, reuse_source_facts=False):
+        self.reuse_source_facts = reuse_source_facts
+        self._source_fact_cache = {}
+        self.analysis_limits = analysis_limits
+        self._analysis_budget = None
         self.module_mapper = ModuleMapper(project_root)
         self.project_root = (self.module_mapper.project_root
                              if os.path.isfile(project_root) else project_root)
@@ -154,12 +185,19 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     ## Run the full analysis: scan, parse, resolve, and collect.
     #  @return ProjectAnalysis with all results.
     def analyze(self):
+        self._analysis_budget = (AnalysisBudget(self.analysis_limits)
+                                 if self.analysis_limits is not None else None)
+        budget = self._analysis_budget
+        if budget is not None:
+            budget.checkpoint(force=True)
         self.module_mapper.scan_project()
         all_modules = tuple(self.module_mapper.get_all_modules())
         paths = [self.module_mapper.get_file_path(module) for module in all_modules]
-        sources = self._source_store.snapshot(
-            [path for path in paths if path and os.path.exists(path)], OWNERSHIP_SOURCE)
+        source_paths = [path for path in paths if path and os.path.exists(path)]
+        sources = (self._source_store.snapshot(source_paths, OWNERSHIP_SOURCE, budget=budget)
+                   if budget is not None else self._source_store.snapshot(source_paths, OWNERSHIP_SOURCE))
         run = OwnershipRun(ProjectSnapshot(all_modules, sources))
+        run.ast_facts.budget = budget
         self._ownership_run = run
         # Compatibility aliases remain while resolver methods migrate to the
         # explicit run model in later behavior-preserving slices.
@@ -176,7 +214,10 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self._ownership_proof_budget = run.proof_budget
         self._constructor_only_fields = run.constructor_only_fields
 
+        next_source_facts = {}
         for module in all_modules:
+            if budget is not None:
+                budget.checkpoint(force=True)
             file_path = self.module_mapper.get_file_path(module)
             document = self._source_snapshot.documents.get(file_path)
             if document is None:
@@ -213,18 +254,31 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                     module_name=module,
                 ))
                 continue
-            tracer = SingleFileAnalyzer(
-                module_name=module,
-                is_package=self.module_mapper.is_package(module),
-                file_path=file_path,
-            )
-            tracer.visit(document.tree)
+            package = self.module_mapper.is_package(module)
+            cached = self._source_fact_cache.get(file_path) if self.reuse_source_facts else None
+            if (cached is not None and cached[0] is document
+                    and cached[1:3] == (module, package)):
+                tracer = clone_source_facts(cached[-1], document, budget)
+                run.source_facts_reused += 1
+                next_source_facts[file_path] = cached
+            else:
+                tracer = SingleFileAnalyzer(module_name=module, is_package=package,
+                    file_path=file_path, analysis_budget=budget)
+                tracer.visit(document.tree)
+                if self.reuse_source_facts:
+                    pristine = clone_source_facts(tracer, document)
+                    next_source_facts[file_path] = document, module, package, pristine
             run.program.add_module(module, tracer)
+        self._source_fact_cache = next_source_facts
 
+        for tracer in module_tracers.values():
+            tracer._ownership_import_unstable = True
         self._bind_bounded_local_call_results(module_tracers)
         self._bind_bounded_callback_map_results(module_tracers)
         self._bind_bounded_local_iteration_results(module_tracers)
         self._bind_proven_result_method_results(module_tracers)
+        for tracer in module_tracers.values():
+            tracer._ownership_import_unstable = False
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
@@ -240,6 +294,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             "parsed_modules": len(module_tracers),
             "skipped_modules": len(diagnostics),
         }
+        if budget is not None:
+            budget.checkpoint(force=True)
 
         return ProjectAnalysis(
             project_root=self.project_root,
@@ -273,6 +329,9 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     #  @return List of FileAnalysis records.
     def _build_file_analysis(self, module_tracers, all_provenance, deco_by):
         files = []
+        by_file = {}
+        for provenance in all_provenance:
+            by_file.setdefault(provenance.file_path, []).append(provenance)
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
             files.append(FileAnalysis(
@@ -280,8 +339,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                 module_name=module,
                 symbols=self.global_symbols.get(module, {}),
                 chains=self.symbol_chains.get(module, {}),
-                symbol_provenance=[p for p in all_provenance
-                                   if p.file_path == file_path],
+                symbol_provenance=list(by_file.get(file_path, ())),
                 api_calls=[_make_api_call(c, deco_by)
                            for c in self.all_calls.get(module, [])],
             ))
@@ -309,6 +367,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         for module, tracer in module_tracers.items():
             file_path = self.module_mapper.get_file_path(module)
             for ref in tracer.symbol_refs:
+                if self._analysis_budget is not None:
+                    self._analysis_budget.checkpoint()
                 direct_source = ref.source
                 if ref.kind == "parameter" and ref.scope_name:
                     direct_source = ParameterSource(
@@ -370,14 +430,17 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     #  @param module_name Dotted module name.
     #  @return True if the module is a local project module.
     def is_local(self, module_name):
-        return module_name in self.module_mapper.get_all_modules()
+        return isinstance(module_name, str) and module_name in self.module_mapper.module_to_file
 
 ## Analyze a project directory or one Python source file and return structured results.
 #
 #  Convenience function: creates a ProjectAnalyzer, runs analysis, and
 #  returns a ProjectAnalysis object.
 #  @param project_root Path to the project directory or a .py/.pyi file.
+#  @param analysis_limits Optional cooperative resource limits.
+#  @param reuse_source_facts Opt-in detached per-file facts for repeated analysis.
 #  @return ProjectAnalysis with all per-file and cross-file results.
-def analyze_project(project_root):
-    analyzer = ProjectAnalyzer(project_root)
+def analyze_project(project_root, analysis_limits=None, reuse_source_facts=False):
+    analyzer = ProjectAnalyzer(project_root, analysis_limits=analysis_limits,
+                               reuse_source_facts=reuse_source_facts)
     return analyzer.analyze()

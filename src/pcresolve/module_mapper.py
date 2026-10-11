@@ -45,6 +45,9 @@ class ModuleMapper:
                     else self._scanner.scan(self.project_root))
         py_files = [f for f in py_files if f.endswith('.py') or f.endswith('.pyi')]
         self._index = ModuleIndex.build(py_files, [self.project_root], OWNERSHIP_MODULES)
+        self.file_to_module.clear()
+        self.module_to_file.clear()
+        self.package_modules.clear()
         for entry in self._index.entries:
             self.file_to_module[entry.file_path] = entry.module_name
             self.module_to_file[entry.module_name] = entry.file_path

@@ -6,6 +6,7 @@
 #  to determine its primary owner.
 
 import builtins
+from .fact_versions import VersionedDict
 from .sources import (CallResult, PythonShape, SourceSet, normalize_source,
                       source_display)
 
@@ -17,6 +18,15 @@ from .sources import (CallResult, PythonShape, SourceSet, normalize_source,
 #  - chains: full resolution chain from symbol to origin
 #  - top: cached top-level origin for each symbol
 class SymbolTable:
+    ## Direct facts expose a mutation generation for source lookup indexes.
+    @property
+    def direct(self):
+        return self._direct
+
+    @direct.setter
+    def direct(self, values):
+        self._direct = VersionedDict(values)
+
     ## Initialize an empty symbol table.
     def __init__(self, return_sources=None):
         self.direct = {}

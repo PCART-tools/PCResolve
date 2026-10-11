@@ -25,7 +25,8 @@ class ProjectCallContextMixin:
     #  A normal analysis collects a new ProjectCallGraph before resolution.
     #  @return Internal candidate index; not a public call-graph result.
     def _get_definition_index(self):
-        if getattr(self, '_definition_index_graph', None) is not self.project_cg:
+        generation = (id(self.project_cg), self.project_cg.version)
+        if getattr(self, '_definition_index_generation', None) != generation:
             records = []
             for module, module_cg in self.project_cg.modules.items():
                 for kind, summaries in (('function', module_cg.functions), ('class', module_cg.classes)):
@@ -34,6 +35,7 @@ class ProjectCallContextMixin:
                                    for qualname, summary in summaries.items())
             self._definition_index = DefinitionIndex(records)
             self._definition_index_graph = self.project_cg
+            self._definition_index_generation = generation
             self._edge_target_name_index = {}
             for ordinal, record in enumerate(self._definition_index.records):
                 if record.kind != 'function':
@@ -79,8 +81,11 @@ class ProjectCallContextMixin:
 
     ## Initialize static callable facts for this binding generation.
     def _ensure_callable_lookup(self):
-        if getattr(self, '_callable_lookup_graph', None) is not self.project_cg:
+        generation = (id(self.project_cg), self.project_cg.version)
+        if (getattr(self, '_callable_lookup_graph', None) is not self.project_cg
+                or getattr(self, '_callable_lookup_generation', None) != generation):
             self._callable_lookup_graph = self.project_cg
+            self._callable_lookup_generation = generation
             self._callable_lookup_edges = None
             self._static_callable_cache = {}
             self._callable_reverse_lookup = None
@@ -164,6 +169,11 @@ class ProjectCallContextMixin:
         if ordinal is None:
             self._edge_lookup_graph = None
             return
+        position = (edge.caller.qualname, edge.call_lineno, edge.call_col_offset,
+                    getattr(edge, 'mapping_targets', None) is not None)
+        if self._edge_lookup_positions[ordinal] != position:
+            self._edge_lookup_graph = None
+            return
         names = self._edge_lookup[1]
         previous = self._edge_lookup_names[ordinal]
         current = self._edge_callable_names(edge)
@@ -177,12 +187,12 @@ class ProjectCallContextMixin:
     #  @return Ordered edges, name buckets, mapping edges, and location buckets.
     def _get_edge_lookup(self):
         graph = self.project_cg
-        generation = tuple((module, id(cg.edges), len(cg.edges))
-                           for module, cg in graph.modules.items())
+        generation = graph.version
         if (getattr(self, '_edge_lookup_graph', None) is not graph
                 or self._edge_lookup_generation != generation):
             edges, names, mapped, sites = [], {}, [], {}
             edge_names, ordinals = {}, {}
+            scopes, positions = {}, {}
             for module, cg in graph.modules.items():
                 for edge in cg.edges:
                     ordinal = len(edges)
@@ -195,12 +205,26 @@ class ProjectCallContextMixin:
                         mapped.append(ordinal)
                     sites.setdefault((module, edge.call_lineno,
                                       edge.call_col_offset), []).append(edge)
+                    scopes.setdefault((module, edge.caller.qualname), []).append(edge)
+                    positions[ordinal] = (edge.caller.qualname, edge.call_lineno,
+                                          edge.call_col_offset,
+                                          getattr(edge, 'mapping_targets', None) is not None)
             self._edge_lookup = (edges, names, mapped, sites)
             self._edge_lookup_names = edge_names
             self._edge_lookup_ordinals = ordinals
+            self._edge_scope_lookup = scopes
+            self._edge_lookup_positions = positions
             self._edge_lookup_graph = graph
             self._edge_lookup_generation = generation
         return self._edge_lookup
+
+    ## Return one lexical caller's edges in original collection order.
+    #  @param module Caller module.
+    #  @param scope Caller qualified name.
+    #  @return Ordered edge tuple, retaining every spelling and candidate.
+    def _call_edges_in_scope(self, module, scope):
+        self._get_edge_lookup()
+        return tuple(self._edge_scope_lookup.get((module, scope), ()))
 
     ## Select candidate callback-contract edges by accepted callable spellings.
     #  @param names Terminal callable spellings accepted by the contract.

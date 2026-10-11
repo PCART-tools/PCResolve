@@ -6,6 +6,7 @@ import builtins
 import copy
 import os
 from dataclasses import dataclass, field, asdict
+from .analysis_limits import AnalysisBudget
 
 from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
@@ -253,8 +254,11 @@ class FlowAnalyzer:
     #  @param project_root Optional project directory scanned with FileScanner.
     #  @param return_summaries Opt-in exact callable summaries with provenance.
     #  @param parameter_shapes Opt-in trusted parameter shape contracts.
+    #  @param analysis_limits Optional cooperative resource limits for each analyze().
     def __init__(self, source_files=None, import_roots=None, project_root=None,
-                 return_summaries=None, parameter_shapes=None):
+                 return_summaries=None, parameter_shapes=None, analysis_limits=None):
+        self.analysis_limits = analysis_limits
+        self._analysis_budget = None
         if (source_files is None) == (project_root is None):
             raise ValueError('Specify exactly one of source_files or project_root')
         self.files = set()
@@ -302,7 +306,10 @@ class FlowAnalyzer:
         self._fact_functions = 500
         self._fact_calls = 2000
         self._class_binding_write_cache = None
-        self._source_snapshot = self._source_store.snapshot(sorted(self.files), FLOW_SOURCE)
+        self._source_snapshot = (
+            self._source_store.snapshot(sorted(self.files), FLOW_SOURCE, budget=self._analysis_budget)
+            if self._analysis_budget is not None
+            else self._source_store.snapshot(sorted(self.files), FLOW_SOURCE))
         previous = getattr(self, '_indexed_snapshot', None)
         if (previous is not None
                 and previous.files == self._source_snapshot.files
@@ -327,7 +334,10 @@ class FlowAnalyzer:
         self._module_index = ModuleIndex.build(
             [path for path in sorted(self.files)
              if self._source_snapshot.documents[path].error is None], self.roots, FLOW_MODULES)
+        next_file_indexes = {}
         for path in sorted(self.files):
+            if self._analysis_budget is not None:
+                self._analysis_budget.checkpoint(force=True)
             document = self._source_snapshot.documents[path]
             if document.error is not None:
                 self.index_boundaries.append({
@@ -340,61 +350,21 @@ class FlowAnalyzer:
             self.hashes[path] = document.sha256
             module = self._module_index.file_to_module[path]
             self.module_bodies.setdefault(module, []).append((path, tree.body))
-            bindings = {}
-            for statement in tree.body:
-                names = (list(fact.python_binding for fact in import_facts(statement))
-                         if isinstance(statement, (ast.Import, ast.ImportFrom))
-                         else statement_scope_facts([statement]).bound
-                         | _attribute_write_roots(statement))
-                for name in names:
-                    bindings.setdefault(name, []).append(statement)
-                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    for nested in ast.walk(statement):
-                        if isinstance(nested, ast.Global):
-                            for name in nested.names:
-                                bindings.setdefault(name, []).append(nested)
-            self.import_binding_facts.setdefault(module, []).append(bindings)
-            aliases = {}
-            for node in tree.body:
-                for fact in import_facts(node):
-                    if fact.kind == 'import':
-                        aliases[fact.python_binding] = (
-                            fact.name if fact.asname else fact.python_binding)
-                    else:
-                        prefix = (resolve_relative_module(
-                            module,
-                            os.path.basename(path).startswith('__init__.'),
-                            fact.module, fact.level)
-                            if fact.level else fact.module)
-                        aliases[fact.python_binding] = prefix + '.' + fact.name
-            self.imports[module] = aliases
-            self.module_bindings[module] = {
-                n.id for statement in tree.body
-                if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
-                for target in (statement.targets if isinstance(statement, ast.Assign) else [statement.target])
-                for n in ast.walk(target) if isinstance(n, ast.Name)}
-            def collect(body, prefix=''):
-                for node in body:
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                        name = prefix + node.name
-                        if not isinstance(node, ast.ClassDef):
-                            self.definitions.append((FunctionRef(module, name, path, node.lineno), node))
-                        else:
-                            self.classes.append((FunctionRef(module, name, path, node.lineno), node))
-                        collect(node.body, name + '.')
-                    else:
-                        def collect_lambdas(item):
-                            if isinstance(item, ast.Lambda):
-                                name = prefix + '<lambda>@%s:%s' % (item.lineno, item.col_offset)
-                                self.definitions.append((FunctionRef(module, name, path, item.lineno), item))
-                                collect_lambdas(item.body)
-                                return
-                            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                                return
-                            for child in ast.iter_child_nodes(item):
-                                collect_lambdas(child)
-                        collect_lambdas(node)
-            collect(tree.body)
+            cached = getattr(self, '_file_indexes', {}).get(path)
+            identity = (module, tuple(self.roots), self._source_snapshot.policy)
+            if cached is None or cached[0] is not document or cached[1] != identity:
+                facts = self._collect_file_index(path, document, module)
+            else:
+                facts = cached[2]
+            next_file_indexes[path] = document, identity, facts
+            bindings, aliases, bound, definitions, classes = facts
+            self.import_binding_facts.setdefault(module, []).append(
+                {name: list(nodes) for name, nodes in bindings})
+            self.imports[module] = dict(aliases)
+            self.module_bindings[module] = set(bound)
+            self.definitions.extend(definitions)
+            self.classes.extend(classes)
+        self._file_indexes = next_file_indexes
         self._definition_index = DefinitionIndex(
             [DefinitionRecord(ref.module, ref.qualname, (ref, node),
                               source_span=SourceSpan.from_ast(ref.file_path, node))
@@ -404,6 +374,75 @@ class FlowAnalyzer:
              for ref, node in self.classes])
         self._indexed_snapshot = self._source_snapshot
         self._indexed_roots = tuple(self.roots)
+
+    ## Collect immutable file facts independently of query state.
+    #  @param path Source path.
+    #  @param document Exact read-only source version.
+    #  @param module Module identity under current import roots.
+    #  @return Binding, import and definition facts in source order.
+    def _collect_file_index(self, path, document, module):
+        if self._analysis_budget is not None:
+            self._analysis_budget.checkpoint(force=True)
+        tree = document.tree
+        definitions, classes = [], []
+        bindings = {}
+        for statement in tree.body:
+            names = (list(fact.python_binding for fact in import_facts(statement))
+                     if isinstance(statement, (ast.Import, ast.ImportFrom))
+                     else statement_scope_facts([statement]).bound
+                     | _attribute_write_roots(statement))
+            for name in names:
+                bindings.setdefault(name, []).append(statement)
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for nested in ast.walk(statement):
+                    if isinstance(nested, ast.Global):
+                        for name in nested.names:
+                            bindings.setdefault(name, []).append(nested)
+        aliases = {}
+        for node in tree.body:
+            for fact in import_facts(node):
+                if fact.kind == 'import':
+                    aliases[fact.python_binding] = (
+                        fact.name if fact.asname else fact.python_binding)
+                else:
+                    prefix = (resolve_relative_module(
+                        module,
+                        os.path.basename(path).startswith('__init__.'),
+                        fact.module, fact.level)
+                        if fact.level else fact.module)
+                    aliases[fact.python_binding] = prefix + '.' + fact.name
+        module_bindings = {
+            n.id for statement in tree.body
+            if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+            for target in (statement.targets if isinstance(statement, ast.Assign) else [statement.target])
+            for n in ast.walk(target) if isinstance(n, ast.Name)}
+        def collect(body, prefix=''):
+            for node in body:
+                if self._analysis_budget is not None:
+                    self._analysis_budget.checkpoint()
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    name = prefix + node.name
+                    if not isinstance(node, ast.ClassDef):
+                        definitions.append((FunctionRef(module, name, path, node.lineno), node))
+                    else:
+                        classes.append((FunctionRef(module, name, path, node.lineno), node))
+                    collect(node.body, name + '.')
+                else:
+                    def collect_lambdas(item):
+                        if isinstance(item, ast.Lambda):
+                            name = prefix + '<lambda>@%s:%s' % (item.lineno, item.col_offset)
+                            definitions.append((FunctionRef(module, name, path, item.lineno), item))
+                            collect_lambdas(item.body)
+                            return
+                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                            return
+                        for child in ast.iter_child_nodes(item):
+                            collect_lambdas(child)
+                    collect_lambdas(node)
+        collect(tree.body)
+        return (tuple((name, tuple(nodes)) for name, nodes in bindings.items()),
+                tuple(aliases.items()), frozenset(module_bindings),
+                tuple(definitions), tuple(classes))
 
     def _base_classes(self, module, owner):
         classes = self._definition_index.find(module, owner, kind='class')
@@ -1512,6 +1551,10 @@ class FlowAnalyzer:
     def analyze(self, entry, max_depth=1, max_functions=500, max_call_contexts=2000):
         if min(max_depth, max_functions, max_call_contexts) < 1:
             raise ValueError('Depth and budgets must be positive')
+        self._analysis_budget = (AnalysisBudget(self.analysis_limits)
+                                 if self.analysis_limits is not None else None)
+        if self._analysis_budget is not None:
+            self._analysis_budget.checkpoint(force=True)
         self._index()
         self._fact_functions, self._fact_calls = max_functions, max_call_contexts
         self._object_fact_functions = max_functions
@@ -1546,9 +1589,13 @@ class FlowAnalyzer:
         context = CallContext(matches[0][0].module, matches[0][0], None)
         self._walk(result, matches[0], max_depth, context, max_functions, max_call_contexts)
         result.boundaries = _unique(result.boundaries)
+        if self._analysis_budget is not None:
+            self._analysis_budget.checkpoint(force=True)
         return result
 
     def _walk(self, result, definition, depth, context, max_functions, max_calls):
+        if self._analysis_budget is not None:
+            self._analysis_budget.checkpoint(force=True)
         ref, node = definition
         if ref in context.ancestors:
             result.boundaries.append({'function': asdict(ref), 'reason': 'recursion'})
@@ -2243,6 +2290,8 @@ class _Summary:
         return records
 
     def expression(self, node, env):
+        if self.analyzer._analysis_budget is not None:
+            self.analyzer._analysis_budget.checkpoint()
         if node is None:
             return []
         if isinstance(node, ast.Name):
@@ -3862,6 +3911,8 @@ class _Summary:
         return exits
 
     def statement(self, node, env):
+        if self.analyzer._analysis_budget is not None:
+            self.analyzer._analysis_budget.checkpoint()
         normal = lambda e: [('normal', e, [], None)]
         exceptional = []
         # A possible exception uses the environment BEFORE evaluation. Simple
