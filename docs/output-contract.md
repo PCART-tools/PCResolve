@@ -168,6 +168,7 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | instantiated helper mapping effects | `completion`, `may_raise`, `binding`, `call_id`, `call_evidence` | A complete straight-line constant-string-key dict removal instantiated from a proven ordinary argument. `completion="normal_return"` excludes exceptional completion; `may_raise="KeyError"` applies to required-key pop/delete. Binding and both source sites explain which actual object was modified. |
 | `functions[*].return_objects[*]` | `requires_shapes`, `completion` | Optional receiver-parameter shape constraints and normal-completion scope for a symbolic alias proof that includes fully modeled effects. No caller-local object IDs are stored in the symbolic summary. |
 | `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
+| `functions[*]` | `decorator_effects` | Bounded source-decoration facts on the exact original FunctionRef, including entries. Separates `identity_status` from `body_binding_status` (`preserved`, `modified`, `unknown`); records expression/target, optional constructor/receiver facts, input-function attribute effects, conditions, source evidence/hashes, assumptions and unresolved boundaries. `runtime_target_confirmed` remains false; a same-object return alone is not body/binding preservation. |
 | `calls[*]` | `callable_sources` | Callable expression provenance, including an optional source-proven `callable_type` and `callable_evidence` on ordinary parameter roots. String values or annotations do not establish callable identity. |
 | `calls[*]` | `class_method_bindings` | Source-snapshot classmethod lookup/binding explanations. `source_bound` requires a direct source class/import/alias, a proven builtin descriptor, matching local member or source MRO, and no recognized mutation/escape/customization. Records receiver versus definition class, implicit binding, source hashes/evidence, conditions, assumptions and issues; `runtime_target_confirmed` is always false. `unconfirmed` is not a binding proof. |
 | `calls[*]` | `analysis_contexts` | Per-expansion facts tied to `incoming_call_id`: symbolic `parameter_facts`, target/candidates/status, binding status, argument/callable/result sources, effects, conditional returns and conditions. The top-level call is a conservative union; do not combine facts from different contexts. |
@@ -188,6 +189,18 @@ allocator result without inventing a Python definition or target candidate.
 `dynamic_construction`, `dynamic_class_receiver_override_possible`,
 `class_return_recursion`, and `class_return_budget` preserve uncertainty in
 construction, class dispatch, and bounded class-return proofs.
+`decorator_effects` is a positive, finite syntax proof, not the absence of a
+mutation warning. First-phase preserved body/binding proofs permit only modeled
+input-function `__doc__` writes, local aliases and bounded source helper/super
+composition. Recognized code/default writes report `modified`; signature or
+other unsupported attribute writes do not receive a preservation proof.
+Unproved dispatch, opaque calls/escape, implicit returns, unsupported syntax,
+multiple decorators, recursion and exhausted proof budgets retain `unknown`.
+`decorator_effect_unconfirmed` exposes function-scoped issues. Proven decorations
+can annotate their own `decorated_caller_semantics` / `decorated_target_candidate`
+boundaries with `boundary_kind="assumption"`, `body_binding_status="preserved"`
+and explicit assumptions; independent receiver, effect and budget boundaries
+remain. These facts neither confirm runtime targets nor claim the decorator pure.
 For a proven source classmethod binding, the existing
 `dynamic_class_receiver_override_possible` boundary remains but has
 `boundary_kind="assumption"`, `binding_status="source_bound"` and explicit

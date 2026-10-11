@@ -21,9 +21,11 @@ from .return_resolution import (CallBinding, ReturnCall,
 from .effect_facts import (container_method_effect, contains_yield,
                            function_effects, FunctionEffect, finite_key_delete_sites)
 from .import_facts import import_facts, resolve_relative_module
+from ._decorator_effects import _DecoratorEffects
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
+_DECORATOR_EFFECT_NODE_LIMIT = 2000
 
 
 def _exception_class(name):
@@ -306,6 +308,7 @@ class FlowAnalyzer:
         self._fact_functions = 500
         self._fact_calls = 2000
         self._class_binding_write_cache = None
+        self._decoration_fact_cache = {}
         self._source_snapshot = (
             self._source_store.snapshot(sorted(self.files), FLOW_SOURCE, budget=self._analysis_budget)
             if self._analysis_budget is not None
@@ -906,7 +909,7 @@ class FlowAnalyzer:
         self._class_binding_write_cache = writes, remaining[0] < 0
         return self._class_binding_write_cache
 
-    def _decorator_definition(self, target):
+    def _decorator_definition(self, target, kind='function'):
         ref, node = target
         decorators = getattr(node, 'decorator_list', [])
         if len(decorators) != 1 or not isinstance(
@@ -934,7 +937,8 @@ class FlowAnalyzer:
         qualified = imported + (dot + rest if dot else '') if imported else ref.module + '.' + name
         if not self._stable_import_name(ref.module + '.' + first):
             return None
-        decorator = self._resolve_import_binding(qualified)
+        decorator = self._definition_index.resolve_qualified([qualified], self.imports,
+            kind=kind, qualified_guard=self._stable_import_name)
         if decorator is None or getattr(decorator[1], 'decorator_list', []):
             return None
         return decorator
@@ -989,6 +993,27 @@ class FlowAnalyzer:
                 'effects_unmodeled': any(isinstance(child, ast.Call) or
                     isinstance(child, (ast.Attribute, ast.Subscript)) and
                     isinstance(child.ctx, ast.Store) for child in nodes)}
+
+    ## Describe one bounded decoration on the exact original source definition.
+    #  @param target FunctionRef and source definition.
+    #  @return JSON-safe function-level effect facts, separate from identity proof.
+    def _decoration_facts(self, target):
+        ref, node = target
+        original = [item for item in self._definition_index.find(ref.module, ref.qualname) if item[0] == ref]
+        if len(original) == 1:
+            node = original[0][1]
+            target = ref, node
+        if ref not in self._decoration_fact_cache:
+            decorators = getattr(node, 'decorator_list', [])
+            if not decorators:
+                self._decoration_fact_cache[ref] = []
+                return []
+            summary = _Summary(self, FlowAnalysis(ref, {}), ref, node, 0)
+            self._decoration_fact_cache[ref] = [
+                _DecoratorEffects(self, target, summary.evidence_at, _DECORATOR_EFFECT_NODE_LIMIT).fact(
+                    expression, multiple=len(decorators) != 1)
+                for expression in decorators]
+        return copy.deepcopy(self._decoration_fact_cache[ref])
 
     def _decorated_target(self, target):
         decorator = self._decorator_definition(target)
@@ -1706,7 +1731,7 @@ class FlowAnalyzer:
                 result.functions.append(copy.deepcopy(function))
             else:
                 for field in ('returns', 'mapping_effects', 'loops', 'receiver_contexts',
-                              'return_objects'):
+                              'return_objects', 'decorator_effects'):
                     if field in function:
                         previous[field] = _unique(previous.get(field, []) + function[field])
         for call in summary.calls:
@@ -2855,8 +2880,11 @@ class _Summary:
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
                 identity_decorator = self.analyzer._identity_decorator(target)
-                if identity_decorator is not None:
-                    pass
+                decoration_facts = self.analyzer._decoration_facts(target)
+                body_preserved = (len(decoration_facts) == 1
+                    and decoration_facts[0]['body_binding_status'] == 'preserved')
+                if identity_decorator is not None or body_preserved:
+                    decorated_target_candidate = body_preserved and identity_decorator is None
                 elif dispatch_kind in (
                         'constructor', 'instance_method', 'field_method',
                         'receiver_type_evidence', 'returned_field_candidate',
@@ -2977,12 +3005,22 @@ class _Summary:
                     'reason': 'decorated_caller_semantics',
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence(self.node)})
+                facts = self.analyzer._decoration_facts((self.ref, self.node))
+                if len(facts) == 1 and facts[0]['body_binding_status'] == 'preserved':
+                    self.result.boundaries[-1].update(boundary_kind='assumption',
+                        body_binding_status='preserved', function=asdict(self.ref),
+                        assumptions=copy.deepcopy(facts[0]['assumptions']))
             if target and decorated_target_candidate:
                 self.result.boundaries.append({
                     'call_id': call_id, 'callee_name': name,
                     'reason': 'decorated_target_candidate',
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence_at(target[0], target[1])})
+                facts = self.analyzer._decoration_facts(target)
+                if len(facts) == 1 and facts[0]['body_binding_status'] == 'preserved':
+                    self.result.boundaries[-1].update(boundary_kind='assumption',
+                        body_binding_status='preserved', function=asdict(target[0]),
+                        assumptions=copy.deepcopy(facts[0]['assumptions']))
             if target and owner and dispatch_kind in (
                     'instance_method', 'super_method', 'super_new'):
                 hierarchy = self.analyzer._class_mro(self.ref.module, owner)
@@ -4375,7 +4413,18 @@ class _Summary:
                                       'generator': generator,
                                       'loops': self.loops,
                                       'mapping_effects': self.mapping_effects,
-                                      'returns': self.returns})
+                                      'returns': self.returns,
+                                      'decorator_effects': self.analyzer._decoration_facts((self.ref, self.node))})
+        decorations = self.result.functions[-1]['decorator_effects']
+        if decorations and self.analyzer._descriptor_kind((self.ref, self.node)) is None:
+            for fact in decorations:
+                if fact['body_binding_status'] != 'preserved':
+                    self.result.boundaries.append({'function': asdict(self.ref),
+                        'reason': 'decorator_effect_unconfirmed',
+                        'identity_status': fact['identity_status'],
+                        'body_binding_status': fact['body_binding_status'],
+                        'issues': copy.deepcopy(fact['boundaries']),
+                        'evidence': copy.deepcopy(fact['expression'])})
         object_fact, _ = self.analyzer._object_returns((self.ref, self.node))
         if object_fact:
             self.result.functions[-1]['return_objects'] = [{
