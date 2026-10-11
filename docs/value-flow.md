@@ -704,7 +704,7 @@ Non-convergence produces `loop_iteration_limit`. One witness is retained per
 dependency; this does not enumerate iteration counts or prove feasibility.
 Repeated evaluation of a call site does not spend the call budget repeatedly.
 Known local list/dict/set protocols include bounded `append`, `clear`, `get`,
-list/dict `pop`, dict `update`, membership, deletion, and mapping-unpack merge
+list/dict `pop`, dict `update`/`setdefault`/`copy`, membership, deletion, and mapping-unpack merge
 behavior. Variadic parameter containers start with a wildcard element root, so
 passing `kwargs` as an ordinary argument preserves `kwargs[*]` provenance rather
 than requiring `**kwargs` syntax. Conditional effects keep their syntactic
@@ -712,6 +712,73 @@ conditions and report `state_after="conditional"`; this does not prove branch
 feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
+
+### Builtin container copies and setdefault
+
+For a source-proven variadic capture or local builtin container allocation,
+`kwargs.copy()` and an unshadowed `dict(kwargs)` retain a distinct top-level
+object identity and a shallow snapshot of the **current** contents. The same
+bounded rule converts proven list/tuple inputs with unshadowed `list(values)`
+and `tuple(values)`; tuple-of-tuple retains the input identity. Unknown ordinary
+parameters, annotations, arbitrary iterables and custom `copy()` methods do not
+supply this proof. First-phase constructors accept one ordinary positional input,
+without keyword or dynamic expansion binding.
+
+```python
+def root(**kwargs):
+    kwargs.pop("out", None)
+    copied = dict(kwargs)
+    kwargs.clear()
+    return fixed(**copied)
+```
+
+Here `copied` retains the open remainder with `excluded_paths=[["out"]]` even after
+the original is cleared. Clearing the copy likewise does not clear the original;
+copying **after** clear reads an empty object, not the original entry dependencies.
+Finite mappings/sequences remain finite. Nested mutable element IDs stay shared:
+clearing a copied dictionary's known list element affects the original element.
+This is shallow copying, not deep copying or a general heap analysis.
+
+The call result retains its `call_result` endpoint with `object_only=true` and
+`container_object` (`identity="shallow_copy"`, `source`, `container_shape`,
+`copied_from`, and optional `parameter_container`). The copy effect records input
+and output object IDs, source evidence, conditions and normal completion. Uses
+materialize the copied object's current elements; consumers must not substitute
+the endpoint through old whole-input dependencies. IDs are analysis-local
+allocation sites, not runtime object IDs. Protocol calls keep an empty source
+target/candidate list and `target_status="local_container_protocol"`.
+
+For a single proven dict identity and a constant string/integer key,
+`setdefault(key[, default])` distinguishes known presence, known absence and
+unknown presence **after evaluating all arguments**, including an eagerly
+evaluated default expression. Known presence returns the existing element without
+default insertion; known absence inserts/returns the default (implicit `None`
+adds no parameter dependency). Unknown presence keeps both alternatives with
+`conditions[*].mapping_membership` describing the input object's key-presence
+branch. It separates the addressed key from the open remainder without closing
+other keys or overwriting a possibly existing value. The effect's `state_before`
+and `insertion` (`never`, `always`, `conditional`) expose this distinction;
+`completion="normal_return"` does not prove the operation always succeeds.
+
+An existing/default element receives `identity="element_alias"` only when every
+selected alternative proves the same builtin container object. An unknown
+existing element cannot acquire the default's shape. Source-conditional key
+markers do not prove definite presence, including for a subsequent `get`.
+
+Unsupported keys, receiver alternatives, custom objects, shadowed constructors,
+invalid arity/keywords and exhausted call budgets retain boundaries. Unknown
+calls or incomplete helper effects can change/escape contents: subsequent copying
+retains `container_copy_unproven` rather than promoting an old finite snapshot or
+exclusion to a new proof. Existing effect/receiver/expansion boundaries are not
+deleted. Unsupported fresh-container helper returns, arbitrary iteration and
+escape-state recovery remain outside this first phase.
+
+Downstream consumers can inspect these additive facts on `analyze()/expand()` and
+`to_dict()`, then read current `argument_sources` at the forwarding call. A copied
+value's dependence on kwargs does not alone prove open keyword space: shape,
+identity, element paths/exclusions, effect completion, conditions and remaining
+boundaries must also be considered. PCResolve reports no compatibility or VPP
+decision; consumer-side scans need their own frozen-snapshot regression.
 
 ### Ordinary-parameter dict removals
 

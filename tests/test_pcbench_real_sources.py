@@ -411,6 +411,40 @@ def test_real_decorated_entries_expose_identity_and_unclosed_effects(
                for item in result.boundaries)
 
 
+@pytest.mark.parametrize('entry', ['Session.options', 'Session.head'])
+def test_frozen_requests_setdefault_preserves_open_kwargs_and_independent_receiver_boundary(entry):
+    inventory = Path('C:/GitHub/VPPDetector/evaluation/local_scan_20261011/sources.json')
+    if not inventory.is_file():
+        pytest.skip('Frozen scan diagnostic sources are not available')
+    records = json.loads(inventory.read_text(encoding='utf-8'))['sources']
+    record = next((item for item in records if item['source_id'] == 'requests-2.32.5'), None)
+    if record is None:
+        pytest.skip('Requests diagnostic source is not available')
+    package = Path(record['package_root'])
+    selected = package / 'sessions.py'
+    if not selected.is_file():
+        pytest.skip('Requests sessions source is not available')
+    assert hashlib.sha256(selected.read_bytes()).hexdigest() == record['python_file_sha256']['sessions.py']
+    result = FlowAnalyzer(source_files=[selected], import_roots=[package.parent]).analyze(
+        FunctionRef(module='requests.sessions', qualname=entry))
+    call = result.find_calls(callee_name='kwargs.setdefault')[0]
+    assert call.target is None and call.target_candidates == []
+    assert call.target_status == 'local_container_protocol'
+    effect = next(item for item in call.effects if item['operation'] == 'setdefault')
+    assert effect['state_before'] == 'unknown'
+    assert effect['insertion'] == 'conditional'
+    assert effect['element_path'] == ['allow_redirects']
+    assert effect['completion'] == 'normal_return'
+    forwarded = result.find_calls(callee_name='self.request')[0]
+    sources = [value for argument in forwarded.argument_sources for value in argument['sources']
+               if value['kind'] == 'parameter' and value['source'] == 'kwargs'
+               and value.get('output_path') == ['*']]
+    assert sources and all(['allow_redirects'] in value['excluded_paths'] for value in sources)
+    assert any(boundary.get('call_id') == forwarded.id
+               and boundary['reason'] == 'dynamic_method_override_possible'
+               for boundary in result.boundaries)
+
+
 @pytest.mark.parametrize('entry', ['cdist', 'pdist'])
 def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
     result = analyze('scipy-1.0.0', ['spatial/distance.py'],

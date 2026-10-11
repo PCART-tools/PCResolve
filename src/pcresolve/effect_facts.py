@@ -63,6 +63,14 @@ def container_method_effect(method, receiver_shapes, positional_count):
         if positional_count in (1, 2):
             return ContainerMethodEffect('get', ('key', 'default'), False)
         return None
+    if method == 'copy' and shapes == frozenset(('dict',)):
+        if positional_count == 0:
+            return ContainerMethodEffect('copy', (), False)
+        return None
+    if method == 'setdefault' and shapes == frozenset(('dict',)):
+        if positional_count in (1, 2):
+            return ContainerMethodEffect('mapping_setdefault', ('key', 'default'), True)
+        return None
     if method == 'pop' and shapes == frozenset(('list',)):
         if positional_count in (0, 1):
             return ContainerMethodEffect('pop', ('index',), True)

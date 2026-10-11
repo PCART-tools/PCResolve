@@ -217,6 +217,12 @@ def _merge_env(environments):
     merged = {}
     for key in keys:
         values = _unique([value for env in environments for value in env.get(key, [])])
+        if key.endswith('$keys'):
+            values = [dict(value, presence_unconfirmed=True)
+                      if not all(any(marker.get('key') == value.get('key')
+                          and not marker.get('presence_unconfirmed')
+                          for marker in env.get(key, [])) for env in environments)
+                      else value for value in values]
         if any(not env.get(key) for env in environments):
             values = [dict(value, import_incomplete=True)
                       if value.get('kind') == 'import' else
@@ -3144,6 +3150,7 @@ class _Summary:
             invalid_binding = invalid_binding or any(
                 record['status'] in ('missing', 'duplicate') for record in records)
             actual_values = {}
+            protocol_values = {}
             for record in records:
                 slot, arg = record['argument'], record['node']
                 parameter, target_path = record['parameter'], record['target_path']
@@ -3158,6 +3165,8 @@ class _Summary:
                 if arg is None:
                     continue
                 raw_values = self.expression(arg, env)
+                if isinstance(slot, dict) and 'position' in slot:
+                    protocol_values[slot['position']] = raw_values
                 raw_values = [dict(value, value_incomplete=True)
                     if ((value.get('callable_type') or {}).get('module', value.get('module')),
                         (value.get('callable_type') or {}).get('qualname', value.get('source')))
@@ -3228,7 +3237,15 @@ class _Summary:
                             input_evidence=_unique([evidence for value in values
                                 for evidence in value.get('evidence', [])]))
             self.invalidate_attributes(env)
-            if target is None and not bounded_targets:
+            if target and not invalid_binding:
+                effects_complete = self.apply_effects(
+                    selected_target, actual_values, capture_values, call, env, node)
+            container_result = self.container_call(node, receiver_values, call, env, protocol_values)
+            if target is None and container_result is None and isinstance(node.func, ast.Name):
+                container_result = self.container_constructor(node, call, env, protocol_values)
+            if (target is None and not bounded_targets
+                    and call.target_status not in ('python_protocol', 'local_container_protocol',
+                                                  'builtin_allocation')):
                 for values in actual_values.values():
                     self.invalidate_literals(values, env)
                     candidates, _ = self.callable_targets(values)
@@ -3240,10 +3257,8 @@ class _Summary:
                             env[source] = [dict(value, value_incomplete=True)
                                 if value.get('kind') == 'callable' or value.get('callable_type')
                                 else value for value in env.get(source, [])]
-            if target and not invalid_binding:
-                effects_complete = self.apply_effects(
-                    selected_target, actual_values, capture_values, call, env, node)
-            container_result = self.container_call(node, receiver_values, call, env)
+                    self.unknown_container_contents(values, env)
+                self.unknown_container_contents(receiver_values, env)
             self.calls.append(call)
             if invalid_binding:
                 return []
@@ -3426,7 +3441,185 @@ class _Summary:
                 result.extend(select_dependencies([value], [index]))
         return result
 
-    def container_call(self, node, receiver, call, env):
+    def unknown_container_contents(self, values, env):
+        for reference in self.container_values(values):
+            if reference.get('kind') != 'container' or reference['source'] not in env:
+                continue
+            source = reference['source']
+            env[source + '$state'] = [{'kind': 'container_state', 'source': source,
+                                       'contents_unknown': True}]
+            env[source] = [dict(value, excluded_paths=[]) if value.get('excluded_paths') else value
+                           for value in env[source]]
+            env[source + '$keys'] = _unique([
+                dict(marker, excluded_keys=[], presence_unconfirmed=True)
+                for marker in env.get(source + '$keys', [])] +
+                [{'kind': 'key', 'source': '*', 'key': '*'}])
+
+    def exact_container(self, values, shapes, env):
+        references = self.container_values(values)
+        if (not references or not all(value.get('kind') == 'container'
+                and value.get('container_shape') in shapes
+                and value.get('relation') == 'direct' and not value.get('value_incomplete')
+                and not value.get('projection') and not value.get('output_path')
+                and value['source'] in env for value in references)
+                or len({value['source'] for value in references}) != 1):
+            return None
+        return references[0]
+
+    def container_endpoint(self, call, node, obj=None):
+        value = {'kind': 'call_result', 'source': call.id, 'relation': 'direct',
+                 'object_only': True, 'evidence': [self.evidence(node)],
+                 'conditions': copy.deepcopy(self.conditions)}
+        if obj is not None:
+            value['container_object'] = obj
+        return value
+
+    def copy_container(self, values, shape, node, call, env):
+        allowed = ('dict',) if shape == 'dict' else ('list', 'tuple')
+        reference = self.exact_container(values, allowed, env)
+        if (reference is None or any(marker.get('contents_unknown')
+                for marker in env.get(reference['source'] + '$state', []))):
+            self.add_boundary('container_copy_unproven', node, env, values,
+                              call_id=call.id, detail='unproven_input_shape_identity_or_contents')
+            return None
+        source = reference['source']
+        alias = shape == reference['container_shape'] == 'tuple'
+        output = source if alias else '$copy:' + call.id
+        if not alias:
+            env[output] = copy.deepcopy(env.get(source, []))
+            env[output + '$keys'] = copy.deepcopy(env.get(source + '$keys', []))
+            env.pop(output + '$state', None)
+        obj = {'source': output, 'container_shape': shape,
+               'parameter_container': reference.get('parameter_container'),
+               'identity': 'argument_alias' if alias else 'shallow_copy',
+               'copied_from': source}
+        result = self.container_endpoint(call, node, obj)
+        result['evidence'] = _unique(reference['evidence'] + result['evidence'])
+        call.result_sources = [result]
+        # Contents are read through the object at each use, never through a stale
+        # whole-input dependency. Nested container IDs remain shallow aliases.
+        call.return_dependencies = []
+        roots, unknown = self.affected_values(values, env)
+        effect = {'kind': 'container_copy', 'operation': 'copy',
+                  'input_container': source, 'output_container': output,
+                  'container_shape': shape, 'identity': obj['identity'],
+                  'mapping': roots, 'status': 'unknown_source' if unknown else 'bounded',
+                  'completion': 'normal_return',
+                  'conditions': copy.deepcopy(self.conditions), 'evidence': self.evidence(node)}
+        call.effects.append(effect)
+        if shape == 'dict':
+            self.mapping_effects.append(effect)
+        return [result]
+
+    def container_constructor(self, node, call, env, actuals):
+        name = node.func.id
+        if (name not in ('dict', 'list', 'tuple') or name in env
+                or name in self.analyzer.imports.get(self.ref.module, {})
+                or name in self.analyzer.module_bindings.get(self.ref.module, set())
+                or len(node.args) != 1 or node.keywords or isinstance(node.args[0], ast.Starred)):
+            return None
+        values = actuals.get(0, [])
+        result = self.copy_container(values, name, node, call, env)
+        if result is None:
+            return None
+        call.target_status = 'local_container_protocol'
+        call.binding_status = 'complete'
+        for binding in call.parameter_bindings:
+            binding.update(parameter='object', status='exact', destination_kind='parameter')
+        for argument in call.argument_sources:
+            argument['parameter'] = 'object'
+        for flow in call.argument_flows + call.parameter_flows:
+            flow['target_parameter'] = 'object'
+        return result
+
+    def mapping_key_state(self, reference, key, env):
+        if key == '*' or any(marker.get('contents_unknown')
+                for marker in env.get(reference['source'] + '$state', [])):
+            return 'unknown'
+        markers = env.get(reference['source'] + '$keys', [])
+        if any(marker['key'] == key and not marker.get('presence_unconfirmed') for marker in markers):
+            return 'present'
+        if any(marker['key'] == key or marker['key'] == '*'
+               and key not in marker.get('excluded_keys', []) for marker in markers):
+            return 'unknown'
+        return 'absent'
+
+    def mapping_setdefault(self, node, receiver, call, env, actuals):
+        reference = self.exact_container(receiver, ('dict',), env)
+        literal = self.literal_fact(node.args[0], env)
+        key = (literal['value'] if literal and literal['type'] in ('str', 'int')
+               and literal['value'] != '*' else '*')
+        if reference is None or key == '*':
+            self.add_boundary('container_effect_unknown', node, env, receiver,
+                              call_id=call.id, detail='setdefault_key_or_receiver_unproven')
+            self.unknown_container_contents(receiver, env)
+            return None
+        source = reference['source']
+        roots, unknown = self.mapping_affected_values(receiver, env)
+        state = self.mapping_key_state(reference, key, env)
+        call.argument_sources.append({'argument': 'receiver', 'parameter': 'self',
+                                      'sources': copy.deepcopy(self.materialize(receiver, env))})
+        existing = self.project(receiver, key, env)
+        default = actuals.get(1, [])
+        previous, inserted = [], []
+        present = {'mapping_membership': {'object_source': source, 'element_path': [key],
+                                          'state': 'present'}, 'evidence': self.evidence(node)}
+        absent = {'mapping_membership': {'object_source': source, 'element_path': [key],
+                                         'state': 'absent'}, 'evidence': self.evidence(node)}
+        if state != 'absent':
+            previous = self.marked(existing, node)
+            if state == 'unknown':
+                previous = [dict(value, conditions=value.get('conditions', []) + [present])
+                            for value in previous]
+        if state != 'present':
+            inserted = self.marked(default, node)
+            if state == 'unknown':
+                inserted = [dict(value, conditions=value.get('conditions', []) + [absent])
+                            for value in inserted]
+            # Separate this slot from the open remainder, retaining both guarded
+            # existing/default alternatives instead of overriding an unknown key.
+            remainder = []
+            for value in env.get(source, []):
+                path = value.get('output_path', [])
+                if path and path[0] == key:
+                    continue
+                if path and path[0] == '*':
+                    value = dict(value, excluded_paths=_unique(value.get('excluded_paths', []) + [[key]]))
+                remainder.append(value)
+            slot = previous + inserted
+            env[source] = remainder + [dict(value, output_path=[key] + value.get('output_path', []))
+                                       for value in slot]
+            markers = []
+            for marker in env.get(source + '$keys', []):
+                if marker['key'] == key:
+                    continue
+                if marker['key'] == '*':
+                    marker = dict(marker, excluded_keys=_unique(marker.get('excluded_keys', []) + [key]))
+                markers.append(marker)
+            env[source + '$keys'] = markers + [{'kind': 'key', 'source': repr(key), 'key': key}]
+            call.mutation_flows.extend(dict(value, target_container=source,
+                effect_summary='mapping_setdefault') for value in self.materialize([
+                    dict(value, output_path=[key] + value.get('output_path', [])) for value in inserted], env))
+        effect = {'kind': 'mapping_element', 'operation': 'setdefault', 'mapping': roots,
+                  'object_source': source, 'element_path': [key], 'state_before': state,
+                  'state_after': 'conditional' if self.conditions else 'present',
+                  'insertion': 'never' if state == 'present' else 'always' if state == 'absent' else 'conditional',
+                  'status': 'bounded', 'completion': 'normal_return',
+                  'conditions': copy.deepcopy(self.conditions), 'evidence': self.evidence(node)}
+        self.mapping_effects.append(effect)
+        call.effects.append(effect)
+        selected = previous + inserted
+        obj = self.exact_container(selected, ('dict', 'list', 'tuple', 'set'), env)
+        endpoint = self.container_endpoint(call, node,
+            {'source': obj['source'], 'container_shape': obj['container_shape'],
+             'parameter_container': obj.get('parameter_container'), 'identity': 'element_alias'} if obj else None)
+        endpoint['evidence'] = _unique(endpoint['evidence'] + [span for value in selected
+                                                              for span in value.get('evidence', [])])
+        call.return_dependencies = []
+        call.result_sources = [endpoint] if obj else [endpoint] + selected
+        return call.result_sources
+
+    def container_call(self, node, receiver, call, env, actuals=None):
         receiver = self.container_values(receiver)
         if (not isinstance(node.func, ast.Attribute) or not receiver or not all(
                 v['kind'] == 'container' and v.get('relation') == 'direct'
@@ -3445,6 +3638,7 @@ class _Summary:
                                            'reason': 'container_effect_unknown'})
             return None
         call.target_status = 'local_container_protocol'
+        call.binding_status = 'complete'
         if effect.mutates_receiver:
             self.invalidate_literals(receiver, env)
         parameters = effect.parameters
@@ -3470,12 +3664,14 @@ class _Summary:
             elif method == 'update' and slot.get('keyword') is not None:
                 flow['target_parameter'] = 'other'
                 flow['target_path'] = [slot['keyword']]
+        if method == 'copy':
+            return self.copy_container(receiver, 'dict', node, call, env)
+        if method == 'setdefault':
+            return self.mapping_setdefault(node, receiver, call, env, actuals or {})
         if method == 'get':
             index = node.args[0].value if isinstance(node.args[0], ast.Constant) else '*'
-            known = all(any(k['key'] == index for k in env.get(v['source'] + '$keys', []))
-                        and not any(k['key'] == '*' and index not in k.get('excluded_keys', [])
-                                    for k in env.get(v['source'] + '$keys', []))
-                        for v in receiver) and index != '*'
+            known = all(self.mapping_key_state(value, index, env) == 'present'
+                        for value in receiver)
             call.argument_sources.append({'argument': 'receiver', 'parameter': 'self',
                                           'sources': self.materialize(receiver, env)})
             call.result_sources = self.marked(
@@ -3628,7 +3824,8 @@ class _Summary:
             if method == 'clear':
                 if len({v['source'] for v in receiver}) == 1:
                     env[ref['source']] = []
-                    env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '<cleared>', 'key': '*'}]
+                    env[ref['source'] + '$keys'] = []
+                    env.pop(ref['source'] + '$state', None)
             else:
                 values = self.marked(call.argument_sources[0]['sources'], node)
                 inserted = [dict(v, output_path=['*'] + v.get('output_path', [])) for v in values]
@@ -3660,6 +3857,9 @@ class _Summary:
             ordinary_actuals = {name: values for name, values in actuals.items() if name in ordinary}
             known_mapping = any(value.get('kind') == 'container' and value.get('container_shape') == 'dict'
                 for values in ordinary_actuals.values() for value in self.container_values(values))
+            if known_mapping:
+                for values in ordinary_actuals.values():
+                    self.unknown_container_contents(values, env)
             owner = target_ref.qualname.rpartition('.')[0]
             if (cause != 'mapping_effect_budget' and call.binding_status == 'complete'
                     and not getattr(target, 'decorator_list', []) and not owner
@@ -3885,8 +4085,8 @@ class _Summary:
             if kind == 'container_clear':
                 for reference in receivers:
                     env[reference['source']] = []
-                    env[reference['source'] + '$keys'] = [
-                        {'kind': 'key', 'source': '<cleared>', 'key': '*'}]
+                    env[reference['source'] + '$keys'] = []
+                    env.pop(reference['source'] + '$state', None)
                 call.effects.append({'kind': 'container_clear', 'target': target_name,
                                      'status': 'exact',
                                      'evidence': [self.evidence_at(
