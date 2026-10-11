@@ -601,7 +601,82 @@ and opaque calls retain `identity_decorator_effects_unmodeled`: preserved object
 identity does not prove the absence of effects. Replacement, capture wrappers,
 unknown decorators, unsupported control flow, and proofs exceeding the bounded
 AST size are not stripped to the original function. Other descriptors, unknown
-bases, decorator factories, and dynamic replacement remain boundaries.
+bases, arbitrary decorator factories, and dynamic replacement remain boundaries.
+
+### Function-level decoration effects
+
+Every function summary exposes additive `decorator_effects` (empty when there is
+no decoration). Unlike `FlowCall.decorator_identity_evidence`, this is available
+when the decorated definition itself is the analysis entry:
+
+```python
+analysis = analyzer.analyze(FunctionRef(module="entries", qualname="documented"))
+summary = next(item for item in analysis.functions
+               if item["function"] == analysis.to_dict()["entry"])
+fact = summary["decorator_effects"][0]
+assert fact["identity_status"] == "preserved"
+assert fact["body_binding_status"] == "preserved"
+```
+
+The exact original `function`, decorator `expression` span and source `target`
+are distinct identities. Records retain effects, branch conditions, evidence,
+source hashes and assumptions, optionally with `receiver_class` and constructor
+parameter binding evidence. `completion="normal_return"` scopes a proof to normal
+completion; it does not establish that the decorator completes or never raises.
+`runtime_target_confirmed` is always false. Source bindings, builtin function
+attribute behavior and absence of external monkeypatch/import hooks remain
+explicit assumptions, not observations about runtime state.
+
+`identity_status` is `preserved`, `replaced` or `unknown`.
+`body_binding_status` is separately `preserved`, `modified` or `unknown`.
+Returning the input after a `__code__`, `__defaults__`, `__kwdefaults__` or signature
+metadata write cannot prove original execution/binding behavior. Signature
+metadata and unsupported attributes retain `unknown`, distinct from recognized
+code/default writes with `impact="execution_binding"`. `modified`
+describes a recognized source replacement/write; effect conditions must still be
+read and no runtime execution is asserted. Known source helper writes retain the
+helper FunctionRef and write evidence. Dynamic writes and unknown helpers are
+not inferred safe merely because a final return names the original parameter.
+
+The private flow adapter proves only a single, source-located decoration:
+ordinary synchronous function decorators; a factory whose body is exactly a
+returned nested decorator with literal captures; and direct/module-level
+constructor-backed instances with ordinary source MRO, simple initializer state,
+inherited `__call__` and bounded zero-argument `super().__call__`. Ordinary local
+aliases and finite branches are followed. Only input-function `__doc__` writes
+are admitted by a preservation proof. This allows documentation effects without
+claiming the entire decorator has no side effects. Source-known function objects
+are not classes, so an unshadowed builtin `isinstance(obj, type)` guard can exclude
+its class-only branch, including short-circuit `and`.
+
+Opaque calls (even document-processing calls), function/receiver escape or capture,
+uncertain construction/member/descriptor lookup, visible class writes, generators,
+async decorators, implicit returns, loops/try/finally/complex reflection and
+multiple-decorator composition retain explicit issues. Nested-definition default
+and annotation expressions (including variadic annotations) cannot be silently
+ignored. Unknown initializer branches do not prove a unique receiver state.
+Unproven constructor/factory defaults also retain issues. No decorator/library name
+is a transparency whitelist. Proofs have a 2,000-node shared visit allowance per
+decoration and eight source-call frames; recursion and exhaustion retain
+`decorator_effect_recursion` / `decorator_effect_budget`. Source class-write checks
+reuse the existing finite scan and query cache. Decoration caches are query-local,
+symbolic and keyed to the exact source definition, not caller object IDs.
+
+Unclosed facts expose `decorator_effect_unconfirmed` on `FlowAnalysis.boundaries`.
+A positive proof may refine its own decorated-caller/target boundary into an
+assumption boundary, but does not remove receiver, dynamic replacement, unknown
+effect or expansion/budget problems. Existing call-level identity evidence and
+`identity_decorator_effects_unmodeled` remain independent.
+
+Downstream consumers should match the exact FunctionRef and snapshot, require
+the positive body/binding fact, inspect its issues/assumptions and other analysis
+boundaries, and reject conflicting or unsupported composition facts. Absence of
+facts or boundaries is not a preservation proof; static candidates must not be
+promoted to runtime-confirmed targets. In the supplied pandas `Series.take` and
+Matplotlib `FancyBboxPatch.__init__` controls, `__call__` candidates and doc writes
+are exposed but construction/document helper chains remain unclosed. These
+controls deliberately keep unknown body/binding status; decorator entry progress
+does not establish compatibility, downstream validator behavior or repair success.
 
 Established function-local import bindings continue through the shared bounded
 module alias/reexport lookup without falling back to caller methods or unrelated

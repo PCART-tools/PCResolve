@@ -387,6 +387,30 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
                for item in result.boundaries)
 
 
+@pytest.mark.parametrize('source_id,files,module,entry,target', [
+    ('pandas-2.0.0', ['core/series.py', 'core/generic.py', 'util/_decorators.py'],
+     'pandas.core.series', 'Series.take', 'Appender.__call__'),
+    ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py'],
+     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__')])
+def test_real_decorated_entries_expose_identity_and_unclosed_effects(
+        source_id, files, module, entry, target):
+    result = analyze(source_id, files, module, entry)
+    fact = result.functions[0]['decorator_effects'][0]
+    assert fact['function'] == result.to_dict()['entry']
+    assert fact['target']['qualname'] == target
+    assert fact['identity_status'] == 'unknown'
+    assert fact['body_binding_status'] == 'unknown'
+    assert fact['runtime_target_confirmed'] is False
+    assert any(item['element_path'] == ['__doc__'] and item['impact'] == 'documentation'
+               for item in fact['effects'])
+    assert any(item['reason'] == 'decorator_call_unresolved' for item in fact['boundaries'])
+    assert fact['source_hashes'] and fact['evidence']
+    assert any(item['reason'] == 'decorator_effect_unconfirmed'
+               and item['function'] == fact['function'] for item in result.boundaries)
+    assert any(item.get('call_id') and item['reason'] not in ('decorator_effect_unconfirmed',)
+               for item in result.boundaries)
+
+
 @pytest.mark.parametrize('entry', ['cdist', 'pdist'])
 def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
     result = analyze('scipy-1.0.0', ['spatial/distance.py'],
