@@ -25,6 +25,49 @@ def _unique(items):
     return result
 
 
+def _data_shapes(value):
+    if value['kind'] != 'data':
+        return set()
+    shape = value.get('python_shape')
+    if shape == 'str_or_none':
+        return {'str', 'NoneType'}
+    if shape == 'scalar':
+        return {'str', 'int', 'bool', 'float', 'NoneType'}
+    if shape in ('str', 'int', 'bool', 'float', 'NoneType'):
+        return {shape}
+    return set(value.get('python_shapes', ()))
+
+
+def _shaped_data(shapes):
+    value = _data()
+    if len(shapes) == 1:
+        value['python_shape'] = next(iter(shapes))
+    elif shapes == {'str', 'NoneType'}:
+        value['python_shape'] = 'str_or_none'
+    elif shapes:
+        value['python_shapes'] = tuple(sorted(shapes))
+    return value
+
+
+def _truth(value):
+    if not _data_shapes(value):
+        return None
+    if value.get('known'):
+        return bool(value['value'])
+    return value.get('truthiness')
+
+
+def _join_values(values):
+    if values and all(value == values[0] for value in values):
+        return values[0]
+    shapes = [_data_shapes(value) for value in values]
+    result = _shaped_data(set().union(*shapes)) if shapes and all(shapes) else _data()
+    truths = [_truth(value) for value in values]
+    if truths and truths[0] is not None and all(truth == truths[0] for truth in truths):
+        result['truthiness'] = truths[0]
+    return result
+
+
 ## A finite syntax proof of function-object effects for a single decoration.
 class _DecoratorEffects:
     def __init__(self, analyzer, definition, evidence, limit):
@@ -321,6 +364,80 @@ class _DecoratorEffects:
             self.issue('decorator_format_value_unproven', ref, node)
         return dict(_data(), python_shape='str')
 
+    ## Split only proved builtin scalar shapes by their short-circuit truth value.
+    #  @param value Operand value; unknown protocols retain a boundary.
+    #  @param ref Source function containing the operand.
+    #  @param node Operand source expression.
+    #  @return Reachable truth cases with bounded value refinements.
+    def truth_cases(self, value, ref, node):
+        truth = _truth(value)
+        if truth is not None:
+            return {truth: value}
+        shapes = _data_shapes(value)
+        if not shapes:
+            self.issue('decorator_truth_protocol_unproven', ref, node)
+            return {False: value, True: value}
+        falsy = {'str': '', 'int': 0, 'bool': False, 'float': 0.0, 'NoneType': None}
+        cases = {False: _join_values([_data(falsy[shape], True) for shape in sorted(shapes)])}
+        if shapes - {'NoneType'}:
+            cases[True] = dict(_shaped_data(shapes - {'NoneType'}), truthiness=True)
+        return cases
+
+    ## Refine direct local/documentation reads within a reachable expression path.
+    #  @param node Operand expression being tested.
+    #  @param value Truth-refined value, not a runtime object identity.
+    #  @param env Path-local name bindings.
+    def refine_truth(self, node, value, env):
+        if isinstance(node, ast.Name) and node.id in env:
+            env[node.id] = value
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            receiver = env.get(node.value.id, {})
+            if receiver.get('kind') == 'function' and node.attr == '__doc__':
+                self.documentation = value
+            elif receiver.get('kind') == 'receiver' and node.attr in self.state:
+                self.state[node.attr] = value
+
+    ## Join short-circuit results and object states without evaluating skipped calls.
+    #  @param node Boolean expression.
+    #  @param env Incoming name bindings.
+    #  @param target Source definition being analyzed.
+    #  @param initializing Whether receiver state is being constructed.
+    #  @return Finite result shape, or unknown with retained protocol/effect issues.
+    def boolean(self, node, env, target, initializing):
+        ref, _ = target
+        stop = isinstance(node.op, ast.Or)
+        proceed = not stop
+        local = dict(env)
+        results, states = [], []
+        condition_count = len(self.conditions)
+        try:
+            for index, child in enumerate(node.values):
+                value = self.expression(child, local, target, initializing)
+                if value['kind'] != 'data':
+                    self.issue('decorator_operation_unproven', ref, child)
+                if index == len(node.values) - 1:
+                    results.append(value)
+                    states.append((self.documentation, dict(self.state)))
+                    break
+                cases = self.truth_cases(value, ref, child)
+                documentation, state = self.documentation, dict(self.state)
+                if stop in cases:
+                    self.refine_truth(child, cases[stop], local)
+                    results.append(cases[stop])
+                    states.append((self.documentation, dict(self.state)))
+                if proceed not in cases:
+                    break
+                self.documentation, self.state = documentation, state
+                self.refine_truth(child, cases[proceed], local)
+                if len(cases) > 1:
+                    self.conditions.append({'test': self.evidence_at(ref, child), 'branch': proceed})
+        finally:
+            del self.conditions[condition_count:]
+        self.documentation = _join_values([documentation for documentation, _ in states])
+        self.state = {name: _join_values([state.get(name, _data()) for _, state in states])
+                      for name in set().union(*(state.keys() for _, state in states))}
+        return _join_values(results)
+
     def expression(self, node, env, target, initializing=False):
         ref, definition = target
         if node is None:
@@ -355,14 +472,7 @@ class _DecoratorEffects:
                 self.issue('decorator_object_escape', ref, node)
             return _data()
         if isinstance(node, ast.BoolOp):
-            value = _data()
-            for child in node.values:
-                value = self.expression(child, env, target, initializing)
-                if value['kind'] != 'data':
-                    self.issue('decorator_operation_unproven', ref, node)
-                if value.get('known') and (bool(value['value']) == isinstance(node.op, ast.Or)):
-                    return value
-            return value if all(isinstance(item, ast.Constant) for item in node.values) else _data()
+            return self.boolean(node, env, target, initializing)
         if isinstance(node, (ast.BinOp, ast.UnaryOp, ast.Compare)):
             children = [item for item in ast.iter_child_nodes(node) if isinstance(item, ast.expr)]
             values = [self.expression(item, env, target, initializing) for item in children]

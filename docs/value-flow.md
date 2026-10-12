@@ -649,6 +649,17 @@ claiming the entire decorator has no side effects. Source-known function objects
 are not classes, so an unshadowed builtin `isinstance(obj, type)` guard can exclude
 its class-only branch, including short-circuit `and`.
 
+Decoration `and`/`or` expressions preserve the shapes of the operands that can
+actually be returned, rather than coercing the result to bool. In particular,
+source-proved `str`/`str_or_none` documentation combined with `or ""` has a
+string result even when its content is unknown. Proved short-circuit operands
+skip later calls; uncertain reachability retains their effects and boundaries
+under prefix truth conditions. Reachable documentation/receiver states are
+joined, so a conditional helper write cannot overwrite the skipped path's state.
+Unknown or customized truth protocols retain
+`decorator_truth_protocol_unproven`; function operands keep operation boundaries.
+These refinements are internal and do not add a public runtime-type guarantee.
+
 The proof also distinguishes input functions from scalar documentation data and
 restricted constructor-backed documentation caches. Source helpers use exact
 ordinary bindings (including literal defaults), retain their target and binding
