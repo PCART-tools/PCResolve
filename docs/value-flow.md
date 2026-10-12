@@ -649,6 +649,67 @@ claiming the entire decorator has no side effects. Source-known function objects
 are not classes, so an unshadowed builtin `isinstance(obj, type)` guard can exclude
 its class-only branch, including short-circuit `and`.
 
+Decoration `and`/`or` expressions preserve the shapes of the operands that can
+actually be returned, rather than coercing the result to bool. In particular,
+source-proved `str`/`str_or_none` documentation combined with `or ""` has a
+string result even when its content is unknown. Proved short-circuit operands
+skip later calls; uncertain reachability retains their effects and boundaries
+under prefix truth conditions. Reachable documentation/receiver states are
+joined, so a conditional helper write cannot overwrite the skipped path's state.
+Unknown or customized truth protocols retain
+`decorator_truth_protocol_unproven`; function operands keep operation boundaries.
+These refinements are internal and do not add a public runtime-type guarantee.
+
+The proof also distinguishes input functions from scalar documentation data and
+restricted constructor-backed documentation caches. Source helpers use exact
+ordinary bindings (including literal defaults), retain their target and binding
+evidence in `effects` (`operation="helper_call"`), and are analyzed under the
+same visit/recursion budget. Unknown document content is not itself a function
+execution/binding write, but unknown calls and unsupported data protocols remain
+issues. An import-backed helper outside the explicit source set records
+`source_target`, `source_available=false` and `affected_roles`; this does not
+prove that helper harmless. Standard-library source is not loaded implicitly.
+
+For a single-inheritance source chain ending at unshadowed builtin `dict`, a
+specific method can have `kind="builtin_method_binding"`,
+`status="source_bound"`, `builtin="dict.setdefault"` or `dict.__getitem__`,
+class/MRO source evidence, and explicit binding assumptions. This is **not** a
+builtin dict shape/identity fact. Visible writes, class/method aliases escaping,
+custom attribute lookup, incomplete/rebound bases, metaclasses and exhausted
+class scans prevent the proof. The escape-aware check reuses the class-write
+scan, its finite node allowance, and a separate query-local symbolic cache;
+existing classmethod binding policy is unchanged.
+
+Restricted documentation-cache constructions admit only inherited builtin
+construction and source `__missing__` members, not arbitrary subclass
+initializers, unrelated methods or unproved member-definition decorators,
+defaults/annotations. Cache effects have
+`target="documentation_cache"`, `impact="data_only"` and their own construction
+evidence. Their `object_source` strings denote symbolic allocation sites within
+this proof, not runtime identities or cross-decoration heap state.
+Inherited `setdefault` uses the existing container method contract,
+evaluates the default expression first, and records conditional insertion on
+normal completion; unknown keys remain `element_path=["*"]`. No definite key,
+insertion or returned object identity is inferred. This is a symbolic method
+effect, not a second container-content model or a caller heap update. Preservation
+additionally assumes `documentation_cache_not_externally_mutated`.
+
+String `%` formatting of these caches records a `mapping_lookup` effect and
+checks the source `__missing__` path with an absent-member condition. Unknown
+format operands still retain a format-protocol issue while the possible cache
+path is inspected; its partial effects are not an execution claim. Unknown
+helpers, custom item lookup or returned values with unproved formatting protocols
+prevent preservation. `helper_call` and `mapping_lookup` effects identify
+analyzed source/protocol work, not purity proofs by themselves.
+
+Outside decoration proofs, a source method's inherited `setdefault` can expose
+the same binding in `FlowCall.receiver_type_evidence`, with
+`target_status="builtin_method_candidate"` and a conditional `mapping_element`
+effect. It invents no Python source target or container object, performs no
+strong update, and retains `dynamic_method_override_possible` plus an unknown
+key-protocol boundary when needed. Consumers must not treat this source-class
+candidate as an established runtime receiver or ignore default-argument effects.
+
 Opaque calls (even document-processing calls), function/receiver escape or capture,
 uncertain construction/member/descriptor lookup, visible class writes, generators,
 async decorators, implicit returns, loops/try/finally/complex reflection and
@@ -704,7 +765,7 @@ Non-convergence produces `loop_iteration_limit`. One witness is retained per
 dependency; this does not enumerate iteration counts or prove feasibility.
 Repeated evaluation of a call site does not spend the call budget repeatedly.
 Known local list/dict/set protocols include bounded `append`, `clear`, `get`,
-list/dict `pop`, dict `update`, membership, deletion, and mapping-unpack merge
+list/dict `pop`, dict `update`/`setdefault`/`copy`, membership, deletion, and mapping-unpack merge
 behavior. Variadic parameter containers start with a wildcard element root, so
 passing `kwargs` as an ordinary argument preserves `kwargs[*]` provenance rather
 than requiring `**kwargs` syntax. Conditional effects keep their syntactic
@@ -712,6 +773,73 @@ conditions and report `state_after="conditional"`; this does not prove branch
 feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
+
+### Builtin container copies and setdefault
+
+For a source-proven variadic capture or local builtin container allocation,
+`kwargs.copy()` and an unshadowed `dict(kwargs)` retain a distinct top-level
+object identity and a shallow snapshot of the **current** contents. The same
+bounded rule converts proven list/tuple inputs with unshadowed `list(values)`
+and `tuple(values)`; tuple-of-tuple retains the input identity. Unknown ordinary
+parameters, annotations, arbitrary iterables and custom `copy()` methods do not
+supply this proof. First-phase constructors accept one ordinary positional input,
+without keyword or dynamic expansion binding.
+
+```python
+def root(**kwargs):
+    kwargs.pop("out", None)
+    copied = dict(kwargs)
+    kwargs.clear()
+    return fixed(**copied)
+```
+
+Here `copied` retains the open remainder with `excluded_paths=[["out"]]` even after
+the original is cleared. Clearing the copy likewise does not clear the original;
+copying **after** clear reads an empty object, not the original entry dependencies.
+Finite mappings/sequences remain finite. Nested mutable element IDs stay shared:
+clearing a copied dictionary's known list element affects the original element.
+This is shallow copying, not deep copying or a general heap analysis.
+
+The call result retains its `call_result` endpoint with `object_only=true` and
+`container_object` (`identity="shallow_copy"`, `source`, `container_shape`,
+`copied_from`, and optional `parameter_container`). The copy effect records input
+and output object IDs, source evidence, conditions and normal completion. Uses
+materialize the copied object's current elements; consumers must not substitute
+the endpoint through old whole-input dependencies. IDs are analysis-local
+allocation sites, not runtime object IDs. Protocol calls keep an empty source
+target/candidate list and `target_status="local_container_protocol"`.
+
+For a single proven dict identity and a constant string/integer key,
+`setdefault(key[, default])` distinguishes known presence, known absence and
+unknown presence **after evaluating all arguments**, including an eagerly
+evaluated default expression. Known presence returns the existing element without
+default insertion; known absence inserts/returns the default (implicit `None`
+adds no parameter dependency). Unknown presence keeps both alternatives with
+`conditions[*].mapping_membership` describing the input object's key-presence
+branch. It separates the addressed key from the open remainder without closing
+other keys or overwriting a possibly existing value. The effect's `state_before`
+and `insertion` (`never`, `always`, `conditional`) expose this distinction;
+`completion="normal_return"` does not prove the operation always succeeds.
+
+An existing/default element receives `identity="element_alias"` only when every
+selected alternative proves the same builtin container object. An unknown
+existing element cannot acquire the default's shape. Source-conditional key
+markers do not prove definite presence, including for a subsequent `get`.
+
+Unsupported keys, receiver alternatives, custom objects, shadowed constructors,
+invalid arity/keywords and exhausted call budgets retain boundaries. Unknown
+calls or incomplete helper effects can change/escape contents: subsequent copying
+retains `container_copy_unproven` rather than promoting an old finite snapshot or
+exclusion to a new proof. Existing effect/receiver/expansion boundaries are not
+deleted. Unsupported fresh-container helper returns, arbitrary iteration and
+escape-state recovery remain outside this first phase.
+
+Downstream consumers can inspect these additive facts on `analyze()/expand()` and
+`to_dict()`, then read current `argument_sources` at the forwarding call. A copied
+value's dependence on kwargs does not alone prove open keyword space: shape,
+identity, element paths/exclusions, effect completion, conditions and remaining
+boundaries must also be considered. PCResolve reports no compatibility or VPP
+decision; consumer-side scans need their own frozen-snapshot regression.
 
 ### Ordinary-parameter dict removals
 

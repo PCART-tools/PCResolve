@@ -7,11 +7,14 @@ from dataclasses import asdict
 
 from .program_facts import FunctionSignature, bind_ast_call
 from .scope_facts import statement_scope_facts
-from .effect_facts import contains_yield
+from .effect_facts import container_method_effect, contains_yield
 
 
 def _data(value=None, known=False):
-    return {'kind': 'data', 'value': value, 'known': known}
+    result = {'kind': 'data', 'value': value, 'known': known}
+    if known and type(value) in (str, int, bool, float, type(None)):
+        result['python_shape'] = type(value).__name__
+    return result
 
 
 def _unique(items):
@@ -19,6 +22,49 @@ def _unique(items):
     for item in items:
         if item not in result:
             result.append(item)
+    return result
+
+
+def _data_shapes(value):
+    if value['kind'] != 'data':
+        return set()
+    shape = value.get('python_shape')
+    if shape == 'str_or_none':
+        return {'str', 'NoneType'}
+    if shape == 'scalar':
+        return {'str', 'int', 'bool', 'float', 'NoneType'}
+    if shape in ('str', 'int', 'bool', 'float', 'NoneType'):
+        return {shape}
+    return set(value.get('python_shapes', ()))
+
+
+def _shaped_data(shapes):
+    value = _data()
+    if len(shapes) == 1:
+        value['python_shape'] = next(iter(shapes))
+    elif shapes == {'str', 'NoneType'}:
+        value['python_shape'] = 'str_or_none'
+    elif shapes:
+        value['python_shapes'] = tuple(sorted(shapes))
+    return value
+
+
+def _truth(value):
+    if not _data_shapes(value):
+        return None
+    if value.get('known'):
+        return bool(value['value'])
+    return value.get('truthiness')
+
+
+def _join_values(values):
+    if values and all(value == values[0] for value in values):
+        return values[0]
+    shapes = [_data_shapes(value) for value in values]
+    result = _shaped_data(set().union(*shapes)) if shapes and all(shapes) else _data()
+    truths = [_truth(value) for value in values]
+    if truths and truths[0] is not None and all(truth == truths[0] for truth in truths):
+        result['truthiness'] = truths[0]
     return result
 
 
@@ -36,11 +82,14 @@ class _DecoratorEffects:
         self.dispatch_unconfirmed = False
         self.construction = None
         self.conditions = []
+        self.documentation = dict(_data(), python_shape=(
+            'str' if ast.get_docstring(self.node, clean=False) is not None else 'str_or_none'))
+        self.extra_assumptions = []
 
-    def issue(self, reason, ref, node):
+    def issue(self, reason, ref, node, **details):
         self.boundaries.append({'reason': reason, 'function': asdict(ref),
                                 'evidence': self.evidence_at(ref, node),
-                                'conditions': copy.deepcopy(self.conditions)})
+                                'conditions': copy.deepcopy(self.conditions), **details})
 
     def builtin(self, name, ref, node):
         return (name not in self.analyzer._scope_facts(node).bound
@@ -198,6 +247,197 @@ class _DecoratorEffects:
         self.issue('decorator_target_unresolved', self.ref, expression)
         return None, {}
 
+    def method_proof(self, class_ref, method):
+        proof = self.analyzer._dict_method_binding(class_ref, method)
+        if proof is None:
+            return None
+        if proof['status'] != 'source_bound':
+            target = self.analyzer._definition_index.find(class_ref.module, class_ref.qualname, kind='class')[0]
+            self.issue('decorator_effect_budget', *target, cause=proof['reason'])
+            return None
+        proof = dict(proof)
+        proof['evidence'] = [self.evidence_at(ref, cls) for ref, cls in proof.pop('hierarchy')]
+        self.evidence.extend(proof['evidence'])
+        return proof
+
+    def data_instance(self, selected, node, target):
+        ref, cls = selected
+        proof = self.method_proof(ref, 'setdefault')
+        hierarchy = self.analyzer._dict_subclass_hierarchy(ref)
+        if (proof is None or node.args or node.keywords or any(
+                not (isinstance(member, ast.FunctionDef) and member.name == '__missing__'
+                     and not member.decorator_list and not member.args.defaults
+                     and not any(value is not None for value in member.args.kw_defaults)
+                     and member.returns is None and not any(argument.annotation is not None
+                         for argument in member.args.posonlyargs + member.args.args + member.args.kwonlyargs
+                         + [item for item in (member.args.vararg, member.args.kwarg) if item is not None])
+                     or isinstance(member, ast.Pass) or isinstance(member, ast.Expr)
+                     and isinstance(member.value, ast.Constant) and isinstance(member.value.value, str))
+                for _, base in hierarchy or () for member in base.body)):
+            self.issue('decorator_data_construction_unproven', target[0], node)
+            return _data()
+        value = {'kind': 'data', 'category': 'documentation_cache', 'class_ref': ref,
+                 'known': False, 'allocation': self.evidence_at(target[0], node),
+                 'source': '$documentation_cache:%s:%s:%s' % (target[0].file_path, node.lineno, node.col_offset)}
+        self.effects.append({'operation': 'construction', 'target': 'documentation_cache',
+            'impact': 'data_only', 'element_path': [], 'class': asdict(ref), 'method_binding': proof,
+            'object_source': value['source'],
+            'function': asdict(target[0]), 'evidence': value['allocation'],
+            'conditions': copy.deepcopy(self.conditions), 'completion': 'normal_return'})
+        self.extra_assumptions.append('documentation_cache_not_externally_mutated')
+        return value
+
+    def source_call(self, selected, node, arguments, receiver=None, initializing=False):
+        ref, definition = selected
+        params = definition.args.posonlyargs + definition.args.args
+        signature = FunctionSignature.from_ast(definition.args, params[1:] if receiver else params)
+        records, reasons = bind_ast_call(node, signature)
+        if (reasons or any(isinstance(item, ast.Starred) for item in node.args)
+                or any(keyword.arg is None for keyword in node.keywords)
+                or any(item['status'] != 'exact' or item['destination_kind'] != 'parameter' for item in records)):
+            return None
+        incoming = {}
+        for name, default in signature.defaults:
+            if name not in {item['parameter'] for item in records}:
+                if not isinstance(default, ast.Constant):
+                    self.issue('decorator_default_unproven', ref, default)
+                incoming[name] = _data(default.value, True) if isinstance(default, ast.Constant) else _data()
+        if receiver and params:
+            incoming[params[0].arg] = receiver
+        for item, value in zip(records, arguments):
+            incoming[item['parameter']] = value
+        self.evidence.append(self.evidence_at(ref, definition))
+        self.effects.append({'operation': 'helper_call', 'target': asdict(ref),
+            'impact': 'analyzed_source', 'element_path': [], 'evidence': self.evidence_at(self.stack[-1], node),
+            'function': asdict(self.stack[-1]),
+            'parameter_bindings': [{key: item[key] for key in ('parameter', 'argument', 'status')}
+                                   for item in records],
+            'conditions': copy.deepcopy(self.conditions), 'completion': 'normal_return'})
+        returns, falls = self.run(selected, incoming, initializing)
+        values = returns + ([_data(None, True)] if falls else [])
+        if values and all(value == values[0] for value in values):
+            return values[0]
+        if any(value['kind'] != 'data' for value in values):
+            self.issue('decorator_helper_return_unproven', ref, definition)
+        shapes = {value.get('python_shape') for value in values}
+        return dict(_data(), python_shape=next(iter(shapes))) if len(shapes) == 1 and None not in shapes else _data()
+
+    def format_mapping(self, node, left, mapping, target):
+        ref, _ = target
+        proof = self.method_proof(mapping['class_ref'], '__getitem__')
+        if proof is None:
+            self.issue('decorator_format_protocol_unproven', ref, node)
+            return _data()
+        if left.get('python_shape') != 'str':
+            self.issue('decorator_format_protocol_unproven', ref, node)
+        self.effects.append({'operation': 'mapping_lookup', 'target': 'documentation_cache',
+            'impact': 'data_protocol', 'element_path': ['*'], 'method_binding': proof,
+            'object_source': mapping['source'],
+            'function': asdict(ref), 'evidence': self.evidence_at(ref, node),
+            'conditions': copy.deepcopy(self.conditions), 'completion': 'normal_return'})
+        hierarchy = self.analyzer._dict_subclass_hierarchy(mapping['class_ref'])
+        missing = None
+        for class_ref, cls in hierarchy:
+            if '__missing__' not in statement_scope_facts(cls.body).bound:
+                continue
+            matches = self.analyzer._definition_index.find(class_ref.module, class_ref.qualname + '.__missing__')
+            missing = matches[0] if len(matches) == 1 else None
+            break
+        if missing is not None:
+            parameters = missing[1].args.posonlyargs + missing[1].args.args
+            if (len(parameters) != 2 or missing[1].args.vararg or missing[1].args.kwarg
+                    or missing[1].args.kwonlyargs or missing[1].args.defaults):
+                self.issue('decorator_format_protocol_unproven', ref, node)
+                return _data()
+            self.conditions.append({'mapping_membership': {'object_source': mapping['source'],
+                'element_path': ['*'], 'state': 'absent'}, 'evidence': self.evidence_at(ref, node)})
+            self.evidence.append(self.evidence_at(*missing))
+            try:
+                values, falls = self.run(missing, {parameters[0].arg: mapping,
+                    parameters[1].arg: dict(_data(), python_shape='str')})
+            finally:
+                self.conditions.pop()
+            if falls or not values or any(value.get('python_shape') not in ('str', 'int', 'bool', 'float', 'NoneType', 'scalar')
+                                          for value in values):
+                self.issue('decorator_format_value_unproven', missing[0], missing[1])
+        else:
+            self.issue('decorator_format_value_unproven', ref, node)
+        return dict(_data(), python_shape='str')
+
+    ## Split only proved builtin scalar shapes by their short-circuit truth value.
+    #  @param value Operand value; unknown protocols retain a boundary.
+    #  @param ref Source function containing the operand.
+    #  @param node Operand source expression.
+    #  @return Reachable truth cases with bounded value refinements.
+    def truth_cases(self, value, ref, node):
+        truth = _truth(value)
+        if truth is not None:
+            return {truth: value}
+        shapes = _data_shapes(value)
+        if not shapes:
+            self.issue('decorator_truth_protocol_unproven', ref, node)
+            return {False: value, True: value}
+        falsy = {'str': '', 'int': 0, 'bool': False, 'float': 0.0, 'NoneType': None}
+        cases = {False: _join_values([_data(falsy[shape], True) for shape in sorted(shapes)])}
+        if shapes - {'NoneType'}:
+            cases[True] = dict(_shaped_data(shapes - {'NoneType'}), truthiness=True)
+        return cases
+
+    ## Refine direct local/documentation reads within a reachable expression path.
+    #  @param node Operand expression being tested.
+    #  @param value Truth-refined value, not a runtime object identity.
+    #  @param env Path-local name bindings.
+    def refine_truth(self, node, value, env):
+        if isinstance(node, ast.Name) and node.id in env:
+            env[node.id] = value
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            receiver = env.get(node.value.id, {})
+            if receiver.get('kind') == 'function' and node.attr == '__doc__':
+                self.documentation = value
+            elif receiver.get('kind') == 'receiver' and node.attr in self.state:
+                self.state[node.attr] = value
+
+    ## Join short-circuit results and object states without evaluating skipped calls.
+    #  @param node Boolean expression.
+    #  @param env Incoming name bindings.
+    #  @param target Source definition being analyzed.
+    #  @param initializing Whether receiver state is being constructed.
+    #  @return Finite result shape, or unknown with retained protocol/effect issues.
+    def boolean(self, node, env, target, initializing):
+        ref, _ = target
+        stop = isinstance(node.op, ast.Or)
+        proceed = not stop
+        local = dict(env)
+        results, states = [], []
+        condition_count = len(self.conditions)
+        try:
+            for index, child in enumerate(node.values):
+                value = self.expression(child, local, target, initializing)
+                if value['kind'] != 'data':
+                    self.issue('decorator_operation_unproven', ref, child)
+                if index == len(node.values) - 1:
+                    results.append(value)
+                    states.append((self.documentation, dict(self.state)))
+                    break
+                cases = self.truth_cases(value, ref, child)
+                documentation, state = self.documentation, dict(self.state)
+                if stop in cases:
+                    self.refine_truth(child, cases[stop], local)
+                    results.append(cases[stop])
+                    states.append((self.documentation, dict(self.state)))
+                if proceed not in cases:
+                    break
+                self.documentation, self.state = documentation, state
+                self.refine_truth(child, cases[proceed], local)
+                if len(cases) > 1:
+                    self.conditions.append({'test': self.evidence_at(ref, child), 'branch': proceed})
+        finally:
+            del self.conditions[condition_count:]
+        self.documentation = _join_values([documentation for documentation, _ in states])
+        self.state = {name: _join_values([state.get(name, _data()) for _, state in states])
+                      for name in set().union(*(state.keys() for _, state in states))}
+        return _join_values(results)
+
     def expression(self, node, env, target, initializing=False):
         ref, definition = target
         if node is None:
@@ -212,7 +452,7 @@ class _DecoratorEffects:
         if isinstance(node, ast.Attribute):
             value = self.expression(node.value, env, target, initializing)
             if value['kind'] == 'function' and node.attr == '__doc__':
-                return _data()
+                return self.documentation
             if value['kind'] == 'receiver' and node.attr in self.state:
                 return self.state[node.attr]
             self.issue('decorator_attribute_unproven', ref, node)
@@ -222,6 +462,8 @@ class _DecoratorEffects:
             if test.get('known'):
                 return self.expression(node.body if test['value'] else node.orelse, env, target, initializing)
             values = [self.expression(item, env, target, initializing) for item in (node.body, node.orelse)]
+            if values[0] != values[1] and any(value['kind'] != 'data' for value in values):
+                self.issue('decorator_object_escape', ref, node)
             return values[0] if values[0] == values[1] else _data()
         if isinstance(node, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
             children = (node.elts if not isinstance(node, ast.Dict) else node.keys + node.values)
@@ -230,19 +472,20 @@ class _DecoratorEffects:
                 self.issue('decorator_object_escape', ref, node)
             return _data()
         if isinstance(node, ast.BoolOp):
-            value = _data()
-            for child in node.values:
-                value = self.expression(child, env, target, initializing)
-                if value['kind'] != 'data':
-                    self.issue('decorator_operation_unproven', ref, node)
-                if value.get('known') and (bool(value['value']) == isinstance(node.op, ast.Or)):
-                    return value
-            return value if all(isinstance(item, ast.Constant) for item in node.values) else _data()
+            return self.boolean(node, env, target, initializing)
         if isinstance(node, (ast.BinOp, ast.UnaryOp, ast.Compare)):
             children = [item for item in ast.iter_child_nodes(node) if isinstance(item, ast.expr)]
             values = [self.expression(item, env, target, initializing) for item in children]
+            if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod) and len(values) == 2
+                    and values[1].get('category') == 'documentation_cache'):
+                return self.format_mapping(node, values[0], values[1], target)
             if any(item['kind'] != 'data' for item in values):
                 self.issue('decorator_operation_unproven', ref, node)
+            elif isinstance(node, ast.BinOp):
+                if all(value.get('python_shape') == 'str' for value in values) and isinstance(node.op, ast.Add):
+                    return dict(_data(), python_shape='str')
+                if not all(value.get('python_shape') in ('str', 'int', 'bool', 'float', 'NoneType') for value in values):
+                    self.issue('decorator_data_protocol_unproven', ref, node)
             return _data()
         if isinstance(node, ast.Call):
             if (isinstance(node.func, ast.Name) and node.func.id == 'isinstance'
@@ -254,7 +497,35 @@ class _DecoratorEffects:
                 return _data(False, True)
             arguments = [self.expression(item, env, target, initializing) for item in node.args]
             arguments.extend(self.expression(item.value, env, target, initializing) for item in node.keywords)
-            selected = None
+            data_receiver = None
+            if isinstance(node.func, ast.Attribute) and (isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in env or isinstance(node.func.value, ast.Attribute)
+                    and isinstance(node.func.value.value, ast.Name) and node.func.value.value.id in env):
+                data_receiver = self.expression(node.func.value, env, target, initializing)
+            if data_receiver and data_receiver.get('category') == 'documentation_cache':
+                contract = container_method_effect(node.func.attr, ('dict',), len(node.args))
+                proof = self.method_proof(data_receiver['class_ref'], node.func.attr)
+                if (node.func.attr == 'setdefault' and contract and proof and not node.keywords
+                        and not any(isinstance(item, ast.Starred) for item in node.args)):
+                    key = arguments[0]
+                    default = arguments[1] if len(arguments) == 2 else _data(None, True)
+                    if key.get('python_shape') not in ('str', 'int') or default.get('python_shape') not in (
+                            'str', 'int', 'bool', 'float', 'NoneType', 'scalar'):
+                        self.issue('decorator_cache_value_unproven', ref, node)
+                    if any(value['kind'] != 'data' for value in arguments):
+                        self.issue('decorator_object_escape', ref, node)
+                    self.effects.append({'operation': 'setdefault', 'target': 'documentation_cache',
+                        'impact': 'data_only', 'element_path': [key['value']] if key.get('known') else ['*'],
+                        'object_source': data_receiver['source'],
+                        'state_before': 'unknown', 'insertion': 'conditional', 'method_binding': proof,
+                        'function': asdict(ref), 'evidence': self.evidence_at(ref, node),
+                        'conditions': copy.deepcopy(self.conditions), 'completion': 'normal_return'})
+                    # This is not an alias or insertion proof; any existing entry
+                    # must also have come from the checked cache's scalar writes.
+                    return dict(_data(), python_shape='scalar')
+                self.issue('decorator_cache_protocol_unproven', ref, node)
+                return _data()
+            selected, imported, qualified, first = None, None, None, ''
             if (self.receiver_class is not None and isinstance(node.func, ast.Attribute)
                     and isinstance(node.func.value, ast.Call) and node.func.attr == '__call__'
                     and isinstance(node.func.value.func, ast.Name) and node.func.value.func.id == 'super'
@@ -279,25 +550,25 @@ class _DecoratorEffects:
                 qualified = (imported + (dot + rest if dot else '') if imported else ref.module + '.' + name)
                 if first not in self.analyzer._scope_facts(definition).bound:
                     selected = self.analyzer._resolve_import_binding(qualified)
+                    class_target = self.analyzer._class_symbol(qualified)
+                    if class_target:
+                        return self.data_instance(class_target, node, target)
             if selected and isinstance(selected[1], ast.FunctionDef):
-                params = selected[1].args.posonlyargs + selected[1].args.args
-                bound_receiver = isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call)
-                signature = FunctionSignature.from_ast(selected[1].args, params[1:] if bound_receiver else params)
-                records, reasons = bind_ast_call(node, signature)
-                if (not reasons and not any(isinstance(argument, ast.Starred) for argument in node.args)
-                        and all(keyword.arg is not None for keyword in node.keywords)
-                        and all(item['status'] == 'exact' and item['destination_kind'] == 'parameter'
-                                for item in records)):
-                    incoming = {}
-                    if bound_receiver and params:
-                        incoming[params[0].arg] = {'kind': 'receiver'}
-                    for item, value in zip(records, arguments):
-                        incoming[item['parameter']] = value
-                    returns, falls = self.run(selected, incoming, initializing)
-                    if returns and not falls and all(value['kind'] == 'function' for value in returns):
-                        return {'kind': 'function'}
-                    return _data()
-            self.issue('decorator_call_unresolved', ref, node)
+                receiver = ({'kind': 'receiver'} if isinstance(node.func, ast.Attribute)
+                            and isinstance(node.func.value, ast.Call) else None)
+                result = self.source_call(selected, node, arguments, receiver, initializing)
+                if result is not None:
+                    return result
+            imported_target = None
+            if (isinstance(node.func, (ast.Name, ast.Attribute)) and imported
+                    and first not in self.analyzer._scope_facts(definition).bound
+                    and self.analyzer._stable_import_name(ref.module + '.' + first)):
+                imported_target = qualified
+            self.issue('decorator_call_unresolved', ref, node,
+                **({'source_target': imported_target, 'source_available': False,
+                    'affected_roles': ['documentation_data'] if all(value['kind'] == 'data' for value in arguments)
+                                      else ['input_function_or_receiver']}
+                   if imported_target else {}))
             if any(value['kind'] in ('function', 'receiver', 'closure') for value in arguments):
                 self.issue('decorator_object_escape', ref, node)
             return _data()
@@ -326,6 +597,8 @@ class _DecoratorEffects:
                     self.issue('decorator_attribute_effect_unproven', ref, node)
                 if value['kind'] == 'function':
                     self.issue('decorator_object_escape', ref, node)
+                if impact == 'documentation':
+                    self.documentation = value
                 return
             if receiver['kind'] == 'receiver' and value['kind'] == 'data':
                 if initializing:
@@ -367,8 +640,15 @@ class _DecoratorEffects:
                             else [(statement.orelse, False)] if test.get('known')
                             else [(statement.body, True), (statement.orelse, False)])
                 continuing = []
+                initial_doc = self.documentation
+                continuing_docs = []
                 for branch, selected in branches:
                     local = dict(env)
+                    self.documentation = initial_doc
+                    if (selected and isinstance(statement.test, ast.Attribute) and statement.test.attr == '__doc__'
+                            and isinstance(statement.test.value, ast.Name)
+                            and env.get(statement.test.value.id, {}).get('kind') == 'function'):
+                        self.documentation = dict(initial_doc, python_shape='str')
                     self.conditions.append({'test': self.evidence_at(ref, statement.test), 'branch': selected})
                     try:
                         values, falls = self.statements(branch, local, target, initializing)
@@ -377,6 +657,9 @@ class _DecoratorEffects:
                     returns.extend(values)
                     if falls:
                         continuing.append(local)
+                        continuing_docs.append(self.documentation)
+                self.documentation = (continuing_docs[0] if continuing_docs and all(
+                    value == continuing_docs[0] for value in continuing_docs) else initial_doc)
                 if not continuing:
                     return returns, False
                 env.clear()
@@ -468,4 +751,4 @@ class _DecoratorEffects:
                 'source_hashes': {path: self.analyzer.hashes[path] for path in sorted({
                     item['file_path'] for item in evidence}) if path in self.analyzer.hashes},
                 'assumptions': ['source_snapshot_bindings_hold', 'builtin_function_attribute_semantics',
-                                'no_external_monkeypatch_or_import_hook']}
+                                'no_external_monkeypatch_or_import_hook'] + _unique(self.extra_assumptions)}

@@ -33,6 +33,18 @@ def test_container_method_effects_preserve_shapes_arity_and_parameters():
     assert container_method_effect('pop', {'dict'}, 0) is None
 
 
+def test_builtin_copy_and_setdefault_require_exact_shape_and_arity():
+    copied = container_method_effect('copy', {'dict'}, 0)
+    assert copied.operation == 'copy' and not copied.mutates_receiver
+    default = container_method_effect('setdefault', {'dict'}, 2)
+    assert default.operation == 'mapping_setdefault' and default.mutates_receiver
+    assert default.parameters == ('key', 'default')
+    assert container_method_effect('setdefault', {'dict'}, 1) is not None
+    assert container_method_effect('copy', {'dict'}, 1) is None
+    assert container_method_effect('copy', {'dict', 'list'}, 0) is None
+    assert container_method_effect('setdefault', {'list'}, 2) is None
+
+
 def test_function_effects_extract_complete_straight_line_summary():
     node = _function('''
 def update(values, item, replacement):
