@@ -776,6 +776,26 @@ explicit boundaries or unknown behavior.
 
 ### Builtin container copies and setdefault
 
+Bare builtin constructors and automatic builtin return summaries share one
+flow-only name proof. Its outcomes are `confirmed_builtin`, `source_binding`
+and `unconfirmed`; only the first enables either builtin protocol. The proof
+checks lexical parameters, local/captured bindings, declarations, conditional
+module assignments/imports/definitions, exception targets and visible global
+writes. Definition-time expression bindings count in their enclosing scope;
+method lookup skips class namespaces, and a lambda's body does not bind names
+in its outer scope. Wildcard imports, replaced builtin namespaces or incomplete
+module identities cannot prove a builtin. Current empty/unknown bindings also
+block the proof. Global/nonlocal declaration execution is not newly modeled.
+
+An unresolved supported builtin spelling can record
+`builtin_name_unconfirmed` with `builtin_name_status="source_binding"` or
+`"unconfirmed"`, source evidence and conditions. These statuses describe the
+proof gap, not a selected runtime replacement. Such a call must not simultaneously
+receive a builtin copy identity/effect or an automatic builtin return dependency.
+This private predicate does not alter the existing `module_bindings`, MRO,
+ownership or general target-resolution policies. Trusted opt-in external return
+summaries retain their own explicit contract.
+
 For a source-proven variadic capture or local builtin container allocation,
 `kwargs.copy()` and an unshadowed `dict(kwargs)` retain a distinct top-level
 object identity and a shallow snapshot of the **current** contents. The same

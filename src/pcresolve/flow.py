@@ -5,7 +5,7 @@ import ast
 import builtins
 import copy
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from .analysis_limits import AnalysisBudget
 
 from .scanner import FileScanner
@@ -26,6 +26,9 @@ from ._decorator_effects import _DecoratorEffects
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
 _DECORATOR_EFFECT_NODE_LIMIT = 2000
+_BUILTIN_SCOPE = replace(FLOW_SCOPE, descend_lambdas=False,
+                        include_comprehension_targets=False,
+                        include_except_targets=True, import_from_root=False)
 
 
 def _exception_class(name):
@@ -316,6 +319,8 @@ class FlowAnalyzer:
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
         self._decoration_fact_cache = {}
+        self._builtin_scope_cache = {}
+        self._builtin_module_cache = {}
         self._source_snapshot = (
             self._source_store.snapshot(sorted(self.files), FLOW_SOURCE, budget=self._analysis_budget)
             if self._analysis_budget is not None
@@ -585,6 +590,104 @@ class FlowAnalyzer:
             facts = function_scope_facts(node, FLOW_SCOPE)
             self._scope_fact_cache[node] = facts
         return facts
+
+    def _builtin_statement_facts(self, body):
+        facts = statement_scope_facts(body, _BUILTIN_SCOPE)
+        bound = set(facts.bound)
+
+        def evaluations(node):
+            if self._analysis_budget is not None:
+                self._analysis_budget.checkpoint()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                expressions = list(node.args.defaults)
+                expressions.extend(value for value in node.args.kw_defaults if value is not None)
+                expressions.extend(getattr(node, 'decorator_list', []))
+                arguments = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+                arguments += [value for value in (node.args.vararg, node.args.kwarg) if value is not None]
+                expressions.extend(argument.annotation for argument in arguments if argument.annotation is not None)
+                if getattr(node, 'returns', None) is not None:
+                    expressions.append(node.returns)
+            elif isinstance(node, ast.ClassDef):
+                expressions = list(node.decorator_list) + list(node.bases)
+                expressions.extend(keyword.value for keyword in node.keywords)
+            else:
+                for child in ast.iter_child_nodes(node):
+                    evaluations(child)
+                return
+            # Definition evaluation belongs to this lexical body, not the new
+            # function/class/lambda body. Keep the shared collectors unchanged.
+            bound.update(statement_scope_facts(expressions, _BUILTIN_SCOPE).bound)
+            for expression in expressions:
+                evaluations(expression)
+
+        for statement in body:
+            evaluations(statement)
+        return replace(facts, bound=frozenset(bound))
+
+    def _builtin_scope_facts(self, node):
+        facts = self._builtin_scope_cache.get(node)
+        if facts is None:
+            body = [node.body] if isinstance(node, ast.Lambda) else node.body
+            statements = self._builtin_statement_facts(body)
+            facts = statements if isinstance(node, ast.ClassDef) else function_scope_facts(node, _BUILTIN_SCOPE)
+            facts = replace(facts, bound=facts.bound | statements.bound)
+            self._builtin_scope_cache[node] = facts
+        return facts
+
+    ## Classify a bare builtin spelling for container and return protocols only.
+    #  @param ref Source function identity.
+    #  @param node Source function or lambda whose lexical names are checked.
+    #  @param name Bare name, not an attribute or import alias.
+    #  @param env Optional current bindings, including unknown/empty local bindings.
+    #  @return confirmed_builtin, source_binding, or unconfirmed; no runtime proof.
+    def _builtin_name_status(self, ref, node, name, env=None):
+        if not hasattr(builtins, name):
+            return 'unconfirmed'
+        if env is not None and name in env:
+            return 'source_binding'
+        facts = self._builtin_scope_facts(node)
+        if name in facts.bound:
+            return 'source_binding'
+        nonlocal_name = name in facts.nonlocals
+        parent = ref.qualname.rpartition('.')[0]
+        if name not in facts.globals:
+            while parent:
+                enclosing = self._definition_index.find(ref.module, parent)
+                if len(enclosing) > 1:
+                    return 'unconfirmed'
+                if enclosing:
+                    outer = self._builtin_scope_facts(enclosing[0][1])
+                    if name in outer.globals:
+                        break
+                    if name in outer.bound - outer.nonlocals:
+                        return 'source_binding'
+                    nonlocal_name = nonlocal_name or name in outer.nonlocals
+                elif not self._definition_index.find(ref.module, parent, kind='class'):
+                    return 'unconfirmed'
+                parent = parent.rpartition('.')[0]
+        if nonlocal_name:
+            return 'unconfirmed'
+        if ref.module not in self._builtin_module_cache:
+            bodies = self.module_bodies.get(ref.module, [])
+            names = set()
+            uncertain = len(bodies) != 1 or any(
+                item.get('module') == ref.module for item in self.index_boundaries)
+            for _, body in bodies:
+                names.update(self._builtin_statement_facts(body).bound)
+                for statement in body:
+                    for child in ast.walk(statement):
+                        if self._analysis_budget is not None:
+                            self._analysis_budget.checkpoint()
+                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                            scope = self._builtin_scope_facts(child)
+                            names.update(scope.globals & scope.bound)
+            self._builtin_module_cache[ref.module] = names, uncertain
+        names, uncertain = self._builtin_module_cache[ref.module]
+        if name in names:
+            return 'source_binding'
+        if uncertain or '*' in names or '__builtins__' in names:
+            return 'unconfirmed'
+        return 'confirmed_builtin'
 
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
@@ -2692,6 +2795,8 @@ class _Summary:
                 self.evaluated_calls.add(location)
             name = ast.unparse(node.func)
             binding = env.get(name.split('.')[0])
+            builtin_status = (self.analyzer._builtin_name_status(self.ref, self.node, name, env)
+                              if isinstance(node.func, ast.Name) and hasattr(builtins, name) else None)
             callable_sources = (self.expression(node.func, env)
                                 if isinstance(node.func, ast.Subscript) else binding or [])
             target = self.analyzer._resolve(self.ref, name) if binding is None else None
@@ -3072,8 +3177,15 @@ class _Summary:
                                   'constructor_unavailable' if constructor_class else
                                   'lexical_method_candidate' if target and bound_receiver else
                                   'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
-                                  else 'builtin_boundary' if binding is None and hasattr(builtins, name)
+                                  else 'builtin_boundary' if builtin_status == 'confirmed_builtin'
                                   else 'definition_unavailable')
+            if (target is None and builtin_status in ('source_binding', 'unconfirmed')
+                    and name in ('dict', 'list', 'tuple', 'set', 'str', 'repr', 'bool', 'len', 'next')):
+                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                    'function': asdict(self.ref), 'reason': 'builtin_name_unconfirmed',
+                    'builtin_name_status': builtin_status, 'affected_scope': 'unknown',
+                    'affected_values': [], 'conditions': list(self.conditions),
+                    'evidence': self.evidence(node)})
             if dispatch_kind == 'receiver_unresolved' and bounded_targets:
                 call.target_status = 'receiver_unresolved'
                 self.add_boundary('class_attribute_state_unknown', node, env,
@@ -3200,7 +3312,7 @@ class _Summary:
                         'sources': capture_values[capture]})
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
-            if (contract is None and target is None and binding is None
+            if (contract is None and target is None and builtin_status == 'confirmed_builtin'
                     and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set')
                     and canonical == self.ref.module + '.' + name
                     and len(node.args) == 1 and not node.keywords
@@ -3209,7 +3321,7 @@ class _Summary:
                     {'parameter': 'object', 'relation': 'derived'}],
                     'provenance': 'Python builtin result dependency (not owner preservation)'}
                 call.target_status = 'python_protocol'
-            if (contract is None and target is None and binding is None and name == 'next'
+            if (contract is None and target is None and builtin_status == 'confirmed_builtin' and name == 'next'
                     and canonical == self.ref.module + '.next'
                     and len(node.args) == 1 and not node.keywords
                     and not isinstance(node.args[0], ast.Starred)):
@@ -3617,9 +3729,8 @@ class _Summary:
 
     def container_constructor(self, node, call, env, actuals):
         name = node.func.id
-        if (name not in ('dict', 'list', 'tuple') or name in env
-                or name in self.analyzer.imports.get(self.ref.module, {})
-                or name in self.analyzer.module_bindings.get(self.ref.module, set())
+        if (name not in ('dict', 'list', 'tuple')
+                or self.analyzer._builtin_name_status(self.ref, self.node, name, env) != 'confirmed_builtin'
                 or len(node.args) != 1 or node.keywords or isinstance(node.args[0], ast.Starred)):
             return None
         values = actuals.get(0, [])
