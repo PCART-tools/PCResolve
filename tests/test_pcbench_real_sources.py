@@ -470,10 +470,17 @@ def test_frozen_requests_sync_with_propagates_enter_receiver_to_request(entry):
     assert any(value.get('context_manager_return', {}).get('identity') == 'receiver_alias'
                and value.get('instance_type', {}).get('qualname') == 'Session'
                for value in body.receiver_sources)
-    enter = next(call for call in result.calls if call.implicit_protocol)
+    enter = next(call for call in result.calls if call.implicit_protocol.get('method') == '__enter__')
     assert enter.target.qualname == 'Session.__enter__'
     assert enter.implicit_protocol['runtime_target_confirmed'] is False
     assert enter.implicit_protocol['source_hashes']
+    exits = [call for call in result.calls if call.implicit_protocol.get('method') == '__exit__'
+             and call.caller.module == 'requests.api' and call.caller.qualname == 'request']
+    assert exits and all(call.target.qualname == 'Session.__exit__' for call in exits)
+    assert all(call.binding_status == 'complete' and call.implicit_protocol['completion'] == 'unconfirmed'
+               and call.implicit_protocol['runtime_target_confirmed'] is False for call in exits)
+    assert all(call.implicit_protocol['exit_outcomes'] for call in exits)
+    assert result.find_calls(callee_name='self.close')
     assert any(boundary['reason'] == 'context_exit_unmodeled'
                and boundary['exit_target']['qualname'] == 'Session.__exit__' for boundary in result.boundaries)
     assert any(boundary['reason'] == 'dynamic_method_override_possible'

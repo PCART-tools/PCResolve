@@ -774,7 +774,7 @@ feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
-### Synchronous context-manager entry and body
+### Synchronous context-manager entry, body and bounded cleanup
 
 Source-resolvable synchronous `with` evaluates managers left to right and looks
 up `__enter__`/`__exit__` on the proven instance type and source MRO. A separate
@@ -805,22 +805,62 @@ path. Explicit budgets (at most 2,000 enter-proof nodes and eight nested proof
 levels, within existing fact/query budgets) and recursion remain boundaries.
 Complex conditional enter effects are not proved by this narrow summary.
 
-Normal body and existing return/raise/break/continue states are propagated.
-Only a source-proven, validly bound trivial exit returning a literal false/None
-or falling through can be treated as `effects_status="source_noop"`, under
-the same snapshot assumptions. All other exits keep `context_exit_unmodeled`,
-`completion="deferred"` and an unknown-completion alternative. No cleanup call
-is executed by this stage; exception suppression, nontrivial exit effects,
-precise reverse cleanup order and pending-return mutation remain unmodeled.
-Unknown enter/exit effects invalidate strong container exclusions/current-content
-claims and receiver identities at the appropriate boundary, without restoring
-cleared input provenance. Calls inside the body retain their pre-exit facts.
-Cleanup uncertainty from earlier entered managers remains when a later enter
-fails. `AsyncWith` stops its path with `async_with_unsupported`.
+Successful entries are cleaned up right to left, including when a later context
+expression or enter fails. The failing manager does not receive an exit call.
+Each cleanup witness adds an implicit `FlowCall` with suffix
+`:with_exit:<item-index>:<cleanup-order>`. Its `implicit_protocol` identifies
+the saved source exit descriptor/manager, exception state and source hashes;
+the context/as variables are not looked up again. `incoming_exit` distinguishes
+normal, return, raise, break and continue, plus a failure `origin`. The three
+exception arguments are literal None on non-exceptional paths; on exceptional
+paths structured `context_exception` values identify type/value/traceback and
+the known exception spelling, if any. They are not concrete runtime objects.
+`cleanup_order` orders these symbolic witnesses, not actual runtime events or
+the source-sorted `calls` list. `exit_outcomes` exposes possible outgoing exit
+kinds/exception spellings; `pending_return_sources` retains selected raw object
+references (not a snapshot of final contents). `exit.executions` links cleanup
+witnesses and their proof status to the entry record. Unknown incoming exits do
+not bind a confirmed empty exception triple. A budget-exhausted cleanup attempt
+can have `exit.executions[*].call_id=null` with an explicit budget boundary.
+
+A bounded source execution admits lexical captures, literal truth/None tests,
+constant-key builtin dict operations, proven copies/update/clear, local aliases,
+nonlocal rebinding and supported try/finally. Complete executions have
+`effects_status="source_modeled"` (or `source_noop`) and per-witness status;
+exit effects retain source locations, heap/root facts, conditions and
+`completion="normal_return"`. These describe individual operations on their
+normal paths, not unconditional whole-function completion. Required-key pop
+and delete preserve KeyError alternatives with the pre-operation contents.
+Known truth suppresses or propagates an incoming exception; an exit raise
+replaces the pending state and is passed to the next outer exit. Exit return
+truth is not tested for normal, return, break or continue paths. Unknown truth
+retains suppression/propagation/truth-protocol exception alternatives and
+`context_exit_truth_unresolved`, invalidating unproved strong contents.
+
+The return expression is evaluated once. Its selected object identity survives
+cleanup: effects update its current contents; rebinding a local/nonlocal name
+does not replace the selected object. Copies keep separate identities. Captures
+are read at exit time, not manager construction. Source dependency alone still
+does not prove object identity. General instance-field aliases, unknown helpers,
+custom data/hash/truth/lookup protocols, unsupported control and arbitrary heap
+effects remain `context_exit_unmodeled`, with `completion="unconfirmed"`.
+Partially observed effects do not establish a complete exit proof. Unknown
+entry/expression failure effects likewise retain explicit boundaries.
+
+Exit execution shares existing fact/query budgets, with at most 2,000 source
+nodes per exit, eight nested executions and 32 alternatives per cleanup step.
+`context_exit_budget`, `context_exit_recursion` and `context_exit_path_budget`
+retain uncertainty; path overflow merges/widens by pending exit kind rather
+than dropping pending returns or skipping the remaining outer managers.
+Unknown effects invalidate strong container exclusions/current-content claims
+and receiver identities without restoring cleared input provenance. Calls in
+the body keep their pre-exit facts. `AsyncWith` remains `async_with_unsupported`.
 
 Consumers may follow enter `result_sources`, body `receiver_sources` and
 `receiver_type_evidence`, binding/argument facts and normal-enter conditions.
-They must also check protocol status, assumptions and independent boundaries;
+Consumers can also follow exit `argument_sources`, `effects`, `incoming_exit`,
+`cleanup_order` and per-entry `exit.executions`. They must keep these conditional
+path witnesses separate and check protocol status, assumptions and independent boundaries;
 `source_proven` is a conditional source-return proof, not runtime dispatch,
 whole-function completion, compatibility or repair proof.
 

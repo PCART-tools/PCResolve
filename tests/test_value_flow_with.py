@@ -120,7 +120,7 @@ def test_contexts_enter_left_to_right_and_keep_distinct_return_evidence(entry):
     assert len(facts) == 2
     enter_ids = [fact['enter']['call_id'] for fact in facts]
     assert len(set(enter_ids)) == 2
-    calls = [call for call in result.calls if getattr(call, 'implicit_protocol', {})]
+    calls = [call for call in result.calls if call.implicit_protocol.get('method') == '__enter__']
     assert [call.id for call in calls] == enter_ids
     if entry == 'second_context_uses_first':
         assert result.find_calls(callee_name='second.request')[0].target.qualname == 'SimpleSession.request'
@@ -189,11 +189,11 @@ def test_exit_with_invalid_signature_is_not_classified_as_a_source_noop():
     assert 'binding_unconfirmed' in contexts(result)[0]['exit']['issues']
 
 
-def test_exception_suppression_is_explicitly_deferred_not_a_false_noop():
+def test_source_proven_exception_suppression_is_not_a_false_noop():
     result = analyze('suppressing_exit')
-    assert contexts(result)[0]['exit']['effects_status'] == 'unmodeled'
-    assert any(boundary['reason'] == 'context_exit_unmodeled' for boundary in result.boundaries)
-    assert result.find_calls(callee_name='unknown_after')[0].analysis_status == 'not_analyzed'
+    assert contexts(result)[0]['exit']['effects_status'] == 'source_modeled'
+    assert not any(boundary['reason'] == 'context_exit_unmodeled' for boundary in result.boundaries)
+    assert result.find_calls(callee_name='unknown_after')[0].analysis_status == 'analyzed'
 
 
 def test_unknown_exit_invalidates_receiver_type_after_the_body():
