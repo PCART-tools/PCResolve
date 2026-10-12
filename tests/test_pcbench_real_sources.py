@@ -387,18 +387,18 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
                for item in result.boundaries)
 
 
-@pytest.mark.parametrize('source_id,files,module,entry,target', [
+@pytest.mark.parametrize('source_id,files,module,entry,target,identity', [
     ('pandas-2.0.0', ['core/series.py', 'core/generic.py', 'util/_decorators.py'],
-     'pandas.core.series', 'Series.take', 'Appender.__call__'),
+     'pandas.core.series', 'Series.take', 'Appender.__call__', 'unknown'),
     ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py'],
-     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__')])
+     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved')])
 def test_real_decorated_entries_expose_identity_and_unclosed_effects(
-        source_id, files, module, entry, target):
+        source_id, files, module, entry, target, identity):
     result = analyze(source_id, files, module, entry)
     fact = result.functions[0]['decorator_effects'][0]
     assert fact['function'] == result.to_dict()['entry']
     assert fact['target']['qualname'] == target
-    assert fact['identity_status'] == 'unknown'
+    assert fact['identity_status'] == identity
     assert fact['body_binding_status'] == 'unknown'
     assert fact['runtime_target_confirmed'] is False
     assert any(item['element_path'] == ['__doc__'] and item['impact'] == 'documentation'
@@ -443,6 +443,85 @@ def test_frozen_requests_setdefault_preserves_open_kwargs_and_independent_receiv
     assert any(boundary.get('call_id') == forwarded.id
                and boundary['reason'] == 'dynamic_method_override_possible'
                for boundary in result.boundaries)
+
+
+@pytest.mark.parametrize('include_inspect', [False, True])
+def test_real_shadow_cache_and_helper_proofs_keep_unclosed_protocol_boundaries(include_inspect):
+    import sysconfig
+
+    package = source('matplotlib-3.5.0')
+    selected = [package / name for name in ('patches.py', 'docstring.py', 'artist.py')]
+    roots = [package.parent]
+    if include_inspect:
+        stdlib = Path(sysconfig.get_path('stdlib'))
+        selected.append(stdlib / 'inspect.py')
+        roots.append(stdlib)
+    before = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in selected}
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=roots)
+    result = analyzer.analyze(FunctionRef(module='matplotlib.patches', qualname='Shadow.__init__'))
+    fact = result.functions[0]['decorator_effects'][0]
+    assert fact['identity_status'] == 'preserved'
+    assert fact['body_binding_status'] == 'unknown'
+    assert fact['runtime_target_confirmed'] is False
+    construction = next(item for item in fact['effects'] if item['operation'] == 'construction')
+    assert construction['class']['qualname'] == '_ArtistKwdocLoader'
+    assert construction['method_binding']['builtin'] == 'dict.setdefault'
+    assert any(item['operation'] == 'mapping_lookup' for item in fact['effects'])
+    assert any(item['function']['qualname'] == '_ArtistKwdocLoader.__missing__'
+               for item in fact['boundaries'])
+    if include_inspect:
+        helper = next(item for item in fact['effects'] if item.get('operation') == 'helper_call'
+                      and item['target']['module'] == 'inspect')
+        assert helper['target']['qualname'] == 'cleandoc'
+        assert str(selected[-1]) in fact['source_hashes']
+        assert any(item['function']['qualname'] == 'cleandoc'
+                   and item['reason'] == 'decorator_statement_unsupported' for item in fact['boundaries'])
+    else:
+        helper = next(item for item in fact['boundaries'] if item.get('source_target') == 'inspect.cleandoc')
+        assert helper['source_available'] is False
+        assert helper['affected_roles'] == ['documentation_data']
+    loader = analyzer.analyze(FunctionRef(module='matplotlib.docstring', qualname='_ArtistKwdocLoader.__missing__'))
+    call = loader.find_calls(callee_name='self.setdefault')[0]
+    assert call.target_status == 'builtin_method_candidate'
+    assert call.target is None and not call.target_candidates
+    assert call.receiver_type_evidence[0]['builtin'] == 'dict.setdefault'
+    effect = next(item for item in call.effects if item['operation'] == 'setdefault')
+    assert effect['element_path'] == ['*'] and effect['insertion'] == 'conditional'
+    assert effect['status'] == 'unknown_key' and effect['completion'] == 'normal_return'
+    assert not any(value.get('container_object') for value in call.result_sources)
+    default = loader.find_calls(callee_name='kwdoc')[0]
+    assert default.target.qualname == 'kwdoc' and default.target.module == 'matplotlib.artist'
+    assert default.lineno == call.lineno
+    update = analyzer.analyze(FunctionRef(module='matplotlib.artist', qualname='Artist.update'))
+    assert any(item['reason'] == 'unsupported_statement' and item.get('evidence', {}).get('source_text', '').startswith('with ')
+               for item in update.boundaries)
+    assert before == {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in selected}
+
+
+def test_shadow_original_frozen_import_closure_preserves_partial_proof():
+    report = Path('C:/GitHub/VPPDetector/evaluation/pcbench/shadow-chain-9f6f877-20261011.json')
+    if not report.is_file():
+        pytest.skip('Frozen Shadow source closure is not available')
+    hashes = json.loads(report.read_text(encoding='utf-8'))['source_hashes']
+    files = [Path(path) for path in hashes]
+    if not all(path.is_file() for path in files):
+        pytest.skip('Frozen Shadow source files are not available')
+    assert len(files) == 89
+    assert hashes == {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
+    package = next(path.parent for path in files if path.name == 'docstring.py')
+    analyzer = FlowAnalyzer(source_files=files, import_roots=[package.parent])
+    result = analyzer.analyze(FunctionRef(module='matplotlib.patches', qualname='Shadow.__init__'))
+    fact = result.functions[0]['decorator_effects'][0]
+    assert fact['identity_status'] == 'preserved' and fact['body_binding_status'] == 'unknown'
+    assert not analyzer._class_binding_writes(include_escapes=True)[1]
+    assert any(item.get('source_target') == 'inspect.cleandoc' and item['source_available'] is False
+               for item in fact['boundaries'])
+    assert any(item['operation'] == 'construction' and item['target'] == 'documentation_cache'
+               for item in fact['effects'])
+    assert any(item['function']['qualname'] == '_ArtistKwdocLoader.__missing__'
+               for item in fact['boundaries'])
+    assert fact['runtime_target_confirmed'] is False
+    assert hashes == {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
 
 
 @pytest.mark.parametrize('entry', ['cdist', 'pdist'])

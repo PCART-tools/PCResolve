@@ -205,6 +205,16 @@ can annotate their own `decorated_caller_semantics` / `decorated_target_candidat
 boundaries with `boundary_kind="assumption"`, `body_binding_status="preserved"`
 and explicit assumptions; independent receiver, effect and budget boundaries
 remain. These facts neither confirm runtime targets nor claim the decorator pure.
+Additive decoration effects distinguish `documentation_cache` construction,
+conditional `setdefault` and formatting `mapping_lookup` from writes to
+`input_function`. Source `helper_call` effects retain exact targets/bindings;
+partial effects never substitute for positive body/binding proof. Method-specific
+`builtin_method_binding` evidence in effects or `receiver_type_evidence` does not
+give a dict subclass builtin container shape. An inherited builtin method has
+no fabricated Python target; `builtin_method_candidate` retains dynamic/unknown
+key boundaries and does not perform a heap strong update. Source-unavailable
+decoration calls can include `source_target`, `source_available` and
+`affected_roles` without declaring the call safe. Stable ownership 1.0 is unchanged.
 For a proven source classmethod binding, the existing
 `dynamic_class_receiver_override_possible` boundary remains but has
 `boundary_kind="assumption"`, `binding_status="source_bound"` and explicit

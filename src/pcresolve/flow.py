@@ -314,6 +314,7 @@ class FlowAnalyzer:
         self._fact_functions = 500
         self._fact_calls = 2000
         self._class_binding_write_cache = None
+        self._class_binding_escape_cache = None
         self._decoration_fact_cache = {}
         self._source_snapshot = (
             self._source_store.snapshot(sorted(self.files), FLOW_SOURCE, budget=self._analysis_budget)
@@ -812,10 +813,17 @@ class FlowAnalyzer:
                     return None
         return name
 
-    def _class_binding_writes(self):
-        if self._class_binding_write_cache is not None:
-            return self._class_binding_write_cache
+    def _class_binding_writes(self, include_escapes=False):
+        cached = self._class_binding_escape_cache if include_escapes else self._class_binding_write_cache
+        if cached is not None:
+            return cached
         writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
+
+        def method_owner(qualified):
+            target = self._resolve_import_binding(qualified) if include_escapes else None
+            owner = target[0].qualname.rpartition('.')[0] if target else ''
+            classes = self._definition_index.find(target[0].module, owner, kind='class') if owner else []
+            return [classes[0][0]] if len(classes) == 1 else []
 
         def identity(expression, ref, aliases):
             if isinstance(expression, ast.IfExp):
@@ -830,15 +838,17 @@ class FlowAnalyzer:
             first, dot, rest = name.partition('.')
             if first in aliases:
                 imported = aliases[first]
+                if include_escapes and isinstance(imported, FunctionRef) and dot:
+                    return method_owner(imported.module + '.' + imported.qualname + dot + rest)
                 if isinstance(imported, str) and dot:
                     target = self._definition_index.resolve_qualified(
                         [imported + dot + rest], self.imports, kind='class')
-                    return [target[0]] if target else []
+                    return [target[0]] if target else method_owner(imported + dot + rest)
                 return []
             target = self._resolve_class(ref, name)
             if target is None:
                 target = self._class_symbol(ref.module + '.' + name)
-            return [target[0]] if target else []
+            return [target[0]] if target else method_owner(ref.module + '.' + name)
 
         def walk(node, ref, aliases):
             remaining[0] -= 1
@@ -896,6 +906,16 @@ class FlowAnalyzer:
                             and isinstance(node.args[1].value, str) else '*')
                         writes.extend((class_ref, attribute, 'visible_dynamic_attribute_write', ref, node)
                                       for class_ref in target)
+                if include_escapes:
+                    arguments = list(node.args) + [keyword.value for keyword in node.keywords]
+                    for argument in arguments:
+                        for child in ast.walk(argument):
+                            remaining[0] -= 1
+                            if remaining[0] < 0:
+                                return
+                            if isinstance(child, (ast.Name, ast.Attribute)):
+                                writes.extend((class_ref, '*', 'visible_class_escape', ref, node)
+                                              for class_ref in identity(child, ref, aliases))
             for child in ast.iter_child_nodes(node):
                 walk(child, ref, aliases)
             if isinstance(node, (ast.Assign, ast.AnnAssign)):
@@ -912,8 +932,12 @@ class FlowAnalyzer:
                 aliases = {}
                 for statement in body:
                     walk(statement, FunctionRef(module, '', path), aliases)
-        self._class_binding_write_cache = writes, remaining[0] < 0
-        return self._class_binding_write_cache
+        result = writes, remaining[0] < 0
+        if include_escapes:
+            self._class_binding_escape_cache = result
+        else:
+            self._class_binding_write_cache = result
+        return result
 
     def _decorator_definition(self, target, kind='function'):
         ref, node = target
@@ -1122,6 +1146,84 @@ class FlowAnalyzer:
             and member.name == '__new__' or
             '__new__' in statement_scope_facts([member]).bound
             for member in cls.body) for _, cls in hierarchy)
+
+    ## Prove a single-inheritance source chain ending at the unshadowed builtin dict.
+    #  @param class_ref Source class identity; no whole-object builtin shape is inferred.
+    #  @return Source hierarchy, or None for incomplete or customized construction.
+    def _dict_subclass_hierarchy(self, class_ref, seen=()):
+        identity = (class_ref.module, class_ref.qualname)
+        if identity in seen or len(seen) >= 20:
+            return None
+        matches = self._definition_index.find(*identity, kind='class')
+        if len(matches) != 1 or self._class_symbol('.'.join(identity)) != matches[0]:
+            return None
+        ref, cls = matches[0]
+        if cls.decorator_list or cls.keywords or len(cls.bases) != 1:
+            return None
+        base = cls.bases[0]
+        if isinstance(base, ast.Name) and base.id == 'dict':
+            if (base.id in self.imports.get(ref.module, {})
+                    or base.id in self.module_bindings.get(ref.module, set())
+                    or self._definition_index.find(ref.module, base.id)
+                    or self._definition_index.find(ref.module, base.id, kind='class')):
+                return None
+            outer = ref.qualname.rpartition('.')[0]
+            scopes = self._definition_index.find(ref.module, outer)
+            if any(base.id in self._scope_facts(node).bound for _, node in scopes):
+                return None
+            return (matches[0],)
+        if not isinstance(base, (ast.Name, ast.Attribute)):
+            return None
+        first = ast.unparse(base).partition('.')[0]
+        if not self._stable_import_name(ref.module + '.' + first):
+            return None
+        inherited = self._resolve_class(ref, ast.unparse(base))
+        if inherited is None:
+            return None
+        hierarchy = self._dict_subclass_hierarchy(inherited[0], seen + (identity,))
+        return (matches[0],) + hierarchy if hierarchy else None
+
+    ## Describe a builtin method's source binding without treating a subclass as dict.
+    #  @param class_ref Source receiver class.
+    #  @param method Exact attribute being looked up.
+    #  @return Proof, an explicit scan-budget issue, or None for uncertain lookup/writes.
+    def _dict_method_binding(self, class_ref, method):
+        if method not in ('setdefault', '__getitem__'):
+            return None
+        hierarchy = self._dict_subclass_hierarchy(class_ref)
+        if hierarchy is None:
+            return None
+        blocked = {method, '__getattribute__', '__getattr__', '__setattr__',
+                   '__delattr__', '__new__', '__init_subclass__'}
+        remaining = _CLASS_BINDING_NODE_LIMIT
+        for ref, cls in hierarchy:
+            if any(blocked.intersection(statement_scope_facts([member]).bound)
+                   for member in cls.body):
+                return None
+            for node in ast.walk(cls):
+                remaining -= 1
+                if remaining < 0:
+                    return {'status': 'unconfirmed', 'reason': 'class_binding_budget'}
+                if isinstance(node, ast.Attribute) and (node.attr == '__dict__' or
+                        isinstance(node.ctx, (ast.Store, ast.Del)) and node.attr in blocked | {'__class__'}):
+                    return None
+                if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute)):
+                    name = node.func.id if isinstance(node.func, ast.Name) else node.func.attr
+                    if name in ('setattr', 'delattr', 'vars', 'exec', 'eval', '__setattr__', '__delattr__'):
+                        return None
+        writes, truncated = self._class_binding_writes(include_escapes=True)
+        identities = {(ref.module, ref.qualname) for ref, _ in hierarchy}
+        if truncated:
+            return {'status': 'unconfirmed', 'reason': 'class_binding_budget'}
+        if any((ref.module, ref.qualname) in identities for ref, _, _, _, _ in writes):
+            return None
+        return {'kind': 'builtin_method_binding', 'builtin': 'dict.' + method,
+                'receiver_class': asdict(class_ref), 'status': 'source_bound',
+                'basis': 'source_snapshot', 'runtime_target_confirmed': False,
+                'assumptions': ['source_snapshot_bindings_hold',
+                                'source_class_receiver_without_instance_shadowing',
+                                'no_external_monkeypatch_or_import_hook'],
+                'hierarchy': hierarchy}
 
     def _function_effects(self, definition):
         ref, node = definition
@@ -3241,6 +3343,8 @@ class _Summary:
                 effects_complete = self.apply_effects(
                     selected_target, actual_values, capture_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env, protocol_values)
+            if target is None and container_result is None:
+                self.inherited_setdefault(node, receiver_values, call, env)
             if target is None and container_result is None and isinstance(node.func, ast.Name):
                 container_result = self.container_constructor(node, call, env, protocol_values)
             if (target is None and not bounded_targets
@@ -3618,6 +3722,59 @@ class _Summary:
         call.return_dependencies = []
         call.result_sources = [endpoint] if obj else [endpoint] + selected
         return call.result_sources
+
+    def inherited_setdefault(self, node, receiver, call, env):
+        if (not isinstance(node.func, ast.Attribute) or node.func.attr != 'setdefault'
+                or node.keywords or any(isinstance(item, ast.Starred) for item in node.args)
+                or getattr(self.node, 'decorator_list', [])):
+            return
+        contract = container_method_effect(node.func.attr, ('dict',), len(node.args))
+        parameters = self.node.args.posonlyargs + self.node.args.args
+        if (contract is None or not parameters or not receiver or not all(
+                value['kind'] == 'parameter' and value['source'] == parameters[0].arg
+                and value.get('relation') == 'direct' and not value.get('projection')
+                and not value.get('output_path') for value in receiver)):
+            return
+        owner = self.ref.qualname.rpartition('.')[0]
+        matches = self.analyzer._definition_index.find(self.ref.module, owner, kind='class')
+        proof = self.analyzer._dict_method_binding(matches[0][0], 'setdefault') if len(matches) == 1 else None
+        if proof is None:
+            return
+        if proof['status'] != 'source_bound':
+            self.add_boundary(proof['reason'], node, env, receiver, call_id=call.id)
+            return
+        proof = dict(proof)
+        proof['evidence'] = [self.evidence_at(ref, cls) for ref, cls in proof.pop('hierarchy')]
+        proof['evidence'].append(self.evidence(node))
+        call.receiver_type_evidence.append(proof)
+        call.target_status = 'builtin_method_candidate'
+        call.binding_status = 'complete'
+        for index, argument in enumerate(call.argument_sources):
+            argument['parameter'] = contract.parameters[index]
+            call.parameter_bindings[index].update(parameter=contract.parameters[index],
+                                                 status='exact', destination_kind='parameter')
+        for value in call.argument_flows + call.parameter_flows:
+            position = value['argument'].get('position')
+            if position is not None:
+                value['target_parameter'] = contract.parameters[position]
+        call.argument_sources.append({'argument': {'receiver': True}, 'parameter': 'self',
+                                      'sources': self.materialize(receiver, env)})
+        call.parameter_bindings.append({'argument': {'receiver': True}, 'parameter': 'self',
+            'status': 'exact', 'binding_kind': 'implicit_receiver', 'destination_kind': 'parameter'})
+        key = node.args[0].value if isinstance(node.args[0], ast.Constant) and isinstance(
+            node.args[0].value, (str, int)) else '*'
+        roots, _ = self.affected_values(receiver, env)
+        effect = {'kind': 'mapping_element', 'operation': 'setdefault', 'mapping': roots,
+                  'element_path': [key], 'state_before': 'unknown', 'state_after': 'conditional',
+                  'insertion': 'conditional', 'status': 'unknown_key' if key == '*' else 'source_candidate',
+                  'completion': 'normal_return', 'conditions': copy.deepcopy(self.conditions),
+                  'evidence': self.evidence(node), 'method_binding': copy.deepcopy(proof)}
+        call.effects.append(effect)
+        self.mapping_effects.append(effect)
+        self.add_boundary('dynamic_method_override_possible', node, env, receiver, call_id=call.id)
+        if key == '*':
+            self.add_boundary('container_effect_unknown', node, env, receiver,
+                              call_id=call.id, detail='dynamic_key_protocol_unconfirmed')
 
     def container_call(self, node, receiver, call, env, actuals=None):
         receiver = self.container_values(receiver)
