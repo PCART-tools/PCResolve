@@ -774,6 +774,56 @@ feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
+### Synchronous context-manager entry and body
+
+Source-resolvable synchronous `with` evaluates managers left to right and looks
+up `__enter__`/`__exit__` on the proven instance type and source MRO. A separate
+implicit enter `FlowCall` uses a `:with_enter:<item-index>` ID suffix. Its
+`implicit_protocol` distinguishes it from a syntactic call and records lookup,
+source evidence/hashes, assumptions and `runtime_target_confirmed=false`.
+Ownership call-site enumeration and schema are unchanged.
+
+The optional `functions[*].context_managers` records the context expression,
+manager sources, `as_target`, enter call/target/return/effect status and exit
+candidate/effect status. `as` receives the **enter result**, not the manager's
+type by default. A bounded source summary proves direct receiver/alias returns
+or supported fresh constructor results. Returned values retain an enter
+`call_result` endpoint, `instance_type`, assignment/return/call evidence and
+`context_manager_return`: `receiver_alias` versus `return_instance`, plus an
+opaque caller-instantiated `object_source`. Cached proofs remain symbolic;
+different call sites do not reuse a cached caller object identity.
+
+Body facts carry `conditions[*].context_enter` with
+`completion="normal_return"`. This is a condition, not proof the context is
+entered at runtime. Existing dynamic-method boundaries remain; receiver type
+evidence exposes the enter-return chain as a source candidate only. Unknown or
+mixed receivers/results, visible protocol/class changes, customized lookup,
+decorators/descriptors and unsupported construction retain boundaries rather
+than borrowing the manager type. An invalid enter binding, missing source exit
+protocol or enter body with only raises does not analyze the body as a normal
+path. Explicit budgets (at most 2,000 enter-proof nodes and eight nested proof
+levels, within existing fact/query budgets) and recursion remain boundaries.
+Complex conditional enter effects are not proved by this narrow summary.
+
+Normal body and existing return/raise/break/continue states are propagated.
+Only a source-proven, validly bound trivial exit returning a literal false/None
+or falling through can be treated as `effects_status="source_noop"`, under
+the same snapshot assumptions. All other exits keep `context_exit_unmodeled`,
+`completion="deferred"` and an unknown-completion alternative. No cleanup call
+is executed by this stage; exception suppression, nontrivial exit effects,
+precise reverse cleanup order and pending-return mutation remain unmodeled.
+Unknown enter/exit effects invalidate strong container exclusions/current-content
+claims and receiver identities at the appropriate boundary, without restoring
+cleared input provenance. Calls inside the body retain their pre-exit facts.
+Cleanup uncertainty from earlier entered managers remains when a later enter
+fails. `AsyncWith` stops its path with `async_with_unsupported`.
+
+Consumers may follow enter `result_sources`, body `receiver_sources` and
+`receiver_type_evidence`, binding/argument facts and normal-enter conditions.
+They must also check protocol status, assumptions and independent boundaries;
+`source_proven` is a conditional source-return proof, not runtime dispatch,
+whole-function completion, compatibility or repair proof.
+
 ### Builtin container copies and setdefault
 
 Bare builtin constructors and automatic builtin return summaries share one
@@ -1011,7 +1061,7 @@ decorator are resolved when their definitions are unambiguous. Unknown dynamic
 argument expansion remains a `dynamic_argument_expansion` boundary while
 independent explicit keyword bindings are retained.
 
-Unbounded loop reasoning, `with`, starred destructuring/heap writes, escaping
+Unbounded loop reasoning, general/async context-manager exits, starred destructuring/heap writes, escaping
 closures, general receiver binding, complex multiple inheritance, and dynamic dispatch
 are unsupported or partial. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation

@@ -445,6 +445,41 @@ def test_frozen_requests_setdefault_preserves_open_kwargs_and_independent_receiv
                for boundary in result.boundaries)
 
 
+@pytest.mark.parametrize('entry', ['request', 'get', 'post', 'options'])
+def test_frozen_requests_sync_with_propagates_enter_receiver_to_request(entry):
+    inventory = Path('C:/GitHub/VPPDetector/evaluation/local_scan_20261011/sources.json')
+    if not inventory.is_file():
+        pytest.skip('Frozen scan diagnostic sources are not available')
+    records = json.loads(inventory.read_text(encoding='utf-8'))['sources']
+    record = next((item for item in records if item['source_id'] == 'requests-2.32.5'), None)
+    if record is None:
+        pytest.skip('Requests diagnostic source is not available')
+    package = Path(record['package_root'])
+    selected = [package / name for name in ('api.py', 'sessions.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Requests diagnostic source files are not available')
+    for path in selected:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == record['python_file_sha256'][path.name]
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    result = analyzer.analyze(FunctionRef(module='requests.api', qualname=entry), max_depth=3)
+    body = result.find_calls(FunctionRef(module='requests.api', qualname='request'), 'session.request')[0]
+    assert body.analysis_status == 'analyzed'
+    assert body.target.module == 'requests.sessions' and body.target.qualname == 'Session.request'
+    assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
+               for argument in body.argument_sources for value in argument['sources'])
+    assert any(value.get('context_manager_return', {}).get('identity') == 'receiver_alias'
+               and value.get('instance_type', {}).get('qualname') == 'Session'
+               for value in body.receiver_sources)
+    enter = next(call for call in result.calls if call.implicit_protocol)
+    assert enter.target.qualname == 'Session.__enter__'
+    assert enter.implicit_protocol['runtime_target_confirmed'] is False
+    assert enter.implicit_protocol['source_hashes']
+    assert any(boundary['reason'] == 'context_exit_unmodeled'
+               and boundary['exit_target']['qualname'] == 'Session.__exit__' for boundary in result.boundaries)
+    assert any(boundary['reason'] == 'dynamic_method_override_possible'
+               and boundary.get('call_id') == body.id for boundary in result.boundaries)
+
+
 @pytest.mark.parametrize('include_inspect', [False, True])
 def test_real_shadow_cache_and_helper_proofs_keep_unclosed_protocol_boundaries(include_inspect):
     import sysconfig
@@ -493,8 +528,10 @@ def test_real_shadow_cache_and_helper_proofs_keep_unclosed_protocol_boundaries(i
     assert default.target.qualname == 'kwdoc' and default.target.module == 'matplotlib.artist'
     assert default.lineno == call.lineno
     update = analyzer.analyze(FunctionRef(module='matplotlib.artist', qualname='Artist.update'))
-    assert any(item['reason'] == 'unsupported_statement' and item.get('evidence', {}).get('source_text', '').startswith('with ')
-               for item in update.boundaries)
+    assert any(item['reason'] == 'context_enter_return_unresolved' for item in update.boundaries)
+    assert any(item['reason'] == 'context_exit_unmodeled' for item in update.boundaries)
+    assert update.find_calls(callee_name='func')[0].analysis_status == 'analyzed'
+    assert update.find_calls(callee_name='func')[0].target is None
     assert before == {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in selected}
 
 
