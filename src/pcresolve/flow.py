@@ -2613,6 +2613,10 @@ class _Summary:
             self.analyzer._analysis_budget.checkpoint()
         if node is None:
             return []
+        if (self.context_execution and isinstance(node, (ast.Tuple, ast.List, ast.Dict))
+                and any(isinstance(child, ast.Call) for child in ast.walk(node))):
+            self.add_boundary('context_exit_nested_expression_unmodeled', node, env,
+                              affected_scope='unknown')
         if self.context_execution and (isinstance(node, (ast.Attribute, ast.Subscript,
                 ast.BinOp, ast.BoolOp, ast.IfExp, ast.NamedExpr, ast.Lambda,
                 ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp))

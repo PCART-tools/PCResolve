@@ -835,6 +835,15 @@ This also applies to ordinary and annotated assignment RHS operations: a
 proved absent key has only a KeyError completion, and the assignment target is
 not rebound on failure. Proven present keys and safe pops with defaults do not
 add a speculative key-error path; unknown key presence retains both paths.
+These completion checks cover direct operations, not general nested expression
+evaluation. Tuple/list/dict expressions containing calls retain
+`context_exit_nested_expression_unmodeled`: per-child exceptional frames and
+evaluation completion have not been proved. Their containing exit stays
+`context_exit_unmodeled` with `completion="unconfirmed"`; observed child calls
+and effects cannot establish a complete normal path or strong caller contents.
+Call-free container construction and proven unreachable statement branches do
+not acquire this boundary. This limit also applies to nested safe pop defaults;
+it is not a claim that every nested operation fails.
 Known truth suppresses or propagates an incoming exception; an exit raise
 replaces the pending state and is passed to the next outer exit. Exit return
 truth is not tested for normal, return, break or continue paths. Unknown truth
