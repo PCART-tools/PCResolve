@@ -4692,8 +4692,9 @@ class _Summary:
     #  @param node Direct dict pop expression or deletion subscript.
     #  @param previous Caller frame before evaluating the operation.
     #  @param env Normal-completion frame after evaluation.
+    #  @param exceptional Fallback exceptions for an unproved RHS operation.
     #  @return Exceptional alternatives and whether normal completion is possible.
-    def context_operation_exits(self, node, previous, env):
+    def context_operation_exits(self, node, previous, env, exceptional=None):
         receiver, key = None, None
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and node.func.attr == 'pop' and len(node.args) == 1):
@@ -4701,7 +4702,15 @@ class _Summary:
         elif isinstance(node, ast.Subscript):
             receiver, key = node.value, node.slice
         if receiver is None:
-            return [], True
+            if isinstance(node, ast.Call):
+                call = next((call for call in reversed(self.calls)
+                             if call.id == _call_key(self.ref.file_path, node)), None)
+                if call and call.target_status == 'local_container_protocol':
+                    method = node.func.attr
+                    if method in ('clear', 'copy', 'update') or (
+                            method == 'pop' and len(node.args) == 2):
+                        return [], True
+            return exceptional or [], True
         reference = (self.exact_container(previous.get(receiver.id, []), ('dict',), previous)
                      if isinstance(receiver, ast.Name) else None)
         literal = self.literal_fact(key, previous)
@@ -5332,6 +5341,9 @@ class _Summary:
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             values = self.expression(node.value, env)
             if self.context_execution:
+                exceptional, possible = self.context_operation_exits(node.value, previous, env, exceptional)
+                if not possible:
+                    return exceptional
                 literal = self.literal_fact(node.value, env)
                 if literal is not None:
                     values = [dict(value, literal=literal) for value in values] or [
@@ -5348,17 +5360,9 @@ class _Summary:
         if isinstance(node, ast.Expr):
             self.expression(node.value, env)
             if self.context_execution and isinstance(node.value, ast.Call):
-                call = next((call for call in reversed(self.calls)
-                             if call.id == _call_key(self.ref.file_path, node.value)), None)
-                if call and call.target_status == 'local_container_protocol':
-                    method = node.value.func.attr
-                    if method in ('clear', 'copy', 'update') or (
-                            method == 'pop' and len(node.value.args) == 2):
-                        exceptional = []
-                    elif method == 'pop':
-                        exceptional, possible = self.context_operation_exits(node.value, previous, env)
-                        if not possible:
-                            return exceptional
+                exceptional, possible = self.context_operation_exits(node.value, previous, env, exceptional)
+                if not possible:
+                    return exceptional
             return exceptional + normal(env)
         if isinstance(node, ast.Raise):
             self.expression(node.exc, env)

@@ -264,3 +264,60 @@ def test_call_budget_exhaustion_during_implicit_enter_or_exit_is_not_an_exceptio
         FunctionRef(module='cases', qualname='normal'), max_call_contexts=budget)
     assert any(boundary['reason'] in ('budget_exceeded', 'context_enter_budget', 'context_exit_budget')
                for boundary in result.boundaries)
+
+
+@pytest.mark.parametrize('name', ['assigned_missing_pop', 'annotated_missing_pop'])
+def test_assignment_of_known_missing_pop_has_only_key_error_completion(name):
+    result = analyze(name)
+    assert result.find_calls(callee_name='fixed')[0].analysis_status == 'not_analyzed'
+    assert exits(result)
+    assert all(call.implicit_protocol['completion'] == 'source_modeled'
+               and call.implicit_protocol['exit_outcomes'] == [{'kind': 'raise', 'exception': 'KeyError'}]
+               for call in exits(result))
+
+
+@pytest.mark.parametrize('name', ['assigned_present_pop', 'annotated_present_pop',
+                                 'assigned_default_pop', 'annotated_default_pop'])
+def test_proved_assignment_pop_completion_does_not_add_a_spurious_failure(name):
+    result = analyze(name)
+    assert result.find_calls(callee_name='fixed')[0].analysis_status == 'analyzed'
+    assert all(call.implicit_protocol['exit_outcomes'] == [{'kind': 'normal', 'exception': None}]
+               for call in exits(result))
+    assert not any(boundary['reason'] in ('context_exit_exception_path', 'context_exit_unmodeled')
+                   for boundary in result.boundaries)
+
+
+@pytest.mark.parametrize('name', ['assigned_unknown_pop', 'annotated_unknown_pop'])
+def test_assignment_open_mapping_pop_keeps_normal_and_pre_operation_failure(name):
+    result = analyze(name)
+    assert result.find_calls(callee_name='fixed')[0].analysis_status == 'analyzed'
+    assert all(call.implicit_protocol['exit_outcomes'] == [
+        {'kind': 'raise', 'exception': 'KeyError'}, {'kind': 'normal', 'exception': None}]
+        for call in exits(result))
+    paths = [value for argument in result.find_calls(callee_name='fixed')[0].argument_sources
+             for value in argument['sources'] if value.get('source') == 'kwargs']
+    assert any(['out'] in path.get('excluded_paths', []) for path in paths)
+
+
+@pytest.mark.parametrize('name', ['caught_assigned_missing_pop', 'caught_annotated_missing_pop'])
+def test_failed_assignment_does_not_rebind_the_left_hand_name(name):
+    result = analyze(name)
+    assert result.find_calls(callee_name='fixed')[0].analysis_status == 'analyzed'
+    assert all(call.implicit_protocol['exit_outcomes'] == [{'kind': 'normal', 'exception': None}]
+               for call in exits(result))
+    assert not any(boundary['reason'] in ('context_exit_truth_unresolved', 'context_exit_unmodeled')
+                   for boundary in result.boundaries)
+
+
+def test_caught_assignment_failure_keeps_the_unmodified_open_mapping():
+    result = analyze('assigned_caught_open_pop')
+    paths = result.trace_parameter('kwargs')['return_paths']
+    assert any(['out'] not in path.get('excluded_paths', []) for path in paths)
+    assert any(['out'] in path.get('excluded_paths', []) for path in paths)
+    assert not any(boundary['reason'] == 'context_exit_unmodeled' for boundary in result.boundaries)
+
+
+def test_assignment_default_evaluation_with_unknown_effect_remains_unmodeled():
+    result = analyze('assigned_nested_failure')
+    assert any(boundary['reason'] == 'context_exit_unmodeled' for boundary in result.boundaries)
+    assert all(call.implicit_protocol['completion'] == 'unconfirmed' for call in exits(result))

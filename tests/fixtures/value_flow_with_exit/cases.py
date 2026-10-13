@@ -437,3 +437,154 @@ def unknown_body(**kwargs):
     with Noop():
         assert unknown_condition
     return fixed(**kwargs)
+
+
+def assigned_missing_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected = mapping.pop('missing')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def annotated_missing_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected: object = mapping.pop('missing')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def assigned_present_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {'present': 1}
+            selected = mapping.pop('present')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def annotated_present_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {'present': 1}
+            selected: object = mapping.pop('present')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def assigned_default_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected = mapping.pop('missing', None)
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def annotated_default_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected: object = mapping.pop('missing', None)
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def assigned_unknown_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            selected = kwargs.pop('out')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def annotated_unknown_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            selected: object = kwargs.pop('out')
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def caught_assigned_missing_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected = True
+            try:
+                selected = mapping.pop('missing')
+            except KeyError:
+                return selected
+            return False
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def caught_annotated_missing_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            mapping = {}
+            selected = True
+            try:
+                selected: object = mapping.pop('missing')
+            except KeyError:
+                return selected
+            return False
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)
+
+
+def assigned_caught_open_pop(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            selected = True
+            try:
+                selected = kwargs.pop('out')
+            except KeyError:
+                return True
+            return True
+
+    with Pop():
+        return kwargs
+
+
+def assigned_nested_failure(**kwargs):
+    class Pop(Noop):
+        def __exit__(self, *exc):
+            selected = kwargs.pop('out', unknown_effect(kwargs))
+            return True
+
+    with Pop():
+        raise ValueError()
+    return fixed(**kwargs)

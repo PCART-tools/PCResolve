@@ -831,6 +831,10 @@ exit effects retain source locations, heap/root facts, conditions and
 `completion="normal_return"`. These describe individual operations on their
 normal paths, not unconditional whole-function completion. Required-key pop
 and delete preserve KeyError alternatives with the pre-operation contents.
+This also applies to ordinary and annotated assignment RHS operations: a
+proved absent key has only a KeyError completion, and the assignment target is
+not rebound on failure. Proven present keys and safe pops with defaults do not
+add a speculative key-error path; unknown key presence retains both paths.
 Known truth suppresses or propagates an incoming exception; an exit raise
 replaces the pending state and is passed to the next outer exit. Exit return
 truth is not tested for normal, return, break or continue paths. Unknown truth
