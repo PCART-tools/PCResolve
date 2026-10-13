@@ -49,9 +49,17 @@ def test_mixed_or_changed_receiver_is_not_bound_to_self_class():
 
 
 def test_unanalyzed_calls_still_collected():
-    call = run('uncovered').calls[0]
+    call = run('async_uncovered').find_calls(callee_name='print')[0]
     assert call.callee_name == 'print'
     assert call.analysis_status == 'not_analyzed'
+
+
+def test_unknown_sync_protocol_keeps_body_calls_and_explicit_boundaries():
+    result = run('uncovered')
+    assert result.find_calls(callee_name='print')[0].analysis_status == 'analyzed'
+    assert any(call.implicit_protocol for call in result.calls)
+    assert any(boundary['reason'] == 'context_enter_return_unresolved' for boundary in result.boundaries)
+    assert any(boundary['reason'] == 'context_exit_unmodeled' for boundary in result.boundaries)
 
 
 def test_builtin_conversion_has_derived_dependency():

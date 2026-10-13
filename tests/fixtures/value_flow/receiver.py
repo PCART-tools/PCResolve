@@ -19,6 +19,11 @@ def uncovered(x):
         print(x)
 
 
+async def async_uncovered(x):
+    async with x:
+        print(x)
+
+
 def converted(x):
     return str(x)
 

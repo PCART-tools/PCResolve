@@ -774,7 +774,130 @@ feasibility. Resolved, straight-line callees can expose exact
 `append`, `clear`, and `nonlocal` write effects. Other heap effects remain
 explicit boundaries or unknown behavior.
 
+### Synchronous context-manager entry, body and bounded cleanup
+
+Source-resolvable synchronous `with` evaluates managers left to right and looks
+up `__enter__`/`__exit__` on the proven instance type and source MRO. A separate
+implicit enter `FlowCall` uses a `:with_enter:<item-index>` ID suffix. Its
+`implicit_protocol` distinguishes it from a syntactic call and records lookup,
+source evidence/hashes, assumptions and `runtime_target_confirmed=false`.
+Ownership call-site enumeration and schema are unchanged.
+
+The optional `functions[*].context_managers` records the context expression,
+manager sources, `as_target`, enter call/target/return/effect status and exit
+candidate/effect status. `as` receives the **enter result**, not the manager's
+type by default. A bounded source summary proves direct receiver/alias returns
+or supported fresh constructor results. Returned values retain an enter
+`call_result` endpoint, `instance_type`, assignment/return/call evidence and
+`context_manager_return`: `receiver_alias` versus `return_instance`, plus an
+opaque caller-instantiated `object_source`. Cached proofs remain symbolic;
+different call sites do not reuse a cached caller object identity.
+
+Body facts carry `conditions[*].context_enter` with
+`completion="normal_return"`. This is a condition, not proof the context is
+entered at runtime. Existing dynamic-method boundaries remain; receiver type
+evidence exposes the enter-return chain as a source candidate only. Unknown or
+mixed receivers/results, visible protocol/class changes, customized lookup,
+decorators/descriptors and unsupported construction retain boundaries rather
+than borrowing the manager type. An invalid enter binding, missing source exit
+protocol or enter body with only raises does not analyze the body as a normal
+path. Explicit budgets (at most 2,000 enter-proof nodes and eight nested proof
+levels, within existing fact/query budgets) and recursion remain boundaries.
+Complex conditional enter effects are not proved by this narrow summary.
+
+Successful entries are cleaned up right to left, including when a later context
+expression or enter fails. The failing manager does not receive an exit call.
+Each cleanup witness adds an implicit `FlowCall` with suffix
+`:with_exit:<item-index>:<cleanup-order>`. Its `implicit_protocol` identifies
+the saved source exit descriptor/manager, exception state and source hashes;
+the context/as variables are not looked up again. `incoming_exit` distinguishes
+normal, return, raise, break and continue, plus a failure `origin`. The three
+exception arguments are literal None on non-exceptional paths; on exceptional
+paths structured `context_exception` values identify type/value/traceback and
+the known exception spelling, if any. They are not concrete runtime objects.
+`cleanup_order` orders these symbolic witnesses, not actual runtime events or
+the source-sorted `calls` list. `exit_outcomes` exposes possible outgoing exit
+kinds/exception spellings; `pending_return_sources` retains selected raw object
+references (not a snapshot of final contents). `exit.executions` links cleanup
+witnesses and their proof status to the entry record. Unknown incoming exits do
+not bind a confirmed empty exception triple. A budget-exhausted cleanup attempt
+can have `exit.executions[*].call_id=null` with an explicit budget boundary.
+
+A bounded source execution admits lexical captures, literal truth/None tests,
+constant-key builtin dict operations, proven copies/update/clear, local aliases,
+nonlocal rebinding and supported try/finally. Complete executions have
+`effects_status="source_modeled"` (or `source_noop`) and per-witness status;
+exit effects retain source locations, heap/root facts, conditions and
+`completion="normal_return"`. These describe individual operations on their
+normal paths, not unconditional whole-function completion. Required-key pop
+and delete preserve KeyError alternatives with the pre-operation contents.
+This also applies to ordinary and annotated assignment RHS operations: a
+proved absent key has only a KeyError completion, and the assignment target is
+not rebound on failure. Proven present keys and safe pops with defaults do not
+add a speculative key-error path; unknown key presence retains both paths.
+These completion checks cover direct operations, not general nested expression
+evaluation. Tuple/list/dict expressions containing calls retain
+`context_exit_nested_expression_unmodeled`: per-child exceptional frames and
+evaluation completion have not been proved. Their containing exit stays
+`context_exit_unmodeled` with `completion="unconfirmed"`; observed child calls
+and effects cannot establish a complete normal path or strong caller contents.
+Call-free container construction and proven unreachable statement branches do
+not acquire this boundary. This limit also applies to nested safe pop defaults;
+it is not a claim that every nested operation fails.
+Known truth suppresses or propagates an incoming exception; an exit raise
+replaces the pending state and is passed to the next outer exit. Exit return
+truth is not tested for normal, return, break or continue paths. Unknown truth
+retains suppression/propagation/truth-protocol exception alternatives and
+`context_exit_truth_unresolved`, invalidating unproved strong contents.
+
+The return expression is evaluated once. Its selected object identity survives
+cleanup: effects update its current contents; rebinding a local/nonlocal name
+does not replace the selected object. Copies keep separate identities. Captures
+are read at exit time, not manager construction. Source dependency alone still
+does not prove object identity. General instance-field aliases, unknown helpers,
+custom data/hash/truth/lookup protocols, unsupported control and arbitrary heap
+effects remain `context_exit_unmodeled`, with `completion="unconfirmed"`.
+Partially observed effects do not establish a complete exit proof. Unknown
+entry/expression failure effects likewise retain explicit boundaries.
+
+Exit execution shares existing fact/query budgets, with at most 2,000 source
+nodes per exit, eight nested executions and 32 alternatives per cleanup step.
+`context_exit_budget`, `context_exit_recursion` and `context_exit_path_budget`
+retain uncertainty; path overflow merges/widens by pending exit kind rather
+than dropping pending returns or skipping the remaining outer managers.
+Unknown effects invalidate strong container exclusions/current-content claims
+and receiver identities without restoring cleared input provenance. Calls in
+the body keep their pre-exit facts. `AsyncWith` remains `async_with_unsupported`.
+
+Consumers may follow enter `result_sources`, body `receiver_sources` and
+`receiver_type_evidence`, binding/argument facts and normal-enter conditions.
+Consumers can also follow exit `argument_sources`, `effects`, `incoming_exit`,
+`cleanup_order` and per-entry `exit.executions`. They must keep these conditional
+path witnesses separate and check protocol status, assumptions and independent boundaries;
+`source_proven` is a conditional source-return proof, not runtime dispatch,
+whole-function completion, compatibility or repair proof.
+
 ### Builtin container copies and setdefault
+
+Bare builtin constructors and automatic builtin return summaries share one
+flow-only name proof. Its outcomes are `confirmed_builtin`, `source_binding`
+and `unconfirmed`; only the first enables either builtin protocol. The proof
+checks lexical parameters, local/captured bindings, declarations, conditional
+module assignments/imports/definitions, exception targets and visible global
+writes. Definition-time expression bindings count in their enclosing scope;
+method lookup skips class namespaces, and a lambda's body does not bind names
+in its outer scope. Wildcard imports, replaced builtin namespaces or incomplete
+module identities cannot prove a builtin. Current empty/unknown bindings also
+block the proof. Global/nonlocal declaration execution is not newly modeled.
+
+An unresolved supported builtin spelling can record
+`builtin_name_unconfirmed` with `builtin_name_status="source_binding"` or
+`"unconfirmed"`, source evidence and conditions. These statuses describe the
+proof gap, not a selected runtime replacement. Such a call must not simultaneously
+receive a builtin copy identity/effect or an automatic builtin return dependency.
+This private predicate does not alter the existing `module_bindings`, MRO,
+ownership or general target-resolution policies. Trusted opt-in external return
+summaries retain their own explicit contract.
 
 For a source-proven variadic capture or local builtin container allocation,
 `kwargs.copy()` and an unshadowed `dict(kwargs)` retain a distinct top-level
@@ -991,7 +1114,7 @@ decorator are resolved when their definitions are unambiguous. Unknown dynamic
 argument expansion remains a `dynamic_argument_expansion` boundary while
 independent explicit keyword bindings are retained.
 
-Unbounded loop reasoning, `with`, starred destructuring/heap writes, escaping
+Unbounded loop reasoning, general/async context-manager exits, starred destructuring/heap writes, escaping
 closures, general receiver binding, complex multiple inheritance, and dynamic dispatch
 are unsupported or partial. Unsupported statements stop that path and produce a boundary; this
 can leave only a partial function summary. C/Cython and external implementation

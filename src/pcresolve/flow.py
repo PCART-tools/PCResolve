@@ -5,7 +5,7 @@ import ast
 import builtins
 import copy
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from .analysis_limits import AnalysisBudget
 
 from .scanner import FileScanner
@@ -26,6 +26,11 @@ from ._decorator_effects import _DecoratorEffects
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
 _DECORATOR_EFFECT_NODE_LIMIT = 2000
+_CONTEXT_PROTOCOL_NODE_LIMIT = 2000
+_CONTEXT_EXIT_PATH_LIMIT = 32
+_BUILTIN_SCOPE = replace(FLOW_SCOPE, descend_lambdas=False,
+                        include_comprehension_targets=False,
+                        include_except_targets=True, import_from_root=False)
 
 
 def _exception_class(name):
@@ -56,11 +61,12 @@ def _attribute_write_roots(node):
 
 
 def _call_key(path, node):
-    return SourceSpan.from_ast(path, node).key
+    key = SourceSpan.from_ast(path, node).key
+    return key + getattr(node, '_flow_implicit_suffix', '')
 
 
 def _call_span(node):
-    return SourceSpan.from_ast('', node).coordinates
+    return SourceSpan.from_ast('', node).coordinates + (getattr(node, '_flow_implicit_suffix', ''),)
 
 
 ## A source function selector; definition location disambiguates duplicates.
@@ -72,7 +78,7 @@ class FunctionRef:
     lineno: int = 0
 
 
-## A syntactic call and its resolved definition, when available.
+## A source call or identified implicit protocol call, with source candidates.
 @dataclass
 class FlowCall:
     id: str
@@ -106,6 +112,7 @@ class FlowCall:
     analysis_contexts: list = field(default_factory=list)
     conditional_returns: list = field(default_factory=list)
     class_method_bindings: list = field(default_factory=list)
+    implicit_protocol: dict = field(default_factory=dict)
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
@@ -316,6 +323,11 @@ class FlowAnalyzer:
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
         self._decoration_fact_cache = {}
+        self._builtin_scope_cache = {}
+        self._builtin_module_cache = {}
+        self._context_enter_cache = {}
+        self._context_enter_stack = []
+        self._context_exit_stack = []
         self._source_snapshot = (
             self._source_store.snapshot(sorted(self.files), FLOW_SOURCE, budget=self._analysis_budget)
             if self._analysis_budget is not None
@@ -585,6 +597,104 @@ class FlowAnalyzer:
             facts = function_scope_facts(node, FLOW_SCOPE)
             self._scope_fact_cache[node] = facts
         return facts
+
+    def _builtin_statement_facts(self, body):
+        facts = statement_scope_facts(body, _BUILTIN_SCOPE)
+        bound = set(facts.bound)
+
+        def evaluations(node):
+            if self._analysis_budget is not None:
+                self._analysis_budget.checkpoint()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                expressions = list(node.args.defaults)
+                expressions.extend(value for value in node.args.kw_defaults if value is not None)
+                expressions.extend(getattr(node, 'decorator_list', []))
+                arguments = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+                arguments += [value for value in (node.args.vararg, node.args.kwarg) if value is not None]
+                expressions.extend(argument.annotation for argument in arguments if argument.annotation is not None)
+                if getattr(node, 'returns', None) is not None:
+                    expressions.append(node.returns)
+            elif isinstance(node, ast.ClassDef):
+                expressions = list(node.decorator_list) + list(node.bases)
+                expressions.extend(keyword.value for keyword in node.keywords)
+            else:
+                for child in ast.iter_child_nodes(node):
+                    evaluations(child)
+                return
+            # Definition evaluation belongs to this lexical body, not the new
+            # function/class/lambda body. Keep the shared collectors unchanged.
+            bound.update(statement_scope_facts(expressions, _BUILTIN_SCOPE).bound)
+            for expression in expressions:
+                evaluations(expression)
+
+        for statement in body:
+            evaluations(statement)
+        return replace(facts, bound=frozenset(bound))
+
+    def _builtin_scope_facts(self, node):
+        facts = self._builtin_scope_cache.get(node)
+        if facts is None:
+            body = [node.body] if isinstance(node, ast.Lambda) else node.body
+            statements = self._builtin_statement_facts(body)
+            facts = statements if isinstance(node, ast.ClassDef) else function_scope_facts(node, _BUILTIN_SCOPE)
+            facts = replace(facts, bound=facts.bound | statements.bound)
+            self._builtin_scope_cache[node] = facts
+        return facts
+
+    ## Classify a bare builtin spelling for container and return protocols only.
+    #  @param ref Source function identity.
+    #  @param node Source function or lambda whose lexical names are checked.
+    #  @param name Bare name, not an attribute or import alias.
+    #  @param env Optional current bindings, including unknown/empty local bindings.
+    #  @return confirmed_builtin, source_binding, or unconfirmed; no runtime proof.
+    def _builtin_name_status(self, ref, node, name, env=None):
+        if not hasattr(builtins, name):
+            return 'unconfirmed'
+        if env is not None and name in env:
+            return 'source_binding'
+        facts = self._builtin_scope_facts(node)
+        if name in facts.bound:
+            return 'source_binding'
+        nonlocal_name = name in facts.nonlocals
+        parent = ref.qualname.rpartition('.')[0]
+        if name not in facts.globals:
+            while parent:
+                enclosing = self._definition_index.find(ref.module, parent)
+                if len(enclosing) > 1:
+                    return 'unconfirmed'
+                if enclosing:
+                    outer = self._builtin_scope_facts(enclosing[0][1])
+                    if name in outer.globals:
+                        break
+                    if name in outer.bound - outer.nonlocals:
+                        return 'source_binding'
+                    nonlocal_name = nonlocal_name or name in outer.nonlocals
+                elif not self._definition_index.find(ref.module, parent, kind='class'):
+                    return 'unconfirmed'
+                parent = parent.rpartition('.')[0]
+        if nonlocal_name:
+            return 'unconfirmed'
+        if ref.module not in self._builtin_module_cache:
+            bodies = self.module_bodies.get(ref.module, [])
+            names = set()
+            uncertain = len(bodies) != 1 or any(
+                item.get('module') == ref.module for item in self.index_boundaries)
+            for _, body in bodies:
+                names.update(self._builtin_statement_facts(body).bound)
+                for statement in body:
+                    for child in ast.walk(statement):
+                        if self._analysis_budget is not None:
+                            self._analysis_budget.checkpoint()
+                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                            scope = self._builtin_scope_facts(child)
+                            names.update(scope.globals & scope.bound)
+            self._builtin_module_cache[ref.module] = names, uncertain
+        names, uncertain = self._builtin_module_cache[ref.module]
+        if name in names:
+            return 'source_binding'
+        if uncertain or '*' in names or '__builtins__' in names:
+            return 'unconfirmed'
+        return 'confirmed_builtin'
 
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
@@ -1146,6 +1256,77 @@ class FlowAnalyzer:
             and member.name == '__new__' or
             '__new__' in statement_scope_facts([member]).bound
             for member in cls.body) for _, cls in hierarchy)
+
+    ## Summarize enter returns symbolically, never caching a caller object identity.
+    #  @param definition Exact source protocol method.
+    #  @param receiver_class Source instance class used for the type lookup.
+    #  @return Bounded normal-return paths, completion and unresolved proof issues.
+    def _context_enter_returns(self, definition, receiver_class):
+        ref, node = definition
+        key = ref, receiver_class
+        if key in self._context_enter_stack:
+            return {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_recursion']}
+        if key in self._context_enter_cache:
+            return copy.deepcopy(self._context_enter_cache[key])
+        steps = 0
+        for _ in ast.walk(node):
+            steps += 1
+            if self._analysis_budget is not None:
+                self._analysis_budget.checkpoint()
+            if steps > _CONTEXT_PROTOCOL_NODE_LIMIT:
+                break
+        if (len(self._context_enter_stack) >= 8 or self._fact_functions <= 0
+                or steps > min(self._fact_calls, _CONTEXT_PROTOCOL_NODE_LIMIT)):
+            return {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_budget']}
+        self._fact_functions -= 1
+        self._fact_calls -= steps
+        positional = node.args.posonlyargs + node.args.args
+        incoming = {positional[0].arg: [{'instance_type': asdict(receiver_class)}]} if positional else {}
+        scratch = FlowAnalysis(ref, {})
+        self._context_enter_stack.append(key)
+        try:
+            summary = _Summary(self, scratch, ref, node, self._fact_calls, incoming=incoming)
+            summary.run()
+            supported_constructors = set()
+            issues = []
+            for call in summary.calls:
+                constructor = (call.result_sources and all(value.get('instance_type')
+                    for value in call.result_sources) and call.target_status in (
+                        'constructor', 'constructor_unavailable'))
+                if constructor and call.target is not None:
+                    target = self._definition_index.find(call.target.module, call.target.qualname)
+                    constructor = len(target) == 1 and function_effects(target[0][1]) == ()
+                elif constructor:
+                    constructor = all(not any('__init__' in statement_scope_facts([member]).bound
+                        for member in cls.body) for value in call.result_sources
+                        for _, cls in self._class_mro(value['instance_type']['module'],
+                            value['instance_type']['qualname']) or ())
+                if constructor:
+                    supported_constructors.add(call.id)
+                if not constructor:
+                    issues.append('context_enter_call_unmodeled')
+            issues.extend(item['reason'] for item in scratch.boundaries if not (
+                item.get('call_id') in supported_constructors
+                and item['reason'] == 'module_callable_instance_unresolved'
+                and item.get('cause') == 'constructor_unavailable'))
+            if any(isinstance(statement, (ast.If, ast.Try, ast.For, ast.While))
+                   for statement in node.body):
+                issues.append('context_enter_control_effects_unmodeled')
+            effects_known = not issues and (function_effects(node) == ()
+                or bool(supported_constructors) and len(supported_constructors) == len(summary.calls))
+            completion = ('no_normal_return' if summary.exit_kinds
+                and summary.exit_kinds <= {'raise'} else 'normal_possible')
+            if summary.incomplete_return:
+                issues.append('context_enter_return_unresolved')
+            fact = {'paths': copy.deepcopy(summary.normal_returns), 'completion': completion,
+                    'parameter': positional[0].arg if positional else None, 'issues': _unique(issues),
+                    'effects_status': 'source_modeled' if effects_known else 'unmodeled',
+                    'exceptions': _unique(exception for kind, _, _, exception in summary.outcomes
+                                          if kind == 'raise')}
+            self._context_enter_cache[key] = fact
+            return copy.deepcopy(fact)
+        finally:
+            self._context_enter_stack.pop()
 
     ## Prove a single-inheritance source chain ending at the unshadowed builtin dict.
     #  @param class_ref Source class identity; no whole-object builtin shape is inferred.
@@ -1839,7 +2020,7 @@ class FlowAnalyzer:
                 result.functions.append(copy.deepcopy(function))
             else:
                 for field in ('returns', 'mapping_effects', 'loops', 'receiver_contexts',
-                              'return_objects', 'decorator_effects'):
+                              'return_objects', 'decorator_effects', 'context_managers'):
                     if field in function:
                         previous[field] = _unique(previous.get(field, []) + function[field])
         for call in summary.calls:
@@ -1922,6 +2103,11 @@ class _Summary:
         self.receiver_class = receiver_class
         self.normal_returns = []
         self.incomplete_return = False
+        self.exit_kinds = set()
+        self.context_managers = []
+        self.context_execution = False
+        self.context_cleanup_order = [0]
+        self.outcomes = []
         self.modified_return_callables = set()
         self.incoming = incoming or {}
 
@@ -2427,7 +2613,25 @@ class _Summary:
             self.analyzer._analysis_budget.checkpoint()
         if node is None:
             return []
+        if (self.context_execution and isinstance(node, (ast.Tuple, ast.List, ast.Dict))
+                and any(isinstance(child, ast.Call) for child in ast.walk(node))):
+            self.add_boundary('context_exit_nested_expression_unmodeled', node, env,
+                              affected_scope='unknown')
+        if self.context_execution and (isinstance(node, (ast.Attribute, ast.Subscript,
+                ast.BinOp, ast.BoolOp, ast.IfExp, ast.NamedExpr, ast.Lambda,
+                ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp))
+                or isinstance(node, ast.Compare) and not all(
+                    isinstance(op, (ast.Is, ast.IsNot)) for op in node.ops)
+                or isinstance(node, ast.UnaryOp) and self.context_truth(node, env) is None):
+            self.add_boundary('context_exit_data_protocol_unmodeled', node, env,
+                              affected_scope='unknown')
+        if self.context_execution and (isinstance(node, ast.Set) or isinstance(node, ast.Dict)
+                and any(not isinstance(key, ast.Constant) or type(key.value) not in (str, int, bool, type(None))
+                        for key in node.keys)):
+            self.add_boundary('context_exit_data_protocol_unmodeled', node, env, affected_scope='unknown')
         if isinstance(node, ast.Name):
+            if self.context_execution and not env.get(node.id):
+                self.add_boundary('context_exit_name_unresolved', node, env, affected_scope='unknown')
             if node.id in env:
                 if env[node.id] and all(value.get('kind') == 'import' for value in env[node.id]):
                     classes = self.class_values(env[node.id])
@@ -2692,9 +2896,13 @@ class _Summary:
                 self.evaluated_calls.add(location)
             name = ast.unparse(node.func)
             binding = env.get(name.split('.')[0])
+            builtin_status = (self.analyzer._builtin_name_status(self.ref, self.node, name, env)
+                              if isinstance(node.func, ast.Name) and hasattr(builtins, name) else None)
             callable_sources = (self.expression(node.func, env)
                                 if isinstance(node.func, ast.Subscript) else binding or [])
-            target = self.analyzer._resolve(self.ref, name) if binding is None else None
+            protocol = getattr(node, '_flow_implicit_protocol', {})
+            target = (getattr(node, '_flow_protocol_target', None) if protocol else
+                      self.analyzer._resolve(self.ref, name) if binding is None else None)
             canonical = self.ref.module + '.' + name
             constructor_class = None
             allocation_class = None
@@ -2710,8 +2918,8 @@ class _Summary:
             receiver_sources = self.materialize(receiver_values, env)
             returned_field_receiver = bool(receiver_values) and all(
                 value.get('receiver_type_evidence') for value in receiver_values)
-            bound_receiver = False
-            dispatch_kind = None
+            bound_receiver = bool(protocol and target)
+            dispatch_kind = 'receiver_type_evidence' if bound_receiver else None
             field_evidence = None
             owner = self.ref.qualname.rpartition('.')[0]
             function_names = self.analyzer._definition_index.scopes(self.ref.module)
@@ -3013,6 +3221,7 @@ class _Summary:
             call_id = _call_key(self.ref.file_path, node)
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
+            call.implicit_protocol = copy.deepcopy(protocol)
             call.callable_sources = copy.deepcopy(callable_sources)
             if callable_incomplete:
                 self.add_boundary('callable_identity_incomplete', node, env,
@@ -3027,6 +3236,13 @@ class _Summary:
                 call.target_candidates = [asdict(candidate[0])
                                           for candidate in bounded_targets]
             call.receiver_sources = receiver_sources
+            call.receiver_type_evidence.extend({'kind': 'context_manager_enter_return',
+                'instance_type': copy.deepcopy(value.get('instance_type')),
+                'return_binding': copy.deepcopy(value['context_manager_return']),
+                'evidence': copy.deepcopy(value.get('evidence', [])),
+                'conditions': copy.deepcopy(value.get('conditions', [])),
+                'basis': 'source_snapshot', 'runtime_target_confirmed': False}
+                for value in receiver_values if value.get('context_manager_return'))
             class_binding = self.class_method_binding(node, target, receiver_values)
             if class_binding:
                 call.class_method_bindings = [class_binding]
@@ -3072,8 +3288,15 @@ class _Summary:
                                   'constructor_unavailable' if constructor_class else
                                   'lexical_method_candidate' if target and bound_receiver else
                                   'resolved' if target else 'receiver_unresolved' if isinstance(node.func, ast.Attribute)
-                                  else 'builtin_boundary' if binding is None and hasattr(builtins, name)
+                                  else 'builtin_boundary' if builtin_status == 'confirmed_builtin'
                                   else 'definition_unavailable')
+            if (target is None and builtin_status in ('source_binding', 'unconfirmed')
+                    and name in ('dict', 'list', 'tuple', 'set', 'str', 'repr', 'bool', 'len', 'next')):
+                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                    'function': asdict(self.ref), 'reason': 'builtin_name_unconfirmed',
+                    'builtin_name_status': builtin_status, 'affected_scope': 'unknown',
+                    'affected_values': [], 'conditions': list(self.conditions),
+                    'evidence': self.evidence(node)})
             if dispatch_kind == 'receiver_unresolved' and bounded_targets:
                 call.target_status = 'receiver_unresolved'
                 self.add_boundary('class_attribute_state_unknown', node, env,
@@ -3200,7 +3423,7 @@ class _Summary:
                         'sources': capture_values[capture]})
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
-            if (contract is None and target is None and binding is None
+            if (contract is None and target is None and builtin_status == 'confirmed_builtin'
                     and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set')
                     and canonical == self.ref.module + '.' + name
                     and len(node.args) == 1 and not node.keywords
@@ -3209,7 +3432,7 @@ class _Summary:
                     {'parameter': 'object', 'relation': 'derived'}],
                     'provenance': 'Python builtin result dependency (not owner preservation)'}
                 call.target_status = 'python_protocol'
-            if (contract is None and target is None and binding is None and name == 'next'
+            if (contract is None and target is None and builtin_status == 'confirmed_builtin' and name == 'next'
                     and canonical == self.ref.module + '.next'
                     and len(node.args) == 1 and not node.keywords
                     and not isinstance(node.args[0], ast.Starred)):
@@ -3339,7 +3562,7 @@ class _Summary:
                             input_evidence=_unique([evidence for value in values
                                 for evidence in value.get('evidence', [])]))
             self.invalidate_attributes(env)
-            if target and not invalid_binding:
+            if target and not invalid_binding and not getattr(node, '_flow_skip_effects', False):
                 effects_complete = self.apply_effects(
                     selected_target, actual_values, capture_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env, protocol_values)
@@ -3617,9 +3840,8 @@ class _Summary:
 
     def container_constructor(self, node, call, env, actuals):
         name = node.func.id
-        if (name not in ('dict', 'list', 'tuple') or name in env
-                or name in self.analyzer.imports.get(self.ref.module, {})
-                or name in self.analyzer.module_bindings.get(self.ref.module, set())
+        if (name not in ('dict', 'list', 'tuple')
+                or self.analyzer._builtin_name_status(self.ref, self.node, name, env) != 'confirmed_builtin'
                 or len(node.args) != 1 or node.keywords or isinstance(node.args[0], ast.Starred)):
             return None
         values = actuals.get(0, [])
@@ -3794,6 +4016,22 @@ class _Summary:
             self.result.boundaries.append({'call_id': call.id, 'callee_name': call.callee_name,
                                            'reason': 'container_effect_unknown'})
             return None
+        if self.context_execution:
+            safe = method in ('clear', 'copy') and not node.args
+            if method in ('pop', 'get', 'setdefault') and shapes == {'dict'} and node.args:
+                key = self.literal_fact(node.args[0], env)
+                safe = bool(key and key['type'] in ('str', 'int') and key['value'] != '*')
+            if method == 'update':
+                safe = all(self.exact_container((actuals or {}).get(index, []), ('dict',), env)
+                           for index in range(len(node.args)))
+                safe = safe and all(isinstance(key, (str, int)) for argument in node.args
+                    if isinstance(argument, ast.Dict) for key in [
+                        item.value if isinstance(item, ast.Constant) else None for item in argument.keys])
+            safe = safe and not any(isinstance(child, ast.Call) for argument in
+                node.args + [keyword.value for keyword in node.keywords] for child in ast.walk(argument))
+            if not safe:
+                self.add_boundary('context_exit_data_protocol_unmodeled', node, env,
+                                  call_id=call.id, affected_scope='unknown')
         call.target_status = 'local_container_protocol'
         call.binding_status = 'complete'
         if effect.mutates_receiver:
@@ -3989,6 +4227,13 @@ class _Summary:
                 env[ref['source']] = _loop_env({'items': env.get(ref['source'], []) + inserted})['items']
                 env[ref['source'] + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
                 call.mutation_flows.extend(dict(v, target_container=ref['source']) for v in inserted)
+        if method == 'clear':
+            roots, unknown = self.mapping_affected_values(receiver, env)
+            call.effects.append({'kind': 'container_clear', 'operation': 'clear',
+                'mapping': roots, 'element_path': [],
+                'object_sources': _unique(value['source'] for value in receiver),
+                'completion': 'normal_return', 'status': 'unknown' if unknown else 'exact',
+                'conditions': copy.deepcopy(self.conditions), 'evidence': self.evidence(node)})
         return None  # Preserve the mutator's call-result endpoint (the runtime value is None).
 
     def apply_effects(self, definition, actuals, captures, call, env, node):
@@ -4305,10 +4550,653 @@ class _Summary:
         exits.extend(('normal', e, [], None) for e in active)
         return exits
 
+    ## Look up a synchronous protocol on a proven source instance's type and MRO.
+    #  @param values Raw manager values, not the result of enter.
+    #  @param method Special protocol method name.
+    #  @return Source method, receiver class and proof issues; no runtime guarantee.
+    def context_protocol(self, values, method):
+        identities = _unique([value.get('instance_type') for value in values])
+        if (not values or len(identities) != 1 or not identities[0]
+                or any(value.get('value_incomplete') or value.get('relation') != 'direct'
+                       or value.get('projection') or value.get('output_path') for value in values)):
+            return None, None, ['receiver_unconfirmed']
+        receiver = FunctionRef(**identities[0])
+        hierarchy = self.analyzer._class_mro(receiver.module, receiver.qualname)
+        if hierarchy is None:
+            return None, receiver, ['mro_unavailable']
+        if any(cls.decorator_list or cls.keywords or any(
+                name in statement_scope_facts(cls.body).bound
+                for name in ('__getattribute__', '__getattr__', '__setattr__',
+                             '__delattr__', '__init_subclass__'))
+                for _, cls in hierarchy):
+            return None, receiver, ['lookup_customization']
+        pending = [member for _, cls in hierarchy for member in cls.body
+                   if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                   and member.name in ('__init__', '__new__', '__enter__')]
+        visited, steps = set(), 0
+        while pending:
+            member = pending.pop()
+            if id(member) in visited:
+                continue
+            visited.add(id(member))
+            positional = member.args.posonlyargs + member.args.args
+            aliases = {positional[0].arg} if positional else set()
+            for child in ast.walk(member):
+                steps += 1
+                if self.analyzer._analysis_budget is not None:
+                    self.analyzer._analysis_budget.checkpoint()
+                if steps > _CONTEXT_PROTOCOL_NODE_LIMIT:
+                    return None, receiver, ['context_enter_budget']
+                if isinstance(child, ast.Assign) and isinstance(child.value, ast.Name):
+                    if child.value.id in aliases:
+                        aliases.update(target.id for target in child.targets if isinstance(target, ast.Name))
+                if (isinstance(child, ast.Attribute) and child.attr == '__class__'
+                        and isinstance(child.ctx, (ast.Store, ast.Del))):
+                    return None, receiver, ['instance_class_write']
+                if isinstance(child, ast.Call) and isinstance(child.func, (ast.Name, ast.Attribute)):
+                    mutator = child.func.id if isinstance(child.func, ast.Name) else child.func.attr
+                    if mutator in ('setattr', 'delattr', '__setattr__', '__delattr__'):
+                        bound = (mutator.startswith('__') and isinstance(child.func, ast.Attribute)
+                            and isinstance(child.func.value, ast.Name) and child.func.value.id in aliases)
+                        key_index = 0 if bound else 1
+                        if len(child.args) <= key_index or (not isinstance(child.args[key_index], ast.Constant)
+                                or child.args[key_index].value == '__class__'):
+                            return None, receiver, ['instance_class_write_unconfirmed']
+                if (isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
+                        and isinstance(child.func.value, ast.Name) and child.func.value.id in aliases):
+                    for _, cls in hierarchy:
+                        helpers = [statement for statement in cls.body
+                                   if child.func.attr in statement_scope_facts([statement]).bound]
+                        if helpers:
+                            pending.extend(statement for statement in helpers
+                                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)))
+                            break
+        target = None
+        for class_ref, cls in hierarchy:
+            members = [statement for statement in cls.body
+                       if method in statement_scope_facts([statement]).bound]
+            if not members:
+                continue
+            if (len(members) != 1 or not isinstance(members[0], ast.FunctionDef)
+                    or members[0].name != method or members[0].decorator_list
+                    or contains_yield(members[0])):
+                return None, receiver, ['descriptor_unconfirmed']
+            matches = self.analyzer._definition_index.find(class_ref.module,
+                class_ref.qualname + '.' + method)
+            target = matches[0] if len(matches) == 1 and matches[0][1] is members[0] else None
+            break
+        if target is None:
+            return None, receiver, ['definition_unavailable']
+        writes, truncated = self.analyzer._class_binding_writes()
+        if truncated:
+            return None, receiver, ['class_binding_budget']
+        classes = {(ref.module, ref.qualname) for ref, _ in hierarchy}
+        if any((ref.module, ref.qualname) in classes and attribute in (
+                method, '*', '__bases__', '__class__') for ref, attribute, _, _, _ in writes):
+            return None, receiver, ['visible_protocol_write']
+        return target, receiver, []
+
+    def context_signature_valid(self, target, arguments):
+        if target is None:
+            return False
+        call = ast.Call(func=ast.Name(id='$protocol', ctx=ast.Load()),
+                        args=[ast.Constant(value=None) for _ in range(arguments + 1)], keywords=[])
+        records, reasons = bind_ast_call(call, FunctionSignature.from_ast(target[1].args))
+        return not reasons and all(record['status'] == 'exact' for record in records)
+
+    def context_exit_noop(self, target):
+        if not self.context_signature_valid(target, 3):
+            return False
+        for statement in target[1].body:
+            if isinstance(statement, ast.Pass) or (isinstance(statement, ast.Expr)
+                    and isinstance(statement.value, ast.Constant)
+                    and isinstance(statement.value.value, str)):
+                continue
+            if isinstance(statement, ast.Return) and (statement.value is None
+                    or isinstance(statement.value, ast.Constant)
+                    and statement.value.value in (None, False)):
+                return True
+            return False
+        return True
+
+    def unknown_context_effects(self, env):
+        self.unknown_container_contents([value for items in env.values() for value in items], env)
+        self.invalidate_attributes(env)
+        for name, values in env.items():
+            env[name] = [dict(value, value_incomplete=True, instance_candidates=[])
+                         if value.get('instance_type') or value.get('instance_candidates')
+                         or value.get('class_type') or value.get('callable_type') else value
+                         for value in values]
+
+    ## Evaluate only proven builtin literal truth or exception/None identity tests.
+    #  @param node Exit expression; no arbitrary truth protocol is executed.
+    #  @param env Current bounded lexical/object facts.
+    #  @return True, False or None for an unproved truth value.
+    def context_truth(self, node, env):
+        literal = self.literal_fact(node, env)
+        if literal is not None:
+            return bool(literal['value'])
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            truth = self.context_truth(node.operand, env)
+            return not truth if truth is not None else None
+        if (isinstance(node, ast.Compare) and len(node.ops) == 1
+                and isinstance(node.ops[0], (ast.Is, ast.IsNot))
+                and len(node.comparators) == 1 and isinstance(node.comparators[0], ast.Constant)
+                and node.comparators[0].value is None and isinstance(node.left, ast.Name)):
+            values = env.get(node.left.id, [])
+            if values and all(value.get('kind') == 'context_exception' for value in values):
+                return isinstance(node.ops[0], ast.IsNot)
+            fact = self.literal_fact(node.left, env)
+            if fact is not None:
+                equal = fact['value'] is None
+                return equal if isinstance(node.ops[0], ast.Is) else not equal
+        return None
+
+    ## Separate normal constant-key deletion from its pre-operation failure state.
+    #  @param node Direct dict pop expression or deletion subscript.
+    #  @param previous Caller frame before evaluating the operation.
+    #  @param env Normal-completion frame after evaluation.
+    #  @param exceptional Fallback exceptions for an unproved RHS operation.
+    #  @return Exceptional alternatives and whether normal completion is possible.
+    def context_operation_exits(self, node, previous, env, exceptional=None):
+        receiver, key = None, None
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'pop' and len(node.args) == 1):
+            receiver, key = node.func.value, node.args[0]
+        elif isinstance(node, ast.Subscript):
+            receiver, key = node.value, node.slice
+        if receiver is None:
+            if isinstance(node, ast.Call):
+                call = next((call for call in reversed(self.calls)
+                             if call.id == _call_key(self.ref.file_path, node)), None)
+                if call and call.target_status == 'local_container_protocol':
+                    method = node.func.attr
+                    if method in ('clear', 'copy', 'update') or (
+                            method == 'pop' and len(node.args) == 2):
+                        return [], True
+            return exceptional or [], True
+        reference = (self.exact_container(previous.get(receiver.id, []), ('dict',), previous)
+                     if isinstance(receiver, ast.Name) else None)
+        literal = self.literal_fact(key, previous)
+        if reference is None or literal is None or literal['type'] not in ('str', 'int'):
+            self.add_boundary('context_exit_data_protocol_unmodeled', node, env, affected_scope='unknown')
+            return [('raise', previous, [], None)], True
+        state = self.mapping_key_state(reference, literal['value'], previous)
+        return ([] if state == 'present' else [('raise', previous, [], 'KeyError')], state != 'absent')
+
+    ## Execute a bounded source exit in an isolated lexical frame sharing heap IDs.
+    #  @param target Saved source descriptor, not a new lookup after the body.
+    #  @param call Implicit exit call with actual exception/capture bindings.
+    #  @param state Caller state at cleanup, retaining pending-return identities.
+    #  @return Source outcomes and their updated caller states, or proof issues.
+    def execute_context_exit(self, target, call, state):
+        if target is None or call.binding_status != 'complete':
+            return None, ['context_exit_binding_unconfirmed']
+        ref, method = target
+        if ref in self.analyzer._context_exit_stack or len(self.analyzer._context_exit_stack) >= 8:
+            return None, ['context_exit_recursion']
+        steps = 0
+        for _ in ast.walk(method):
+            steps += 1
+            if self.analyzer._analysis_budget is not None:
+                self.analyzer._analysis_budget.checkpoint()
+            if steps > min(self.analyzer._fact_calls, _CONTEXT_PROTOCOL_NODE_LIMIT):
+                break
+        if self.analyzer._fact_functions <= 0 or steps > min(
+                self.analyzer._fact_calls, _CONTEXT_PROTOCOL_NODE_LIMIT):
+            return None, ['context_exit_budget']
+        self.analyzer._fact_functions -= 1
+        self.analyzer._fact_calls -= steps
+        frame = {key: copy.deepcopy(values) for key, values in state.items() if key.startswith('$')}
+        parameters = method.args.posonlyargs + method.args.args + method.args.kwonlyargs
+        for parameter in parameters:
+            sources = [value for argument in call.argument_sources
+                       if argument.get('parameter') == parameter.arg for value in argument['sources']]
+            literals = [argument.get('literal') for argument in call.argument_sources
+                        if argument.get('parameter') == parameter.arg]
+            if literals and all(literal is not None and literal == literals[0] for literal in literals):
+                sources = [dict(value, literal=copy.deepcopy(literals[0])) for value in sources] or [
+                    {'kind': 'context_data', 'source': call.id, 'relation': 'direct',
+                     'literal': copy.deepcopy(literals[0]), 'evidence': [], 'conditions': []}]
+            frame[parameter.arg] = copy.deepcopy(sources)
+        if parameters:
+            frame[parameters[0].arg] = copy.deepcopy(call._context_manager_values)
+        if method.args.vararg:
+            actual = [argument for argument in call.argument_sources
+                      if argument.get('parameter') == method.args.vararg.arg]
+            heap = '$context_arguments:' + call.id
+            frame[heap] = [dict(value, output_path=argument.get('target_path', [])
+                               + value.get('output_path', []))
+                           for argument in actual for value in argument['sources']]
+            frame[heap + '$keys'] = [{'kind': 'key', 'source': index, 'key': index}
+                                    for index in range(len(actual))]
+            frame[method.args.vararg.arg] = [{'kind': 'container', 'source': heap,
+                'container_shape': 'tuple', 'relation': 'direct', 'evidence': [], 'conditions': []}]
+        captures = self.analyzer._captures(ref, method)
+        for capture in captures:
+            frame[capture] = copy.deepcopy(state.get(capture, []))
+        for local in self.analyzer._scope_facts(method).bound:
+            frame.setdefault(local, [])
+        scratch = FlowAnalysis(ref, {})
+        child = _Summary(self.analyzer, scratch, ref, method, self.remaining)
+        child.context_execution = True
+        child.context_cleanup_order = self.context_cleanup_order
+        child.conditions = copy.deepcopy(self.conditions)
+        self.analyzer._context_exit_stack.append(ref)
+        try:
+            outcomes = child.block(method.body, frame)
+        finally:
+            self.analyzer._context_exit_stack.pop()
+        self.remaining = min(self.remaining, child.remaining)
+        self.calls.extend(child.calls)
+        self.mapping_effects.extend(child.mapping_effects)
+        self.result.boundaries.extend(scratch.boundaries)
+        supported = set()
+        for source_call in child.calls:
+            if source_call.target_status == 'local_container_protocol':
+                supported.add(source_call.id)
+            elif (source_call.target_status == 'builtin_boundary'
+                    and _exception_class(source_call.callee_name) is not None
+                    and self.analyzer._builtin_name_status(ref, method, source_call.callee_name)
+                        == 'confirmed_builtin' and all(
+                            argument.get('literal') is not None for argument in source_call.argument_sources)):
+                supported.add(source_call.id)
+        issues = [boundary['reason'] for boundary in scratch.boundaries if not (
+            boundary.get('call_id') in supported and boundary['reason'] == 'builtin_boundary')]
+        if any(source_call.id not in supported for source_call in child.calls):
+            issues.append('context_exit_call_unmodeled')
+        if any(kind == 'unknown' for kind, _, _, _ in outcomes):
+            issues.append('context_exit_completion_unresolved')
+        if issues:
+            return None, _unique(issues)
+        call.effects = _unique([dict(effect, exit_call_id=call.id,
+            completion=effect.get('completion', 'normal_return'),
+            conditions=_unique(effect.get('conditions', []) + self.conditions))
+            for source_call in child.calls for effect in source_call.effects]
+            + [dict(effect, exit_call_id=call.id, completion='normal_return')
+               for effect in child.mapping_effects])
+        completed = []
+        nonlocals = self.analyzer._scope_facts(method).nonlocals
+        for kind, frame_state, values, payload in outcomes:
+            updated = copy.deepcopy(state)
+            updated.update({key: copy.deepcopy(values) for key, values in frame_state.items()
+                            if key.startswith('$') or key in nonlocals})
+            completed.append((kind, updated, values, payload))
+        return completed, []
+
+    ## Bind the cached exit descriptor to the saved manager and pending exception.
+    #  @param node Owning with statement, used as the implicit call location.
+    #  @param record Successful entry facts, not a rebound as/context variable.
+    #  @param outcome Pending normal, return, control or exceptional state.
+    #  @param origin Body or later entry/expression failure witness.
+    #  @return Exact source descriptor candidate and implicit FlowCall.
+    def context_exit_call(self, node, record, outcome, origin):
+        kind, state, values, exception = outcome
+        target_ref = record['exit']['target']
+        target = next((item for item in self.analyzer._definition_index.find(
+            target_ref['module'], target_ref['qualname']) if asdict(item[0]) == target_ref), None
+            ) if target_ref else None
+        index = record['item_index']
+        order = self.context_cleanup_order[0]
+        self.context_cleanup_order[0] += 1
+        proof = {'kind': 'context_manager_exit', 'method': '__exit__', 'lookup': 'type_mro',
+            'with_id': record['with_id'], 'item_index': index, 'cleanup_order': order,
+            'incoming_exit': {'kind': kind, 'exception': exception if kind == 'raise' else None,
+                              'origin': origin},
+            'basis': 'source_snapshot', 'runtime_target_confirmed': False,
+            'assumptions': copy.deepcopy(record['assumptions']),
+            'issues': copy.deepcopy(record['exit']['issues']),
+            'context_expression': copy.deepcopy(record['context_expression'])}
+        if kind == 'return':
+            proof['pending_return_sources'] = copy.deepcopy(values)
+        if target:
+            proof['definition'] = self.evidence_at(*target)
+            proof['source_hashes'] = {path: self.analyzer.hashes[path] for path in sorted(
+                {self.ref.file_path, target[0].file_path}
+                | set(record.get('source_hashes', {}))) if path in self.analyzer.hashes}
+        temporary = '$with_exit:%s:%s' % (record['with_id'], order)
+        arguments = [temporary + ':exc:%s' % index for index in range(3)]
+        state[temporary] = copy.deepcopy(record['manager_sources']) if target else [
+            dict(value, value_incomplete=True) for value in record['manager_sources']]
+        for index, name in enumerate(arguments):
+            state[name] = ([{'kind': 'context_exception', 'source': record['with_id'],
+                'component': ('type', 'value', 'traceback')[index], 'exception': exception,
+                'relation': 'direct', 'evidence': [], 'conditions': copy.deepcopy(self.conditions)}]
+                if kind == 'raise' else [{'kind': 'context_data', 'source': record['with_id'],
+                    'literal': {'type': 'NoneType', 'value': None}, 'relation': 'direct',
+                    'evidence': [], 'conditions': copy.deepcopy(self.conditions)}])
+            if kind == 'unknown':
+                state[name] = [{'kind': 'context_data', 'source': record['with_id'],
+                    'component': ('type', 'value', 'traceback')[index], 'value_incomplete': True,
+                    'relation': 'direct', 'evidence': [], 'conditions': copy.deepcopy(self.conditions)}]
+        implicit = ast.Call(func=ast.Attribute(value=ast.Name(id=temporary, ctx=ast.Load()),
+            attr='__exit__', ctx=ast.Load()), args=[ast.Name(id=name, ctx=ast.Load()) for name in arguments],
+            keywords=[])
+        for child in ast.walk(implicit):
+            ast.copy_location(child, node)
+        implicit._flow_implicit_suffix = ':with_exit:%s:%s' % (record['item_index'], order)
+        implicit._flow_implicit_protocol = proof
+        implicit._flow_protocol_target = target
+        implicit._flow_skip_effects = True
+        self.expression(implicit, state)
+        for name in [temporary] + arguments:
+            state.pop(name, None)
+        call = next((call for call in reversed(self.calls) if call.id == _call_key(self.ref.file_path, implicit)), None)
+        record['exit'].setdefault('executions', []).append({'call_id': call.id if call else None,
+            'cleanup_order': order, 'incoming_exit': copy.deepcopy(proof['incoming_exit'])})
+        if call:
+            call.callee_name = record['context_expression']['source_text'] + '.__exit__'
+            call._context_manager_values = copy.deepcopy(record['manager_sources'])
+            for boundary in self.result.boundaries:
+                if boundary.get('call_id') == call.id and 'callee_name' in boundary:
+                    boundary['callee_name'] = call.callee_name
+        return target, call
+
+    ## Clean up successful entries in reverse order, preserving pending objects.
+    #  @param node Owning with statement.
+    #  @param outcomes Existing normal/return/control/exception exit tuples.
+    #  @param records Managers whose enter completed normally, in entry order.
+    #  @param origin Body, context_expression or context_enter failure witness.
+    #  @return Updated exit tuples; suppression does not cancel return/control.
+    def cleanup_context_exits(self, node, outcomes, records, origin='body'):
+        before = copy.deepcopy(self.conditions)
+        for record in reversed(records):
+            completed = []
+            for outcome in outcomes:
+                first_outcome = len(completed)
+                kind, state, pending, exception = outcome
+                self.conditions = _unique(before + record['conditions'])
+                target, call = self.context_exit_call(node, record, outcome, origin)
+                if call:
+                    self.conditions.append({'context_exit': call.id, 'incoming_exit_kind': kind,
+                                            'exception': exception if kind == 'raise' else None})
+                executed, issues = ((None, ['context_exit_incoming_unresolved']) if kind == 'unknown' else
+                    self.execute_context_exit(target, call, state) if call else
+                    (None, ['context_exit_budget']))
+                if executed is None:
+                    self.add_boundary('context_exit_unmodeled', node, state,
+                        [value for items in state.values() for value in items],
+                        with_id=record['with_id'], item_index=record['item_index'],
+                        call_id=call.id if call else None, exit_target=record['exit']['target'],
+                        issues=issues, affected_scope='unknown', completion='unconfirmed')
+                    for reason in ('context_exit_budget', 'context_exit_recursion'):
+                        if reason in issues:
+                            self.add_boundary(reason, node, state, call_id=call.id if call else None)
+                    self.unknown_context_effects(state)
+                    pending = [dict(value, value_incomplete=True, instance_candidates=[])
+                               if any(value.get(key) for key in ('instance_type', 'instance_candidates',
+                                   'class_type', 'callable_type')) or value.get('kind') == 'callable' else value
+                               for value in pending]
+                    record['exit']['effects_status'] = 'unmodeled'
+                    record['exit']['completion'] = 'unconfirmed'
+                    record['exit']['executions'][-1].update(status='unmodeled', issues=issues)
+                    completed.extend([(kind, copy.deepcopy(state), copy.deepcopy(pending), exception),
+                                      ('raise', copy.deepcopy(state), [], None)])
+                    if kind in ('raise', 'unknown'):
+                        completed.append(('normal', copy.deepcopy(state), [], None))
+                    if call:
+                        call.implicit_protocol.update(completion='unconfirmed',
+                            exit_outcomes=_unique({'kind': item[0],
+                                'exception': item[3] if item[0] == 'raise' else None}
+                                for item in completed[first_outcome:]))
+                    continue
+                record['exit']['executions'][-1]['status'] = 'source_modeled'
+                if all(item.get('status') == 'source_modeled' for item in record['exit']['executions']):
+                    record['exit']['completion'] = 'source_modeled'
+                    if record['exit']['effects_status'] != 'source_noop':
+                        record['exit']['effects_status'] = 'source_modeled'
+                for exit_kind, updated, values, payload in executed:
+                    if exit_kind == 'raise':
+                        self.add_boundary('context_exit_exception_path', node, updated,
+                            call_id=call.id, exception=payload, completion='exceptional')
+                        completed.append(('raise', updated, [], payload))
+                        continue
+                    if kind == 'raise':
+                        truth = payload.get('truth') if exit_kind == 'return' and isinstance(payload, dict) else False
+                        if truth is None:
+                            self.add_boundary('context_exit_truth_unresolved', node, updated,
+                                call_id=call.id, affected_scope='unknown')
+                            self.unknown_context_effects(updated)
+                            record['exit']['executions'][-1]['status'] = 'truth_unconfirmed'
+                            record['exit'].update(effects_status='unmodeled', completion='unconfirmed')
+                        if truth is not False:
+                            completed.append(('normal', copy.deepcopy(updated), [], None))
+                        if truth is not True:
+                            completed.append(('raise', copy.deepcopy(updated), [], exception))
+                        if truth is None:
+                            completed.append(('raise', copy.deepcopy(updated), [], None))
+                    else:
+                        completed.append((kind, updated, pending, exception))
+                call.implicit_protocol.update(completion=(
+                    'source_modeled' if record['exit']['executions'][-1]['status'] == 'source_modeled'
+                    else 'unconfirmed'),
+                    exit_outcomes=_unique({'kind': item[0],
+                        'exception': item[3] if item[0] == 'raise' else None}
+                        for item in completed[first_outcome:]))
+            outcomes = completed
+            if len(outcomes) > _CONTEXT_EXIT_PATH_LIMIT:
+                self.add_boundary('context_exit_path_budget', node, _merge_env([item[1] for item in outcomes]),
+                                  affected_scope='unknown',
+                                  path_limit=_CONTEXT_EXIT_PATH_LIMIT)
+                outcomes = []
+                for kind in _unique(item[0] for item in completed):
+                    paths = [item for item in completed if item[0] == kind]
+                    state = _merge_env([item[1] for item in paths])
+                    self.unknown_context_effects(state)
+                    payloads = _unique(item[3] for item in paths)
+                    payload = payloads[0] if len(payloads) == 1 else (
+                        {'truth': None} if self.context_execution and kind == 'return' else None)
+                    pending = _unique(dict(value, value_incomplete=True, instance_candidates=[])
+                        if any(value.get(key) for key in ('instance_type', 'instance_candidates',
+                            'class_type', 'callable_type')) or value.get('kind') == 'callable' else value
+                        for item in paths for value in item[2])
+                    outcomes.append((kind, state, pending, payload))
+        self.conditions = before
+        return outcomes
+
+    def context_enter_call(self, item, index, node, values, target, env, proof):
+        temporary = '$with:%s:%s' % (_call_key(self.ref.file_path, node), index)
+        env[temporary] = copy.deepcopy(values) if target else [dict(value, value_incomplete=True)
+                                                               for value in values]
+        implicit = ast.Call(func=ast.Attribute(value=ast.Name(id=temporary, ctx=ast.Load()),
+                             attr='__enter__', ctx=ast.Load()), args=[], keywords=[])
+        for child in ast.walk(implicit):
+            ast.copy_location(child, item.context_expr)
+        implicit._flow_implicit_suffix = ':with_enter:%s' % index
+        implicit._flow_implicit_protocol = proof
+        implicit._flow_protocol_target = target
+        self.expression(implicit, env)
+        env.pop(temporary, None)
+        call = next((call for call in reversed(self.calls)
+                     if call.id == _call_key(self.ref.file_path, implicit)), None)
+        if call is not None:
+            call.callee_name = ast.unparse(item.context_expr) + '.__enter__'
+            for boundary in self.result.boundaries:
+                if boundary.get('call_id') == call.id and 'callee_name' in boundary:
+                    boundary['callee_name'] = call.callee_name
+        return call
+
+    ## Propagate enter results and clean up every modeled body/entry exit path.
+    #  @param node Synchronous ast.With.
+    #  @param env Current object contents and lexical bindings.
+    #  @return Existing block exit tuples, with explicit protocol boundaries.
+    def with_statement(self, node, env):
+        before = copy.deepcopy(self.conditions)
+        exceptions = []
+        exits = []
+        for index, item in enumerate(node.items):
+            if _may_raise(item.context_expr):
+                failed = copy.deepcopy(env)
+                if exits:
+                    self.add_boundary('context_expression_exception_effects_unmodeled', item.context_expr,
+                                      failed, affected_scope='unknown')
+                    self.unknown_context_effects(failed)
+                exceptions.extend(self.cleanup_context_exits(node,
+                    [('raise', failed, [], None)], exits, 'context_expression'))
+            values = self.marked(self.expression(item.context_expr, env), item.context_expr)
+            target, receiver, issues = self.context_protocol(values, '__enter__')
+            exit_target, _, exit_issues = self.context_protocol(values, '__exit__')
+            if exit_target is not None and not self.context_signature_valid(exit_target, 3):
+                exit_issues.append('binding_unconfirmed')
+            assumptions = ['source_snapshot_bindings_hold', 'standard_type_special_method_lookup',
+                           'no_external_monkeypatch_or_import_hook']
+            proof = {'kind': 'context_manager_enter', 'method': '__enter__', 'lookup': 'type_mro',
+                'with_id': _call_key(self.ref.file_path, node), 'item_index': index,
+                'basis': 'source_snapshot', 'runtime_target_confirmed': False,
+                'receiver_class': asdict(receiver) if receiver else None,
+                'assumptions': assumptions, 'issues': issues,
+                'context_expression': self.evidence(item.context_expr)}
+            if target is not None:
+                proof['definition'] = self.evidence_at(target[0], target[1])
+                hierarchy = self.analyzer._class_mro(receiver.module, receiver.qualname)
+                proof['source_hashes'] = {path: self.analyzer.hashes[path] for path in sorted(
+                    {self.ref.file_path, target[0].file_path, receiver.file_path}
+                    | {ref.file_path for ref, _ in hierarchy or ()})
+                    if path in self.analyzer.hashes}
+            missing_exit = receiver is not None and exit_issues == ['definition_unavailable']
+            call = (None if missing_exit else
+                    self.context_enter_call(item, index, node, values, target, env, proof))
+            fact = self.analyzer._context_enter_returns(target, receiver) if target and call else {
+                'paths': [], 'completion': 'unknown', 'issues': ['context_enter_unresolved']}
+            if missing_exit:
+                fact = {'paths': [], 'completion': 'no_normal_return',
+                        'issues': ['context_exit_definition_unavailable'], 'exceptions': ['TypeError']}
+            elif target is not None and not self.context_signature_valid(target, 0):
+                fact = {'paths': [], 'completion': 'no_normal_return',
+                        'issues': ['context_enter_binding_unconfirmed'], 'exceptions': ['TypeError']}
+                if call is not None:
+                    call.binding_status = 'invalid'
+                    call.binding_issues.append({'kind': 'implicit_receiver_binding', 'status': 'invalid'})
+            elif call is not None and call.binding_status != 'complete':
+                fact = {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_binding_unconfirmed']}
+            elif call is None:
+                fact = {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_budget']}
+            prior_conditions = copy.deepcopy(self.conditions)
+            condition = {'context_enter': call.id if call else proof['with_id'] + ':enter:%s' % index,
+                         'completion': 'normal_return', 'basis': 'source_snapshot'}
+            self.conditions = self.conditions + [condition]
+            returned = []
+            complete = bool(fact['paths']) and not fact['issues']
+            for path in fact['paths']:
+                known = []
+                for value in path:
+                    alias = (value.get('kind') == 'parameter'
+                        and value.get('source') == fact.get('parameter')
+                        and value.get('relation') == 'direct'
+                        and not value.get('projection') and not value.get('output_path'))
+                    inputs = values if alias else [value] if value.get('instance_type') else []
+                    for actual in inputs:
+                        if actual.get('value_incomplete') or actual.get('relation') != 'direct':
+                            continue
+                        evidence = _unique(actual.get('evidence', []) + value.get('evidence', [])
+                                           + [self.evidence(item.context_expr)])
+                        known.append(dict(actual, kind='call_result', source=call.id,
+                            evidence=evidence, conditions=_unique(actual.get('conditions', [])
+                                + value.get('conditions', []) + self.conditions),
+                            context_manager_return={'enter_call_id': call.id,
+                                'identity': 'receiver_alias' if alias else 'return_instance',
+                                'object_source': (actual.get('context_manager_return', {}).get(
+                                    'object_source', actual['source']) if alias else
+                                    '$context_instance:%s:%s' % (call.id, actual['source'])),
+                                'return_evidence': value.get('evidence', [])}))
+                complete = complete and bool(known)
+                returned.extend(known)
+            record = {'with_id': proof['with_id'], 'item_index': index,
+                'source_hashes': copy.deepcopy(proof.get('source_hashes', {})),
+                'context_expression': proof['context_expression'], 'manager_sources': copy.deepcopy(values),
+                'as_target': self.evidence(item.optional_vars) if item.optional_vars else None,
+                'conditions': copy.deepcopy(self.conditions),
+                'enter': {'call_id': call.id if call else None,
+                    'target': asdict(target[0]) if target else None, 'issues': _unique(issues + fact['issues']),
+                    'return_status': 'source_proven' if complete else 'unconfirmed',
+                    'completion': fact['completion'], 'effects_status': fact.get('effects_status', 'unmodeled')},
+                'exit': {'target': asdict(exit_target[0]) if exit_target else None,
+                    'effects_status': 'source_noop' if self.context_exit_noop(exit_target) else 'unmodeled',
+                    'issues': exit_issues, 'completion': 'deferred'},
+                'basis': 'source_snapshot', 'runtime_target_confirmed': False, 'assumptions': assumptions}
+            self.context_managers.append(record)
+            self.conditions = prior_conditions
+            failed = copy.deepcopy(env)
+            if exits and fact.get('exceptions', [None]) and fact.get('effects_status') != 'source_modeled':
+                self.add_boundary('context_enter_exception_effects_unmodeled', item.context_expr,
+                                  failed, affected_scope='unknown', call_id=call.id if call else None)
+                self.unknown_context_effects(failed)
+            exceptions.extend(self.cleanup_context_exits(node,
+                [('raise', copy.deepcopy(failed), [], exception) for exception in fact.get('exceptions', [None])],
+                exits, 'context_enter'))
+            self.conditions = prior_conditions + [condition]
+            if fact['completion'] == 'no_normal_return':
+                self.add_boundary('context_enter_no_normal_return', item.context_expr, env, values,
+                                  call_id=call.id if call else None, conditions=copy.deepcopy(self.conditions))
+                self.conditions = before
+                return exceptions
+            exits.append(record)
+            if not complete:
+                self.add_boundary('context_enter_return_unresolved', item.context_expr, env, values,
+                    call_id=call.id if call else None, issues=record['enter']['issues'],
+                    conditions=copy.deepcopy(self.conditions))
+                returned = [{'kind': 'call_result', 'source': condition['context_enter'],
+                    'relation': 'direct', 'evidence': [self.evidence(item.context_expr)],
+                    'conditions': copy.deepcopy(self.conditions)}]
+            for reason in record['enter']['issues']:
+                if reason in ('context_enter_budget', 'context_enter_recursion'):
+                    self.add_boundary(reason, item.context_expr, env, values,
+                                      call_id=call.id if call else None)
+            if fact.get('effects_status') != 'source_modeled':
+                self.add_boundary('context_enter_effects_unmodeled', item.context_expr, env,
+                    [value for items in env.values() for value in items],
+                    affected_scope='unknown', call_id=call.id if call else None)
+                self.unknown_context_effects(env)
+            if call is not None:
+                call.result_sources = copy.deepcopy(returned) if complete else []
+            if item.optional_vars is not None:
+                self.assign_target(item.optional_vars, returned, env, item.optional_vars)
+        outcomes = self.block(node.body, env)
+        outcomes = self.cleanup_context_exits(node, outcomes, exits)
+        self.conditions = before
+        return exceptions + outcomes
+
     def statement(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
         normal = lambda e: [('normal', e, [], None)]
+        if self.context_execution:
+            if isinstance(node, ast.Nonlocal):
+                return normal(env)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                                 ast.Import, ast.ImportFrom, ast.AugAssign)):
+                self.add_boundary('context_exit_definition_or_write_unmodeled', node, env,
+                                  affected_scope='unknown')
+            if isinstance(node, ast.Delete) and len(node.targets) != 1:
+                self.add_boundary('context_exit_multiple_delete_unmodeled', node, env,
+                                  affected_scope='unknown')
+            if (isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+                    and not all(isinstance(target, ast.Name) for target in (
+                        node.targets if isinstance(node, ast.Assign) else [node.target]))):
+                self.add_boundary('context_exit_assignment_unmodeled', node, env, affected_scope='unknown')
+            if isinstance(node, (ast.For, ast.While)):
+                self.add_boundary('context_exit_control_unmodeled', node, env, affected_scope='unknown')
+            if isinstance(node, ast.Try) and any(handler.type is not None and not (
+                    isinstance(handler.type, ast.Name) and _exception_class(handler.type.id) is not None
+                    and self.analyzer._builtin_name_status(self.ref, self.node, handler.type.id, env)
+                        == 'confirmed_builtin') for handler in node.handlers):
+                self.add_boundary('context_exit_handler_unmodeled', node, env, affected_scope='unknown')
+            if isinstance(node, ast.If):
+                truth = self.context_truth(node.test, env)
+                if truth is not None:
+                    before = self.conditions
+                    self.conditions = before + [{'test': self.evidence(node.test), 'branch': truth}]
+                    outcomes = self.block(node.body if truth else node.orelse, env)
+                    self.conditions = before
+                    return outcomes
+                self.add_boundary('context_exit_guard_unresolved', node.test, env, affected_scope='unknown')
+            if isinstance(node, ast.Return):
+                truth = self.context_truth(node.value, env) if node.value is not None else False
+                previous = copy.deepcopy(env)
+                values = self.marked(self.expression(node.value, env), node)
+                exceptional, possible = self.context_operation_exits(node.value, previous, env)
+                return exceptional + ([('return', env, values, {'truth': truth})] if possible else [])
+        previous = copy.deepcopy(env) if self.context_execution else None
         exceptional = []
         # A possible exception uses the environment BEFORE evaluation. Simple
         # name/constant assignments cannot import a later definition into it.
@@ -4350,6 +5238,11 @@ class _Summary:
             return exceptional + left + right
         if isinstance(node, ast.Try):
             return self.try_statement(node, env)
+        if isinstance(node, ast.With):
+            return self.with_statement(node, env)
+        if isinstance(node, ast.AsyncWith):
+            self.add_boundary('async_with_unsupported', node, env, affected_scope='unknown')
+            return [('unknown', env, [], None)]
         if isinstance(node, (ast.For, ast.While)):
             before = copy.deepcopy(env)
             head = copy.deepcopy(env)
@@ -4426,6 +5319,13 @@ class _Summary:
                             'status': 'unknown_key' if key == '*' or unknown else 'bounded',
                             'conditions': list(self.conditions),
                             'evidence': self.evidence(node)})
+                        if self.context_execution:
+                            if key == '*':
+                                self.add_boundary('context_exit_data_protocol_unmodeled', node, env,
+                                                  affected_scope='unknown')
+                            exceptional, possible = self.context_operation_exits(target, previous, env)
+                            if not possible:
+                                return exceptional
                         continue
                 values = []
                 if isinstance(target, (ast.Attribute, ast.Subscript)):
@@ -4444,6 +5344,16 @@ class _Summary:
                 return exceptional + normal(env)
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             values = self.expression(node.value, env)
+            if self.context_execution:
+                exceptional, possible = self.context_operation_exits(node.value, previous, env, exceptional)
+                if not possible:
+                    return exceptional
+                literal = self.literal_fact(node.value, env)
+                if literal is not None:
+                    values = [dict(value, literal=literal) for value in values] or [
+                        {'kind': 'context_data', 'source': self.ref.qualname,
+                         'literal': literal, 'relation': 'direct',
+                         'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}]
             if isinstance(node, ast.AugAssign):
                 values = self.marked(self.expression(node.target, env) + values, node, 'derived')
             for target in targets:
@@ -4453,6 +5363,10 @@ class _Summary:
             return exceptional + [('return', env, self.marked(self.expression(node.value, env), node), None)]
         if isinstance(node, ast.Expr):
             self.expression(node.value, env)
+            if self.context_execution and isinstance(node.value, ast.Call):
+                exceptional, possible = self.context_operation_exits(node.value, previous, env, exceptional)
+                if not possible:
+                    return exceptional
             return exceptional + normal(env)
         if isinstance(node, ast.Raise):
             self.expression(node.exc, env)
@@ -4695,6 +5609,8 @@ class _Summary:
                       self.marked(self.expression(self.node.body, env), self.node.body), None)]
                     if isinstance(self.node, ast.Lambda) else self.block(self.node.body, env))
         generator = contains_yield(self.node)
+        self.outcomes = outcomes
+        self.exit_kinds = {kind for kind, _, _, _ in outcomes}
         for kind, state, values, _ in outcomes:
             if kind == 'return' and not generator:
                 returned = self.materialize(values, state)
@@ -4772,6 +5688,8 @@ class _Summary:
                                       'mapping_effects': self.mapping_effects,
                                       'returns': self.returns,
                                       'decorator_effects': self.analyzer._decoration_facts((self.ref, self.node))})
+        if self.context_managers:
+            self.result.functions[-1]['context_managers'] = self.context_managers
         decorations = self.result.functions[-1]['decorator_effects']
         if decorations and self.analyzer._descriptor_kind((self.ref, self.node)) is None:
             for fact in decorations:
