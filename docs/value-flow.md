@@ -248,6 +248,23 @@ the helper or that all possible runtime paths are feasible.
 | `analysis.boundaries` | Missing targets, cutoffs, and unsupported constructs |
 | `entry_parameter_trace` | Composition of entry-parameter-to-entry-return paths |
 
+Capture bindings can include separately materialized `current_sources` and an
+exact `container_binding` with shape, object source, unknown-content status,
+evidence and call-time conditions. Explicit expansion can model a captured open
+builtin dict/list/tuple using symbolic capture roots when its current contents
+and shape are proven. It does not restore contents after clearing or infer an
+open variadic space from a finite captured mapping. Raw `sources` remain for
+existing consumers. Named nested functions can relay free variables through
+intermediate scopes; local and global declarations block those captures.
+Unknown capture state and unsupported effects retain boundaries; returned
+closures still require a separate execution context.
+The capture snapshot is taken after argument evaluation. Unmodeled nonlocal
+binding writes invalidate later captured state and record
+`capture_binding_write_unmodeled`; a lexical cell name does not preserve its
+previous contents through an unproved write.
+Captured aliases with matching object source and shape share one symbolic
+container during expansion; distinct copied objects remain independent.
+
 The distinction between the last two flow queries matters: proving that the
 helper's **result** is returned does not prove that the helper's **input** flows
 into its result. That requires its body summary or an explicit trusted contract.

@@ -156,3 +156,34 @@ def captured_names(facts, enclosing_bound_names):
     nonlocals = facts.nonlocals
     free = (facts.loaded | nonlocals) - (facts.bound - nonlocals)
     return tuple(sorted(free & frozenset(enclosing_bound_names)))
+
+
+## Select free variables relayed through nested named functions.
+#  @param node Source function whose closure cells are being selected.
+#  @param enclosing_bound_names Bindings supplied by lexical ancestors.
+#  @return Captured names, excluding descendant-local and global bindings.
+def transitive_captured_names(node, enclosing_bound_names):
+    pending, scopes, children = [node], [], {}
+    while pending:
+        owner = pending.pop()
+        scopes.append(owner)
+        nested = []
+        body = [owner.body] if isinstance(owner, ast.Lambda) else owner.body
+        nodes = list(body)
+        while nodes:
+            child = nodes.pop()
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                nested.append(child)
+            elif not isinstance(child, (ast.ClassDef, ast.Lambda)):
+                nodes.extend(ast.iter_child_nodes(child))
+        children[id(owner)] = nested
+        pending.extend(nested)
+    free = {}
+    for owner in reversed(scopes):
+        facts = function_scope_facts(owner)
+        local = facts.bound - facts.nonlocals
+        names = (facts.loaded | facts.nonlocals) - local - facts.globals
+        for child in children[id(owner)]:
+            names |= free[id(child)] - local - facts.globals
+        free[id(owner)] = names
+    return tuple(sorted(free[id(node)] & frozenset(enclosing_bound_names)))

@@ -149,6 +149,12 @@ or `status="unknown"` are not no-flow proofs when boundaries remain.
 
 The PCBench-driven extensions remain additive within `flow-0.2`:
 
+Call-time `capture_bindings` retain raw `sources` and can additionally expose
+`current_sources` and exact `container_binding` shape/identity, unknown-content
+status, evidence and conditions. An explicitly expanded open captured container
+retains symbolic capture roots; finite, conflicting or effect-unknown contents
+do not authorize an open container merely from its lexical name.
+
 | Location | Additive field | Meaning |
 |---|---|---|
 | `calls[*]` | `target_candidates` | Bounded source targets; a single `target` remains the selected static candidate when available. |

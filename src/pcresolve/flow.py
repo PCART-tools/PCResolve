@@ -13,8 +13,8 @@ from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
 from .source_snapshot import (SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
                               module_name_for_path)
 from .call_resolution import DefinitionRecord, DefinitionIndex, CallContext
-from .scope_facts import (FLOW_SCOPE, captured_names, function_scope_facts,
-                          statement_scope_facts)
+from .scope_facts import (FLOW_SCOPE, function_scope_facts,
+                          statement_scope_facts, transitive_captured_names)
 from .return_resolution import (CallBinding, ReturnCall,
                                 resolve_return_dependencies,
                                 select_dependencies)
@@ -324,6 +324,7 @@ class FlowAnalyzer:
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
         self._callable_instance_binding_cache = {}
+        self._capture_name_cache = {}
         self._decoration_fact_cache = {}
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
@@ -1812,7 +1813,8 @@ class FlowAnalyzer:
             'source_body': body}, None
 
     def _captures(self, ref, node):
-        facts = self._scope_facts(node)
+        if ref in self._capture_name_cache:
+            return list(self._capture_name_cache[ref])
         outer = set()
         parent = ref.qualname.rpartition('.')[0]
         while parent:
@@ -1821,7 +1823,9 @@ class FlowAnalyzer:
             if definition:
                 outer.update(self._scope_facts(definition).bound)
             parent = parent.rpartition('.')[0]
-        return list(captured_names(facts, outer))
+        names = transitive_captured_names(node, outer)
+        self._capture_name_cache[ref] = names
+        return list(names)
 
     def _reachable_modules(self, entry_module):
         known = set(self.imports)
@@ -1947,6 +1951,7 @@ class FlowAnalyzer:
                         'callable_sources': copy.deepcopy(call.callable_sources)})
                     call.analysis_contexts[-1].update(
                         result_sources=copy.deepcopy(call.result_sources),
+                        capture_bindings=copy.deepcopy(call.capture_bindings),
                         effects=copy.deepcopy(call.effects),
                         callable_instance_evidence=copy.deepcopy(call.callable_instance_evidence),
                         conditional_returns=copy.deepcopy(call.conditional_returns),
@@ -2021,6 +2026,19 @@ class FlowAnalyzer:
                     incomplete = False
                 incoming[parameter] = [dict(value, value_incomplete=True)
                                        if incomplete else value for value in values]
+        for name in self._captures(*definition):
+            records = [item for item in edge.capture_bindings if item.get('capture') == name]
+            if len(records) != 1:
+                continue
+            binding = records[0].get('container_binding', {})
+            contents = records[0].get('current_sources', [])
+            if (binding.get('status') == 'exact' and not binding.get('contents_unknown')
+                    and binding.get('shape') in ('dict', 'list', 'tuple')
+                    and any(value.get('kind') in ('parameter', 'capture')
+                        and value.get('relation') == 'contained' and value.get('output_path') == ['*']
+                        and not value.get('projection') and not value.get('value_incomplete')
+                        and value.get('container_role') != 'key' for value in contents)):
+                incoming[name] = [{'capture_container_binding': copy.deepcopy(binding)}]
         return incoming
 
     def _merge_summary(self, result, summary):
@@ -3436,11 +3454,6 @@ class _Summary:
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence(node)})
             capture_values = {}
-            if target:
-                for capture in self.analyzer._captures(*target):
-                    capture_values[capture] = copy.deepcopy(env.get(capture, []))
-                    call.capture_bindings.append({'capture': capture,
-                        'sources': capture_values[capture]})
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
             if (contract is None and target is None and builtin_status == 'confirmed_builtin'
@@ -3587,6 +3600,19 @@ class _Summary:
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
             effects_complete = False
+            if target:
+                # Closure cells are read at invocation, after all argument expressions.
+                for capture in self.analyzer._captures(*target):
+                    capture_values[capture] = copy.deepcopy(env.get(capture, []))
+                    record = {'capture': capture, 'sources': capture_values[capture],
+                        'current_sources': copy.deepcopy(self.materialize(capture_values[capture], env))}
+                    container = self.exact_container(capture_values[capture], ('dict', 'list', 'tuple'), env)
+                    if container is not None:
+                        record['container_binding'] = {'status': 'exact',
+                            'shape': container['container_shape'], 'source': container['source'],
+                            'contents_unknown': bool(env.get(container['source'] + '$state')),
+                            'evidence': [self.evidence(node)], 'conditions': copy.deepcopy(self.conditions)}
+                    call.capture_bindings.append(record)
             selected_target = (self.analyzer._selected_definition(target,
                 self.analyzer._incoming_facts(target, call)) if target else None)
             if target:
@@ -3610,6 +3636,19 @@ class _Summary:
             if target and not invalid_binding and not getattr(node, '_flow_skip_effects', False):
                 effects_complete = self.apply_effects(
                     selected_target, actual_values, capture_values, call, env, node)
+                scope = self.analyzer._scope_facts(selected_target[1])
+                unmodeled = (scope.nonlocals & scope.bound) - {
+                    effect['target'] for effect in call.effects
+                    if effect.get('kind') == 'nonlocal_write' and effect.get('status') == 'exact'}
+                if unmodeled:
+                    affected = [value for name in unmodeled for value in capture_values.get(name, [])]
+                    self.add_boundary('capture_binding_write_unmodeled', node, env, affected,
+                                      call_id=call.id)
+                    for name in unmodeled:
+                        self.unknown_container_contents(capture_values.get(name, []), env)
+                        env[name] = [dict(value, value_incomplete=True)
+                                     for value in env.get(name, [])]
+                    effects_complete = False
             container_result = self.container_call(node, receiver_values, call, env, protocol_values)
             if container_result is None and isinstance(node.func, ast.Attribute) and node.func.attr == 'copy':
                 incoming_receiver = self.incoming_copy_receiver(node, receiver_values, call, env)
@@ -5686,9 +5725,26 @@ class _Summary:
                              for value in env[name]]
         for local in self.analyzer._scope_facts(self.node).bound:
             env.setdefault(local, [])
+        capture_objects = {}
         for capture in self.analyzer._captures(self.ref, self.node):
-            env[capture] = [{'kind': 'capture', 'source': capture, 'relation': 'direct',
-                             'evidence': [], 'conditions': []}]
+            root = {'kind': 'capture', 'source': capture, 'relation': 'direct',
+                    'evidence': [], 'conditions': []}
+            facts = self.incoming.get(capture, [])
+            binding = facts[0].get('capture_container_binding') if len(facts) == 1 else None
+            if binding:
+                identity = binding['source'], binding['shape']
+                if identity not in capture_objects:
+                    heap = '$capture:%s:%s:%s' % (self.ref.file_path, self.ref.qualname, capture)
+                    capture_objects[identity] = heap, capture
+                    env[heap] = [dict(root, relation='contained', output_path=['*'])]
+                    env[heap + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
+                heap, origin = capture_objects[identity]
+                env[capture] = [{'kind': 'container', 'source': heap,
+                    'container_shape': binding['shape'], 'parameter_container': origin,
+                    'relation': 'direct', 'evidence': copy.deepcopy(binding.get('evidence', [])),
+                    'conditions': copy.deepcopy(binding.get('conditions', []))}]
+            else:
+                env[capture] = [root]
         outcomes = ([('return', env,
                       self.marked(self.expression(self.node.body, env), self.node.body), None)]
                     if isinstance(self.node, ast.Lambda) else self.block(self.node.body, env))
