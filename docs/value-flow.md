@@ -579,6 +579,32 @@ and no candidate. VPPDetector can combine the candidate, constructor provenance,
 and ordinary argument flow to inspect a validator implementation; PCResolve
 does not derive allowed keys or compatibility outcomes.
 
+The optional `callable_instance_evidence.binding` can establish a conditional
+source binding for a direct, undecorated, non-inherited construction. It keeps
+`target_status="callable_instance_candidate"` and `runtime_target_confirmed=false`.
+An initializer limited to finite primitive/container assignments can expose
+`receiver_state`, with omitted literal defaults included. Custom lookup,
+descriptors, constructor effects, visible state writes/escapes, module aliases,
+class mutation and exhausted budgets produce `status="unconfirmed"` and issues.
+The constructor state is conditional on normal construction, the recorded
+snapshot and no unmodeled indirect instance/state mutation; it is not an
+unconditional observation of a live object. Consumers must separately check
+effects along the executed body.
+
+The dynamic callable override boundary is an assumption only for a matching
+`source_bound` fact. Source hashes use the declared
+`utf-8-sig-universal-newlines` policy; `snapshot_sha256` fingerprints the complete
+input hash map. Incoming contexts retain the evidence, and conflicting merged
+evidence is discarded. State expressions are bounded by 2,000 nodes and the
+source-use inspection by 1,000,000 nodes, within cooperative query budgets.
+
+Exact ordinary arguments can carry `container_binding` shape/origin evidence
+through a source helper without replacing its generic return/alias facts or
+reopening finite contents. A dict's direct, argument-free `copy()` may receive
+the builtin protocol when no preceding unproved use of that input or alias
+has occurred. Unknown shapes, contents or effects retain boundaries; this
+does not generally model mutation through ordinary formals.
+
 Calling a source class resolves to its `__init__`, or to `__new__` when no
 `__init__` definition is available. Both `super().method(...)` and the nominal
 two-argument `super(CurrentClass, receiver).method(...)` form traverse available

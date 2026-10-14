@@ -22,6 +22,7 @@ from .effect_facts import (container_method_effect, contains_yield,
                            function_effects, FunctionEffect, finite_key_delete_sites)
 from .import_facts import import_facts, resolve_relative_module
 from ._decorator_effects import _DecoratorEffects
+from ._callable_instance_binding import source_binding
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -322,6 +323,7 @@ class FlowAnalyzer:
         self._fact_calls = 2000
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
+        self._callable_instance_binding_cache = {}
         self._decoration_fact_cache = {}
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
@@ -1946,6 +1948,7 @@ class FlowAnalyzer:
                     call.analysis_contexts[-1].update(
                         result_sources=copy.deepcopy(call.result_sources),
                         effects=copy.deepcopy(call.effects),
+                        callable_instance_evidence=copy.deepcopy(call.callable_instance_evidence),
                         conditional_returns=copy.deepcopy(call.conditional_returns),
                         class_method_bindings=copy.deepcopy(call.class_method_bindings),
                         conditions=copy.deepcopy(getattr(selected[1], '_flow_conditions', [])))
@@ -1982,6 +1985,15 @@ class FlowAnalyzer:
                     or len(records) != 1 or records[0]['status'] != 'exact'):
                 continue
             sources = [value for argument in arguments for value in argument.get('sources', [])]
+            containers = [argument.get('container_binding') for argument in arguments]
+            if (containers and all(item and item == containers[0] for item in containers)
+                    and containers[0]['status'] == 'exact'):
+                incoming[parameter] = [{'container_shape': containers[0]['shape'],
+                    'container_binding': copy.deepcopy(containers[0])}]
+                literals = [argument.get('literal') for argument in arguments]
+                if literals[0] is not None and all(item == literals[0] for item in literals):
+                    incoming[parameter][0]['literal'] = copy.deepcopy(literals[0])
+                continue
             values = []
             for value in sources:
                 identity = value.get('callable_type')
@@ -2046,6 +2058,8 @@ class FlowAnalyzer:
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 for field in ('callable_sources', 'analysis_contexts', 'conditional_returns', 'class_method_bindings'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
+                if previous.callable_instance_evidence != call.callable_instance_evidence:
+                    previous.callable_instance_evidence = {}
                 previous.result_sources = _merge_result_sources(
                     previous.result_sources, call.result_sources)
                 if unresolved:
@@ -3276,6 +3290,8 @@ class _Summary:
             if callable_instance_fact is not None:
                 call.callable_instance_evidence = self.module_callable_evidence(
                     callable_instance_fact, node)
+                call.callable_instance_evidence['binding'] = source_binding(
+                    self, callable_instance_fact, target)
             if returned_field_receiver:
                 call.receiver_type_evidence = _unique([
                     dict(fact, receiver_call=self.evidence(node))
@@ -3322,9 +3338,13 @@ class _Summary:
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence(node)})
             if callable_instance_fact is not None:
+                callable_binding = call.callable_instance_evidence['binding']
                 self.result.boundaries.append({
                     'call_id': call_id, 'callee_name': name,
                     'reason': 'dynamic_callable_instance_override_possible',
+                    'boundary_kind': 'assumption' if callable_binding['status'] == 'source_bound' else 'uncertainty',
+                    'binding_status': callable_binding['status'],
+                    'assumptions': copy.deepcopy(callable_binding['assumptions']),
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence(node)})
             if (target and dispatch_kind in (
@@ -3499,6 +3519,31 @@ class _Summary:
                 actual_values[parameter] = _unique(actual_values.get(parameter, []) + raw_values)
                 values = self.marked(self.materialize(raw_values, env), arg)
                 argument_record = {'argument': slot, 'parameter': parameter, 'sources': values}
+                container = self.exact_container(raw_values, ('dict', 'list', 'tuple'), env)
+                if container is not None and not target_path and not any(
+                        isinstance(child, ast.Call) for argument in node.args
+                        + [keyword.value for keyword in node.keywords] for child in ast.walk(argument)):
+                    argument_record['container_binding'] = {'status': 'exact',
+                        'shape': container['container_shape'],
+                        'source': container['source'],
+                        'contents_unknown': bool(env.get(container['source'] + '$state')),
+                        'evidence': [self.evidence(arg)], 'conditions': copy.deepcopy(self.conditions)}
+                elif raw_values and not target_path and all(
+                        value.get('kind') == 'parameter' and value.get('relation') == 'direct'
+                        and value.get('container_binding', {}).get('status') == 'exact'
+                        and not any(value.get(flag) for flag in ('projection', 'output_path', 'value_incomplete'))
+                        for value in raw_values):
+                    incoming_bindings = [value['container_binding'] for value in raw_values]
+                    if all(value == incoming_bindings[0] for value in incoming_bindings):
+                        forwarded = copy.deepcopy(incoming_bindings[0])
+                        aliases = {name for name, facts in self.incoming.items() if any(
+                            fact.get('container_binding', {}).get('source') == forwarded['source']
+                            for fact in facts)}
+                        if any(value.get('source') in aliases for previous in self.calls
+                                for value in previous.receiver_sources + [value for item in previous.argument_sources
+                                    for value in item.get('sources', [])]):
+                            forwarded['contents_unknown'] = True
+                        argument_record['container_binding'] = forwarded
                 literal = self.literal_fact(arg, env)
                 if literal is not None:
                     argument_record.update(literal=literal, value_evidence=[self.evidence(arg)])
@@ -3566,6 +3611,10 @@ class _Summary:
                 effects_complete = self.apply_effects(
                     selected_target, actual_values, capture_values, call, env, node)
             container_result = self.container_call(node, receiver_values, call, env, protocol_values)
+            if container_result is None and isinstance(node.func, ast.Attribute) and node.func.attr == 'copy':
+                incoming_receiver = self.incoming_copy_receiver(node, receiver_values, call, env)
+                if incoming_receiver is not None:
+                    container_result = self.container_call(node, incoming_receiver, call, env, protocol_values)
             if target is None and container_result is None:
                 self.inherited_setdefault(node, receiver_values, call, env)
             if target is None and container_result is None and isinstance(node.func, ast.Name):
@@ -3682,6 +3731,41 @@ class _Summary:
             else:
                 converted.append(value)
         return converted
+
+    ## Preserve only the builtin copy protocol of an exact incoming dict.
+    #  @param node Copy call expression, with no arguments.
+    #  @param values Receiver roots, retaining generic return/alias facts.
+    #  @param call Current source call.
+    #  @param env Current lexical frame.
+    #  @return Symbolic copy receiver or None after any unproved prior use.
+    def incoming_copy_receiver(self, node, values, call, env):
+        if node.args or node.keywords or not values or not all(
+                value.get('kind') == 'parameter' and value.get('relation') == 'direct'
+                and not any(value.get(flag) for flag in ('projection', 'output_path', 'value_incomplete'))
+                for value in values):
+            return None
+        bindings = [self.incoming.get(value['source'], []) for value in values]
+        if not all(len(items) == 1 and items[0].get('container_shape') == 'dict'
+                and items[0].get('container_binding', {}).get('status') == 'exact'
+                and not items[0]['container_binding'].get('contents_unknown') for items in bindings):
+            return None
+        origins = {items[0]['container_binding']['source'] for items in bindings}
+        aliases = {name for name, facts in self.incoming.items() if any(
+            fact.get('container_binding', {}).get('source') in origins for fact in facts)}
+        if any(value.get('source') in aliases for previous in self.calls
+                for value in previous.receiver_sources + [value for argument in previous.argument_sources
+                    for value in argument.get('sources', [])]):
+            return None
+        if any(boundary.get('affected_scope') == 'unknown' or any(
+                value.get('name', value.get('source')) in aliases
+                for value in boundary.get('affected_values', [])) for boundary in self.result.boundaries
+                if boundary.get('function') == asdict(self.ref)):
+            return None
+        heap = '$incoming_copy:' + call.id
+        env[heap] = [dict(value, relation='contained', output_path=['*']) for value in values]
+        env[heap + '$keys'] = [{'kind': 'key', 'source': '*', 'key': '*'}]
+        return [{'kind': 'container', 'source': heap, 'container_shape': 'dict',
+                 'relation': 'direct', 'evidence': [self.evidence(node.func.value)], 'conditions': []}]
 
     def returned_container(self, target, call, actuals, env, node, effects_complete=False):
         references = [value for values in actuals.values()
