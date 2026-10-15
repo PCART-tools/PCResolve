@@ -436,6 +436,26 @@ and incoming evidence. Aliases and multi-hop helpers preserve this fact until
 rebinding, attribute mutation or unknown escape invalidates it. Strings, names,
 annotations and `callable()` tests do not prove a particular function identity.
 
+An `is` comparison against one stable, undecorated module-level source function
+can refine a direct parameter/capture or local callable alias on its equality
+branch. The same fact applies on the false branch of `is not`, including a
+surviving branch after an early return. `callable_type` retains the target while
+the dependency root stays a parameter/capture; `callable_evidence` and
+`conditions` retain the guard. Source module attributes and exact local aliases
+can supply the reference function. Unknown attribute protocols, decorated
+references, chained comparisons and `==` do not establish this identity.
+An inequality alone does not select another callable. Incompatible closed
+incoming identities exclude that branch; joins, rebinding, writes and escapes
+do not turn a conditional fact into an unconditional target. Compound guards
+are not replayed as identity proofs after calls or other modeled effects.
+
+An otherwise uncertain binding caused only by dynamic argument expansion can
+retain individually exact ordinary callable and immutable scalar facts on normal
+call completion. Their `conditions` include `normal_call_binding` with the call
+and explicit parameter/argument; a duplicate key can still prevent execution.
+Ambiguous positional packs, invalid bindings and ordinary container/capture
+specialization do not acquire this exception. A partial binding is not complete.
+
 `calls[*].callable_sources` records the callable expression. `analysis_contexts`
 keeps each incoming call's target and argument facts together. Consumers can
 follow `incoming_call_id` using the existing `FlowAnalysis` objects; no JSON

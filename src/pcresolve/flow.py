@@ -2075,7 +2075,11 @@ class FlowAnalyzer:
                 result.boundaries.append({'call_id': call.id, 'reason': 'depth_limit'})
 
     def _incoming_facts(self, definition, edge):
-        if edge is None or edge.binding_status != 'complete':
+        if edge is None or edge.binding_status == 'invalid':
+            return {}
+        normal_binding = edge.binding_status != 'complete'
+        if normal_binding and (not edge.binding_issues or any(
+                issue.get('kind') != 'dynamic_expansion' for issue in edge.binding_issues)):
             return {}
         ordinary = {argument.arg for argument in definition[1].args.posonlyargs
                     + definition[1].args.args + definition[1].args.kwonlyargs}
@@ -2090,7 +2094,7 @@ class FlowAnalyzer:
                 continue
             sources = [value for argument in arguments for value in argument.get('sources', [])]
             containers = [argument.get('container_binding') for argument in arguments]
-            if (containers and all(item and item == containers[0] for item in containers)
+            if (not normal_binding and containers and all(item and item == containers[0] for item in containers)
                     and containers[0]['status'] == 'exact'):
                 incoming[parameter] = [{'container_shape': containers[0]['shape'],
                     'container_binding': copy.deepcopy(containers[0])}]
@@ -2113,6 +2117,8 @@ class FlowAnalyzer:
                         'conditions': value.get('conditions', [])})
             literals = [argument.get('literal') for argument in arguments]
             literal = (literals[0] if all(item == literals[0] for item in literals) else None)
+            if normal_binding and literal is not None and literal['type'] in ('tuple', 'list'):
+                literal = None
             if literal is not None:
                 values = [dict(value, literal=copy.deepcopy(literal)) for value in values] or [
                     {'literal': copy.deepcopy(literal),
@@ -2125,6 +2131,14 @@ class FlowAnalyzer:
                     incomplete = False
                 incoming[parameter] = [dict(value, value_incomplete=True)
                                        if incomplete else value for value in values]
+                if normal_binding:
+                    condition = {'normal_call_binding': {
+                        'call_id': edge.id, 'parameter': parameter,
+                        'argument': copy.deepcopy(records[0]['argument'])}}
+                    for value in incoming[parameter]:
+                        value['conditions'] = _unique(value.get('conditions', []) + [condition])
+        if normal_binding:
+            return incoming
         for name in self._captures(*definition):
             records = [item for item in edge.capture_bindings if item.get('capture') == name]
             if len(records) != 1:
@@ -2951,7 +2965,8 @@ class _Summary:
                     self.expression(condition, local)
                     if isinstance(condition, ast.Constant) and not condition.value:
                         return []
-                    self.refine_guard(condition, local)
+                    if not self.refine_guard(condition, local):
+                        return []
             elements = [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
             values = [v for element in elements for v in self.materialize(self.expression(element, local), local)]
             for key in set(env) | set(local):
@@ -2963,15 +2978,17 @@ class _Summary:
             before = list(self.conditions)
             positive, negative = copy.deepcopy(env), copy.deepcopy(env)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
-            self.refine_guard(node.test, positive)
-            left = self.marked(self.expression(node.body, positive), node.body)
+            possible_left = self.refine_guard(node.test, positive)
+            left = self.marked(self.expression(node.body, positive), node.body) if possible_left else []
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': False}]
-            right = self.marked(self.expression(node.orelse, negative), node.orelse)
+            possible_right = self.refine_guard(node.test, negative, positive=False)
+            right = self.marked(self.expression(node.orelse, negative), node.orelse) if possible_right else []
             env.clear()
-            env.update(_merge_env([positive, negative]))
+            env.update(_merge_env(([positive] if possible_left else [])
+                                  + ([negative] if possible_right else [])))
             self.conditions = before
             values = left + right
-            if not left or not right:
+            if possible_left and not left or possible_right and not right:
                 values = [dict(value, value_incomplete=True) for value in values]
             return values
         if (isinstance(node, ast.Compare) and len(node.ops) == 1
@@ -3005,8 +3022,8 @@ class _Summary:
                 values.extend(self.marked(self.materialize(self.expression(operand, current), current), operand))
                 exits.append(copy.deepcopy(current))
                 self.conditions = self.conditions + [{'test': self.evidence(operand), 'branch': isinstance(node.op, ast.And)}]
-                if isinstance(node.op, ast.And):
-                    self.refine_guard(operand, current)
+                if not self.refine_guard(operand, current, positive=isinstance(node.op, ast.And)):
+                    break
             env.clear()
             env.update(_merge_env(exits))
             self.conditions = before
@@ -5452,10 +5469,11 @@ class _Summary:
             before = list(self.conditions)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
             positive = copy.deepcopy(env)
-            self.refine_guard(node.test, positive)
-            left = self.block(node.body, positive)
+            left = self.block(node.body, positive) if self.refine_guard(node.test, positive) else []
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': False}]
-            right = self.block(node.orelse, copy.deepcopy(env))
+            negative = copy.deepcopy(env)
+            right = (self.block(node.orelse, negative)
+                     if self.refine_guard(node.test, negative, positive=False) else [])
             self.conditions = before
             return exceptional + left + right
         if isinstance(node, ast.Try):
@@ -5713,11 +5731,90 @@ class _Summary:
             self.add_boundary('unsupported_assignment', node, env,
                               list(values) + list(target_values))
 
-    def refine_guard(self, test, env):
-        if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And):
+    ## Select a stable plain source function named by a guard operand.
+    #  @param node Bare name or source module attribute, never an evaluated call.
+    #  @param env Current branch bindings.
+    #  @return Unique undecorated module-level source target, or None.
+    def guard_callable(self, node, env):
+        root = node
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        if not isinstance(root, ast.Name):
+            return None
+        if isinstance(node, ast.Attribute):
+            bindings = env.get(root.id)
+            if bindings is not None:
+                if not bindings or any(value.get('kind') != 'import' for value in bindings):
+                    return None
+            elif root.id not in self.analyzer.imports.get(self.ref.module, {}):
+                return None
+        candidates, complete = self.callable_targets(self.expression(node, env))
+        if not complete or len(candidates) != 1:
+            return None
+        ref, function = candidates[0]
+        if ('.' in ref.qualname or not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                or function.decorator_list):
+            return None
+        return candidates[0]
+
+    ## Refine facts only on a supported guard branch, preserving dependency roots.
+    #  @param test Already evaluated condition expression.
+    #  @param env Independent state for the selected branch.
+    #  @param positive Whether this branch requires a truthy condition.
+    #  @param allow_callable Disable replay after compound-condition effects.
+    #  @return False only for an incompatible closed callable identity.
+    def refine_guard(self, test, env, positive=True, allow_callable=True):
+        if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+            return self.refine_guard(test.operand, env, not positive, allow_callable)
+        if isinstance(test, ast.BoolOp) and (positive and isinstance(test.op, ast.And)
+                or not positive and isinstance(test.op, ast.Or)):
+            # Short-circuit evaluation already refines each operand before the
+            # next one runs. Do not replay identities after intervening effects.
+            allow_callable = allow_callable and not any(isinstance(node, (
+                ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom,
+                ast.Subscript, ast.BinOp)) or isinstance(node, ast.Compare)
+                and not all(isinstance(op, (ast.Is, ast.IsNot)) for op in node.ops)
+                for node in ast.walk(test))
             for operand in test.values:
-                self.refine_guard(operand, env)
-        if (isinstance(test, ast.Call) and isinstance(test.func, ast.Name)
+                if not self.refine_guard(operand, env, positive, allow_callable):
+                    return False
+        if (allow_callable and isinstance(test, ast.Compare) and len(test.ops) == len(test.comparators) == 1
+                and isinstance(test.ops[0], (ast.Is, ast.IsNot))):
+            equal = positive != isinstance(test.ops[0], ast.IsNot)
+            for variable, source in ((test.left, test.comparators[0]),
+                                     (test.comparators[0], test.left)):
+                if not isinstance(variable, ast.Name) or not env.get(variable.id):
+                    continue
+                values = env[variable.id]
+                if any(value.get('kind') not in ('parameter', 'capture', 'callable')
+                       or value.get('relation') != 'direct' or any(value.get(flag) for flag in (
+                           'projection', 'output_path', 'value_incomplete')) for value in values):
+                    continue
+                target = self.guard_callable(source, env)
+                if target is None:
+                    continue
+                if all(value.get('literal') is not None for value in values):
+                    return not equal
+                candidates, complete = self.callable_targets(values)
+                if complete and (all(candidate[0] != target[0] for candidate in candidates) if equal
+                        else all(candidate[0] == target[0] for candidate in candidates)):
+                    return False
+                remaining = []
+                for value in values:
+                    known, closed = self.callable_targets([value])
+                    if closed and len(known) == 1 and (known[0][0] == target[0]) != equal:
+                        continue
+                    remaining.append(value)
+                if not equal:
+                    env[variable.id] = remaining
+                    return bool(remaining)
+                evidence = self.evidence(test)
+                env[variable.id] = [dict(value, callable_type=asdict(target[0]),
+                    callable_evidence=_unique(value.get('callable_evidence', []) + [evidence]),
+                    conditions=_unique(value.get('conditions', []) + list(self.conditions)))
+                    for value in remaining]
+                return True
+        if (positive and isinstance(test, ast.Call) and isinstance(test.func, ast.Name)
                 and test.func.id == 'isinstance' and len(test.args) == 2 and not test.keywords
                 and isinstance(test.args[0], ast.Name) and isinstance(test.args[1], ast.Name)
                 and test.args[1].id == 'str'
@@ -5728,6 +5825,7 @@ class _Summary:
             env[name] = [dict(v, python_shape='str',
                               conditions=v.get('conditions', []) + list(self.conditions))
                          for v in env.get(name, [])]
+        return True
 
     def try_statement(self, node, env):
         outcomes = self.block(node.body, copy.deepcopy(env))

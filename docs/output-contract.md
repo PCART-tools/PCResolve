@@ -149,6 +149,15 @@ or `status="unknown"` are not no-flow proofs when boundaries remain.
 
 The PCBench-driven extensions remain additive within `flow-0.2`:
 
+Callable identity guards can add `callable_type` and `callable_evidence` to
+existing parameter/capture roots, with the equality branch in `conditions`.
+They describe a stable plain source function under that condition, not a
+runtime identity assertion or an alternative inferred from inequality.
+Individually exact ordinary callable/immutable scalar facts through a dynamic
+expansion can retain a `normal_call_binding` condition. This condition records
+the call ID, parameter and explicit argument without upgrading binding status
+or claiming that duplicate-key exception paths enter the callee body.
+
 Located definitions inside conditional statement blocks can be analyzed while
 retaining `conditional_definition_unconfirmed` boundaries. Their `conditions`
 record activation witnesses; no located definition is a runtime-existence proof.
