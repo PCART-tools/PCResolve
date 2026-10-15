@@ -3111,7 +3111,8 @@ class _Summary:
                 and isinstance(node.ops[0], (ast.In, ast.NotIn))
                 and len(node.comparators) == 1):
             key_values = self.expression(node.left, env)
-            mappings = self.container_values(self.expression(node.comparators[0], env))
+            compared_values = self.expression(node.comparators[0], env)
+            mappings = self.container_values(compared_values)
             if mappings and all(value.get('kind') == 'container'
                                 and value.get('container_shape') == 'dict'
                                 for value in mappings):
@@ -3129,6 +3130,11 @@ class _Summary:
                 return self.marked(
                     self.materialize(mappings, env) + key_values,
                     node, 'derived')
+            # Both operands have already executed, even when their shape is
+            # unknown. Falling through to generic traversal repeats effects
+            # and can replace the first invocation's target/binding facts.
+            return self.marked(self.materialize(key_values, env)
+                               + self.materialize(compared_values, env), node, 'derived')
         if isinstance(node, ast.BoolOp):
             current = copy.deepcopy(env)
             before = list(self.conditions)

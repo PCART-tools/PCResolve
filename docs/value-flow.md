@@ -541,6 +541,11 @@ This bounded form requires simple annotations and constant defaults. Shadowed
 decorator aliases, effectful declarations, repeated implementations and a final
 overload declaration cannot establish that member binding.
 
+Single `in`/`not in` comparisons evaluate each operand once in left-to-right
+order. An unknown right-operand shape retains the evaluated dependencies;
+it does not repeat operand calls or apply their effects a second time. This
+does not establish the behavior of an arbitrary containment protocol.
+
 ### Source-proven callable arguments and literal dispatch
 
 `analyze()` and `expand()` specialize ordinary parameters using complete,
