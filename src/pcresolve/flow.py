@@ -3270,6 +3270,10 @@ class _Summary:
             if (target is None and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
                     and owner and owner not in function_names
                     and (self.node.args.posonlyargs or self.node.args.args)
+                    # Incoming instance facts take precedence over the method's
+                    # lexical owner, including incomplete/empty candidates.
+                    and not any('instance_type' in value or 'instance_candidates' in value
+                                for value in receiver_values + receiver_sources)
                     and receiver_sources and all(v['kind'] == 'parameter' and v['relation'] == 'direct'
                         and not v.get('value_incomplete')
                         and v['source'] == (self.node.args.posonlyargs + self.node.args.args)[0].arg

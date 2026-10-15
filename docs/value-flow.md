@@ -674,6 +674,10 @@ resolved class construction retain nominal receiver evidence. If branch merges
 produce multiple receiver types, `target_candidates` reports bounded
 alternatives instead of selecting one. `dynamic_method_override_possible`
 remains explicit: these are source candidates, not guaranteed runtime dispatch.
+Incoming `instance_type` / `instance_candidates` take precedence over the
+method's lexical owner, including in inherited initializers and receiver aliases.
+Missing, incomplete, or shadowed incoming targets do not regain a nominal target
+through that lexical fallback.
 
 Source-proven class names, aliases, imports, and nested classes retain
 `kind="class"` and a structured `class_type`. When every normal factory return
