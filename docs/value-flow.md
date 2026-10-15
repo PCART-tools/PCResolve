@@ -712,6 +712,10 @@ uncertain aliasable parameters, reflective access, descriptors, structural
 attributes and exhausted proof budgets do not establish preservation. Private
 method lookup after such writes also remains unconfirmed. No configured backend
 or cache payload type is inferred from this partial effect.
+Literal class names and imported aliases also respect an invalidated receiver:
+a lexical definition cannot restore its stale method target. A method selected
+before argument evaluation keeps that selected target; its body receiver state
+can still become incomplete during argument evaluation.
 
 Source-proven class names, aliases, imports, and nested classes retain
 `kind="class"` and a structured `class_type`. When every normal factory return

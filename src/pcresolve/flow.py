@@ -3734,7 +3734,9 @@ class _Summary:
                         'conditions': list(self.conditions)}]
             decorated_target_candidate = False
             if (isinstance(node.func, ast.Attribute) and (
-                    self.class_lookup_affected(receiver_values,
+                    any(value.get('class_type') and value.get('value_incomplete')
+                        for value in receiver_values)
+                    or self.class_lookup_affected(receiver_values,
                         (node.func.attr, '__class__', '__bases__'))
                     or node.func.attr.startswith('__') and not node.func.attr.endswith('__')
                     and any(effect.get('attributes') for value in receiver_values
