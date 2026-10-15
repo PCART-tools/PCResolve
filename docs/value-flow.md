@@ -699,7 +699,7 @@ inside the previously selected method. Generic parameters gain no instance type.
 
 A bounded synchronous helper can expose a partial `class_attribute_write_set`
 effect for an exactly bound source class parameter. Literal attribute assignment,
-deletion and unshadowed literal-name `setattr`/`delattr` can bound the possible
+deletion and unshadowed finite-name `setattr`/`delattr` can bound the possible
 writes, under ordinary source-MRO/type lookup assumptions. This preserves other
 attribute lookups on normal return, not attribute values or whole-function
 effects. `class_lookup_mutations` travels with class/instance facts across exact
@@ -712,6 +712,16 @@ uncertain aliasable parameters, reflective access, descriptors, structural
 attributes and exhausted proof budgets do not establish preservation. Private
 method lookup after such writes also remains unconfirmed. No configured backend
 or cache payload type is inferred from this partial effect.
+Finite names include local string literals and bounded concatenations; different
+branch values do not become a single name. String arguments to attribute builtins
+retain their literal spelling, while attribute syntax uses lexical private-name
+mangling. Direct reads and unshadowed `getattr`/`hasattr` are admitted only after
+this same helper definitely overwrites the attribute with a builtin literal
+payload on every incoming branch. Deletion or an unknown subsequent value loses
+that evidence. Preexisting attributes, conditional initialization probes,
+descriptor results and deferred class captures do not establish read safety.
+This local read check proves neither the helper's return payload nor effects on
+other arguments; `value_completeness` stays `unmodeled`.
 Literal class names and imported aliases also respect an invalidated receiver:
 a lexical definition cannot restore its stale method target. A method selected
 before argument evaluation keeps that selected target; its body receiver state
