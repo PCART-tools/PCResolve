@@ -23,6 +23,7 @@ from .effect_facts import (container_method_effect, contains_yield,
 from .import_facts import import_facts, resolve_relative_module
 from ._decorator_effects import _DecoratorEffects
 from ._callable_instance_binding import source_binding
+from .mapping_remainders import mapping_remainder, _ProofLimit
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -3799,6 +3800,9 @@ class _Summary:
                             'relation': 'direct',
                             'evidence': [self.evidence(node)],
                             'conditions': list(self.conditions)}
+            if any(effect.get('kind') == 'mapping_remainder' and effect.get('return_path')
+                   for effect in call.effects):
+                return call.result_sources
             returned_object = self.returned_container(
                 selected_target, call, actual_values, env, node, effects_complete)
             if returned_object is not None:
@@ -3928,6 +3932,11 @@ class _Summary:
                       if value.get('kind') == 'container']
         if target is None or not references:
             return None
+        remainder = next((effect for effect in call.effects
+                          if effect.get('kind') == 'mapping_remainder'
+                          and effect.get('return_path') == []), None)
+        if remainder is not None:
+            return copy.deepcopy(remainder['return_object'])
         fact, cause = self.analyzer._object_returns(target)
         if (target[0].module, target[0].qualname) in self.modified_return_callables:
             fact, cause = None, 'modified_return_callable'
@@ -3988,6 +3997,12 @@ class _Summary:
         result = []
         for value in self.container_values(values):
             if value['kind'] == 'container':
+                if (value['source'].startswith('$remainder_tuple:')
+                        and (type(index) is not int or index < 0)):
+                    self.result.boundaries.append({'function': asdict(self.ref),
+                        'reason': 'container_projection_unproven',
+                        'object_source': value['source']})
+                    continue
                 content = [item for item in env.get(value['source'], [])
                            if item.get('container_role') != 'key']
                 if value.get('parameter_container') and index != '*':
@@ -4493,6 +4508,9 @@ class _Summary:
                   'affected_scope': 'unknown' if affected_unknown else
                                     'known' if affected_roots else 'none'}
         if effects is None:
+            if cause != 'mapping_effect_budget' and self.mapping_remainder_effect(
+                    definition, actuals, call, env, node):
+                return False  # Only unaffected keys are complete, never the whole helper.
             ordinary = {argument.arg for argument in target.args.posonlyargs
                         + target.args.args + target.args.kwonlyargs}
             ordinary_actuals = {name: values for name, values in actuals.items() if name in ordinary}
@@ -4749,6 +4767,147 @@ class _Summary:
                                  'evidence': [self.evidence_at(
                                      target_ref, effect.statement)]})
         return complete
+
+    ## Apply only the unchanged-key part of a bounded fresh-dict helper proof.
+    #  @param definition Unique source target, with any proved branch selection.
+    #  @param actuals Raw bound values, preserving object identities and literals.
+    #  @param call Exact producer edge receiving evidence and assumptions.
+    #  @param env Caller state; affected key values remain explicitly incomplete.
+    #  @param node Source call for exact evidence and budget diagnostics.
+    #  @return True for an admitted remainder, not complete helper effects.
+    def mapping_remainder_effect(self, definition, actuals, call, env, node):
+        ref, target = definition
+        if (call.binding_status != 'complete' or call.target_status != 'resolved'
+                or getattr(target, '_flow_branch_budget', None) is not None
+                or call.binding_issues or ref.qualname.count('.') or target.decorator_list
+                or self.analyzer._captures(*definition)
+                or not self.analyzer._stable_import_name(ref.module + '.' + ref.qualname)
+                or (ref.module, ref.qualname) in self.modified_return_callables
+                or any(isinstance(n, (ast.Global, ast.Nonlocal)) for n in ast.walk(self.node))):
+            return False
+        ordinary = {a.arg for a in target.args.posonlyargs + target.args.args + target.args.kwonlyargs}
+        mappings = [(name, self.exact_container(values, ('dict',), env))
+                    for name, values in actuals.items() if name in ordinary]
+        mappings = [(name, obj) for name, obj in mappings if obj is not None]
+        if len(mappings) != 1:
+            return False
+        parameter, obj = mappings[0]
+        source = obj['source']
+        if (not source.startswith(('$parameter:', '$heap:', '$copy:'))
+                or any(not marker.get('remainder_preserved')
+                       for marker in env.get(source + '$state', []))
+                or any(value.get('source') == source for name, values in actuals.items()
+                       if name != parameter for value in self.container_values(values))):
+            return False
+        # References stored in another object, capture or external binding can
+        # let an unrelated call mutate this object. Such escapes stay unproved.
+        for name, values in env.items():
+            if name.startswith('$') and any(
+                    value.get('kind') == 'container' and value.get('source') == source
+                    for value in self.container_values(values, allow_contained=True)):
+                return False
+        aliases = {name for name, values in env.items() if not name.startswith('$') and any(
+            value.get('kind') == 'container' and value.get('source') == source
+            for value in self.container_values(values))}
+        if any(n is not self.node and isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+               and any(isinstance(child, ast.Name) and child.id in aliases
+                       for child in ast.walk(n)) for n in ast.walk(self.node)):
+            return False
+        # Lexical stores outside local names are not a fresh-object proof.
+        for statement in ast.walk(self.node):
+            if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+                if (statement.value is not None and statement.lineno < node.lineno and any(
+                        isinstance(n, (ast.Attribute, ast.Subscript))
+                        for t in targets for n in ast.walk(t)) and any(
+                        isinstance(n, ast.Name) and n.id in aliases
+                        for n in ast.walk(statement.value))):
+                    return False
+        sequences = {}
+        for argument in call.argument_sources:
+            literal = argument.get('literal')
+            if (literal and literal['type'] in ('list', 'tuple')
+                    and all(isinstance(key, str) for key in literal['value'])):
+                sequences[argument['parameter']] = frozenset(literal['value'])
+        sequence_sources = {}
+        for name, values in actuals.items():
+            literals = [value.get('literal', {}) for value in values]
+            if values and all(literal.get('type') in ('list', 'tuple')
+                    and all(isinstance(key, str) for key in literal['value'])
+                    and value.get('kind') == 'container' and value.get('relation') == 'direct'
+                    and not any(value.get(flag) for flag in ('value_incomplete', 'projection',
+                                                            'output_path'))
+                    for value, literal in zip(values, literals)):
+                keys = frozenset(key for literal in literals for key in literal['value'])
+                if len(keys) <= 64:
+                    sequences[name] = keys
+                    sequence_sources[name] = copy.deepcopy(values)
+        count = sum(1 for _ in ast.walk(target))
+        if count > 2000 or count > self.analyzer._effect_fact_steps:
+            self.add_boundary('mapping_remainder_budget', node, env,
+                              actuals[parameter], call_id=call.id)
+            return False
+        self.analyzer._effect_fact_steps -= count
+        try:
+            proof = mapping_remainder(target, parameter, sequences,
+                lambda name: self.analyzer._builtin_name_status(
+                    ref, target, name) == 'confirmed_builtin')
+        except _ProofLimit:
+            self.add_boundary('mapping_remainder_budget', node, env,
+                              actuals[parameter], call_id=call.id)
+            return False
+        if proof is None:
+            return False
+        paths = [[key] for key in proof.excluded_keys]
+        evidence = _unique([self.evidence_at(ref, statement) for statement in proof.evidence])
+        contents = []
+        for value in env[source]:
+            path = value.get('output_path', [])
+            if path and path[0] in proof.excluded_keys:
+                continue
+            if path[:1] == ['*']:
+                value = dict(value, excluded_paths=_unique(value.get('excluded_paths', []) + paths),
+                             evidence=_unique(value.get('evidence', []) + evidence))
+            contents.append(value)
+        # Values at touched keys are unknown, not absent. This marker prevents
+        # another consumer from treating the subset as a complete finite dict.
+        if paths:
+            env[source + '$state'] = [{'contents_unknown': True, 'remainder_preserved': True,
+                'affected_paths': _unique(paths + [path for state in env.get(source + '$state', [])
+                                                 for path in state.get('affected_paths', [])])}]
+        env[source] = contents
+        binding = next(b for b in call.parameter_bindings if b.get('parameter') == parameter)
+        roots, _ = self.mapping_affected_values(actuals[parameter], env)
+        obj_fact = {'source': source, 'container_shape': 'dict', 'identity': 'argument_alias',
+            'value_completeness': 'unaffected_keys_only',
+            'parameter': parameter, 'parameter_container': obj.get('parameter_container'),
+            'function': asdict(ref), 'conditions': copy.deepcopy(self.conditions), 'evidence': evidence}
+        effect = {'kind': 'mapping_remainder', 'operation': 'preserve_unaffected_keys',
+            'call_id': call.id, 'function': asdict(ref), 'mapping': roots,
+            'object_source': source, 'parameter': parameter, 'binding': copy.deepcopy(binding),
+            'excluded_paths': paths, 'return_path': (list(proof.return_path)
+                if proof.return_path is not None else None),
+            'completion': 'normal_return', 'status': 'bounded',
+            'value_completeness': 'unaffected_keys_only',
+            'conditions': copy.deepcopy(self.conditions), 'evidence': evidence,
+            'finite_sequence_sources': sequence_sources,
+            'call_evidence': self.evidence(node), 'return_object': obj_fact,
+            'assumptions': ['fresh_unescaped_builtin_dict', 'source_snapshot_bindings_hold',
+                            'no_external_monkeypatch_or_import_hook', 'no_reflective_frame_access']}
+        call.effects.append(effect)
+        self.add_boundary('mapping_values_partial', node, env, actuals[parameter],
+                          call_id=call.id, affected_paths=paths,
+                          value_completeness='unaffected_keys_only')
+        if proof.return_path:
+            heap = '$remainder_tuple:' + call.id
+            env[heap] = [dict(self.container_endpoint(call, node, obj_fact),
+                              output_path=list(proof.return_path))]
+            env[heap + '$keys'] = [{'kind': 'key', 'source': str(i), 'key': i}
+                                  for i in range(proof.return_size)]
+            call.result_sources = [{'kind': 'container', 'source': heap, 'container_shape': 'tuple',
+                'relation': 'direct', 'evidence': [self.evidence(node)],
+                'conditions': copy.deepcopy(self.conditions)}]
+        return True
 
     def mapping_affected_values(self, values, env):
         roots, unknown = self.affected_values(values, env)

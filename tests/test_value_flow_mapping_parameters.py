@@ -161,8 +161,7 @@ def test_fresh_capture_or_copy_does_not_mutate_original(entry):
 
 
 @pytest.mark.parametrize('entry,helper', [
-    ('negative_key', 'dynamic_key'), ('negative_conditional', 'conditional'),
-    ('negative_write', 'unknown_write'), ('negative_escape', 'escaping'),
+    ('negative_key', 'dynamic_key'), ('negative_escape', 'escaping'),
     ('negative_recursive', 'recursive'), ('negative_caught', 'caught'),
     ('mixed_binding', 'remove_out'), ('uncertain_binding', 'remove_out'),
     ('modified_callable', 'clean'), ('negative_decorator', 'decorated')])
@@ -177,13 +176,24 @@ def test_unproven_helper_never_applies_a_partial_strong_update(entry, helper):
                and value.get('call_id') == call.id for value in result.boundaries)
 
 
-@pytest.mark.parametrize('entry,helper', [('negative_generator', 'generator'),
-                                         ('negative_loop', 'loop_keys')])
+@pytest.mark.parametrize('entry,helper', [('negative_generator', 'generator')])
 def test_generator_and_finite_key_loop_are_not_executed_as_straight_line_effects(entry, helper):
     result = analyze(entry)
     assert not named(result, helper, entry).effects
     assert any(value['reason'] == 'mapping_effect_unproven'
                for value in result.boundaries)
+
+
+@pytest.mark.parametrize('entry,helper', [('negative_conditional', 'conditional'),
+    ('negative_write', 'unknown_write'), ('negative_loop', 'loop_keys')])
+def test_finite_conditional_writes_describe_remainder_without_claiming_key_absence(entry, helper):
+    result = analyze(entry)
+    effect = named(result, helper, entry).effects[0]
+    assert effect['kind'] == 'mapping_remainder'
+    assert ['out'] in effect['excluded_paths']
+    assert effect['value_completeness'] == 'unaffected_keys_only' and 'state_after' not in effect
+    remaining = parameter_sources(named(result, 'sink', entry))
+    assert remaining and all(['out'] in value.get('excluded_paths', []) for value in remaining)
 
 
 def test_unknown_effect_after_known_removal_cannot_reuse_a_final_absence_fact():

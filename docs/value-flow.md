@@ -57,6 +57,40 @@ retain their boundaries. No empty source/path collection is a no-flow proof.
 These obligations do not add fields or change the experimental schema, and
 do not affect the separate stable ownership output.
 
+## Finite-key mapping remainders
+
+`calls[*].effects` may contain `kind="mapping_remainder"` for a bounded source
+helper operating on one fresh, unescaped builtin dictionary. The record separates
+the identity of that object from the provenance of its current entries.
+`excluded_paths` lists the finite string keys possibly written or removed.
+Only input entries outside those keys retain their original dependency roots.
+Values at the listed keys remain unknown; the record never proves their absence
+and does not summarize all effects of the helper.
+
+The effect records `operation="preserve_unaffected_keys"`, `status="bounded"`,
+`completion="normal_return"`, `value_completeness="unaffected_keys_only"`, the
+exact call/binding/function/object, source evidence, conditions and assumptions.
+`return_path=[]` selects the returned dictionary; `[i]` selects one fixed tuple
+slot; `null` does not claim an alias return. Finite literal sequence alternatives
+retain their provenance in `finite_sequence_sources`; their conservative union
+may exclude more keys than a single runtime path touches.
+
+Supported source forms include ordinary aliases, finite string-key writes and
+removals, bounded conditions and finite-key iteration, including builtin `zip`
+whose first iterable supplies the known keys. Unrelated calls may raise; the
+record describes only normal continuation and assumes source bindings hold,
+without external monkeypatch/import hooks or reflective access to frame locals.
+Unknown aliases, escaping or captured dictionaries, unknown receiver shapes,
+arbitrary key writes, clear/rebuild operations, modified sequences, generators,
+unknown tuple projections and exhausted proof budgets retain boundaries.
+
+`mapping_values_partial` preserves the fact that affected keys are incomplete.
+Partial object endpoints repeat `value_completeness="unaffected_keys_only"`.
+Consumers may follow the unchanged open remainder using its current sources;
+they must not restore old input values through object identity or use this
+record to infer a selected affected argument's disposition. This additive
+experimental representation leaves stable ownership output unchanged.
+
 ## Complete example: pandas 0.21.0 `to_datetime`
 
 ### Command line

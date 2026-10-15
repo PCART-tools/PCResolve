@@ -569,7 +569,7 @@ def test_shadow_original_frozen_import_closure_preserves_partial_proof():
 
 
 @pytest.mark.parametrize('entry', ['cdist', 'pdist'])
-def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
+def test_scipy_helpers_preserve_only_the_finite_key_remainder(entry):
     result = analyze('scipy-1.0.0', ['spatial/distance.py'],
                      'scipy.spatial.distance', entry, max_depth=2)
     helper = result.find_calls(callee_name='_args_to_kwargs_xdist')[0]
@@ -578,28 +578,24 @@ def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry
     assert helper.conditional_returns
     assert helper.conditional_returns[0]['parameter'] == 'kwargs'
     assert helper.conditional_returns[0]['completeness'] == 'partial_paths'
-    assert not any(value.get('container_object') for value in helper.result_sources)
+    assert helper.result_sources[0]['container_object']['identity'] == 'argument_alias'
     assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
                and value.get('output_path') == ['*']
                for argument in helper.argument_sources for value in argument['sources'])
     pop = next(call for call in result.find_calls(callee_name='kwargs.pop')
                if call.caller.qualname == entry)
-    assert pop.target_status == 'receiver_unresolved' and not pop.effects
+    assert pop.target_status == 'local_container_protocol' and pop.effects
     assert any(value['kind'] == 'call_result' and value['source'] == helper.id
                for value in pop.receiver_sources)
     for call in (helper, result.find_calls(callee_name='_filter_deprecated_kwargs')[0]):
-        assert not call.effects
-        boundary = next(value for value in result.boundaries
-                        if value['reason'] == 'container_return_unproven'
-                        and value.get('call_id') == call.id)
-        assert boundary['detail'] == 'unmodeled_helper_effects'
-        assert boundary['affected_scope'] == 'known'
-        assert any(value['name'] == 'kwargs' for value in boundary['affected_values'])
-        effect_boundary = next(value for value in result.boundaries
-                               if value['reason'] == 'mapping_effect_unproven'
-                               and value.get('call_id') == call.id)
-        assert effect_boundary['detail'] == 'unsupported_helper_body'
-        assert any(value['name'] == 'kwargs' for value in effect_boundary['affected_values'])
+        effect = next(effect for effect in call.effects if effect['kind'] == 'mapping_remainder')
+        assert effect['value_completeness'] == 'unaffected_keys_only'
+        assert effect['excluded_paths'] == [['V'], ['VI'], ['p'], ['w']]
+        assert 'state_after' not in effect
+        assert any(value['reason'] == 'mapping_values_partial'
+                   and value.get('call_id') == call.id for value in result.boundaries)
+    assert any(call.callee_name == 'metric' and call.target_status == 'definition_unavailable'
+               for call in result.calls)
 
 
 @pytest.mark.parametrize('entry', ['callback_control', 'early_control', 'deletion_control'])
@@ -625,10 +621,10 @@ def test_scipy_source_controls_instantiate_only_proven_incoming_context(entry):
                    for value in result.trace_parameter('kwargs')['return_paths'])
     else:
         call = result.find_calls(callee_name='_filter_deprecated_kwargs')[0]
-        assert {tuple(effect['element_path']) for effect in call.effects} == {('out',), ('p',)}
-        assert all(effect['completion'] == 'unproven' and effect['state_after'] == 'unknown'
-                   for effect in call.effects)
-        assert any(boundary['reason'] == 'mapping_effect_unproven'
+        assert call.effects[0]['excluded_paths'] == [['out'], ['p']]
+        assert call.effects[0]['kind'] == 'mapping_remainder'
+        assert 'state_after' not in call.effects[0]
+        assert any(boundary['reason'] == 'mapping_values_partial'
                    and boundary.get('call_id') == call.id for boundary in result.boundaries)
-        assert all(not value.get('excluded_paths')
+        assert all(['out'] in value.get('excluded_paths', [])
                    for value in result.trace_parameter('kwargs')['return_paths'])

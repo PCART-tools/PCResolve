@@ -61,7 +61,7 @@ def test_finite_mapping_and_independent_sequences_do_not_share_state():
 
 
 @pytest.mark.parametrize('entry', ['unknown_keys', 'unknown_mapping', 'non_string',
-                                  'unknown_call', 'exception_path', 'mutated_keys',
+                                  'exception_path', 'mutated_keys',
                                   'recursive_entry'])
 def test_unclosed_sequence_or_behavior_does_not_apply_finite_strong_update(entry):
     result = analyze(entry)
@@ -95,15 +95,15 @@ def test_finite_sequence_proof_has_budget_boundaries():
     assert any('budget' in boundary['reason'] for boundary in result.boundaries)
 
 
-def test_warning_name_does_not_prove_completion_but_deletion_site_is_reported():
+def test_unrelated_warning_preserves_only_the_unaffected_remainder_on_normal_return():
     result = analyze('unknown_call')
     call = named(result, 'warning', 'unknown_call')
-    site = next(effect for effect in call.effects if effect['kind'] == 'mapping_element')
-    assert site['element_path'] == ['out']
-    assert site['completion'] == 'unproven' and site['state_after'] == 'unknown'
-    assert site['reachability'] == 'not_proven'
-    assert site['operation_conditions'] and site['sequence_binding']
-    assert all(not value.get('excluded_paths')
+    site = next(effect for effect in call.effects if effect['kind'] == 'mapping_remainder')
+    assert site['excluded_paths'] == [['out']]
+    assert site['completion'] == 'normal_return'
+    assert site['value_completeness'] == 'unaffected_keys_only'
+    assert 'state_after' not in site
+    assert all(['out'] in value.get('excluded_paths', [])
                for value in roots(named(result, 'sink', 'unknown_call')))
 
 

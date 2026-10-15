@@ -120,6 +120,14 @@ for cache invalidation and resource-check details.
 
 ### Experimental value-flow contract
 
+Experimental value-flow `calls[*].effects` can additionally contain
+`mapping_remainder` records: `excluded_paths` bounds possibly changed string
+keys, `value_completeness="unaffected_keys_only"` limits retained input origins,
+and `return_path` selects a direct or fixed tuple alias when proved. These are
+normal-return provenance facts, not final key-absence facts or complete helper
+effect summaries. `mapping_values_partial` boundaries remain visible. See
+[finite-key mapping remainders](value-flow.md#finite-key-mapping-remainders).
+
 Value-flow analysis is an additive, experimental API. It does not change the
 ownership entry points or the ownership JSON schema below:
 
