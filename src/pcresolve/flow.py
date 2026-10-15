@@ -2603,9 +2603,9 @@ class _Summary:
                for ref, _ in hierarchy):
             return None
         attribute = node.attr
-        owner = self.ref.qualname.rpartition('.')[0].rpartition('.')[2]
+        owner = self.ref.qualname.rpartition('.')[0].rpartition('.')[2].lstrip('_')
         if attribute.startswith('__') and not attribute.endswith('__') and owner:
-            attribute = '_' + owner.lstrip('_') + attribute
+            attribute = '_' + owner + attribute
         return '$attribute:%s:%s:%s' % (identity['module'], identity['qualname'], attribute), identity
 
     def invalidate_attributes(self, env):

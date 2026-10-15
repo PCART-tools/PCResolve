@@ -725,6 +725,8 @@ this same helper definitely overwrites the attribute with a builtin literal
 payload on every incoming branch. Deletion or an unknown subsequent value loses
 that evidence. Preexisting attributes, conditional initialization probes,
 descriptor results and deferred class captures do not establish read safety.
+An all-underscore lexical class name leaves private names unchanged, consistently
+in both class-write effects and stored-attribute provenance.
 This local read check proves neither the helper's return payload nor effects on
 other arguments; `value_completeness` stays `unmodeled`.
 An ordinary helper's omitted argument stays aliasable even when the source

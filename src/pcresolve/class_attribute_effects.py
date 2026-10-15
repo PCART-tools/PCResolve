@@ -49,8 +49,9 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
     attributes, evidence = [], []
 
     def attribute_name(name):
-        if owner and name.startswith('__') and not name.endswith('__'):
-            return '_' + owner.lstrip('_') + name
+        private_owner = owner.lstrip('_')
+        if private_owner and name.startswith('__') and not name.endswith('__'):
+            return '_' + private_owner + name
         return name
 
     def literal_name(value, names, depth=0):
