@@ -176,3 +176,28 @@ def captured_write(receiver, mapping):
 
 def captured_write_root(**kwargs):
     return captured_write(Fixed, kwargs)
+
+
+class InheritedBase:
+    @classmethod
+    def generate(cls, allowed=0):
+        return allowed
+
+
+class InheritedChild(InheritedBase):
+    pass
+
+
+def mutate_base(receiver):
+    receiver.generate = classmethod(lambda cls, **kwargs: kwargs)
+
+
+def escaped_base_root(**kwargs):
+    mutate_base(InheritedBase)
+    return relay(InheritedChild, kwargs)
+
+
+def aliased_base_root(**kwargs):
+    child = InheritedChild
+    mutate_base(InheritedBase)
+    return relay(child, kwargs)

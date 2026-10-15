@@ -465,6 +465,10 @@ global class symbol does not restore that proof within the same path. Local
 aliases retain identity, not an independent class.
 The existing function/context budgets also bound this propagation.
 
+Known source base classes participate in origin invalidation. Exposing a base
+also invalidates dependent local subclass aliases and later subclass-symbol
+reads, so an ordinary helper cannot recover a stale inherited lookup proof.
+
 The existing `dynamic_class_receiver_override_possible` boundary is not removed.
 Only a proved direct source binding annotates it with
 `boundary_kind="assumption"` and `binding_status="source_bound"`. Other cases
@@ -495,6 +499,25 @@ The optional pandas 2.0.0 regression uses the hash-pinned 280-file closure in
 `tests/fixtures/value_flow_classmethod_binding/pandas-2.0.0-import-closure.json`.
 Set `PCRESOLVE_PANDAS200_SOURCE` to the matching source package directory when
 running the real-source tests outside the local PCBench workspace.
+
+### Source constructor allocator bindings
+
+For an explicit source class call whose selected target is a source `__new__`,
+`constructor_bindings` can establish the implicit first class argument under
+standard builtin type-call lookup assumptions. A known source MRO, unique member
+and supported descriptor are required. Class decorators/custom metaclasses,
+creation hooks, visible allocator writes, incomplete/escaped class origins and
+argument-evaluation invalidation prevent this proof. Explicit same-named
+keywords duplicate the implicit class parameter unless it is positional-only.
+Definitely invalid literal keyword expansions remain unconfirmed.
+
+This fact covers `new_invocation_only`. `body_execution` separates a synchronous
+body from deferred execution; it does not assert normal completion.
+`instance_state="unmodeled"` excludes initialized instance state, automatic
+`__init__` execution and complete construction effects. Existing constructor
+selection that chooses `__init__` does not receive this allocator proof. A bare
+`__new__` function query does not gain a concrete class origin. Other argument
+binding, dynamic construction and existing budgets retain their boundaries.
 
 ### Source-proven callable arguments and literal dispatch
 

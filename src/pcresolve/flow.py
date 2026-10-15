@@ -23,6 +23,7 @@ from .effect_facts import (container_method_effect, contains_yield,
 from .import_facts import import_facts, resolve_relative_module
 from ._decorator_effects import _DecoratorEffects
 from ._callable_instance_binding import source_binding
+from ._constructor_binding import source_binding as constructor_source_binding
 from .mapping_remainders import mapping_remainder, _ProofLimit
 
 
@@ -114,6 +115,7 @@ class FlowCall:
     analysis_contexts: list = field(default_factory=list)
     conditional_returns: list = field(default_factory=list)
     class_method_bindings: list = field(default_factory=list)
+    constructor_bindings: list = field(default_factory=list)
     implicit_protocol: dict = field(default_factory=dict)
 
 
@@ -2061,6 +2063,7 @@ class FlowAnalyzer:
                         callable_instance_evidence=copy.deepcopy(call.callable_instance_evidence),
                         conditional_returns=copy.deepcopy(call.conditional_returns),
                         class_method_bindings=copy.deepcopy(call.class_method_bindings),
+                        constructor_bindings=copy.deepcopy(call.constructor_bindings),
                         conditions=copy.deepcopy(getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
             self._context_call_count += len(calls)
@@ -2213,7 +2216,8 @@ class FlowAnalyzer:
                               'binding_issues', 'mutation_flows', 'effects', 'capture_bindings',
                               'return_dependencies', 'decorator_identity_evidence'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
-                for field in ('callable_sources', 'analysis_contexts', 'conditional_returns', 'class_method_bindings'):
+                for field in ('callable_sources', 'analysis_contexts', 'conditional_returns',
+                              'class_method_bindings', 'constructor_bindings'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 if previous.callable_instance_evidence != call.callable_instance_evidence:
                     previous.callable_instance_evidence = {}
@@ -2387,7 +2391,7 @@ class _Summary:
                     'evidence': [self.evidence(node)], 'call_context': []},
                 'relation': 'direct', 'evidence': [self.evidence(node)],
                 'conditions': list(self.conditions)}
-        if env.get(_class_origin_key(asdict(class_ref))):
+        if self.class_origin_invalid(asdict(class_ref), env):
             value['value_incomplete'] = True
         return value
 
@@ -2471,6 +2475,18 @@ class _Summary:
             if key.startswith('$attribute:'):
                 env[key] = []
 
+    ## Check whether class lookup depends on an invalidated source class or base.
+    #  @param identity Source class identity.
+    #  @param env Current path's invalidation markers.
+    #  @param exposed Additional exposed class identities.
+    #  @return True if the class or a known source base has lost its proof.
+    def class_origin_invalid(self, identity, env, exposed=()):
+        if not exposed and not any(key.startswith('$class_origin_invalid:') for key in env):
+            return False
+        hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
+        owners = [asdict(ref) for ref, _ in hierarchy] if hierarchy else [identity]
+        return any(owner in exposed or env.get(_class_origin_key(owner)) for owner in owners)
+
     ## Invalidate source class identity proofs after an unmodeled write or escape.
     #  @param values Class provenance exposed to the operation.
     #  @param env Current lexical/heap values, including aliases of those classes.
@@ -2484,7 +2500,8 @@ class _Summary:
                     'relation': 'direct', 'evidence': [], 'conditions': []}]
             for name, sources in env.items():
                 env[name] = [dict(value, value_incomplete=True)
-                    if value.get('class_type') in identities else value for value in sources]
+                    if value.get('class_type') and self.class_origin_invalid(
+                        value['class_type'], env, identities) else value for value in sources]
 
     ## Explain a source classmethod binding under explicit snapshot assumptions.
     #  @param node Attribute call expression.
@@ -3410,11 +3427,14 @@ class _Summary:
                     else:
                         target = None
             elif descriptor_kind == 'staticmethod':
-                dispatch_kind = 'staticmethod'
+                dispatch_kind = 'constructor' if constructor_class is not None else 'staticmethod'
             elif descriptor_kind == 'classmethod':
                 bound_receiver = True
                 dispatch_kind = 'classmethod'
             call_id = _call_key(self.ref.file_path, node)
+            constructor_values = (self.expression(node.func, env)
+                if constructor_class is not None and target and target[1].name == '__new__'
+                and dispatch_kind == 'constructor' else [])
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
             call.implicit_protocol = copy.deepcopy(protocol)
@@ -3763,6 +3783,61 @@ class _Summary:
                         if binding and all(v['kind'] == 'callable' for v in binding):
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
+            if (constructor_class is not None and target and target[1].name == '__new__'
+                    and call.target_status == 'constructor'):
+                fact = constructor_source_binding(self, node, constructor_class, target,
+                    constructor_values, self.class_origin_invalid(asdict(constructor_class), env))
+                call.constructor_bindings = [fact]
+                if fact['status'] == 'source_bound':
+                    parameter = fact['implicit_binding']['parameter']
+                    slot = {'constructor_class': True}
+                    sources = copy.deepcopy(constructor_values)
+                    for value in sources:
+                        value.setdefault('source_class_origin', {
+                            'basis': 'source_symbol', 'class': asdict(constructor_class),
+                            'evidence': copy.deepcopy(value.get('evidence', [])), 'call_context': []})
+                    call.argument_sources.insert(0, {'argument': slot, 'parameter': parameter,
+                                                    'sources': sources})
+                    call.parameter_bindings.insert(0, {'argument': slot, 'parameter': parameter,
+                        'status': 'exact', 'binding_kind': 'implicit_receiver',
+                        'destination_kind': 'parameter'})
+                    if parameter not in {arg.arg for arg in target[1].args.posonlyargs}:
+                        keyword_slot = {'keyword': parameter}
+                        duplicates = [record for record in call.parameter_bindings
+                                      if record.get('argument') == keyword_slot]
+                        if duplicates:
+                            for record in duplicates:
+                                record.update(parameter=parameter, status='duplicate',
+                                    conflicts_with=slot, destination_kind='parameter')
+                                record.pop('target_path', None)
+                            for argument in call.argument_sources:
+                                if argument.get('argument') == keyword_slot:
+                                    argument['parameter'] = parameter
+                                    argument.pop('target_path', None)
+                            for flow in call.argument_flows + call.parameter_flows:
+                                if flow.get('argument') == keyword_slot:
+                                    flow.update(target_parameter=parameter, target_path=[])
+                            call.binding_status = 'invalid'
+                            invalid_binding = True
+                            call.binding_issues.append({'kind': 'duplicate_binding',
+                                'parameter': parameter, 'argument': keyword_slot,
+                                'conflicts_with': slot})
+                            self.result.boundaries.append({'call_id': call.id,
+                                'reason': 'duplicate_argument_binding'})
+                    actual_values[parameter] = sources
+                    for value in sources:
+                        call.argument_flows.append(dict(value, target_parameter=parameter,
+                            argument=slot, status='flow_found'))
+                    self.result.boundaries.append({'call_id': call.id,
+                        'reason': 'source_constructor_new_binding',
+                        'boundary_kind': 'assumption', 'binding_status': 'source_bound',
+                        'execution_scope': 'new_invocation_only',
+                        'assumptions': copy.deepcopy(fact['assumptions']),
+                        'evidence': self.evidence(node)})
+                else:
+                    self.result.boundaries.append({'call_id': call.id,
+                        'reason': 'constructor_binding_unconfirmed',
+                        'issues': copy.deepcopy(fact['issues']), 'evidence': self.evidence(node)})
             effects_complete = False
             if target:
                 # Closure cells are read at invocation, after all argument expressions.
@@ -6202,6 +6277,7 @@ class _Summary:
                 previous.callable_sources = _unique(previous.callable_sources + call.callable_sources)
                 previous.conditional_returns = _unique(previous.conditional_returns + call.conditional_returns)
                 previous.class_method_bindings = _unique(previous.class_method_bindings + call.class_method_bindings)
+                previous.constructor_bindings = _unique(previous.constructor_bindings + call.constructor_bindings)
                 previous.result_sources = _merge_result_sources(
                     previous.result_sources, call.result_sources)
                 if previous.binding_status != call.binding_status:

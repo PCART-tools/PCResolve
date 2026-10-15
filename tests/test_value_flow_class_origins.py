@@ -29,7 +29,7 @@ def test_source_class_identity_survives_two_exact_ordinary_edges(entry, target):
 
 @pytest.mark.parametrize('entry', ['unknown_root', 'mixed', 'escaped_root', 'patched_root',
     'deleted_root', 'hidden_escape_root', 'aliased_root', 'reassigned_root', 'global_escape_root',
-    'prepared_root', 'captured_write_root'])
+    'prepared_root', 'captured_write_root', 'escaped_base_root', 'aliased_base_root'])
 def test_unknown_escaped_or_modified_classes_never_become_source_bound(entry):
     result = analyze(entry)
     calls = [c for c in result.calls if c.callee_name == 'receiver.generate']
@@ -62,6 +62,8 @@ def test_scan_endpoint_controls_agree_with_python_binding():
     assert values['other_root'](old=1) == {'old': 1}
     assert values['custom_lookup_root'](old=1) == {'old': 1}
     assert values['prepared_root'](old=1) == {'old': 1}
+    assert values['escaped_base_root'](old=1) == {'old': 1}
+    assert values['aliased_base_root'](old=1) == {'old': 1}
 
 
 def test_source_class_identity_does_not_prove_custom_metaclass_lookup():
