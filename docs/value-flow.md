@@ -728,6 +728,15 @@ claiming the entire decorator has no side effects. Source-known function objects
 are not classes, so an unshadowed builtin `isinstance(obj, type)` guard can exclude
 its class-only branch, including short-circuit `and`.
 
+Constructor/factory arguments may also read `__doc__` from a uniquely resolved,
+undecorated source function. The constructor binding retains
+`value_provenance.kind="source_function_documentation"`, its exact FunctionRef,
+source expression and `str_or_none` shape; the content is not evaluated or
+assumed nonempty. Custom class/metaclass lookup, decorated/rebound sources and
+unavailable definitions do not supply this fact. Literal builtin scalar
+comparisons select only the reachable initializer branch, without executing
+application operators or helpers. Unknown comparisons retain their issues.
+
 Decoration `and`/`or` expressions preserve the shapes of the operands that can
 actually be returned, rather than coercing the result to bool. In particular,
 source-proved `str`/`str_or_none` documentation combined with `or ""` has a
@@ -738,6 +747,22 @@ joined, so a conditional helper write cannot overwrite the skipped path's state.
 Unknown or customized truth protocols retain
 `decorator_truth_protocol_unproven`; function operands keep operation boundaries.
 These refinements are internal and do not add a public runtime-type guarantee.
+
+Conditional expressions use the same scalar truth refinement and join their
+reachable documentation/receiver states. A directly constructed decorator has
+`construction.lifetime="single_decoration"`; a module-level instance is instead
+`shared_source_instance`. Only the former admits straight-line updates of
+already initialized, builtin scalar fields. These effects use
+`target="decorator_instance"`, `operation="attribute_write"`, `impact="data_only"`
+and retain `before_shapes`, `after_shapes`, field path and source evidence.
+Shared instances, unproved fields/values, special attributes, conditional state
+writes and object escape do not acquire a preservation proof.
+
+Builtin string `join` over a finite literal list/tuple of proven strings records
+`target="str.join"`, `operation="builtin_call"`, `impact="data_only"`, the string
+receiver shape, sequence shape and element shapes. Unknown/custom iterables or
+elements keep their issues. This does not declare an outer formatting helper
+safe: helpers outside the source set retain their own unresolved boundary.
 
 The proof also distinguishes input functions from scalar documentation data and
 restricted constructor-backed documentation caches. Source helpers use exact

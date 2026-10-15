@@ -236,9 +236,27 @@ remain. These facts neither confirm runtime targets nor claim the decorator pure
 Additive decoration effects distinguish `documentation_cache` construction,
 conditional `setdefault` and formatting `mapping_lookup` from writes to
 `input_function`. Source `helper_call` effects retain exact targets/bindings;
-partial effects never substitute for positive body/binding proof. Method-specific
-`builtin_method_binding` evidence in effects or `receiver_type_evidence` does not
-give a dict subclass builtin container shape. An inherited builtin method has
+partial effects never substitute for positive body/binding proof.
+
+Constructor argument records can additionally expose
+`value_provenance.kind="source_function_documentation"` with the exact source
+FunctionRef, expression evidence and `python_shape="str_or_none"`. The source
+file participates in the proof hashes; neither document content nor runtime
+function identity is asserted. Known builtin scalar comparisons can prune
+unreachable initializer effects, while unknown/custom protocols retain issues.
+
+`construction.lifetime` separates a `single_decoration` constructor from a
+`shared_source_instance`. Closed proofs can include unconditional scalar field
+updates on the former (`target="decorator_instance"`, `operation="attribute_write"`,
+`impact="data_only"`, `before_shapes`, `after_shapes`) and finite builtin string
+joins (`target="str.join"`, `operation="builtin_call"`, `impact="data_only"`,
+`receiver_shape`, `sequence_shape`, `element_shapes`). Each retains its source
+and conditions. These effects neither prove arbitrary receiver mutation safe
+nor remove an unknown outer helper's boundary.
+
+Method-specific `builtin_method_binding` evidence in effects or
+`receiver_type_evidence` does not give a dict subclass builtin container shape.
+An inherited builtin method has
 no fabricated Python target; `builtin_method_candidate` retains dynamic/unknown
 key boundaries and does not perform a heap strong update. Source-unavailable
 decoration calls can include `source_target`, `source_available` and
