@@ -149,6 +149,27 @@ or `status="unknown"` are not no-flow proofs when boundaries remain.
 
 The PCBench-driven extensions remain additive within `flow-0.2`:
 
+Callable identity guards can add `callable_type` and `callable_evidence` to
+existing parameter/capture roots, with the equality branch in `conditions`.
+They describe a stable plain source function under that condition, not a
+runtime identity assertion or an alternative inferred from inequality.
+Individually exact ordinary callable/immutable scalar facts through a dynamic
+expansion can retain a `normal_call_binding` condition. This condition records
+the call ID, parameter and explicit argument without upgrading binding status
+or claiming that duplicate-key exception paths enter the callee body.
+
+Located definitions inside conditional statement blocks can be analyzed while
+retaining `conditional_definition_unconfirmed` boundaries. Their `conditions`
+record activation witnesses; no located definition is a runtime-existence proof.
+Complete bounded mapping effects can include direct same-module helper calls;
+their normal-return status does not assert exception-path completion.
+
+Call-time `capture_bindings` retain raw `sources` and can additionally expose
+`current_sources` and exact `container_binding` shape/identity, unknown-content
+status, evidence and conditions. An explicitly expanded open captured container
+retains symbolic capture roots; finite, conflicting or effect-unknown contents
+do not authorize an open container merely from its lexical name.
+
 | Location | Additive field | Meaning |
 |---|---|---|
 | `calls[*]` | `target_candidates` | Bounded source targets; a single `target` remains the selected static candidate when available. |
@@ -160,7 +181,7 @@ The PCBench-driven extensions remain additive within `flow-0.2`:
 | exit argument-source provenance | `context_exception` | Symbolic exception triple components `type`, `value`, `traceback` with known exception spelling when available. Non-exception exits bind three literal None arguments; no runtime exception objects or traceback are synthesized. |
 | exit `implicit_protocol` | `exit_outcomes`, `pending_return_sources` | Possible outgoing exit kinds/known exception spellings and raw selected pending-return references. The latter preserve object selection before cleanup, not final contents; mutated return contents are materialized after cleanup. `completion` remains unconfirmed when exit or result-truth behavior is unproved. |
 | `calls[*]` | `receiver_type_evidence` | For a constructor-backed field returned by a local accessor, records the field, nominal instance type, assignment, all proven return statements, accessor call, and downstream receiver call. These are source candidates, not runtime dispatch guarantees. |
-| `calls[*]` | `callable_instance_evidence` | For a uniquely assigned module-level constructor-backed callable object, records the object assignment, nominal class, constructor argument sources, and invocation site. Its `__call__` target is a source candidate, not a runtime dispatch guarantee. |
+| `calls[*]` | `callable_instance_evidence` | For a uniquely assigned module-level constructor-backed callable object, records assignment, class, constructor sources and invocation. Optional `binding` gives conditional `source_bound`/`unconfirmed` status, exact target/definition, implicit receiver, finite constructor state, issues, assumptions and source/snapshot hashes. The target remains a source candidate, not a runtime dispatch guarantee. |
 | `calls[*]` | `decorator_identity_evidence` | For a source-proven identity-return decorator, records its definition, unchanged input parameter, and normal return statements. This proves returned object identity; unmodeled decorator effects remain a boundary. |
 | import-source provenance | `import_incomplete`, `import_modified` | Optional flags for a merge containing a missing binding, or a visible attribute write to an imported object. A true flag prevents unique-target resolution from that binding. |
 | `calls[*]` | `binding_status`, `binding_issues` | Complete/uncertain/invalid binding state and statically proven missing, duplicate, unresolved, or dynamic-expansion facts. |

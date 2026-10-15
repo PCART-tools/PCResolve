@@ -248,6 +248,39 @@ the helper or that all possible runtime paths are feasible.
 | `analysis.boundaries` | Missing targets, cutoffs, and unsupported constructs |
 | `entry_parameter_trace` | Composition of entry-parameter-to-entry-return paths |
 
+Capture bindings can include separately materialized `current_sources` and an
+exact `container_binding` with shape, object source, unknown-content status,
+evidence and call-time conditions. Explicit expansion can model a captured open
+builtin dict/list/tuple using symbolic capture roots when its current contents
+and shape are proven. It does not restore contents after clearing or infer an
+open variadic space from a finite captured mapping. Raw `sources` remain for
+existing consumers. Named nested functions can relay free variables through
+intermediate scopes; local and global declarations block those captures.
+Unknown capture state and unsupported effects retain boundaries; returned
+closures still require a separate execution context.
+The capture snapshot is taken after argument evaluation. Unmodeled nonlocal
+binding writes invalidate later captured state and record
+`capture_binding_write_unmodeled`; a lexical cell name does not preserve its
+previous contents through an unproved write.
+Captured aliases with matching object source and shape share one symbolic
+container during expansion; distinct copied objects remain independent.
+
+Definitions inside statement blocks retain their lexical owner, including class
+methods declared inside exception handlers. Explicit source selection does not
+confirm runtime activation: `conditional_definition_unconfirmed` records the
+enclosing branch/handler conditions. Literal branch conditions also travel with
+call and return dependencies, so consumers can reject source-inactive paths.
+Duplicate definitions remain ambiguous without an exact file/line selector.
+
+Bounded mapping effect summaries can compose unused direct same-module helper
+calls with stable undecorated source targets and exact ordinary-name arguments.
+The complete nested summary is remapped to the caller's parameter aliases;
+finite-key sequences still require literal binding before effects are applied.
+Returned argument identity can survive these complete normal-return effects.
+Extra unsupported statements, shadowed functions, unknown keys and recursion
+retain boundaries; composition is limited to 16 source calls and existing query
+budgets. This is not a general effect interpreter or purity assumption.
+
 The distinction between the last two flow queries matters: proving that the
 helper's **result** is returned does not prove that the helper's **input** flows
 into its result. That requires its body summary or an explicit trusted contract.
@@ -402,6 +435,26 @@ parameters; optional `callable_type`/`callable_evidence` retain the source ident
 and incoming evidence. Aliases and multi-hop helpers preserve this fact until
 rebinding, attribute mutation or unknown escape invalidates it. Strings, names,
 annotations and `callable()` tests do not prove a particular function identity.
+
+An `is` comparison against one stable, undecorated module-level source function
+can refine a direct parameter/capture or local callable alias on its equality
+branch. The same fact applies on the false branch of `is not`, including a
+surviving branch after an early return. `callable_type` retains the target while
+the dependency root stays a parameter/capture; `callable_evidence` and
+`conditions` retain the guard. Source module attributes and exact local aliases
+can supply the reference function. Unknown attribute protocols, decorated
+references, chained comparisons and `==` do not establish this identity.
+An inequality alone does not select another callable. Incompatible closed
+incoming identities exclude that branch; joins, rebinding, writes and escapes
+do not turn a conditional fact into an unconditional target. Compound guards
+are not replayed as identity proofs after calls or other modeled effects.
+
+An otherwise uncertain binding caused only by dynamic argument expansion can
+retain individually exact ordinary callable and immutable scalar facts on normal
+call completion. Their `conditions` include `normal_call_binding` with the call
+and explicit parameter/argument; a duplicate key can still prevent execution.
+Ambiguous positional packs, invalid bindings and ordinary container/capture
+specialization do not acquire this exception. A partial binding is not complete.
 
 `calls[*].callable_sources` records the callable expression. `analysis_contexts`
 keeps each incoming call's target and argument facts together. Consumers can
@@ -578,6 +631,32 @@ visible method mutation leave a `module_callable_instance_unresolved` boundary
 and no candidate. VPPDetector can combine the candidate, constructor provenance,
 and ordinary argument flow to inspect a validator implementation; PCResolve
 does not derive allowed keys or compatibility outcomes.
+
+The optional `callable_instance_evidence.binding` can establish a conditional
+source binding for a direct, undecorated, non-inherited construction. It keeps
+`target_status="callable_instance_candidate"` and `runtime_target_confirmed=false`.
+An initializer limited to finite primitive/container assignments can expose
+`receiver_state`, with omitted literal defaults included. Custom lookup,
+descriptors, constructor effects, visible state writes/escapes, module aliases,
+class mutation and exhausted budgets produce `status="unconfirmed"` and issues.
+The constructor state is conditional on normal construction, the recorded
+snapshot and no unmodeled indirect instance/state mutation; it is not an
+unconditional observation of a live object. Consumers must separately check
+effects along the executed body.
+
+The dynamic callable override boundary is an assumption only for a matching
+`source_bound` fact. Source hashes use the declared
+`utf-8-sig-universal-newlines` policy; `snapshot_sha256` fingerprints the complete
+input hash map. Incoming contexts retain the evidence, and conflicting merged
+evidence is discarded. State expressions are bounded by 2,000 nodes and the
+source-use inspection by 1,000,000 nodes, within cooperative query budgets.
+
+Exact ordinary arguments can carry `container_binding` shape/origin evidence
+through a source helper without replacing its generic return/alias facts or
+reopening finite contents. A dict's direct, argument-free `copy()` may receive
+the builtin protocol when no preceding unproved use of that input or alias
+has occurred. Unknown shapes, contents or effects retain boundaries; this
+does not generally model mutation through ordinary formals.
 
 Calling a source class resolves to its `__init__`, or to `__new__` when no
 `__init__` definition is available. Both `super().method(...)` and the nominal
