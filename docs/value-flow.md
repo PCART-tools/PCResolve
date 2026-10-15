@@ -448,8 +448,22 @@ can be explained without resolving every base; unresolved bases add the explicit
 requires a source MRO. Source-defined custom metaclasses, class decorators,
 creation hooks, shadowed descriptors, extra method decorators, conflicting member
 bindings, recognized method/code writes and ordinary class-argument escape
-prevent the proof. Unknown/mixed/parameter/factory/configuration receivers are not
+prevent the proof. Unknown/mixed/nominal-parameter/factory/configuration receivers are not
 promoted to a direct source binding merely because one candidate exists.
+
+An ordinary parameter can retain a proven source class through exact synchronous
+call edges. Its value carries `source_class_origin` with `basis="source_symbol"`,
+the class identity, source evidence and the ordered `call_context` edge IDs.
+`analysis_contexts.parameter_facts` keeps that origin separate for each incoming
+edge. A proven builtin classmethod's implicit receiver can carry the same origin;
+the other arguments can still have dynamic-expansion binding boundaries.
+The nominal class attached to a raw classmethod or `__new__` entry is not such
+an origin. Mixed/partial values, projections, recognized attribute writes/deletes
+and unmodeled class escapes, including implicit receivers, closure captures and
+classes held in local containers, invalidate the proof. Re-reading an escaped
+global class symbol does not restore that proof within the same path. Local
+aliases retain identity, not an independent class.
+The existing function/context budgets also bound this propagation.
 
 The existing `dynamic_class_receiver_override_possible` boundary is not removed.
 Only a proved direct source binding annotates it with

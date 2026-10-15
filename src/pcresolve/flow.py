@@ -212,6 +212,11 @@ def _unique(values):
     return result
 
 
+def _class_origin_key(identity):
+    return '$class_origin_invalid:%s' % repr(tuple(identity.get(key)
+        for key in ('module', 'qualname', 'file_path', 'lineno')))
+
+
 def _merge_result_sources(left, right):
     incomplete = any(not values or any(
         not value.get('container_object') or value.get('value_incomplete')
@@ -2090,6 +2095,14 @@ class FlowAnalyzer:
                          if argument.get('parameter') == parameter]
             records = [item for item in edge.parameter_bindings
                        if item.get('parameter') == parameter]
+            if (not records and len(arguments) == 1
+                    and arguments[0].get('argument') == {'receiver': True}
+                    and any(fact.get('status') == 'source_bound'
+                        and fact.get('target') == asdict(definition[0])
+                        and fact.get('implicit_binding', {}).get('parameter') == parameter
+                        and fact.get('implicit_binding', {}).get('status') == 'static_bound'
+                        for fact in edge.class_method_bindings)):
+                records = [{'argument': {'receiver': True}, 'parameter': parameter, 'status': 'exact'}]
             if (not arguments or any(argument.get('target_path') for argument in arguments)
                     or len(records) != 1 or records[0]['status'] != 'exact'):
                 continue
@@ -2105,6 +2118,18 @@ class FlowAnalyzer:
                 continue
             values = []
             for value in sources:
+                origin = value.get('source_class_origin', {})
+                if (origin.get('basis') == 'source_symbol' and value.get('class_type')
+                        and origin.get('class') == value['class_type']
+                        and value.get('relation') == 'direct' and not any(value.get(flag)
+                            for flag in ('projection', 'output_path', 'import_modified',
+                                         'import_incomplete', 'value_incomplete', 'attribute_provenance'))):
+                    origin = copy.deepcopy(origin)
+                    origin['call_context'] = origin.get('call_context', []) + [edge.id]
+                    values.append({'class_type': copy.deepcopy(value['class_type']),
+                        'source_class_origin': origin,
+                        'conditions': copy.deepcopy(value.get('conditions', []))})
+                    continue
                 identity = value.get('callable_type')
                 if value.get('kind') == 'callable':
                     matches = self._definition_index.find(value.get('module'), value['source'])
@@ -2355,11 +2380,16 @@ class _Summary:
         self.remaining = summary.remaining
         return self.marked(values, assignment)
 
-    def class_value(self, class_ref, node):
-        return {'kind': 'class', 'module': class_ref.module,
+    def class_value(self, class_ref, node, env):
+        value = {'kind': 'class', 'module': class_ref.module,
                 'source': class_ref.qualname, 'class_type': asdict(class_ref),
+                'source_class_origin': {'basis': 'source_symbol', 'class': asdict(class_ref),
+                    'evidence': [self.evidence(node)], 'call_context': []},
                 'relation': 'direct', 'evidence': [self.evidence(node)],
                 'conditions': list(self.conditions)}
+        if env.get(_class_origin_key(asdict(class_ref))):
+            value['value_incomplete'] = True
+        return value
 
     def class_values(self, values, allow_incomplete=False):
         known = []
@@ -2441,6 +2471,21 @@ class _Summary:
             if key.startswith('$attribute:'):
                 env[key] = []
 
+    ## Invalidate source class identity proofs after an unmodeled write or escape.
+    #  @param values Class provenance exposed to the operation.
+    #  @param env Current lexical/heap values, including aliases of those classes.
+    def invalidate_class_origins(self, values, env):
+        identities = [value['class_type'] for value in values + self.materialize(values, env)
+                      if value.get('source_class_origin') and value.get('class_type')]
+        if identities:
+            for identity in _unique(identities):
+                key = _class_origin_key(identity)
+                env[key] = [{'kind': 'class_state', 'source': key,
+                    'relation': 'direct', 'evidence': [], 'conditions': []}]
+            for name, sources in env.items():
+                env[name] = [dict(value, value_incomplete=True)
+                    if value.get('class_type') in identities else value for value in sources]
+
     ## Explain a source classmethod binding under explicit snapshot assumptions.
     #  @param node Attribute call expression.
     #  @param target Selected static method candidate, when available.
@@ -2488,7 +2533,9 @@ class _Summary:
 
         direct = (receiver_ref is not None and receiver and len(classes) == 1
             and isinstance(node.func.value, (ast.Name, ast.Attribute)) and all(
-                value.get('kind') == 'class' and value.get('relation') == 'direct'
+                (value.get('kind') == 'class' or value.get('source_class_origin', {}).get(
+                    'basis') == 'source_symbol' and value.get('source_class_origin', {}).get(
+                    'class') == value.get('class_type')) and value.get('relation') == 'direct'
                 and not any(value.get(flag) for flag in ('projection', 'output_path',
                     'value_incomplete', 'import_modified', 'import_incomplete', 'attribute_provenance'))
                 for value in receiver))
@@ -2790,7 +2837,7 @@ class _Summary:
             class_target = self.analyzer._class_symbol(
                 imported or self.ref.module + '.' + node.id) if stable_import else None
             if class_target is not None:
-                return [self.class_value(class_target[0], node)]
+                return [self.class_value(class_target[0], node, env)]
             target = self.analyzer._resolve(self.ref, node.id)
             if target and stable_import:
                 return [self.callable_value(target[0], node)]
@@ -2823,7 +2870,7 @@ class _Summary:
             else:
                 class_target = None
             if class_target is not None:
-                return [self.class_value(class_target[0], node)]
+                return [self.class_value(class_target[0], node, env)]
             qualified = None
             if binding and all(value.get('kind') == 'import' and not any(
                     value.get(flag) for flag in ('import_modified', 'import_incomplete'))
@@ -3791,6 +3838,17 @@ class _Summary:
                                 else value for value in env.get(source, [])]
                     self.unknown_container_contents(values, env)
                 self.unknown_container_contents(receiver_values, env)
+            source_super = (name == 'super' and builtin_status == 'confirmed_builtin'
+                and len(node.args) == 2 and not node.keywords
+                and not any(isinstance(argument, ast.Starred) for argument in node.args)
+                and all(values and all(value.get('class_type') for value in values)
+                        for values in actual_values.values()))
+            if not effects_complete and not source_super and call.target_status not in (
+                    'python_protocol', 'local_container_protocol', 'builtin_allocation'):
+                self.invalidate_class_origins(
+                    [value for values in actual_values.values() for value in values]
+                    + receiver_values
+                    + [value for values in capture_values.values() for value in values], env)
             self.calls.append(call)
             if invalid_binding:
                 return []
@@ -5679,6 +5737,8 @@ class _Summary:
             return [('break' if isinstance(node, ast.Break) else 'continue', env, [], None)]
         if isinstance(node, ast.Delete):
             for target in node.targets:
+                self.invalidate_class_origins([value for name in _attribute_write_roots(target)
+                    for value in env.get(name, [])], env)
                 if isinstance(target, ast.Name):
                     values = env.get(target.id, [])
                     self.add_boundary('unsupported_assignment', node, env, values)
@@ -5797,6 +5857,8 @@ class _Summary:
 
     def assign_target(self, target, values, env, node):
         attribute = self.attribute_key(target, env)
+        self.invalidate_class_origins([value for name in _attribute_write_roots(target)
+            for value in env.get(name, [])], env)
         if attribute is not None:
             known = self.class_values(values, allow_incomplete=True)
             env[attribute[0]] = [dict(value, attribute_provenance=[{
