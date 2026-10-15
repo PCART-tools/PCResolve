@@ -66,10 +66,12 @@ def test_plain_new_query_does_not_gain_a_constructed_class_origin():
 def test_new_binding_does_not_claim_initialized_instance_or_init_phase_execution():
     result = analyze('both')
     call = next(c for c in result.calls if c.callee_name == 'Both')
-    assert not any(f.get('status') == 'source_bound'
-                   for f in getattr(call, 'constructor_bindings', []))
-    assert not any(a.get('argument') == {'constructor_class': True}
-                   for a in call.argument_sources)
+    assert call.target.qualname == 'Both.__new__'
+    assert call.constructor_bindings[0]['status'] == 'source_bound'
+    assert call.constructor_bindings[0]['instance_state'] == 'unmodeled'
+    assert not any(c.caller.qualname == 'Both.__init__' for c in result.calls)
+    assert any(b['reason'] == 'constructor_initialization_unmodeled'
+               for b in result.boundaries)
 
 
 def test_new_binding_respects_expansion_snapshots_and_function_budgets():
@@ -163,3 +165,75 @@ def test_constructor_proof_budget_and_receiver_query_order_do_not_contaminate_a_
                    for issue in call.constructor_bindings[0]['issues'])
     assert analyze('direct', analyzer).to_dict() == before
     assert first.to_dict() == before
+
+
+@pytest.mark.parametrize('entry,selected', [
+    ('skips_init', 'SkipsInit.__new__'),
+    ('inherited_skip', 'SkipsInit.__new__'),
+    ('inherited_new', 'FixedNew.__new__'),
+    ('fixed_allocator', 'FixedAllocator.__new__'),
+    ('ordinary_init', 'OrdinaryInit.__init__'),
+    ('inherited_init', 'OrdinaryInit.__init__'),
+])
+def test_constructor_selection_observes_allocator_before_initializer(entry, selected):
+    result = analyze(entry)
+    call = next(c for c in result.calls if c.caller.qualname == entry)
+    assert call.target.qualname == selected
+    assert not any(c.caller.qualname in ('SkipsInit.__init__', 'InheritedSkip.__init__',
+        'Allocates.__init__', 'FixedAllocator.__init__') for c in result.calls)
+
+
+@pytest.mark.parametrize('entry', ['custom_init', 'assigned_new', 'rebound_new',
+                                 'inherited_rebound', 'hooked_init'])
+def test_unproven_allocation_cannot_select_an_initializer(entry):
+    result = analyze(entry)
+    call = next(c for c in result.calls if c.caller.qualname == entry)
+    assert call.target is None
+    assert any(b['reason'] in ('constructor_unavailable', 'definition_unavailable')
+               for b in result.boundaries)
+
+
+def test_python_skips_initialization_after_an_allocator_returns_a_non_instance():
+    values = runpy.run_path(str(ROOT / 'cases.py'))
+    for entry in ('skips_init', 'inherited_skip', 'assigned_new', 'rebound_new',
+                  'inherited_rebound', 'hooked_init'):
+        assert values[entry](old=1) == 1
+    assert values['inherited_new'](allowed=1) == 1
+    assert values['fixed_allocator'](allowed=1) == 1
+    assert values['custom_init'](old=1) == {'old': 1}
+    for entry in ('inherited_new', 'fixed_allocator', 'ordinary_init', 'inherited_init'):
+        with pytest.raises(TypeError, match='unexpected keyword argument'):
+            values[entry](old=1)
+
+
+def test_source_allocation_does_not_yet_establish_later_initializer_execution():
+    result = analyze('needs_init')
+    call = next(c for c in result.calls if c.callee_name == 'NeedsInit')
+    assert call.target.qualname == 'NeedsInit.__new__'
+    assert call.constructor_bindings[0]['execution_scope'] == 'new_invocation_only'
+    assert any(b['reason'] == 'constructor_initialization_unmodeled'
+               and b['phase'] == '__init__' for b in result.boundaries)
+    values = runpy.run_path(str(ROOT / 'cases.py'))
+    assert values['needs_init'](allowed=1).allowed == 1
+    with pytest.raises(TypeError, match='unexpected keyword argument'):
+        values['needs_init'](old=1)
+
+
+def test_initializer_selection_budget_is_unknown_rather_than_no_flow(monkeypatch):
+    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+    result = analyze('ordinary_init')
+    call = next(c for c in result.calls if c.callee_name == 'OrdinaryInit')
+    assert call.target is None
+    assert any(b['reason'] == 'constructor_binding_budget' for b in result.boundaries)
+
+
+def test_descriptor_classification_cannot_erase_the_constructor_phase():
+    result = analyze('custom_descriptor')
+    call = next(c for c in result.calls if c.callee_name == 'CustomDescriptorNew')
+    assert call.target_status == 'constructor'
+    assert call.constructor_bindings[0]['status'] == 'unconfirmed'
+    assert any(issue['reason'] == 'constructor_new_descriptor_unconfirmed'
+               for issue in call.constructor_bindings[0]['issues'])
+    values = runpy.run_path(str(ROOT / 'cases.py'))
+    with pytest.raises(TypeError, match='positional argument'):
+        values['custom_descriptor'](old=1)

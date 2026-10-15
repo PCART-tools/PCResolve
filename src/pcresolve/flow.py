@@ -631,17 +631,24 @@ class FlowAnalyzer:
         return None
 
     def _constructor_target(self, target_class):
-        ref, cls = target_class
-        for method in ('__init__', '__new__'):
-            matches = self._definition_index.find(
-                ref.module, ref.qualname + '.' + method)
-            if len(matches) == 1:
-                return matches[0]
-        for method in ('__init__', '__new__'):
-            inherited = self._inherited_method(
-                ref.module, ref.qualname, method)
-            if inherited:
-                return inherited
+        ref, _ = target_class
+        hierarchy = self._class_mro(ref.module, ref.qualname)
+        if not hierarchy or len(hierarchy) > 64:
+            return None
+        # type.__call__ invokes the MRO-selected allocator before deciding
+        # whether initialization applies. A direct __init__ cannot override
+        # an inherited __new__, and an unresolved allocator cannot license it.
+        for method in ('__new__', '__init__'):
+            if method == '__init__' and not self._ordinary_construction(ref):
+                return None
+            for owner, cls in hierarchy:
+                members = [member for member in cls.body
+                           if method in statement_scope_facts([member]).bound]
+                if members:
+                    matches = self._definition_index.find(
+                        owner.module, owner.qualname + '.' + method)
+                    return (matches[0] if len(matches) == 1
+                            and members == [matches[0][1]] else None)
         return None
 
     ## Read immutable lexical facts once per AST definition in this source generation.
@@ -1306,6 +1313,15 @@ class FlowAnalyzer:
     def _ordinary_construction(self, class_ref):
         hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
         if hierarchy is None:
+            return False
+        writes, truncated = self._class_binding_writes()
+        if truncated or any(attribute in ('__new__', '__class__', '__bases__', '*')
+                and any(written == owner for owner, _ in hierarchy)
+                for written, attribute, _, _, _ in writes):
+            return False
+        if any(owner != class_ref and any('__init_subclass__' in
+                statement_scope_facts([member]).bound for member in cls.body)
+                for owner, cls in hierarchy):
             return False
         return all(not cls.decorator_list and not cls.keywords and not any(
             isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -3430,7 +3446,7 @@ class _Summary:
                 dispatch_kind = 'constructor' if constructor_class is not None else 'staticmethod'
             elif descriptor_kind == 'classmethod':
                 bound_receiver = True
-                dispatch_kind = 'classmethod'
+                dispatch_kind = 'constructor' if constructor_class is not None else 'classmethod'
             call_id = _call_key(self.ref.file_path, node)
             constructor_values = (self.expression(node.func, env)
                 if constructor_class is not None and target and target[1].name == '__new__'
@@ -3524,6 +3540,14 @@ class _Summary:
             if constructor_class is not None and not construction_safe:
                 self.result.boundaries.append({'call_id': call_id,
                     'reason': 'dynamic_construction', 'evidence': self.evidence(node)})
+                if (self.analyzer._class_binding_write_cache is not None
+                        and self.analyzer._class_binding_write_cache[1]):
+                    self.result.boundaries.append({'call_id': call_id,
+                        'reason': 'constructor_binding_budget', 'evidence': self.evidence(node)})
+                if target and target[1].name == '__new__':
+                    self.result.boundaries.append({'call_id': call_id,
+                        'reason': 'constructor_initialization_unmodeled',
+                        'phase': '__init__', 'evidence': self.evidence(node)})
             if allocation_class is not None or allocation_candidates and not construction_candidates:
                 self.result.boundaries.append({'call_id': call_id,
                     'reason': 'builtin_allocator_source_unavailable',

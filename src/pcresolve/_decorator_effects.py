@@ -170,6 +170,9 @@ class _DecoratorEffects:
         if assignment is not None:
             self.evidence.append(self.evidence_at(module_ref, assignment))
         hierarchy = self.analyzer._class_mro(class_ref.module, class_ref.qualname)
+        writes, truncated = self.analyzer._class_binding_writes()
+        if truncated:
+            self.issue('decorator_effect_budget', class_ref, cls)
         if not self.analyzer._ordinary_construction(class_ref) or hierarchy is None:
             self.issue('decorator_construction_unconfirmed', class_ref, cls)
             return None
@@ -191,9 +194,6 @@ class _DecoratorEffects:
                 members = [member for member in base.body if name in statement_scope_facts([member]).bound]
                 if members and (len(members) != 1 or not isinstance(members[0], ast.FunctionDef)):
                     self.issue('decorator_member_binding_unconfirmed', base_ref, base)
-        writes, truncated = self.analyzer._class_binding_writes()
-        if truncated:
-            self.issue('decorator_effect_budget', class_ref, cls)
         identities = {(item.module, item.qualname) for item, _ in hierarchy}
         for written, attribute, _, source_ref, source_node in writes:
             if (written.module, written.qualname) in identities:

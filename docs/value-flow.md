@@ -514,8 +514,14 @@ Definitely invalid literal keyword expansions remain unconfirmed.
 This fact covers `new_invocation_only`. `body_execution` separates a synchronous
 body from deferred execution; it does not assert normal completion.
 `instance_state="unmodeled"` excludes initialized instance state, automatic
-`__init__` execution and complete construction effects. Existing constructor
-selection that chooses `__init__` does not receive this allocator proof. A bare
+`__init__` execution and complete construction effects. Constructor selection
+looks up `__new__` across the source MRO before considering `__init__`; a direct
+initializer cannot bypass an inherited allocator. Assigned/ambiguous allocators,
+unknown MROs and customized construction cannot establish initializer execution.
+Only ordinary builtin allocation permits a source initializer entry; visible
+allocator/base/class writes and a truncated lookup prevent that conclusion.
+An allocator entry retains `constructor_initialization_unmodeled` for the later
+conditional initialization phase, even when its own binding is proven. A bare
 `__new__` function query does not gain a concrete class origin. Other argument
 binding, dynamic construction and existing budgets retain their boundaries.
 

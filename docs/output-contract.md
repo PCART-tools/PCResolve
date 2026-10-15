@@ -222,6 +222,12 @@ do not authorize an open container merely from its lexical name.
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
 | source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
 
+Source class-call targets select the MRO allocator before an initializer.
+`constructor_initialization_unmodeled` marks the later `__init__` phase when
+selecting a source `__new__`; it does not assert that initialization executes.
+An unresolved/custom allocator cannot be replaced by an initializer target.
+Source initializer targets require ordinary builtin allocation assumptions.
+
 Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
 continue to treat a selected method or decorated target/class as conservative
 when a corresponding override/decorator boundary is present.
