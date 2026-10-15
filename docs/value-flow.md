@@ -712,8 +712,13 @@ uncertain aliasable parameters, reflective access, descriptors, structural
 attributes and exhausted proof budgets do not establish preservation. Private
 method lookup after such writes also remains unconfirmed. No configured backend
 or cache payload type is inferred from this partial effect.
-Finite names include local string literals and bounded concatenations; different
-branch values do not become a single name. String arguments to attribute builtins
+Finite names include local string literals, bounded concatenations and exact
+explicitly supplied ordinary string arguments. Optional `name_bindings` records
+retain those supplied literals, source slots and evidence. Unknown inputs and
+source signature defaults do not seed this proof; a callable's current defaults
+are separate state. Different branch values do not become a single name. A local
+caller variable without an incoming literal fact remains unknown. String
+arguments to attribute builtins
 retain their literal spelling, while attribute syntax uses lexical private-name
 mangling. Direct reads and unshadowed `getattr`/`hasattr` are admitted only after
 this same helper definitely overwrites the attribute with a builtin literal

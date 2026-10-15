@@ -2688,10 +2688,25 @@ class _Summary:
                          + [arg for arg in (args.vararg, args.kwarg) if arg is not None]}
             uncertain.discard(parameter)
             uncertain.update(captures)
+            string_literals, name_bindings = {}, []
             for item in call.argument_sources:
                 literal = item.get('literal')
                 if literal and literal.get('type') in ('str', 'int', 'float', 'bool', 'none'):
                     uncertain.discard(item.get('parameter'))
+                bindings = [record for record in call.parameter_bindings
+                            if record.get('parameter') == item.get('parameter')]
+                arguments = [argument for argument in call.argument_sources
+                             if argument.get('parameter') == item.get('parameter')]
+                if (literal and literal.get('type') == 'str' and type(literal.get('value')) is str
+                        and item.get('parameter') in ordinary and item.get('parameter') != parameter
+                        and not item.get('target_path') and len(arguments) == 1
+                        and len(bindings) == 1 and bindings[0].get('status') == 'exact'
+                        and bindings[0].get('argument') == item.get('argument')
+                        and bindings[0].get('binding_kind') != 'default'):
+                    string_literals[item['parameter']] = literal['value']
+                    name_bindings.append({'parameter': item['parameter'],
+                        'argument': copy.deepcopy(item['argument']), 'literal': copy.deepcopy(literal),
+                        'evidence': copy.deepcopy(item.get('value_evidence', []))})
             defaults = {arg.arg: default for arg, default in zip(
                 (args.posonlyargs + args.args)[-len(args.defaults):], args.defaults)}
             defaults.update({arg.arg: default for arg, default in zip(args.kwonlyargs, args.kw_defaults)
@@ -2716,7 +2731,8 @@ class _Summary:
                     lambda name: self.analyzer._builtin_name_status(definition[0], definition[1], name)
                         == 'confirmed_builtin', protected,
                     self.analyzer._lexical_class_name(definition[0]),
-                    min(2000, self.analyzer._class_effect_fact_steps), charge)
+                    min(2000, self.analyzer._class_effect_fact_steps), charge,
+                    string_literals=string_literals)
             except _ClassEffectLimit:
                 self.add_boundary('class_attribute_effect_budget', node, env, values, call_id=call.id)
                 continue
@@ -2735,6 +2751,8 @@ class _Summary:
                                   if path in self.analyzer.hashes},
                 'assumptions': ['source_snapshot_bindings_hold', 'builtin_type_attribute_writes',
                     'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']}
+            if name_bindings:
+                effect['name_bindings'] = name_bindings
             call.effects.append(effect)
             self.register_class_lookup_effect(effect, env)
             preserved.append(identity)

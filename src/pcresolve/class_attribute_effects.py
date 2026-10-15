@@ -28,8 +28,10 @@ class ClassAttributeWrites:
 #  @param owner Lexical class name used for private attribute mangling, or empty.
 #  @param max_nodes Maximum AST nodes inspected in this proof.
 #  @param charge Optional callback charging every attempted inspection, including failures.
+#  @param string_literals Exact incoming ordinary string arguments, without assumed defaults.
 #  @return ClassAttributeWrites, or None for escaping/reflective/unknown class use.
-def class_attribute_writes(node, parameter, builtin, protected, owner='', max_nodes=2000, charge=None):
+def class_attribute_writes(node, parameter, builtin, protected, owner='', max_nodes=2000,
+                           charge=None, string_literals=None):
     if not isinstance(node, ast.FunctionDef):
         return None
     nodes = []
@@ -211,6 +213,9 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 return False
         return True
 
-    if not block(node.body, {parameter}, {}, set()):
+    ordinary = {arg.arg for arg in node.args.posonlyargs + node.args.args + node.args.kwonlyargs}
+    names = {name: value for name, value in (string_literals or {}).items()
+             if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
+    if not block(node.body, {parameter}, names, set()):
         return None
     return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes))
