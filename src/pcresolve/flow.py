@@ -317,6 +317,8 @@ class FlowAnalyzer:
         self._object_fact_functions = 500
         self._object_fact_steps = 2000
         self._function_effect_cache = {}
+        self._function_effect_stack = set()
+        self._nested_effect_failures = {}
         self._effect_fact_functions = 500
         self._effect_fact_steps = 2000
         self._fact_functions = 500
@@ -355,6 +357,7 @@ class FlowAnalyzer:
         self.texts = {}
         self.hashes = {}
         self.index_boundaries = []
+        self.definition_conditions = {}
         # Preserve the prior behavior of deriving names only for parseable files.
         self._module_index = ModuleIndex.build(
             [path for path in sorted(self.files)
@@ -382,13 +385,14 @@ class FlowAnalyzer:
             else:
                 facts = cached[2]
             next_file_indexes[path] = document, identity, facts
-            bindings, aliases, bound, definitions, classes = facts
+            bindings, aliases, bound, definitions, classes, conditions = facts
             self.import_binding_facts.setdefault(module, []).append(
                 {name: list(nodes) for name, nodes in bindings})
             self.imports[module] = dict(aliases)
             self.module_bindings[module] = set(bound)
             self.definitions.extend(definitions)
             self.classes.extend(classes)
+            self.definition_conditions.update(conditions)
         self._file_indexes = next_file_indexes
         self._definition_index = DefinitionIndex(
             [DefinitionRecord(ref.module, ref.qualname, (ref, node),
@@ -409,7 +413,7 @@ class FlowAnalyzer:
         if self._analysis_budget is not None:
             self._analysis_budget.checkpoint(force=True)
         tree = document.tree
-        definitions, classes = [], []
+        definitions, classes, definition_conditions = [], [], []
         bindings = {}
         for statement in tree.body:
             names = (list(fact.python_binding for fact in import_facts(statement))
@@ -441,33 +445,74 @@ class FlowAnalyzer:
             if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign))
             for target in (statement.targets if isinstance(statement, ast.Assign) else [statement.target])
             for n in ast.walk(target) if isinstance(n, ast.Name)}
-        def collect(body, prefix=''):
+        evidence_cache = {}
+        source_lines = None
+
+        def evidence(node, text=False):
+            nonlocal source_lines
+            key = id(node), text
+            if key not in evidence_cache:
+                value = asdict(SourceSpan.from_ast(path, node))
+                if text:
+                    if source_lines is None:
+                        source_lines = [line.encode('utf-8') for line in document.text.split('\n')]
+                    first, last = node.lineno, node.end_lineno
+                    start, end = node.col_offset, node.end_col_offset
+                    snippet = (source_lines[first - 1][start:end] if first == last else
+                               b'\n'.join([source_lines[first - 1][start:]] +
+                                          source_lines[first:last - 1] +
+                                          [source_lines[last - 1][:end]]))
+                    value['source_text'] = snippet.decode('utf-8')
+                evidence_cache[key] = value
+            return evidence_cache[key]
+
+        def collect(body, prefix='', conditions=()):
             for node in body:
                 if self._analysis_budget is not None:
                     self._analysis_budget.checkpoint()
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                     name = prefix + node.name
+                    ref = FunctionRef(module, name, path, node.lineno)
+                    if conditions:
+                        definition_conditions.append((ref, conditions))
                     if not isinstance(node, ast.ClassDef):
-                        definitions.append((FunctionRef(module, name, path, node.lineno), node))
+                        definitions.append((ref, node))
                     else:
-                        classes.append((FunctionRef(module, name, path, node.lineno), node))
-                    collect(node.body, name + '.')
+                        classes.append((ref, node))
+                    collect(node.body, name + '.', conditions)
                 else:
-                    def collect_lambdas(item):
+                    def collect_lambdas(item, root=False):
                         if isinstance(item, ast.Lambda):
                             name = prefix + '<lambda>@%s:%s' % (item.lineno, item.col_offset)
-                            definitions.append((FunctionRef(module, name, path, item.lineno), item))
+                            ref = FunctionRef(module, name, path, item.lineno)
+                            definitions.append((ref, item))
+                            if conditions:
+                                definition_conditions.append((ref, conditions))
                             collect_lambdas(item.body)
                             return
                         if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                             return
+                        if not root and isinstance(item, (ast.stmt, ast.ExceptHandler)):
+                            return
                         for child in ast.iter_child_nodes(item):
                             collect_lambdas(child)
-                    collect_lambdas(node)
+                    collect_lambdas(node, root=True)
+                    for field, value in ast.iter_fields(node):
+                        if not isinstance(value, list):
+                            continue
+                        for child in value:
+                            condition = ({'test': evidence(node.test, text=True), 'branch': field == 'body'}
+                                if isinstance(node, ast.If) and field in ('body', 'orelse') else
+                                {'definition_context': type(node).__name__, 'region': field,
+                                 'evidence': evidence(node)})
+                            if isinstance(child, ast.stmt):
+                                collect([child], prefix, conditions + (condition,))
+                            elif isinstance(child, ast.ExceptHandler):
+                                collect(child.body, prefix, conditions + ({'handler': evidence(child)},))
         collect(tree.body)
         return (tuple((name, tuple(nodes)) for name, nodes in bindings.items()),
                 tuple(aliases.items()), frozenset(module_bindings),
-                tuple(definitions), tuple(classes))
+                tuple(definitions), tuple(classes), tuple(definition_conditions))
 
     def _base_classes(self, module, owner):
         classes = self._definition_index.find(module, owner, kind='class')
@@ -1414,6 +1459,10 @@ class FlowAnalyzer:
         key = (ref, repr(getattr(node, '_flow_conditions', [])))
         if key in self._function_effect_cache:
             return self._function_effect_cache[key]
+        if key in self._function_effect_stack:
+            return None, 'recursive_helper_effects'
+        if len(self._function_effect_stack) >= 16:
+            return None, 'mapping_effect_budget'
         steps = len(getattr(node, 'body', ())) if isinstance(node, ast.FunctionDef) else 1
         if getattr(node, '_flow_branch_budget', None) is not None:
             result = None, 'literal_branch_budget'
@@ -1422,9 +1471,51 @@ class FlowAnalyzer:
         else:
             self._effect_fact_functions -= 1
             self._effect_fact_steps -= steps
-            result = function_effects(node), 'unsupported_helper_body'
+            self._function_effect_stack.add(key)
+            try:
+                effects = function_effects(node, lambda statement, aliases:
+                    self._nested_mapping_effects(definition, statement, aliases))
+                result = effects, self._nested_effect_failures.get(ref, 'unsupported_helper_body')
+            finally:
+                self._function_effect_stack.remove(key)
         self._function_effect_cache[key] = result
         return result
+
+    ## Compose complete same-module mapping effects from a direct helper call.
+    #  @param definition Calling source definition.
+    #  @param statement Expression call whose result is unused.
+    #  @param aliases Calling ordinary-name bindings, with parameter identity.
+    #  @return Remapped complete effects or None for an unproved call.
+    def _nested_mapping_effects(self, definition, statement, aliases):
+        ref, node = definition
+        call = statement.value
+        if (not isinstance(call.func, ast.Name)
+                or call.func.id in self._scope_facts(node).bound):
+            return None
+        target = self._resolve(ref, call.func.id)
+        if (target is None or target[0].module != ref.module
+                or not self._stable_import_name(ref.module + '.' + call.func.id)
+                or not isinstance(target[1], ast.FunctionDef) or target[1].decorator_list
+                or self._captures(*target)):
+            return None
+        records, issues = bind_ast_call(call, FunctionSignature.from_ast(target[1].args))
+        if issues or any(record['status'] != 'exact' or record.get('target_path')
+                         or not isinstance(record['node'], ast.Name)
+                         or record['node'].id not in aliases for record in records):
+            return None
+        incoming = {record['parameter']: aliases[record['node'].id] for record in records}
+        effects, cause = self._function_effects(target)
+        if effects is None and cause in ('mapping_effect_budget', 'recursive_helper_effects'):
+            self._nested_effect_failures[ref] = cause
+        if effects is None or any(effect.kind not in (
+                'mapping_pop', 'mapping_delete', 'mapping_delete_keys', 'container_clear')
+                or effect.target not in incoming
+                or effect.source is not None and effect.source not in incoming for effect in effects):
+            return None
+        return tuple(replace(effect, target=incoming[effect.target],
+            source=incoming.get(effect.source), statement=statement,
+            sequence_loop=statement if effect.sequence_loop is not None else None)
+            for effect in effects)
 
     def _object_returns(self, definition):
         ref, node = definition
@@ -1851,7 +1942,8 @@ class FlowAnalyzer:
         parameters = (arguments.posonlyargs + arguments.args + arguments.kwonlyargs +
                       ([arguments.vararg] if arguments.vararg else []) +
                       ([arguments.kwarg] if arguments.kwarg else []))
-        body = [child for statement in node.body for child in ast.walk(statement)]
+        statements = [node.body] if isinstance(node, ast.Lambda) else node.body
+        body = [child for statement in statements for child in ast.walk(statement)]
         if any((isinstance(child, ast.Name) and child.id in
                 ('locals', 'vars', 'eval', 'exec')) or
                (isinstance(child, ast.Attribute) and child.attr in
@@ -1936,6 +2028,13 @@ class FlowAnalyzer:
             summary = _Summary(self, scratch, ref, selected[1],
                                max_calls - self._context_call_count, receiver_class,
                                incoming)
+            activation = self.definition_conditions.get(ref, ())
+            if activation:
+                summary.conditions = _unique(summary.conditions + list(copy.deepcopy(activation)))
+                scratch.boundaries.append({'function': asdict(ref),
+                    'reason': 'conditional_definition_unconfirmed',
+                    'conditions': copy.deepcopy(activation), 'affected_scope': 'unknown',
+                    'affected_values': []})
             summary.run()
             calls = summary.calls
             if context.edge is not None:

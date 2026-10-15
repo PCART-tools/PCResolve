@@ -149,6 +149,12 @@ or `status="unknown"` are not no-flow proofs when boundaries remain.
 
 The PCBench-driven extensions remain additive within `flow-0.2`:
 
+Located definitions inside conditional statement blocks can be analyzed while
+retaining `conditional_definition_unconfirmed` boundaries. Their `conditions`
+record activation witnesses; no located definition is a runtime-existence proof.
+Complete bounded mapping effects can include direct same-module helper calls;
+their normal-return status does not assert exception-path completion.
+
 Call-time `capture_bindings` retain raw `sources` and can additionally expose
 `current_sources` and exact `container_binding` shape/identity, unknown-content
 status, evidence and conditions. An explicitly expanded open captured container

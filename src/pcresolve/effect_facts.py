@@ -117,8 +117,9 @@ def contains_yield(node):
 #  receiver shape prerequisites, not an inferred type for generic parameters.
 #  Effects describe normal completion; required-key removals may raise KeyError.
 #  @param node Candidate function definition.
+#  @param call_effects Optional adapter proving complete effects of source helper calls.
 #  @return FunctionEffect tuple, or None when the whole body is unsupported.
-def function_effects(node):
+def function_effects(node, call_effects=None):
     if not isinstance(node, ast.FunctionDef) or contains_yield(node):
         return None
     body = [statement for statement in node.body
@@ -233,6 +234,12 @@ def function_effects(node):
                 'nonlocal_write', statement.targets[0].id,
                 statement.value.id, statement))
             continue
+        if (call_effects is not None and isinstance(statement, ast.Expr)
+                and isinstance(statement.value, ast.Call)):
+            nested = call_effects(statement, aliases)
+            if nested is not None:
+                effects.extend(nested)
+                continue
         return None
     return tuple(effects)
 

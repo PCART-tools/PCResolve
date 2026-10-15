@@ -265,6 +265,22 @@ previous contents through an unproved write.
 Captured aliases with matching object source and shape share one symbolic
 container during expansion; distinct copied objects remain independent.
 
+Definitions inside statement blocks retain their lexical owner, including class
+methods declared inside exception handlers. Explicit source selection does not
+confirm runtime activation: `conditional_definition_unconfirmed` records the
+enclosing branch/handler conditions. Literal branch conditions also travel with
+call and return dependencies, so consumers can reject source-inactive paths.
+Duplicate definitions remain ambiguous without an exact file/line selector.
+
+Bounded mapping effect summaries can compose unused direct same-module helper
+calls with stable undecorated source targets and exact ordinary-name arguments.
+The complete nested summary is remapped to the caller's parameter aliases;
+finite-key sequences still require literal binding before effects are applied.
+Returned argument identity can survive these complete normal-return effects.
+Extra unsupported statements, shadowed functions, unknown keys and recursion
+retain boundaries; composition is limited to 16 source calls and existing query
+budgets. This is not a general effect interpreter or purity assumption.
+
 The distinction between the last two flow queries matters: proving that the
 helper's **result** is returned does not prove that the helper's **input** flows
 into its result. That requires its body summary or an explicit trusted contract.
