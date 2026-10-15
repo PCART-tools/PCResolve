@@ -27,6 +27,7 @@ from ._constructor_binding import source_binding as constructor_source_binding
 from ._constructor_entry import binding as constructor_entry_binding
 from ._constructor_entry import source_member as constructor_source_member
 from .mapping_remainders import mapping_remainder, _ProofLimit
+from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -221,6 +222,11 @@ def _class_origin_key(identity):
         for key in ('module', 'qualname', 'file_path', 'lineno')))
 
 
+def _class_lookup_key(identity):
+    return '$class_lookup_state:%s' % repr(tuple(identity.get(key)
+        for key in ('module', 'qualname', 'file_path', 'lineno')))
+
+
 def _merge_result_sources(left, right):
     incomplete = any(not values or any(
         not value.get('container_object') or value.get('value_incomplete')
@@ -331,6 +337,7 @@ class FlowAnalyzer:
         self._nested_effect_failures = {}
         self._effect_fact_functions = 500
         self._effect_fact_steps = 2000
+        self._class_effect_fact_steps = 2000
         self._fact_functions = 500
         self._fact_calls = 2000
         self._class_binding_write_cache = None
@@ -673,6 +680,13 @@ class FlowAnalyzer:
             if method in statement_scope_facts(cls.body).bound:
                 return constructor_source_member(self, ref, cls, method)
         return None
+
+    def _lexical_class_name(self, ref):
+        parts = ref.qualname.split('.')[:-1]
+        for length in range(len(parts), 0, -1):
+            if self._definition_index.find(ref.module, '.'.join(parts[:length]), kind='class'):
+                return parts[length - 1]
+        return ''
 
     ## Read immutable lexical facts once per AST definition in this source generation.
     #  @param node Function or lambda definition.
@@ -1746,9 +1760,14 @@ class FlowAnalyzer:
         classes = self._definition_index.find(ref.module, owner, kind='class')
         return classes[0][0] if len(classes) == 1 else None
 
-    def _class_returns(self, definition, receiver_class):
+    def _class_returns(self, definition, receiver_class, incoming=None):
         ref, node = definition
-        key = (ref, receiver_class, repr(getattr(node, '_flow_conditions', [])))
+        incoming = {parameter: [{'class_lookup_mutations': copy.deepcopy(
+            value['class_lookup_mutations'])} for value in values
+            if value.get('class_lookup_mutations')]
+            for parameter, values in (incoming or {}).items()}
+        incoming = {parameter: values for parameter, values in incoming.items() if values}
+        key = (ref, receiver_class, repr(getattr(node, '_flow_conditions', [])), repr(incoming))
         if key in self._class_return_cache:
             return self._class_return_cache[key]
         if key in self._class_return_stack:
@@ -1770,7 +1789,7 @@ class FlowAnalyzer:
         self._class_return_stack.append(key)
         scratch = FlowAnalysis(ref, {})
         summary = _Summary(self, scratch, ref, node, self._fact_calls,
-                           receiver_class)
+                           receiver_class, incoming)
         try:
             summary.run()
             values = []
@@ -2020,6 +2039,7 @@ class FlowAnalyzer:
         self._object_fact_steps = max_call_contexts
         self._effect_fact_functions = max_functions
         self._effect_fact_steps = max_call_contexts
+        self._class_effect_fact_steps = max_call_contexts
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         entry_binding = None
         if not matches:
@@ -2254,6 +2274,12 @@ class FlowAnalyzer:
                      'literal_evidence': _unique([evidence for argument in arguments
                          for evidence in argument.get('value_evidence', [])])}]
             if values:
+                mutations = _unique([effect for value in sources
+                    for effect in value.get('class_lookup_mutations', [])])
+                if mutations:
+                    for value in values:
+                        if value.get('class_type') or value.get('instance_type'):
+                            value['class_lookup_mutations'] = copy.deepcopy(mutations)
                 incomplete = len(values) != len(sources) or any(
                     not argument.get('sources') for argument in arguments)
                 if literal is not None:
@@ -2493,9 +2519,12 @@ class _Summary:
                 'conditions': list(self.conditions)}
         if self.class_origin_invalid(asdict(class_ref), env):
             value['value_incomplete'] = True
+        effects = self.class_lookup_effects(asdict(class_ref), env)
+        if effects:
+            value['class_lookup_mutations'] = copy.deepcopy(effects)
         return value
 
-    def class_values(self, values, allow_incomplete=False):
+    def class_values(self, values, allow_incomplete=False, env=None):
         known = []
         for value in values:
             if (value.get('relation') != 'direct' or value.get('projection')
@@ -2532,7 +2561,8 @@ class _Summary:
                 definition = self.analyzer._selected_definition(
                     definition, self.analyzer._incoming_facts(definition, call))
                 returned, cause = self.analyzer._class_returns(
-                    definition, self.analyzer._receiver_class(definition, call))
+                    definition, self.analyzer._receiver_class(definition, call),
+                    self.analyzer._incoming_facts(definition, call))
                 if cause:
                     self.result.boundaries.append({'call_id': call.id,
                         'reason': cause, 'callee_name': call.callee_name})
@@ -2548,12 +2578,20 @@ class _Summary:
                 known.extend(returned)
             else:
                 return []
+        if env is not None:
+            for value in known:
+                effects = self.class_lookup_effects(value['class_type'], env)
+                if effects:
+                    value['class_lookup_mutations'] = _unique(
+                        value.get('class_lookup_mutations', []) + copy.deepcopy(effects))
+                if self.class_origin_invalid(value['class_type'], env):
+                    value['value_incomplete'] = True
         return _unique(known)
 
     def attribute_key(self, node, env):
         if not isinstance(node, ast.Attribute) or not isinstance(node.value, ast.Name):
             return None
-        values = self.class_values(env.get(node.value.id, []))
+        values = self.class_values(env.get(node.value.id, []), env=env)
         identities = _unique([value['class_type'] for value in values])
         if len(identities) != 1:
             return None
@@ -2574,6 +2612,133 @@ class _Summary:
         for key in list(env):
             if key.startswith('$attribute:'):
                 env[key] = []
+
+    def class_lookup_effects(self, identity, env):
+        hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
+        owners = [asdict(ref) for ref, _ in hierarchy] if hierarchy else [identity]
+        return _unique([effect for owner in owners for effect in env.get(_class_lookup_key(owner), [])])
+
+    def register_class_lookup_effect(self, effect, env):
+        key = _class_lookup_key(effect['receiver_class'])
+        env[key] = _unique(env.get(key, []) + [copy.deepcopy(effect)])
+        for name, values in list(env.items()):
+            updated = []
+            for value in values:
+                identity = value.get('class_type') or value.get('instance_type')
+                effects = self.class_lookup_effects(identity, env) if identity else []
+                updated.append(dict(value, class_lookup_mutations=_unique(
+                    value.get('class_lookup_mutations', []) + copy.deepcopy(effects)))
+                    if effects else value)
+            env[name] = updated
+
+    def class_lookup_affected(self, values, attributes):
+        return any(set(effect.get('attributes', [])) & set(attributes)
+                   for value in values for effect in value.get('class_lookup_mutations', []))
+
+    def class_attribute_effect(self, definition, call, captures, env, node):
+        if (call.binding_status == 'invalid' or call.target != definition[0]
+                or getattr(definition[1], 'decorator_list', []) and not any(
+                    fact.get('status') == 'source_bound' for fact in call.class_method_bindings)):
+            return []
+        ordinary = {arg.arg for arg in definition[1].args.posonlyargs + definition[1].args.args
+                    + definition[1].args.kwonlyargs}
+        preserved = []
+        for argument in call.argument_sources:
+            parameter, values = argument.get('parameter'), argument.get('sources', [])
+            if (parameter not in ordinary or argument.get('target_path') or not values
+                    or not all(value.get('class_type') and value.get('relation') == 'direct'
+                        and (value.get('kind') == 'class' or value.get('source_class_origin', {}).get(
+                            'basis') == 'source_symbol')
+                        and not any(value.get(flag) for flag in ('projection', 'output_path',
+                            'value_incomplete', 'import_modified', 'import_incomplete',
+                            'attribute_provenance')) for value in values)):
+                continue
+            identities = _unique(value['class_type'] for value in values)
+            if len(identities) != 1:
+                continue
+            identity = identities[0]
+            hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
+            if not hierarchy or len(hierarchy) > 64 or any(cls.decorator_list or cls.keywords
+                                                          for _, cls in hierarchy):
+                continue
+            owners = [asdict(ref) for ref, _ in hierarchy]
+            other = [value for item in call.argument_sources if item is not argument
+                     for value in item.get('sources', [])]
+            other.extend(value for contents in captures.values() for value in contents)
+            related = False
+            for value in other + self.materialize(other, env):
+                other_class = value.get('class_type')
+                if not other_class:
+                    continue
+                other_mro = self.analyzer._class_mro(other_class['module'], other_class['qualname'])
+                if (other_class in owners or other_mro is None
+                        or any(asdict(ref) in owners for ref, _ in other_mro)):
+                    related = True
+            if related:
+                continue
+            records = [record for record in call.parameter_bindings
+                       if record.get('parameter') == parameter]
+            implicit = any(fact.get('status') == 'source_bound'
+                and fact.get('implicit_binding', {}).get('parameter') == parameter
+                for fact in call.class_method_bindings)
+            if not (len(records) == 1 and records[0]['status'] == 'exact' or not records and implicit):
+                continue
+            args = definition[1].args
+            uncertain = {arg.arg for arg in args.posonlyargs + args.args + args.kwonlyargs
+                         + [arg for arg in (args.vararg, args.kwarg) if arg is not None]}
+            uncertain.discard(parameter)
+            uncertain.update(captures)
+            for item in call.argument_sources:
+                literal = item.get('literal')
+                if literal and literal.get('type') in ('str', 'int', 'float', 'bool', 'none'):
+                    uncertain.discard(item.get('parameter'))
+            defaults = {arg.arg: default for arg, default in zip(
+                (args.posonlyargs + args.args)[-len(args.defaults):], args.defaults)}
+            defaults.update({arg.arg: default for arg, default in zip(args.kwonlyargs, args.kw_defaults)
+                             if default is not None})
+            for record in call.parameter_bindings:
+                default = defaults.get(record.get('parameter'))
+                if (record.get('binding_kind') == 'default' and record.get('status') == 'exact'
+                        and isinstance(default, ast.Constant)
+                        and type(default.value) in (str, int, float, bool, type(None))):
+                    uncertain.discard(record['parameter'])
+            def protected(source):
+                if source.id in uncertain:
+                    return True
+                match = self.analyzer._resolve_class(definition[0], source.id)
+                return match is not None and asdict(match[0]) in owners
+
+            def charge(count):
+                self.analyzer._class_effect_fact_steps -= count
+
+            try:
+                proof = class_attribute_writes(definition[1], parameter,
+                    lambda name: self.analyzer._builtin_name_status(definition[0], definition[1], name)
+                        == 'confirmed_builtin', protected,
+                    self.analyzer._lexical_class_name(definition[0]),
+                    min(2000, self.analyzer._class_effect_fact_steps), charge)
+            except _ClassEffectLimit:
+                self.add_boundary('class_attribute_effect_budget', node, env, values, call_id=call.id)
+                continue
+            if proof is None:
+                continue
+            paths = {ref.file_path for ref, _ in hierarchy} | {
+                definition[0].file_path, self.ref.file_path}
+            effect = {'kind': 'class_attribute_write_set', 'status': 'bounded',
+                'preserved_scope': 'other_class_attributes', 'completion': 'normal_return',
+                'value_completeness': 'unmodeled', 'receiver_class': copy.deepcopy(identity),
+                'target': asdict(definition[0]), 'parameter': parameter,
+                'attributes': list(proof.attributes), 'call_id': call.id,
+                'call_evidence': self.evidence(node),
+                'evidence': [self.evidence_at(definition[0], item) for item in proof.evidence],
+                'source_hashes': {path: self.analyzer.hashes[path] for path in sorted(paths)
+                                  if path in self.analyzer.hashes},
+                'assumptions': ['source_snapshot_bindings_hold', 'builtin_type_attribute_writes',
+                    'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']}
+            call.effects.append(effect)
+            self.register_class_lookup_effect(effect, env)
+            preserved.append(identity)
+        return preserved
 
     ## Check whether class lookup depends on an invalidated source class or base.
     #  @param identity Source class identity.
@@ -2693,6 +2858,13 @@ class _Summary:
                 for value in receiver))
         if not direct:
             issue('receiver_origin_unconfirmed')
+        mutations = _unique([effect for value in receiver
+                            for effect in value.get('class_lookup_mutations', [])])
+        if (any(effect.get('attributes') for effect in mutations)
+                and node.func.attr.startswith('__') and not node.func.attr.endswith('__')):
+            issue('private_lookup_after_class_write_unconfirmed')
+        if self.class_lookup_affected(receiver, (node.func.attr, '__class__', '__bases__')):
+            issue('class_lookup_write')
         if descriptor != 'classmethod':
             issue('descriptor_unconfirmed', ref, method)
         parts = ref.qualname.split('.')
@@ -2761,7 +2933,12 @@ class _Summary:
                         value.get('class_type', {}).get('qualname')) in identities
                        for argument in previous.argument_sources
                        if argument['argument'] != {'receiver': True}
-                       for value in argument['sources']):
+                       for value in argument['sources']) and not any(
+                        effect.get('kind') == 'class_attribute_write_set'
+                        and effect.get('status') == 'bounded'
+                        and (effect['receiver_class']['module'],
+                             effect['receiver_class']['qualname']) in identities
+                        for effect in previous.effects):
                     issue('class_escape')
                     issues[-1]['evidence'] = {'file_path': previous.caller.file_path,
                         'lineno': previous.lineno, 'col_offset': previous.col_offset,
@@ -2773,7 +2950,7 @@ class _Summary:
             'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']
         if unresolved_bases:
             assumptions.append('unresolved_bases_use_standard_metaclass_lookup')
-        return {'status': 'unconfirmed' if issues else 'source_bound',
+        fact = {'status': 'unconfirmed' if issues else 'source_bound',
             'basis': 'source_snapshot', 'runtime_target_confirmed': False,
             'receiver_class': asdict(receiver_ref) if receiver_ref else None,
             'definition_class': asdict(owner_ref) if owner_ref else None,
@@ -2790,6 +2967,12 @@ class _Summary:
                 {item.file_path for item in checked} | {ref.file_path, self.ref.file_path})
                 if path in self.analyzer.hashes},
             'assumptions': assumptions, 'issues': _unique(issues)}
+        if mutations:
+            fact['lookup_preservation'] = copy.deepcopy(mutations)
+            fact['lookup_hierarchy'] = [asdict(owner) for owner, _ in hierarchy] if hierarchy else []
+            for effect in mutations:
+                fact['source_hashes'].update(effect.get('source_hashes', {}))
+        return fact
 
     def evidence(self, node):
         return self.evidence_at(self.ref, node)
@@ -2979,7 +3162,7 @@ class _Summary:
                 self.add_boundary('context_exit_name_unresolved', node, env, affected_scope='unknown')
             if node.id in env:
                 if env[node.id] and all(value.get('kind') == 'import' for value in env[node.id]):
-                    classes = self.class_values(env[node.id])
+                    classes = self.class_values(env[node.id], env=env)
                     if classes:
                         return self.marked(classes, node)
                 return env[node.id]
@@ -3277,10 +3460,10 @@ class _Summary:
             field_evidence = None
             owner = self.ref.qualname.rpartition('.')[0]
             function_names = self.analyzer._definition_index.scopes(self.ref.module)
-            callee_classes = self.class_values(binding) if binding and isinstance(node.func, ast.Name) else []
+            callee_classes = self.class_values(binding, env=env) if binding and isinstance(node.func, ast.Name) else []
             construction_candidates = []
             if binding and isinstance(node.func, ast.Name) and not callee_classes:
-                classes = self.class_values(binding, allow_incomplete=True)
+                classes = self.class_values(binding, allow_incomplete=True, env=env)
                 if classes and all(value.get('attribute_provenance') for value in classes):
                     construction_candidates = [value for value in classes
                         if self.analyzer._ordinary_construction(FunctionRef(**value['class_type']))]
@@ -3425,7 +3608,7 @@ class _Summary:
                     receiver_sources = self.materialize(receiver_values, env)
                 if (inherited is None and node.func.attr == '__new__'
                         and len(node.args) == 1 and not node.keywords):
-                    receiver = self.class_values(env.get(receiver_name, []))
+                    receiver = self.class_values(env.get(receiver_name, []), env=env)
                     types = _unique([value.get('class_type') for value in receiver])
                     if receiver and all(types) and len(types) == 1:
                         class_ref = FunctionRef(**types[0])
@@ -3436,7 +3619,7 @@ class _Summary:
                                 self.analyzer._definition_index.find(ref.module, ref.qualname + '.__new__')
                                 or cls.keywords or cls.decorator_list
                                 for ref, cls in hierarchy[owner_index + 1:]):
-                            classes = self.class_values(self.expression(node.args[0], env))
+                            classes = self.class_values(self.expression(node.args[0], env), env=env)
                             if classes and len({(value['module'], value['source']) for value in classes}) == 1:
                                 allocation_class = FunctionRef(**classes[0]['class_type'])
                                 allocation_values = classes
@@ -3450,7 +3633,7 @@ class _Summary:
                     and 'object' not in self.analyzer.module_bindings.get(self.ref.module, set())
                     and self.analyzer._resolve(self.ref, 'object') is None
                     and self.analyzer._resolve_class(self.ref, 'object') is None):
-                classes = self.class_values(self.expression(node.args[0], env), allow_incomplete=True)
+                classes = self.class_values(self.expression(node.args[0], env), allow_incomplete=True, env=env)
                 if classes and len({(value['module'], value['source']) for value in classes}) == 1:
                     if not any(value.get('value_incomplete') for value in classes):
                         allocation_class = FunctionRef(**classes[0]['class_type'])
@@ -3484,6 +3667,9 @@ class _Summary:
                 for module, class_name in sorted(instance_types):
                     candidate = self.analyzer._instance_method_candidate(
                         module, class_name, node.func.attr)
+                    if self.class_lookup_affected(receiver_values,
+                            (node.func.attr, '__class__', '__bases__')):
+                        candidate = None
                     if candidate is None:
                         complete_candidates = False
                     elif candidate not in candidates:
@@ -3547,6 +3733,13 @@ class _Summary:
                         'evidence': [assignment_evidence, self.evidence(node)],
                         'conditions': list(self.conditions)}]
             decorated_target_candidate = False
+            if (isinstance(node.func, ast.Attribute) and (
+                    self.class_lookup_affected(receiver_values,
+                        (node.func.attr, '__class__', '__bases__'))
+                    or node.func.attr.startswith('__') and not node.func.attr.endswith('__')
+                    and any(effect.get('attributes') for value in receiver_values
+                            for effect in value.get('class_lookup_mutations', [])))):
+                target, bounded_targets, bound_receiver, dispatch_kind = None, [], False, None
             identity_decorator = None
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
@@ -3944,7 +4137,10 @@ class _Summary:
             if (constructor_class is not None and target
                     and call.target_status == 'constructor'):
                 fact = constructor_source_binding(self, node, constructor_class, target,
-                    constructor_values, self.class_origin_invalid(asdict(constructor_class), env))
+                    constructor_values, self.class_origin_invalid(asdict(constructor_class), env)
+                    or self.class_lookup_affected([{'class_lookup_mutations':
+                        self.class_lookup_effects(asdict(constructor_class), env)}],
+                        ('__new__', '__init__', '__class__', '__bases__')))
                 call.constructor_bindings = [fact]
                 if fact['status'] == 'source_bound':
                     parameter = fact['implicit_binding']['parameter']
@@ -3994,6 +4190,24 @@ class _Summary:
                             if (value.get('source'), repr(value.get('instance_type')))
                                 in invalid_receivers else value for value in argument['sources']]
                         actual_values[instance_parameter] = argument['sources']
+            if (descriptor_kind == 'classmethod' and target and any(
+                    fact.get('status') == 'source_bound' for fact in call.class_method_bindings)):
+                parameters = target[1].args.posonlyargs + target[1].args.args
+                if parameters and self.implicit_keyword_conflict(call, parameters[0].arg,
+                        {'receiver': True}, {arg.arg for arg in target[1].args.posonlyargs}):
+                    invalid_binding = True
+            for argument in call.argument_sources:
+                updated = []
+                for value in argument.get('sources', []):
+                    if value.get('class_type'):
+                        mutations = self.class_lookup_effects(value['class_type'], env)
+                        if mutations:
+                            value = dict(value, class_lookup_mutations=_unique(
+                                value.get('class_lookup_mutations', []) + copy.deepcopy(mutations)))
+                        if self.class_origin_invalid(value['class_type'], env):
+                            value = dict(value, value_incomplete=True)
+                    updated.append(value)
+                argument['sources'] = updated
             effects_complete = False
             if target:
                 # Closure cells are read at invocation, after all argument expressions.
@@ -4074,6 +4288,10 @@ class _Summary:
                 and not any(isinstance(argument, ast.Starred) for argument in node.args)
                 and all(values and all(value.get('class_type') for value in values)
                         for values in actual_values.values()))
+            preserved_classes = (self.class_attribute_effect(
+                selected_target, call, capture_values, env, node)
+                if selected_target and not invalid_binding
+                and not getattr(node, '_flow_skip_effects', False) else [])
             if not effects_complete and not source_super and call.target_status not in (
                     'python_protocol', 'local_container_protocol', 'builtin_allocation'):
                 self.invalidate_instance_receivers(
@@ -4081,9 +4299,10 @@ class _Summary:
                     + receiver_values
                     + [value for values in capture_values.values() for value in values], env)
                 self.invalidate_class_origins(
-                    [value for values in actual_values.values() for value in values]
+                    [value for value in [value for values in actual_values.values() for value in values]
                     + receiver_values
-                    + [value for values in capture_values.values() for value in values], env)
+                    + [value for values in capture_values.values() for value in values]
+                     if value.get('class_type') not in preserved_classes], env)
             self.calls.append(call)
             if invalid_binding:
                 return []
@@ -4111,6 +4330,9 @@ class _Summary:
                 return [result_value] + call.result_sources
             if constructor_class is not None and construction_safe:
                 result_value['instance_type'] = asdict(constructor_class)
+                mutations = self.class_lookup_effects(asdict(constructor_class), env)
+                if mutations:
+                    result_value['class_lookup_mutations'] = copy.deepcopy(mutations)
                 result_value['evidence'] = _unique(result_value['evidence'] + [
                     evidence for value in callee_classes
                     for evidence in value.get('evidence', [])])
@@ -6095,7 +6317,7 @@ class _Summary:
         self.invalidate_class_origins([value for name in _attribute_write_roots(target)
             for value in env.get(name, [])], env)
         if attribute is not None:
-            known = self.class_values(values, allow_incomplete=True)
+            known = self.class_values(values, allow_incomplete=True, env=env)
             env[attribute[0]] = [dict(value, attribute_provenance=[{
                 'receiver_class': attribute[1], 'attribute': target.attr,
                 'storage_attribute': attribute[0].rsplit(':', 1)[-1],
@@ -6354,6 +6576,10 @@ class _Summary:
                 env[parameter] = [dict(root, **fact) for fact in facts]
         if self.receiver_class is not None and parameters:
             env[parameters[0].arg][0]['class_type'] = asdict(self.receiver_class)
+        for values in list(env.values()):
+            for value in values:
+                for effect in value.get('class_lookup_mutations', []):
+                    self.register_class_lookup_effect(effect, env)
         for parameter, shape in ((args.vararg, 'tuple'), (args.kwarg, 'dict')):
             if parameter is None:
                 continue

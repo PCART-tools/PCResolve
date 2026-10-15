@@ -697,6 +697,22 @@ exceptions. Instance evidence invalidated by argument evaluation becomes an
 incomplete incoming receiver, rather than regaining the lexical owner's type
 inside the previously selected method. Generic parameters gain no instance type.
 
+A bounded synchronous helper can expose a partial `class_attribute_write_set`
+effect for an exactly bound source class parameter. Literal attribute assignment,
+deletion and unshadowed literal-name `setattr`/`delattr` can bound the possible
+writes, under ordinary source-MRO/type lookup assumptions. This preserves other
+attribute lookups on normal return, not attribute values or whole-function
+effects. `class_lookup_mutations` travels with class/instance facts across exact
+edges; class return caches include those incoming facts. A matching written
+method stays unconfirmed even after a later unrelated cache write.
+
+Affected classmethod bindings expose `lookup_preservation` and `lookup_hierarchy`,
+with the helper/caller/class source hashes. Unknown/dynamic names, class escapes,
+uncertain aliasable parameters, reflective access, descriptors, structural
+attributes and exhausted proof budgets do not establish preservation. Private
+method lookup after such writes also remains unconfirmed. No configured backend
+or cache payload type is inferred from this partial effect.
+
 Source-proven class names, aliases, imports, and nested classes retain
 `kind="class"` and a structured `class_type`. When every normal factory return
 has a known direct class identity and there is no implicit fallthrough, a later
