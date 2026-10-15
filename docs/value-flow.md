@@ -727,6 +727,12 @@ that evidence. Preexisting attributes, conditional initialization probes,
 descriptor results and deferred class captures do not establish read safety.
 This local read check proves neither the helper's return payload nor effects on
 other arguments; `value_completeness` stays `unmodeled`.
+An ordinary helper's omitted argument stays aliasable even when the source
+signature spells a primitive default: `__defaults__` and `__kwdefaults__` can be
+replaced through aliases. Explicit primitive argument facts, including
+`NoneType`, are separate from omitted values. A modified callable, or a top-level
+helper without a stable source binding, cannot establish this partial effect.
+The existing source-bound classmethod default assumptions remain explicit.
 Literal class names and imported aliases also respect an invalidated receiver:
 a lexical definition cannot restore its stale method target. A method selected
 before argument evaluation keeps that selected target; its body receiver state

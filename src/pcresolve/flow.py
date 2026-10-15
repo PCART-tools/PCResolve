@@ -2637,6 +2637,11 @@ class _Summary:
 
     def class_attribute_effect(self, definition, call, captures, env, node):
         if (call.binding_status == 'invalid' or call.target != definition[0]
+                or (definition[0].module, definition[0].qualname) in self.modified_return_callables
+                or not getattr(definition[1], 'decorator_list', [])
+                    and '.' not in definition[0].qualname
+                    and not self.analyzer._stable_import_name(
+                        definition[0].module + '.' + definition[0].qualname)
                 or getattr(definition[1], 'decorator_list', []) and not any(
                     fact.get('status') == 'source_bound' for fact in call.class_method_bindings)):
             return []
@@ -2691,7 +2696,7 @@ class _Summary:
             string_literals, name_bindings = {}, []
             for item in call.argument_sources:
                 literal = item.get('literal')
-                if literal and literal.get('type') in ('str', 'int', 'float', 'bool', 'none'):
+                if literal and literal.get('type') in ('str', 'int', 'float', 'bool', 'NoneType'):
                     uncertain.discard(item.get('parameter'))
                 bindings = [record for record in call.parameter_bindings
                             if record.get('parameter') == item.get('parameter')]
@@ -2714,6 +2719,9 @@ class _Summary:
             for record in call.parameter_bindings:
                 default = defaults.get(record.get('parameter'))
                 if (record.get('binding_kind') == 'default' and record.get('status') == 'exact'
+                        and any(fact.get('status') == 'source_bound'
+                            and fact.get('target') == asdict(definition[0])
+                            for fact in call.class_method_bindings)
                         and isinstance(default, ast.Constant)
                         and type(default.value) in (str, int, float, bool, type(None))):
                     uncertain.discard(record['parameter'])
