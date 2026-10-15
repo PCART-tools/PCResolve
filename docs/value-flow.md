@@ -36,6 +36,27 @@ the existing scanner. Inputs record absolute paths and SHA-256 source hashes.
 `add_files()` affects subsequent `analyze()` calls. Expansion rejects changed
 source sets; rerun analysis after adding or editing files.
 
+## Consumer snapshot obligations
+
+`FlowAnalysis` is immutable by convention, including its nested lists and
+dictionaries. Consumers must not put query-specific labels, budgets or
+decisions into a cached analysis. `expand()` returns a separate analysis;
+retain the parent snapshot and the selected call identity when caching that
+result. Incoming receiver/callable contexts belong to the parent analysis and
+must not be replaced by a cache keyed only by callee name.
+
+Admission checks should compare `schema_version`, available fields and their
+shapes, `inputs.source_files`, `inputs.import_roots` and `inputs.sha256` with
+the consumer's fixed source/configuration. SHA-256 values describe decoded
+source text from the source store; consumers guarding raw file changes should
+also retain byte hashes. Rebuild the source index after a relevant source edit.
+Field presence establishes representation, not semantic completeness. Source
+candidates, incomplete bindings, unsupported effects and exhausted budgets
+retain their boundaries. No empty source/path collection is a no-flow proof.
+
+These obligations do not add fields or change the experimental schema, and
+do not affect the separate stable ownership output.
+
 ## Complete example: pandas 0.21.0 `to_datetime`
 
 ### Command line
