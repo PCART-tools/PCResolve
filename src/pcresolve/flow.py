@@ -2210,6 +2210,17 @@ class FlowAnalyzer:
                     values.append({'instance_type': copy.deepcopy(value['instance_type']),
                         'conditions': copy.deepcopy(value.get('conditions', []))})
                     continue
+                if (value.get('kind') in ('parameter', 'call_result')
+                        and value.get('instance_type') and value.get('relation') == 'direct'
+                        and not any(value.get(flag) for flag in ('projection', 'output_path',
+                            'value_incomplete', 'import_modified', 'import_incomplete',
+                            'attribute_provenance'))):
+                    values.append({'instance_type': copy.deepcopy(value['instance_type']),
+                        'conditions': copy.deepcopy(value.get('conditions', []))})
+                    continue
+                if value.get('instance_type') or 'instance_candidates' in value:
+                    values.append({'instance_candidates': [], 'value_incomplete': True})
+                    continue
                 origin = value.get('source_class_origin', {})
                 if (origin.get('basis') == 'source_symbol' and value.get('class_type')
                         and origin.get('class') == value['class_type']
@@ -2601,6 +2612,31 @@ class _Summary:
                 env[name] = [dict(value, value_incomplete=True, instance_candidates=[])
                     if value.get('instance_type') and (value.get('source'),
                         repr(value['instance_type'])) in exposed else value for value in sources]
+
+    def implicit_keyword_conflict(self, call, parameter, slot, positional_only):
+        if parameter in positional_only:
+            return False
+        keyword = {'keyword': parameter}
+        duplicates = [record for record in call.parameter_bindings
+                      if record.get('argument') == keyword]
+        if not duplicates:
+            return False
+        for record in duplicates:
+            record.update(parameter=parameter, status='duplicate',
+                          conflicts_with=slot, destination_kind='parameter')
+            record.pop('target_path', None)
+        for argument in call.argument_sources:
+            if argument.get('argument') == keyword:
+                argument['parameter'] = parameter
+                argument.pop('target_path', None)
+        for value in call.argument_flows + call.parameter_flows:
+            if value.get('argument') == keyword:
+                value.update(target_parameter=parameter, target_path=[])
+        call.binding_status = 'invalid'
+        call.binding_issues.append({'kind': 'duplicate_binding',
+            'parameter': parameter, 'argument': keyword, 'conflicts_with': slot})
+        self.result.boundaries.append({'call_id': call.id, 'reason': 'duplicate_argument_binding'})
+        return True
 
     ## Explain a source classmethod binding under explicit snapshot assumptions.
     #  @param node Attribute call expression.
@@ -3780,12 +3816,20 @@ class _Summary:
                      'evidence': [{'provenance': contract['provenance'], 'callable': canonical}], 'conditions': []}
                     for d in contract.get('returns', [])]
             positional = params.posonlyargs + params.args if params else []
+            instance_parameter = None
             if bound_receiver and target and positional:
                 if dispatch_kind != 'constructor':
                     call.argument_sources.append({
                         'argument': {'receiver': True},
                         'parameter': positional[0].arg,
                         'sources': receiver_sources})
+                    if (descriptor_kind is None and not target[1].decorator_list
+                            and receiver_sources and all(value.get('instance_type')
+                                for value in receiver_sources)):
+                        instance_parameter = positional[0].arg
+                        call.parameter_bindings.append({'argument': {'receiver': True},
+                            'parameter': instance_parameter, 'status': 'exact',
+                            'binding_kind': 'implicit_receiver', 'destination_kind': 'parameter'})
                 positional = positional[1:]
             records = self.bind_call_arguments(node, params, positional, call) if params else [
                 {'argument': {'position': i}, 'node': arg.value if isinstance(arg, ast.Starred) else arg,
@@ -3920,29 +3964,9 @@ class _Summary:
                     call.parameter_bindings.insert(0, {'argument': slot, 'parameter': parameter,
                         'status': 'exact', 'binding_kind': 'implicit_receiver',
                         'destination_kind': 'parameter'})
-                    if parameter not in {arg.arg for arg in target[1].args.posonlyargs}:
-                        keyword_slot = {'keyword': parameter}
-                        duplicates = [record for record in call.parameter_bindings
-                                      if record.get('argument') == keyword_slot]
-                        if duplicates:
-                            for record in duplicates:
-                                record.update(parameter=parameter, status='duplicate',
-                                    conflicts_with=slot, destination_kind='parameter')
-                                record.pop('target_path', None)
-                            for argument in call.argument_sources:
-                                if argument.get('argument') == keyword_slot:
-                                    argument['parameter'] = parameter
-                                    argument.pop('target_path', None)
-                            for flow in call.argument_flows + call.parameter_flows:
-                                if flow.get('argument') == keyword_slot:
-                                    flow.update(target_parameter=parameter, target_path=[])
-                            call.binding_status = 'invalid'
-                            invalid_binding = True
-                            call.binding_issues.append({'kind': 'duplicate_binding',
-                                'parameter': parameter, 'argument': keyword_slot,
-                                'conflicts_with': slot})
-                            self.result.boundaries.append({'call_id': call.id,
-                                'reason': 'duplicate_argument_binding'})
+                    if self.implicit_keyword_conflict(call, parameter, slot,
+                            {arg.arg for arg in target[1].args.posonlyargs}):
+                        invalid_binding = True
                     actual_values[parameter] = sources
                     for value in sources:
                         call.argument_flows.append(dict(value, target_parameter=parameter,
@@ -3957,6 +3981,19 @@ class _Summary:
                     self.result.boundaries.append({'call_id': call.id,
                         'reason': 'constructor_binding_unconfirmed',
                         'issues': copy.deepcopy(fact['issues']), 'evidence': self.evidence(node)})
+            if instance_parameter is not None:
+                if self.implicit_keyword_conflict(call, instance_parameter, {'receiver': True},
+                        {arg.arg for arg in target[1].args.posonlyargs}):
+                    invalid_binding = True
+                invalid_receivers = {(value.get('source'), repr(value.get('instance_type')))
+                    for values in env.values() for value in values
+                    if value.get('instance_type') and value.get('value_incomplete')}
+                for argument in call.argument_sources:
+                    if argument.get('argument') == {'receiver': True}:
+                        argument['sources'] = [dict(value, value_incomplete=True)
+                            if (value.get('source'), repr(value.get('instance_type')))
+                                in invalid_receivers else value for value in argument['sources']]
+                        actual_values[instance_parameter] = argument['sources']
             effects_complete = False
             if target:
                 # Closure cells are read at invocation, after all argument expressions.

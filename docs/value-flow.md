@@ -690,6 +690,12 @@ Source instance lookup also requires an unchanged source MRO and member binding;
 custom attribute lookup, visible member writes and unknown descriptors remain
 unresolved. Unmodeled calls exposing a typed receiver invalidate its aliases
 for later instance lookup, while preserving the already selected call target.
+Exact ordinary helper parameters and plain bound-method receivers can retain
+direct incoming instance evidence. Plain methods expose an exact implicit
+receiver binding, including receiver/keyword conflicts and positional-only
+exceptions. Instance evidence invalidated by argument evaluation becomes an
+incomplete incoming receiver, rather than regaining the lexical owner's type
+inside the previously selected method. Generic parameters gain no instance type.
 
 Source-proven class names, aliases, imports, and nested classes retain
 `kind="class"` and a structured `class_type`. When every normal factory return
