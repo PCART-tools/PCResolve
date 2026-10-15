@@ -1,5 +1,5 @@
 ## @package pcresolve._constructor_binding
-#  Source-only binding of the implicit class argument to a __new__ invocation.
+#  Source-only implicit receiver binding for one constructor invocation phase.
 
 import ast
 import copy
@@ -10,17 +10,20 @@ from .effect_facts import contains_yield
 from ._constructor_entry import source_member
 
 
-## Explain a selected source allocator without claiming initialized instance state.
+## Explain one selected constructor phase without claiming initialized instance state.
 #  @param summary Current caller summary and source snapshot.
 #  @param node Explicit source class call; its arguments have been evaluated.
 #  @param class_ref Source class object selected before argument evaluation.
-#  @param target Selected source __new__ definition.
+#  @param target Selected source allocator or ordinary initializer definition.
 #  @param values Saved callee expression provenance, before argument evaluation.
 #  @param invalidated Whether that class escaped or changed during argument evaluation.
 #  @return Conditional lookup/implicit binding facts, with explicit proof issues.
 def source_binding(summary, node, class_ref, target, values, invalidated):
     analyzer = summary.analyzer
     ref, method = target
+    phase = method.name
+    initializer = phase == '__init__'
+    scope = 'init_invocation_only' if initializer else 'new_invocation_only'
     issues = []
 
     def issue(reason, owner=None, source=None):
@@ -41,7 +44,10 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     parameters = method.args.posonlyargs + method.args.args
     if not parameters:
         issue('implicit_receiver_parameter_missing', ref, method)
-    if (not isinstance(method, ast.FunctionDef) or method.name != '__new__'
+    if initializer:
+        if method.decorator_list or not analyzer._ordinary_construction(class_ref):
+            issue('constructor_initialization_unconfirmed', ref, method)
+    elif (phase != '__new__'
             or method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod'):
         issue('constructor_new_descriptor_unconfirmed', ref, method)
     for keyword in node.keywords:
@@ -64,19 +70,19 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
                 statement_scope_facts([member]).bound for member in cls.body):
             issue('constructor_class_creation_hook', owner, cls)
         members = [member for member in cls.body
-                   if '__new__' in statement_scope_facts([member]).bound]
+                   if phase in statement_scope_facts([member]).bound]
         if selected is None and members:
-            selected = owner, source_member(analyzer, owner, cls, '__new__')
+            selected = owner, source_member(analyzer, owner, cls, phase)
     owner_name = ref.qualname.rpartition('.')[0]
     if (selected is None or selected[0].module != ref.module
             or selected[0].qualname != owner_name or selected[1] != target):
-        issue('constructor_new_lookup_conflict')
+        issue('constructor_phase_lookup_conflict')
     writes, truncated = analyzer._class_binding_writes()
     if truncated:
         issue('constructor_binding_budget')
     for written, attribute, reason, owner, source in writes:
         if any(written == item[0] for item in checked) and attribute in (
-                '__new__', '__class__', '__bases__', '*'):
+                '__new__', phase, '__class__', '__bases__', '*'):
             issue(reason, owner, source)
     assumptions = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_binding',
                    'no_external_monkeypatch_or_import_hook',
@@ -85,14 +91,14 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
         assumptions.append('stdlib_typing_overload_binding')
     paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path}
     return {'status': 'unconfirmed' if issues else 'source_bound',
-        'basis': 'source_snapshot', 'phase': '__new__',
-        'execution_scope': 'new_invocation_only', 'instance_state': 'unmodeled',
+        'basis': 'source_snapshot', 'phase': phase,
+        'execution_scope': scope, 'instance_state': 'unmodeled',
         'body_execution': ('synchronous' if isinstance(method, ast.FunctionDef)
                            and not contains_yield(method) else 'deferred'),
         'runtime_target_confirmed': False, 'target': asdict(ref),
         'receiver_class': identity,
         'definition_class': asdict(selected[0]) if selected else None,
-        'implicit_binding': {'argument': {'constructor_class': True},
+        'implicit_binding': {'argument': {'constructor_instance' if initializer else 'constructor_class': True},
             'parameter': parameters[0].arg if parameters else None,
             'status': 'unconfirmed' if issues else 'static_bound',
             'receiver_class': identity},

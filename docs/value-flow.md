@@ -500,7 +500,7 @@ The optional pandas 2.0.0 regression uses the hash-pinned 280-file closure in
 Set `PCRESOLVE_PANDAS200_SOURCE` to the matching source package directory when
 running the real-source tests outside the local PCBench workspace.
 
-### Source constructor allocator bindings
+### Source constructor invocation bindings
 
 For an explicit source class call whose selected target is a source `__new__`,
 `constructor_bindings` can establish the implicit first class argument under
@@ -511,7 +511,15 @@ argument-evaluation invalidation prevent this proof. Explicit same-named
 keywords duplicate the implicit class parameter unless it is positional-only.
 Definitely invalid literal keyword expansions remain unconfirmed.
 
-This fact covers `new_invocation_only`. `body_execution` separates a synchronous
+When ordinary builtin allocation selects a source `__init__`, the same fact
+instead records `phase="__init__"`, `execution_scope="init_invocation_only"`
+and an implicit `constructor_instance` argument carrying the actual class as
+`instance_type`. Exact incoming binding preserves that receiver in initializer
+expansion, including inherited implementations. An explicit same-named receiver
+keyword conflicts unless the formal is positional-only. Initializer writes,
+unknown class origins and argument effects prevent the binding proof.
+
+An allocator fact covers `new_invocation_only`. `body_execution` separates a synchronous
 body from deferred execution; it does not assert normal completion.
 `instance_state="unmodeled"` excludes initialized instance state, automatic
 `__init__` execution and complete construction effects. Constructor selection
@@ -678,6 +686,10 @@ Incoming `instance_type` / `instance_candidates` take precedence over the
 method's lexical owner, including in inherited initializers and receiver aliases.
 Missing, incomplete, or shadowed incoming targets do not regain a nominal target
 through that lexical fallback.
+Source instance lookup also requires an unchanged source MRO and member binding;
+custom attribute lookup, visible member writes and unknown descriptors remain
+unresolved. Unmodeled calls exposing a typed receiver invalidate its aliases
+for later instance lookup, while preserving the already selected call target.
 
 Source-proven class names, aliases, imports, and nested classes retain
 `kind="class"` and a structured `class_type`. When every normal factory return

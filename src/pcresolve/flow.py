@@ -650,6 +650,30 @@ class FlowAnalyzer:
                     return constructor_source_member(self, owner, cls, method)
         return None
 
+    ## Select an instance member through an unchanged source MRO.
+    #  @param module Source receiver module.
+    #  @param owner Actual receiver class, which may differ from the lexical owner.
+    #  @param method Attribute being invoked.
+    #  @return Unique source definition or None for unproven lookup/state.
+    def _instance_method_candidate(self, module, owner, method):
+        hierarchy = self._class_mro(module, owner)
+        if not hierarchy or len(hierarchy) > 64:
+            return None
+        for _, cls in hierarchy:
+            if (cls.decorator_list or cls.keywords or any(name in
+                    statement_scope_facts(cls.body).bound
+                    for name in ('__getattribute__', '__getattr__'))):
+                return None
+        writes, truncated = self._class_binding_writes()
+        if truncated or any(attribute in (method, '*', '__class__', '__bases__')
+                and any(written == ref for ref, _ in hierarchy)
+                for written, attribute, _, _, _ in writes):
+            return None
+        for ref, cls in hierarchy:
+            if method in statement_scope_facts(cls.body).bound:
+                return constructor_source_member(self, ref, cls, method)
+        return None
+
     ## Read immutable lexical facts once per AST definition in this source generation.
     #  @param node Function or lambda definition.
     #  @return Flow-compatible lexical facts.
@@ -2172,6 +2196,20 @@ class FlowAnalyzer:
                 continue
             values = []
             for value in sources:
+                if (value.get('kind') == 'constructor_instance' and value.get('instance_type')
+                        and records[0].get('argument') == {'constructor_instance': True}
+                        and value.get('relation') == 'direct'
+                        and not any(value.get(flag) for flag in (
+                            'projection', 'output_path', 'value_incomplete'))
+                        and any(fact.get('status') == 'source_bound'
+                            and fact.get('phase') == '__init__'
+                            and fact.get('target') == asdict(definition[0])
+                            and fact.get('receiver_class') == value['instance_type']
+                            and fact.get('implicit_binding', {}).get('parameter') == parameter
+                            for fact in edge.constructor_bindings)):
+                    values.append({'instance_type': copy.deepcopy(value['instance_type']),
+                        'conditions': copy.deepcopy(value.get('conditions', []))})
+                    continue
                 origin = value.get('source_class_origin', {})
                 if (origin.get('basis') == 'source_symbol' and value.get('class_type')
                         and origin.get('class') == value['class_type']
@@ -2553,6 +2591,16 @@ class _Summary:
                 env[name] = [dict(value, value_incomplete=True)
                     if value.get('class_type') and self.class_origin_invalid(
                         value['class_type'], env, identities) else value for value in sources]
+
+    def invalidate_instance_receivers(self, values, env):
+        exposed = {(value.get('source'), repr(value['instance_type']))
+                   for value in values + self.materialize(values, env)
+                   if value.get('instance_type')}
+        if exposed:
+            for name, sources in env.items():
+                env[name] = [dict(value, value_incomplete=True, instance_candidates=[])
+                    if value.get('instance_type') and (value.get('source'),
+                        repr(value['instance_type'])) in exposed else value for value in sources]
 
     ## Explain a source classmethod binding under explicit snapshot assumptions.
     #  @param node Attribute call expression.
@@ -3398,11 +3446,8 @@ class _Summary:
                 candidates = []
                 complete_candidates = True
                 for module, class_name in sorted(instance_types):
-                    matches = self.analyzer._definition_index.find(
-                        module, class_name + '.' + node.func.attr)
-                    candidate = (matches[0] if len(matches) == 1 else
-                                 self.analyzer._inherited_method(
-                                     module, class_name, node.func.attr))
+                    candidate = self.analyzer._instance_method_candidate(
+                        module, class_name, node.func.attr)
                     if candidate is None:
                         complete_candidates = False
                     elif candidate not in candidates:
@@ -3494,7 +3539,7 @@ class _Summary:
                 dispatch_kind = 'constructor' if constructor_class is not None else 'classmethod'
             call_id = _call_key(self.ref.file_path, node)
             constructor_values = (self.expression(node.func, env)
-                if constructor_class is not None and target and target[1].name == '__new__'
+                if constructor_class is not None and target
                 and dispatch_kind == 'constructor' else [])
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
@@ -3852,19 +3897,24 @@ class _Summary:
                         if binding and all(v['kind'] == 'callable' for v in binding):
                             call.argument_sources.append({'argument': None, 'parameter': param.arg,
                                 'sources': _unique([v for b in binding for v in b.get('defaults', {}).get(param.arg, [])])})
-            if (constructor_class is not None and target and target[1].name == '__new__'
+            if (constructor_class is not None and target
                     and call.target_status == 'constructor'):
                 fact = constructor_source_binding(self, node, constructor_class, target,
                     constructor_values, self.class_origin_invalid(asdict(constructor_class), env))
                 call.constructor_bindings = [fact]
                 if fact['status'] == 'source_bound':
                     parameter = fact['implicit_binding']['parameter']
-                    slot = {'constructor_class': True}
-                    sources = copy.deepcopy(constructor_values)
-                    for value in sources:
-                        value.setdefault('source_class_origin', {
-                            'basis': 'source_symbol', 'class': asdict(constructor_class),
-                            'evidence': copy.deepcopy(value.get('evidence', [])), 'call_context': []})
+                    slot = copy.deepcopy(fact['implicit_binding']['argument'])
+                    sources = ([{'kind': 'constructor_instance', 'source': call.id,
+                        'instance_type': asdict(constructor_class), 'relation': 'direct',
+                        'evidence': [self.evidence(node)],
+                        'conditions': copy.deepcopy(self.conditions)}]
+                        if fact['phase'] == '__init__' else copy.deepcopy(constructor_values))
+                    if fact['phase'] == '__new__':
+                        for value in sources:
+                            value.setdefault('source_class_origin', {
+                                'basis': 'source_symbol', 'class': asdict(constructor_class),
+                                'evidence': copy.deepcopy(value.get('evidence', [])), 'call_context': []})
                     call.argument_sources.insert(0, {'argument': slot, 'parameter': parameter,
                                                     'sources': sources})
                     call.parameter_bindings.insert(0, {'argument': slot, 'parameter': parameter,
@@ -3898,9 +3948,9 @@ class _Summary:
                         call.argument_flows.append(dict(value, target_parameter=parameter,
                             argument=slot, status='flow_found'))
                     self.result.boundaries.append({'call_id': call.id,
-                        'reason': 'source_constructor_new_binding',
+                        'reason': 'source_constructor_' + fact['phase'].strip('_') + '_binding',
                         'boundary_kind': 'assumption', 'binding_status': 'source_bound',
-                        'execution_scope': 'new_invocation_only',
+                        'execution_scope': fact['execution_scope'],
                         'assumptions': copy.deepcopy(fact['assumptions']),
                         'evidence': self.evidence(node)})
                 else:
@@ -3989,6 +4039,10 @@ class _Summary:
                         for values in actual_values.values()))
             if not effects_complete and not source_super and call.target_status not in (
                     'python_protocol', 'local_container_protocol', 'builtin_allocation'):
+                self.invalidate_instance_receivers(
+                    [value for values in actual_values.values() for value in values]
+                    + receiver_values
+                    + [value for values in capture_values.values() for value in values], env)
                 self.invalidate_class_origins(
                     [value for values in actual_values.values() for value in values]
                     + receiver_values
