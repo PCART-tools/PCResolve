@@ -24,6 +24,8 @@ from .import_facts import import_facts, resolve_relative_module
 from ._decorator_effects import _DecoratorEffects
 from ._callable_instance_binding import source_binding
 from ._constructor_binding import source_binding as constructor_source_binding
+from ._constructor_entry import binding as constructor_entry_binding
+from ._constructor_entry import source_member as constructor_source_member
 from .mapping_remainders import mapping_remainder, _ProofLimit
 
 
@@ -645,10 +647,7 @@ class FlowAnalyzer:
                 members = [member for member in cls.body
                            if method in statement_scope_facts([member]).bound]
                 if members:
-                    matches = self._definition_index.find(
-                        owner.module, owner.qualname + '.' + method)
-                    return (matches[0] if len(matches) == 1
-                            and members == [matches[0][1]] else None)
+                    return constructor_source_member(self, owner, cls, method)
         return None
 
     ## Read immutable lexical facts once per AST definition in this source generation.
@@ -1979,7 +1978,7 @@ class FlowAnalyzer:
                 for parameter in parameters if parameter.arg not in loaded]
 
     ## Analyze reachable summaries up to a bounded number of call edges.
-    #  @param entry FunctionRef identifying the starting definition.
+    #  @param entry FunctionRef identifying a function or source class invocation.
     #  @param max_depth Number of call-edge layers, at least one.
     #  @param max_functions Maximum distinct function summaries.
     #  @param max_call_contexts Maximum traversed call edges.
@@ -1998,6 +1997,14 @@ class FlowAnalyzer:
         self._effect_fact_functions = max_functions
         self._effect_fact_steps = max_call_contexts
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
+        entry_binding = None
+        if not matches:
+            classes = [(r, n) for r, n in self.classes if _matches(r, entry)]
+            if len(classes) == 1:
+                target = self._constructor_target(classes[0])
+                if target is not None:
+                    matches = [target]
+                    entry_binding = constructor_entry_binding(self, classes[0], target)
         if not matches and not entry.lineno and '.' in entry.qualname:
             owner, _, method = entry.qualname.rpartition('.')
             inherited = self._inherited_method(entry.module, owner, method)
@@ -2023,6 +2030,22 @@ class FlowAnalyzer:
                 relation_basis='static_import_reachability')
             result.boundaries.append(record)
         context = CallContext(matches[0][0].module, matches[0][0], None)
+        if entry_binding is not None:
+            result.inputs['entry_binding'] = copy.deepcopy(entry_binding)
+            result.boundaries.append({'function': asdict(result.entry),
+                'reason': 'source_constructor_entry_binding' if entry_binding['status']
+                          == 'source_bound' else 'constructor_entry_unconfirmed',
+                'boundary_kind': 'assumption' if entry_binding['status'] == 'source_bound'
+                                 else 'limitation',
+                'assumptions': copy.deepcopy(entry_binding['assumptions']),
+                'issues': copy.deepcopy(entry_binding['issues'])})
+            if entry_binding['status'] != 'source_bound':
+                if self._analysis_budget is not None:
+                    self._analysis_budget.checkpoint(force=True)
+                return result
+            if entry_binding['phase'] == '__new__':
+                result.boundaries.append({'function': asdict(result.entry),
+                    'reason': 'constructor_initialization_unmodeled', 'phase': '__init__'})
         self._walk(result, matches[0], max_depth, context, max_functions, max_call_contexts)
         result.boundaries = _unique(result.boundaries)
         if self._analysis_budget is not None:
@@ -2038,6 +2061,18 @@ class FlowAnalyzer:
             return
         receiver_class = self._receiver_class(definition, context.edge)
         incoming = self._incoming_facts(definition, context.edge)
+        entry_binding = result.inputs.get('entry_binding') if context.edge is None else None
+        if entry_binding is not None and entry_binding['status'] == 'source_bound':
+            parameter = entry_binding['implicit_binding']['parameter']
+            identity = copy.deepcopy(entry_binding['receiver_class'])
+            if entry_binding['phase'] == '__new__':
+                receiver_class = FunctionRef(**identity)
+                incoming[parameter] = [{'class_type': identity,
+                    'source_class_origin': {'basis': 'source_symbol', 'class': identity,
+                        'evidence': [copy.deepcopy(entry_binding['definition_evidence'])],
+                        'call_context': []}}]
+            else:
+                incoming[parameter] = [{'instance_type': identity}]
         key = (ref, receiver_class, context.edge.id if context.edge else None,
                repr(incoming))
         if key in self._context_summaries:

@@ -7,6 +7,7 @@ from dataclasses import asdict
 
 from .scope_facts import statement_scope_facts
 from .effect_facts import contains_yield
+from ._constructor_entry import source_member
 
 
 ## Explain a selected source allocator without claiming initialized instance state.
@@ -65,10 +66,10 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
         members = [member for member in cls.body
                    if '__new__' in statement_scope_facts([member]).bound]
         if selected is None and members:
-            selected = owner, members
+            selected = owner, source_member(analyzer, owner, cls, '__new__')
     owner_name = ref.qualname.rpartition('.')[0]
     if (selected is None or selected[0].module != ref.module
-            or selected[0].qualname != owner_name or selected[1] != [method]):
+            or selected[0].qualname != owner_name or selected[1] != target):
         issue('constructor_new_lookup_conflict')
     writes, truncated = analyzer._class_binding_writes()
     if truncated:
@@ -80,6 +81,8 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     assumptions = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_binding',
                    'no_external_monkeypatch_or_import_hook',
                    'no_unmodeled_indirect_class_mutation']
+    if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
+        assumptions.append('stdlib_typing_overload_binding')
     paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path}
     return {'status': 'unconfirmed' if issues else 'source_bound',
         'basis': 'source_snapshot', 'phase': '__new__',

@@ -228,6 +228,13 @@ selecting a source `__new__`; it does not assert that initialization executes.
 An unresolved/custom allocator cannot be replaced by an initializer target.
 Source initializer targets require ordinary builtin allocation assumptions.
 
+For a source class query, optional `inputs.entry_binding` identifies the actual
+class and source MRO, selected `target`/`phase`, exact first receiver parameter,
+source hashes, definition evidence and assumptions. `query_kind="source_class_call"`
+distinguishes it from a call-site record. `source_bound` permits only the stated
+`new_invocation_only` or `init_invocation_only` phase. Unconfirmed entry bindings
+retain a boundary and do not expose body calls. Generic method entries are unchanged.
+
 Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
 continue to treat a selected method or decorated target/class as conservative
 when a corresponding override/decorator boundary is present.

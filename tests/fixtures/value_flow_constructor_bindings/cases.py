@@ -295,3 +295,9 @@ class CustomDescriptorNew:
 
 def custom_descriptor(**kwargs):
     return CustomDescriptorNew(**kwargs)
+
+
+class OpenDerived(FixedNew):
+    @classmethod
+    def fixed(cls, **kwargs):
+        return kwargs

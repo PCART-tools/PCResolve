@@ -525,6 +525,22 @@ conditional initialization phase, even when its own binding is proven. A bare
 `__new__` function query does not gain a concrete class origin. Other argument
 binding, dynamic construction and existing budgets retain their boundaries.
 
+`analyze(FunctionRef(module, class_name))` can query a source class invocation.
+The returned `entry` is the selected source phase; `inputs.entry_binding` retains
+the actual queried class, source MRO, implicit receiver, phase, source hashes,
+assumptions and definition evidence. This is a query binding, not an invented
+call site. A supported allocator starts with that class origin, including when
+the allocator is inherited; an ordinary initializer receives an instance origin.
+It does not claim initialized state or later lifecycle effects. Unconfirmed
+bindings have no body calls and retain `constructor_entry_unconfirmed`;
+unavailable/ambiguous phase definitions still raise the entry-resolution error.
+Generic method queries do not acquire this class invocation binding.
+Constructor lookup can select one final implementation after import-backed
+`typing.overload` declarations, recording `stdlib_typing_overload_binding`.
+This bounded form requires simple annotations and constant defaults. Shadowed
+decorator aliases, effectful declarations, repeated implementations and a final
+overload declaration cannot establish that member binding.
+
 ### Source-proven callable arguments and literal dispatch
 
 `analyze()` and `expand()` specialize ordinary parameters using complete,
