@@ -18,6 +18,8 @@ class ClassAttributeWrites:
     evidence: tuple
     ## Inspected AST size, charged to the query's shared effect budget.
     nodes: int
+    ## Source metadata reads whose entry literals participated in this proof.
+    metadata_evidence: tuple = ()
 
 
 ## Bound a class parameter's direct writes without asserting whole-function effects.
@@ -29,9 +31,10 @@ class ClassAttributeWrites:
 #  @param max_nodes Maximum AST nodes inspected in this proof.
 #  @param charge Optional callback charging every attempted inspection, including failures.
 #  @param string_literals Exact incoming ordinary string arguments, without assumed defaults.
+#  @param class_name Optional guarded provider for a protected class's entry name.
 #  @return ClassAttributeWrites, or None for escaping/reflective/unknown class use.
 def class_attribute_writes(node, parameter, builtin, protected, owner='', max_nodes=2000,
-                           charge=None, string_literals=None):
+                           charge=None, string_literals=None, class_name=None):
     if not isinstance(node, ast.FunctionDef):
         return None
     nodes = []
@@ -46,7 +49,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
     if any(isinstance(item, (ast.Global, ast.Nonlocal, ast.Yield, ast.YieldFrom,
                              ast.Await, ast.NamedExpr)) for item in nodes):
         return None
-    attributes, evidence = [], []
+    attributes, evidence, metadata_evidence = [], [], []
 
     def attribute_name(name):
         private_owner = owner.lstrip('_')
@@ -54,16 +57,29 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             return '_' + private_owner + name
         return name
 
-    def literal_name(value, names, depth=0):
+    def metadata_literal(value, aliases):
+        if (class_name is not None and isinstance(value, ast.Attribute)
+                and isinstance(value.ctx, ast.Load) and value.attr == '__name__'
+                and isinstance(value.value, ast.Name) and value.value.id in aliases):
+            name = class_name(value)
+            if type(name) is str:
+                if value not in metadata_evidence:
+                    metadata_evidence.append(value)
+                return name
+        return None
+
+    def literal_name(value, names, aliases, depth=0):
         if depth > 64:
             raise _ClassEffectLimit()
         if isinstance(value, ast.Constant) and type(value.value) is str:
             result = value.value
         elif isinstance(value, ast.Name):
             result = names.get(value.id)
+        elif isinstance(value, ast.Attribute):
+            result = metadata_literal(value, aliases)
         elif isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
-            left, right = (literal_name(value.left, names, depth + 1),
-                           literal_name(value.right, names, depth + 1))
+            left, right = (literal_name(value.left, names, aliases, depth + 1),
+                           literal_name(value.right, names, aliases, depth + 1))
             result = left + right if left is not None and right is not None else None
         else:
             result = None
@@ -94,6 +110,8 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             if value.attr == '__dict__':
                 return False
             if isinstance(value.value, ast.Name) and value.value.id in aliases:
+                if metadata_literal(value, aliases) is not None:
+                    return True
                 if not isinstance(value.ctx, ast.Load) or attribute_name(value.attr) not in plain:
                     return False
                 if value not in evidence:
@@ -105,7 +123,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                     value.args[0], ast.Name) and value.args[0].id in aliases:
                 if (not builtin(name) or value.keywords or len(value.args) not in (
                         (2, 3) if name == 'getattr' else (2,))
-                        or literal_name(value.args[1], names) not in plain
+                        or literal_name(value.args[1], names, aliases) not in plain
                         or not all(safe(arg, aliases, names, plain, depth + 1)
                                    for arg in value.args[2:])):
                     return False
@@ -151,7 +169,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                     continue
                 if not safe(statement.value, aliases, names, plain):
                     return False
-                name = literal_name(statement.value, names)
+                name = literal_name(statement.value, names, aliases)
                 for item in statement.targets:
                     if isinstance(item, ast.Name):
                         aliases.discard(item.id)
@@ -166,7 +184,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                     return False
                 if isinstance(statement.target, ast.Name):
                     aliases.discard(statement.target.id)
-                    name = literal_name(statement.value, names)
+                    name = literal_name(statement.value, names, aliases)
                     names.pop(statement.target.id, None)
                     if name is not None:
                         names[statement.target.id] = name
@@ -196,7 +214,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                         and call.func.id in ('setattr', 'delattr') and call.args
                         and isinstance(call.args[0], ast.Name) and call.args[0].id in aliases):
                     count = 3 if call.func.id == 'setattr' else 2
-                    name = literal_name(call.args[1], names) if len(call.args) >= 2 else None
+                    name = literal_name(call.args[1], names, aliases) if len(call.args) >= 2 else None
                     if (not builtin(call.func.id) or len(call.args) != count or call.keywords
                             or name is None
                             or not all(safe(arg, aliases, names, plain) for arg in call.args[2:])
@@ -219,4 +237,4 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
              if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
     if not block(node.body, {parameter}, names, set()):
         return None
-    return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes))
+    return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes), tuple(metadata_evidence))

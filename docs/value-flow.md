@@ -729,6 +729,17 @@ An all-underscore lexical class name leaves private names unchanged, consistentl
 in both class-write effects and stored-attribute provenance.
 This local read check proves neither the helper's return payload nor effects on
 other arguments; `value_completeness` stays `unmodeled`.
+An optional `class_metadata_bindings` record can bind an exact source class's
+canonical `__name__` at a helper's call entry. It uses a standard source MRO,
+restricted class-definition evaluation and no recognized metadata writes or
+class escapes in the selected source snapshot. Ancestor creation hooks, custom
+metaclasses, unknown descriptors and evaluated defaults/annotations prevent the
+literal. The record retains the full snapshot hashes, assumptions and explicit
+issues; `runtime_value_confirmed` stays false. A bounded write set that uses this
+value includes `name_basis="source_class_metadata"`, `name_metadata` and
+`name_evidence`. This permits finite computed names, not conditional cache-read
+safety, return payload types or backend selection. Exhausted checks retain
+`class_attribute_effect_budget`.
 An ordinary helper's omitted argument stays aliasable even when the source
 signature spells a primitive default: `__defaults__` and `__kwdefaults__` can be
 replaced through aliases. Explicit primitive argument facts, including
