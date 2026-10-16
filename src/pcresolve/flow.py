@@ -29,6 +29,7 @@ from ._constructor_entry import source_member as constructor_source_member
 from .mapping_remainders import mapping_remainder, _ProofLimit
 from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 from ._class_name_binding import source_binding as source_class_name_binding
+from ._class_read_binding import source_binding as source_class_read_binding
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -122,6 +123,7 @@ class FlowCall:
     constructor_bindings: list = field(default_factory=list)
     implicit_protocol: dict = field(default_factory=dict)
     class_metadata_bindings: list = field(default_factory=list)
+    class_read_bindings: list = field(default_factory=list)
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
@@ -2208,6 +2210,7 @@ class FlowAnalyzer:
                         conditional_returns=copy.deepcopy(call.conditional_returns),
                         class_method_bindings=copy.deepcopy(call.class_method_bindings),
                         class_metadata_bindings=copy.deepcopy(call.class_metadata_bindings),
+                        class_read_bindings=copy.deepcopy(call.class_read_bindings),
                         constructor_bindings=copy.deepcopy(call.constructor_bindings),
                         conditions=copy.deepcopy(getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
@@ -2393,7 +2396,8 @@ class FlowAnalyzer:
                               'return_dependencies', 'decorator_identity_evidence'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 for field in ('callable_sources', 'analysis_contexts', 'conditional_returns',
-                              'class_method_bindings', 'constructor_bindings', 'class_metadata_bindings'):
+                              'class_method_bindings', 'constructor_bindings', 'class_metadata_bindings',
+                              'class_read_bindings'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 if previous.callable_instance_evidence != call.callable_instance_evidence:
                     previous.callable_instance_evidence = {}
@@ -2785,6 +2789,16 @@ class _Summary:
                 self.analyzer._class_effect_fact_steps -= count
 
             metadata = []
+            read_bindings = {}
+
+            def class_read(attribute):
+                if attribute not in read_bindings:
+                    binding = source_class_read_binding(self, identity, definition, parameter, call, node, attribute)
+                    read_bindings[attribute] = binding
+                    if binding is not None and binding not in call.class_read_bindings:
+                        call.class_read_bindings.append(copy.deepcopy(binding))
+                binding = read_bindings[attribute]
+                return binding is not None and binding.get('status') == 'source_bound'
 
             def class_name(source):
                 if not metadata:
@@ -2802,7 +2816,7 @@ class _Summary:
                         == 'confirmed_builtin', protected,
                     self.analyzer._lexical_class_name(definition[0]),
                     min(2000, self.analyzer._class_effect_fact_steps), charge,
-                    string_literals=string_literals, class_name=class_name)
+                    string_literals=string_literals, class_name=class_name, class_read=class_read)
             except _ClassEffectLimit:
                 self.add_boundary('class_attribute_effect_budget', node, env, values, call_id=call.id)
                 continue
@@ -2812,6 +2826,8 @@ class _Summary:
                 definition[0].file_path, self.ref.file_path}
             if proof.metadata_evidence:
                 paths.update(metadata[0]['source_hashes'])
+            for attribute, _ in proof.read_evidence:
+                paths.update(read_bindings[attribute]['source_hashes'])
             effect = {'kind': 'class_attribute_write_set', 'status': 'bounded',
                 'preserved_scope': 'other_class_attributes', 'completion': 'normal_return',
                 'value_completeness': 'unmodeled', 'receiver_class': copy.deepcopy(identity),
@@ -2825,6 +2841,12 @@ class _Summary:
                     'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']}
             if name_bindings:
                 effect['name_bindings'] = name_bindings
+            if proof.read_evidence:
+                effect['read_basis'] = 'source_class_attribute_invariant'
+                effect['read_premises'] = [copy.deepcopy(read_bindings[name])
+                    for name in _unique([name for name, _ in proof.read_evidence])]
+                effect['read_evidence'] = [{'attribute': name, 'operation': 'hasattr',
+                    'evidence': self.evidence_at(definition[0], source)} for name, source in proof.read_evidence]
             if proof.metadata_evidence:
                 effect['name_basis'] = 'source_class_metadata'
                 effect['name_metadata'] = copy.deepcopy(metadata[0])
@@ -6761,6 +6783,7 @@ class _Summary:
                 previous.conditional_returns = _unique(previous.conditional_returns + call.conditional_returns)
                 previous.class_method_bindings = _unique(previous.class_method_bindings + call.class_method_bindings)
                 previous.class_metadata_bindings = _unique(previous.class_metadata_bindings + call.class_metadata_bindings)
+                previous.class_read_bindings = _unique(previous.class_read_bindings + call.class_read_bindings)
                 previous.constructor_bindings = _unique(previous.constructor_bindings + call.constructor_bindings)
                 previous.result_sources = _merge_result_sources(
                     previous.result_sources, call.result_sources)

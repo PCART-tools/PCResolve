@@ -20,6 +20,8 @@ class ClassAttributeWrites:
     nodes: int
     ## Source metadata reads whose entry literals participated in this proof.
     metadata_evidence: tuple = ()
+    ## Attribute/probe pairs relying on an entry read invariant.
+    read_evidence: tuple = ()
 
 
 ## Bound a class parameter's direct writes without asserting whole-function effects.
@@ -32,9 +34,12 @@ class ClassAttributeWrites:
 #  @param charge Optional callback charging every attempted inspection, including failures.
 #  @param string_literals Exact incoming ordinary string arguments, without assumed defaults.
 #  @param class_name Optional guarded provider for a protected class's entry name.
+#  @param class_read Optional guarded predicate for an absent-or-builtin attribute.
+#  @param class_calls Optional method names in an independently checked closed invariant.
 #  @return ClassAttributeWrites, or None for escaping/reflective/unknown class use.
 def class_attribute_writes(node, parameter, builtin, protected, owner='', max_nodes=2000,
-                           charge=None, string_literals=None, class_name=None):
+                           charge=None, string_literals=None, class_name=None, class_read=None,
+                           class_calls=None):
     if not isinstance(node, ast.FunctionDef):
         return None
     nodes = []
@@ -49,7 +54,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
     if any(isinstance(item, (ast.Global, ast.Nonlocal, ast.Yield, ast.YieldFrom,
                              ast.Await, ast.NamedExpr)) for item in nodes):
         return None
-    attributes, evidence, metadata_evidence = [], [], []
+    attributes, evidence, metadata_evidence, read_evidence = [], [], [], []
 
     def attribute_name(name):
         private_owner = owner.lstrip('_')
@@ -106,6 +111,19 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 if source not in evidence:
                     evidence.append(source)
 
+    def guarded_probe(value, aliases, names, plain):
+        if (not isinstance(value, ast.Call) or not isinstance(value.func, ast.Name)
+                or value.func.id != 'hasattr' or not builtin('hasattr') or value.keywords
+                or len(value.args) != 2 or not isinstance(value.args[0], ast.Name)
+                or value.args[0].id not in aliases):
+            return None
+        name = literal_name(value.args[1], names, aliases)
+        if name is not None and (name in plain or class_read is not None and class_read(name)):
+            if name not in plain and (name, value) not in read_evidence:
+                read_evidence.append((name, value))
+            return name
+        return None
+
     def safe(value, aliases, names, plain, depth=0):
         if depth > 64:
             raise _ClassEffectLimit()
@@ -117,6 +135,16 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 return False
         if isinstance(value, ast.Name):
             return value.id not in aliases and (value.id in names or not protected(value))
+        if (class_calls is not None and isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Attribute) and isinstance(value.func.value, ast.Name)
+                and value.func.value.id in aliases and attribute_name(value.func.attr) in class_calls):
+            if not all(safe(item, aliases, names, plain, depth + 1)
+                       for item in list(value.args) + [keyword.value for keyword in value.keywords]):
+                return False
+            # A closed sibling can delete or replace prior local reads. Only its
+            # separately checked invariant survives, never the local presence set.
+            plain.clear()
+            return True
         if isinstance(value, ast.Attribute):
             if value.attr == '__dict__':
                 return False
@@ -135,6 +163,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 if (not builtin(name) or value.keywords or len(value.args) not in (
                         (2, 3) if name == 'getattr' else (2,))
                         or literal_name(value.args[1], names, aliases) not in plain
+                        and guarded_probe(value, aliases, names, plain) is None
                         or not all(safe(arg, aliases, names, plain, depth + 1)
                                    for arg in value.args[2:])):
                     return False
@@ -219,6 +248,11 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 left, right = set(aliases), set(aliases)
                 left_names, right_names = dict(names), dict(names)
                 left_plain, right_plain = set(plain), set(plain)
+                test = statement.test
+                inverted = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
+                probe = guarded_probe(test.operand if inverted else test, aliases, names, plain)
+                if probe is not None:
+                    (right_plain if inverted else left_plain).add(probe)
                 left_payloads, right_payloads = dict(payloads), dict(payloads)
                 if not block(statement.body, left, left_names, left_plain, left_payloads) or not block(
                         statement.orelse, right, right_names, right_plain, right_payloads):
@@ -260,4 +294,5 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
              if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
     if not block(node.body, {parameter}, names, set(), {}):
         return None
-    return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes), tuple(metadata_evidence))
+    return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes),
+                                tuple(metadata_evidence), tuple(read_evidence))

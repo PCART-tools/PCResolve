@@ -746,6 +746,27 @@ value kills its evidence, while rebinding another name does not change an object
 already written to the class. Supporting assignments remain in the effect's
 source evidence. This does not infer exact cache contents, constructor return
 types, incoming argument values or source defaults.
+For a restricted source class, an optional `class_read_bindings` premise can
+prove that a named attribute is absent or holds a builtin literal payload.
+The proof checks the source MRO, class-definition evaluation, literal namespace
+values, recognized writes and class escapes across the source snapshot. It
+also checks the closed ordinary MRO method set for receiver escapes and
+unproved reads/calls. Sibling calls retain only the invariant, invalidating
+local presence proofs; descriptor access, indirect helper escapes and method
+namespace replacement remain unconfirmed. This is a bounded preservation
+check, not a general interprocedural effect analysis. It rejects descriptors,
+unknown factory values, dynamic/reflective writes, method
+replacement and incomplete or exhausted checks. Private names use their lexical
+class mangling. The premise does not assert that the attribute is present.
+An unshadowed `hasattr` test may then refine the present branch; merging it with
+a branch that definitely writes a builtin payload permits a subsequent read.
+Deleting or replacing that value still invalidates the local read proof.
+The bounded write set retains `read_basis="source_class_attribute_invariant"`,
+`read_premises` and `read_evidence`, including the exact class/helper/call and full
+snapshot hashes. Its `value_completeness` remains `unmodeled`; this is neither a
+cache-content/return-shape fact nor a default-backend assumption. Unsupported
+direct preexisting reads and general constructor-backed cache payloads remain
+outside this subset. Budget exhaustion retains `class_attribute_effect_budget`.
 An all-underscore lexical class name leaves private names unchanged, consistently
 in both class-write effects and stored-attribute provenance.
 This local read check proves neither the helper's return payload nor effects on
