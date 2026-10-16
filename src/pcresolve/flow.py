@@ -2250,6 +2250,7 @@ class FlowAnalyzer:
                         conditional_source_bindings=copy.deepcopy(call.conditional_source_bindings),
                         candidate_paths=copy.deepcopy(call.candidate_paths),
                         constructor_bindings=copy.deepcopy(call.constructor_bindings),
+                        implicit_protocol=copy.deepcopy(call.implicit_protocol),
                         conditions=copy.deepcopy(call.conditions if self._conditional_source_state
                             else getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
@@ -4316,6 +4317,15 @@ class _Summary:
                     {'parameter': 'object', 'relation': 'derived'}],
                     'provenance': 'Python builtin result dependency (not owner preservation)'}
                 call.target_status = 'python_protocol'
+                if name == 'bool':
+                    call.implicit_protocol = {'kind': 'builtin_scalar_truth', 'builtin': 'bool',
+                        'status': 'requires_exact_input', 'runtime_input_confirmed': False,
+                        'precondition': {'argument': {'position': 0},
+                            'exact_types': ['NoneType', 'bool', 'int', 'float', 'str', 'bytes']},
+                        'completion': 'normal_return_if_precondition',
+                        'effects': 'none_if_precondition', 'call_id': call.id,
+                        'source_hash': self.analyzer.hashes[self.ref.file_path],
+                        'evidence': self.evidence(node)}
             if (contract is None and target is None and builtin_status == 'confirmed_builtin' and name == 'next'
                     and canonical == self.ref.module + '.next'
                     and len(node.args) == 1 and not node.keywords

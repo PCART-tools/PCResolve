@@ -1712,6 +1712,15 @@ expansion.
 
 ## Source updates and resource limits
 
+An unshadowed, singly bound `bool(value)` exposes
+`implicit_protocol.kind=builtin_scalar_truth`. Its exact-input precondition is
+limited to builtin None/bool/int/float/str/bytes, with completion and absence of
+effects conditional on that precondition. The record contains the call span,
+source hash and `runtime_input_confirmed=false`. An unknown object may invoke
+user-defined truth methods and does not satisfy this model. Consumers must
+establish the exact input from their own query, rather than infer it from the
+protocol's presence.
+
 `expand(result, call_id, isolate=True)` returns only the selected callee's
 incoming context rather than merging it with the parent snapshot. The additive
 `inputs.expansion_context` records the exact incoming call, caller, target and
