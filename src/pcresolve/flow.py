@@ -30,6 +30,7 @@ from ._constructor_entry import _definition_issues as constructor_definition_iss
 from .mapping_remainders import mapping_remainder, _ProofLimit
 from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 from ._class_name_binding import source_binding as source_class_name_binding
+from ._class_name_binding import _write_name as class_write_name
 from ._class_read_binding import source_binding as source_class_read_binding
 
 
@@ -125,6 +126,9 @@ class FlowCall:
     implicit_protocol: dict = field(default_factory=dict)
     class_metadata_bindings: list = field(default_factory=list)
     class_read_bindings: list = field(default_factory=list)
+    conditional_source_bindings: list = field(default_factory=list)
+    candidate_paths: list = field(default_factory=list)
+    conditions: list = field(default_factory=list)
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
@@ -2098,8 +2102,13 @@ class FlowAnalyzer:
     #  @param max_depth Number of call-edge layers, at least one.
     #  @param max_functions Maximum distinct function summaries.
     #  @param max_call_contexts Maximum traversed call edges.
+    #  @param conditional_source_state Retain source-class lookup under explicit state predicates.
     #  @return FlowAnalysis snapshot; cutoffs are explicit boundaries.
-    def analyze(self, entry, max_depth=1, max_functions=500, max_call_contexts=2000):
+    def analyze(self, entry, max_depth=1, max_functions=500, max_call_contexts=2000,
+                conditional_source_state=False):
+        if type(conditional_source_state) is not bool:
+            raise ValueError('conditional_source_state must be bool')
+        self._conditional_source_state = conditional_source_state
         if min(max_depth, max_functions, max_call_contexts) < 1:
             raise ValueError('Depth and budgets must be positive')
         self._analysis_budget = (AnalysisBudget(self.analysis_limits)
@@ -2129,11 +2138,15 @@ class FlowAnalyzer:
                 matches = [inherited]
         if len(matches) != 1:
             raise ValueError('Entry must identify exactly one available definition')
+        if conditional_source_state and (entry_binding is None or entry_binding['status'] != 'source_bound'):
+            raise ValueError('Conditional state analysis requires a bound source class entry')
         result = FlowAnalysis(matches[0][0], {'source_files': sorted(self.files), 'sha256': dict(self.hashes),
                               'import_roots': list(self.roots), 'max_depth': max_depth,
                               'return_summaries': copy.deepcopy(self.return_summaries),
                               'parameter_shapes': copy.deepcopy(self.parameter_shapes),
                               'coverage': 'explicit value dependencies and limited local container effects; no general heap or path feasibility proof'})
+        if conditional_source_state:
+            result.inputs['conditional_source_state'] = True
         reachable_modules = self._reachable_modules(matches[0][0].module)
         unreferenced = self._unreferenced_parameters(matches[0][1])
         for boundary in self.index_boundaries:
@@ -2233,8 +2246,11 @@ class FlowAnalyzer:
                         class_method_bindings=copy.deepcopy(call.class_method_bindings),
                         class_metadata_bindings=copy.deepcopy(call.class_metadata_bindings),
                         class_read_bindings=copy.deepcopy(call.class_read_bindings),
+                        conditional_source_bindings=copy.deepcopy(call.conditional_source_bindings),
+                        candidate_paths=copy.deepcopy(call.candidate_paths),
                         constructor_bindings=copy.deepcopy(call.constructor_bindings),
-                        conditions=copy.deepcopy(getattr(selected[1], '_flow_conditions', [])))
+                        conditions=copy.deepcopy(call.conditions if self._conditional_source_state
+                            else getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
             self._context_call_count += len(calls)
             self._merge_summary(result, scratch)
@@ -2419,7 +2435,7 @@ class FlowAnalyzer:
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 for field in ('callable_sources', 'analysis_contexts', 'conditional_returns',
                               'class_method_bindings', 'constructor_bindings', 'class_metadata_bindings',
-                              'class_read_bindings'):
+                              'class_read_bindings', 'conditional_source_bindings', 'candidate_paths'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 if previous.callable_instance_evidence != call.callable_instance_evidence:
                     previous.callable_instance_evidence = {}
@@ -2442,6 +2458,7 @@ class FlowAnalyzer:
         if additional_depth < 1:
             raise ValueError('additional_depth must be positive')
         self._index()
+        self._conditional_source_state = result.inputs.get('conditional_source_state') is True
         if (self.hashes != result.inputs['sha256'] or sorted(self.files) != result.inputs['source_files']
                 or self.return_summaries != result.inputs.get('return_summaries', {})
                 or self.parameter_shapes != result.inputs.get('parameter_shapes', {})):
@@ -2894,18 +2911,89 @@ class _Summary:
     ## Invalidate source class identity proofs after an unmodeled write or escape.
     #  @param values Class provenance exposed to the operation.
     #  @param env Current lexical/heap values, including aliases of those classes.
-    def invalidate_class_origins(self, values, env):
+    def invalidate_class_origins(self, values, env, call=None):
         identities = [value['class_type'] for value in values + self.materialize(values, env)
                       if value.get('source_class_origin') and value.get('class_type')]
         if identities:
+            if (getattr(self.analyzer, '_conditional_source_state', False) and call is not None
+                    and self.condition_class_state(identities, values, env, call)):
+                return
             for identity in _unique(identities):
                 key = _class_origin_key(identity)
                 env[key] = [{'kind': 'class_state', 'source': key,
-                    'relation': 'direct', 'evidence': [], 'conditions': []}]
+                    'relation': 'direct', 'evidence': [], 'conditions': [],
+                    'cause': 'unmodeled_call' if call is not None else 'write'}]
             for name, sources in env.items():
                 env[name] = [dict(value, value_incomplete=True)
                     if value.get('class_type') and self.class_origin_invalid(
                         value['class_type'], env, identities) else value for value in sources]
+
+    ## Retain an explicit subsequent-lookup predicate, without proving the effect.
+    #  @param identities Source class objects exposed to the call.
+    #  @param values Actual input provenance, checked for prior incompleteness.
+    #  @param env Current path state to annotate without materializing class data.
+    #  @param call Evaluated source call whose effects remain unknown.
+    #  @return Whether source lookup may continue under an unproved state predicate.
+    def condition_class_state(self, identities, values, env, call):
+        # A state predicate describes a required source lookup, never an effect
+        # proof or a runtime target. Explicit writes still use normal invalidation.
+        if any(value.get('value_incomplete') for value in values if value.get('class_type')):
+            return False
+        if call.target is None:
+            return False
+        selected = self.analyzer._definition_index.find(call.target.module, call.target.qualname)
+        if len(selected) != 1:
+            return False
+        function = selected[0][1]
+        parameters = function.args.posonlyargs + function.args.args
+        if not parameters:
+            return False
+        # Do not hide source-known writes to the method namespace or MRO.
+        methods = {'__class__', '__bases__', '__dict__'}
+        for identity in identities:
+            hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
+            if not hierarchy:
+                return False
+            for _, cls in hierarchy:
+                for member in cls.body:
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        methods.add(member.name)
+                        if member.name.startswith('__') and not member.name.endswith('__') and cls.name.lstrip('_'):
+                            methods.add('_' + cls.name.lstrip('_') + member.name)
+        for count, item in enumerate(ast.walk(function)):
+            if count >= 2000 or self.analyzer._class_effect_fact_steps <= 0:
+                self.result.boundaries.append({'call_id': call.id, 'reason': 'conditional_source_budget'})
+                return False
+            self.analyzer._class_effect_fact_steps -= 1
+            if (isinstance(item, ast.Attribute) and isinstance(item.ctx, (ast.Store, ast.Del))
+                    and item.attr in methods):
+                return False
+            if (isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
+                    and item.func.id in ('setattr', 'delattr') and len(item.args) >= 2):
+                name = (class_write_name(item.args[1], function, item.args[0].id, None, item.lineno)
+                        if isinstance(item.args[0], ast.Name) else None)
+                if name in methods:
+                    return False
+        predicates = []
+        for identity in _unique(identities):
+            if self.class_origin_invalid(identity, env):
+                return False
+            predicate = {'kind': 'source_state_preserved', 'status': 'required',
+                'runtime_confirmed': False, 'receiver_class': copy.deepcopy(identity),
+                'effect_call': call.id, 'effect_target': asdict(call.target),
+                'evidence': {'file_path': call.caller.file_path, 'lineno': call.lineno,
+                    'col_offset': call.col_offset, 'end_lineno': call.end_lineno,
+                    'end_col_offset': call.end_col_offset},
+                'scope': 'subsequent_source_lookup', 'feasibility': 'not_proven'}
+            predicates.append(predicate)
+            self.result.boundaries.append({'call_id': call.id, 'reason': 'conditional_source_state',
+                'boundary_kind': 'required_condition', 'condition': copy.deepcopy(predicate)})
+        for name, sources in env.items():
+            env[name] = [dict(value, conditions=_unique(value.get('conditions', []) +
+                [copy.deepcopy(predicate) for predicate in predicates
+                 if predicate['receiver_class'] == value.get('class_type')]))
+                if value.get('class_type') else value for value in sources]
+        return True
 
     def invalidate_instance_receivers(self, values, env):
         exposed = {(value.get('source'), repr(value['instance_type']))
@@ -3893,6 +3981,18 @@ class _Summary:
                     or node.func.attr.startswith('__') and not node.func.attr.endswith('__')
                     and any(effect.get('attributes') for value in receiver_values
                             for effect in value.get('class_lookup_mutations', [])))):
+                if (target and dispatch_kind == 'super_new' and receiver_values
+                        and all(value.get('source_class_origin', {}).get('basis') == 'source_symbol'
+                                for value in receiver_values)
+                        and not self.class_lookup_affected(receiver_values,
+                            (node.func.attr, '__class__', '__bases__'))
+                        and any(value.get('cause') == 'unmodeled_call' for key, values in env.items()
+                                if key.startswith('$class_origin_invalid:') for value in values)
+                        and not any(value.get('cause') == 'write' for key, values in env.items()
+                                    if key.startswith('$class_origin_invalid:') for value in values)):
+                    self.result.boundaries.append({'reason': 'source_lookup_candidate',
+                        'call_id': _call_key(self.ref.file_path, node),
+                        'target': asdict(target[0]), 'evidence': self.evidence(node)})
                 target, bounded_targets, bound_receiver, dispatch_kind = None, [], False, None
             identity_decorator = None
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
@@ -3927,6 +4027,28 @@ class _Summary:
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
             call.implicit_protocol = copy.deepcopy(protocol)
+            if getattr(self.analyzer, '_conditional_source_state', False):
+                contexts = [context for value in receiver_sources
+                            for context in value.get('instance_candidate_contexts', [])] or receiver_sources
+                common = (contexts[0].get('conditions', []) if contexts else [])
+                call.conditions = _unique(copy.deepcopy(self.conditions) + [condition for condition in common
+                    if all(condition in value.get('conditions', []) for value in contexts)])
+                parameters = self.node.args.posonlyargs + self.node.args.args
+                ambient = env.get(parameters[0].arg, []) if parameters else []
+                if ambient:
+                    call.conditions = _unique(call.conditions + [condition
+                        for condition in ambient[0].get('conditions', [])
+                        if all(condition in value.get('conditions', []) for value in ambient)
+                        and condition.get('kind') == 'source_state_preserved'])
+                for context in contexts:
+                    identity = context.get('instance_type')
+                    candidate = (self.analyzer._instance_method_candidate(identity['module'],
+                        identity['qualname'], node.func.attr) if identity and isinstance(node.func, ast.Attribute)
+                        else None)
+                    if candidate and candidate in bounded_targets:
+                        call.candidate_paths.append({'target': asdict(candidate[0]), 'call_id': call.id,
+                            'receiver_class': copy.deepcopy(identity),
+                            'conditions': copy.deepcopy(context.get('conditions', []))})
             call.callable_sources = copy.deepcopy(callable_sources)
             if callable_incomplete:
                 self.add_boundary('callable_identity_incomplete', node, env,
@@ -4457,10 +4579,21 @@ class _Summary:
                     [value for value in [value for values in actual_values.values() for value in values]
                     + receiver_values
                     + [value for values in capture_values.values() for value in values]
-                     if value.get('class_type') not in preserved_classes], env)
+                     if value.get('class_type') not in preserved_classes], env, call)
             self.calls.append(call)
             if invalid_binding:
                 return []
+            if (getattr(self.analyzer, '_conditional_source_state', False) and call.target is not None
+                    and call.target_status in ('super_new', 'super_method', 'classmethod')):
+                required = [condition for condition in call.conditions
+                            if condition.get('kind') == 'source_state_preserved']
+                if required:
+                    call.conditional_source_bindings = [{'kind': 'conditional_source_lookup',
+                        'status': 'required', 'target': asdict(call.target), 'call_id': call.id,
+                        'call_evidence': self.evidence(node), 'conditions': copy.deepcopy(call.conditions),
+                        'receiver_classes': _unique([value['class_type'] for value in receiver_sources
+                            if value.get('class_type')]), 'runtime_target_confirmed': False,
+                        'source_hashes': dict(self.analyzer.hashes), 'feasibility': 'not_proven'}]
             if container_result is not None:
                 return container_result
             result_value = {'kind': 'call_result', 'source': call_id,
@@ -4513,6 +4646,11 @@ class _Summary:
                     evidence=_unique(result_value['evidence'] + [evidence
                         for value in allocation_candidates for evidence in value.get('evidence', [])]))
                 call.result_sources = [result_value]
+                if getattr(self.analyzer, '_conditional_source_state', False):
+                    result_value['instance_candidate_contexts'] = [
+                        {'instance_type': copy.deepcopy(value['class_type']),
+                         'conditions': copy.deepcopy(value.get('conditions', []))}
+                        for value in allocation_candidates]
             elif (target and dispatch_kind == 'instance_method'
                   and isinstance(node.func, ast.Attribute)
                   and isinstance(node.func.value, ast.Name)
@@ -6304,6 +6442,16 @@ class _Summary:
             right = (self.block(node.orelse, negative)
                      if self.refine_guard(node.test, negative, positive=False) else [])
             self.conditions = before
+            if getattr(self.analyzer, '_conditional_source_state', False):
+                normal_left = any(outcome[0] == 'normal' for outcome in left)
+                normal_right = any(outcome[0] == 'normal' for outcome in right)
+                if normal_left != normal_right:
+                    predicate = {'test': self.evidence(node.test), 'branch': normal_left}
+                    for kind, state, _, _ in left + right:
+                        if kind == 'normal':
+                            for name, values in state.items():
+                                state[name] = [dict(value, conditions=_unique(
+                                    value.get('conditions', []) + [predicate])) for value in values]
             return exceptional + left + right
         if isinstance(node, ast.Try):
             return self.try_statement(node, env)
@@ -6597,6 +6745,21 @@ class _Summary:
     #  @param allow_callable Disable replay after compound-condition effects.
     #  @return False only for an incompatible closed callable identity.
     def refine_guard(self, test, env, positive=True, allow_callable=True):
+        if (getattr(self.analyzer, '_conditional_source_state', False)
+                and isinstance(test, ast.Constant) and bool(test.value) != positive):
+            return False
+        if (getattr(self.analyzer, '_conditional_source_state', False) and allow_callable
+                and isinstance(test, ast.Compare) and len(test.ops) == len(test.comparators) == 1
+                and isinstance(test.ops[0], (ast.Is, ast.IsNot))
+                and isinstance(test.left, ast.Name) and isinstance(test.comparators[0], ast.Name)):
+            sides = [self.class_values(env.get(value.id, []), env=env)
+                     for value in (test.left, test.comparators[0])]
+            if all(values and not any(value.get('value_incomplete') for value in values)
+                   and len(_unique([value['class_type'] for value in values])) == 1 for values in sides):
+                identical = sides[0][0]['class_type'] == sides[1][0]['class_type']
+                truth = identical if isinstance(test.ops[0], ast.Is) else not identical
+                if truth != positive:
+                    return False
         if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
             return self.refine_guard(test.operand, env, not positive, allow_callable)
         if isinstance(test, ast.BoolOp) and (positive and isinstance(test.op, ast.And)
@@ -6820,6 +6983,9 @@ class _Summary:
                 previous.class_method_bindings = _unique(previous.class_method_bindings + call.class_method_bindings)
                 previous.class_metadata_bindings = _unique(previous.class_metadata_bindings + call.class_metadata_bindings)
                 previous.class_read_bindings = _unique(previous.class_read_bindings + call.class_read_bindings)
+                previous.conditional_source_bindings = _unique(
+                    previous.conditional_source_bindings + call.conditional_source_bindings)
+                previous.candidate_paths = _unique(previous.candidate_paths + call.candidate_paths)
                 previous.constructor_bindings = _unique(previous.constructor_bindings + call.constructor_bindings)
                 previous.result_sources = _merge_result_sources(
                     previous.result_sources, call.result_sources)

@@ -746,6 +746,25 @@ value kills its evidence, while rebinding another name does not change an object
 already written to the class. Supporting assignments remain in the effect's
 source evidence. This does not infer exact cache contents, constructor return
 types, incoming argument values or source defaults.
+
+A bound source class entry may explicitly request
+`analyze(..., conditional_source_state=True)`. This separate query mode retains
+source lookup after a source call with unmodeled class effects only under a
+`source_state_preserved` requirement. It does not establish harmlessness,
+normal completion or path feasibility. Each requirement records its source
+class, effect call/target/span, `status="required"`, `runtime_confirmed=false`
+and `feasibility="not_proven"`. `conditional_source_bindings` matches the later
+lookup, source hashes and required conditions; `source_lookup_candidate` in an
+ordinary result identifies an available conditional requery, not a resolved edge.
+The mode requires a bound source-class entry and does not promote generic,
+rebound or projected receiver parameters. Known method/MRO writes, source
+binding conflicts and budgets remain boundaries. Sole normal continuations
+retain their guard, and source-class identity guards can exclude incompatible
+branches. `candidate_paths` keeps each allocated receiver candidate's conditions
+separate. The ordinary analysis mode remains the default. Expansion restores
+its input mode, and these conditional facts must not be reused as ordinary
+binding/effect proofs or to decide parameter consumption.
+
 For a restricted source class, an optional `class_read_bindings` premise can
 prove that a named attribute is absent or holds a builtin literal payload.
 The proof checks the source MRO, class-definition evaluation, literal namespace
