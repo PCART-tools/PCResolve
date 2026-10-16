@@ -1712,6 +1712,28 @@ expansion.
 
 ## Source updates and resource limits
 
+`expand(result, call_id, isolate=True)` returns only the selected callee's
+incoming context rather than merging it with the parent snapshot. The additive
+`inputs.expansion_context` records the exact incoming call, caller, target and
+parameter facts. The parent remains unchanged. A recursive edge can start one
+bounded context; recursion below it and ordinary expansion still retain their
+existing cutoffs. Unknown inputs do not become closed callable targets.
+
+Module dispatch can also read a bounded dict comprehension of the form
+`{prefix + name: globals()[name] for name in NAMES.keys()}` when `NAMES` is a
+prior literal dict, its keys name unique prior undecorated source functions,
+and the names, key dict and result table have no visible writes or escapes.
+Only finite string concatenation is evaluated, without executing source.
+Unknown filters/iterators, reflective namespace uses, rebinding and shadowing
+stop this proof; more than 64 entries or the source-walk limit emits
+`generated_dispatch_budget`. Existing target candidates and provenance carry
+the resulting source alternatives, without asserting runtime dispatch.
+
+For a closed set of undecorated module source functions, an unshadowed
+`isinstance(value, str)` has a false `source_function_isinstance` protocol fact.
+Other values retain their existing boundaries; arbitrary user protocols are
+not assumed harmless.
+
 The same analyzer can process edited source files. It rereads every selected
 file, reuses syntax/index facts from unchanged documents and rebuilds changed
 file facts. Semantic contexts, effects and return summaries remain query-local.

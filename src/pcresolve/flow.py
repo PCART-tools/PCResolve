@@ -32,6 +32,7 @@ from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 from ._class_name_binding import source_binding as source_class_name_binding
 from ._class_name_binding import _write_name as class_write_name
 from ._class_read_binding import source_binding as source_class_read_binding
+from .finite_dispatch import generated_dict, DispatchLimit
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -2453,8 +2454,11 @@ class FlowAnalyzer:
     #  @param result Previous snapshot from this source set.
     #  @param call_id Exact call-site identifier.
     #  @param additional_depth Layers below the selected target.
+    #  @param isolate Return only the selected incoming context, without merging the caller snapshot.
     #  @return New snapshot, leaving result unchanged.
-    def expand(self, result, call_id, additional_depth=1):
+    def expand(self, result, call_id, additional_depth=1, isolate=False):
+        if type(isolate) is not bool:
+            raise ValueError('isolate must be bool')
         if additional_depth < 1:
             raise ValueError('additional_depth must be positive')
         self._index()
@@ -2464,6 +2468,23 @@ class FlowAnalyzer:
                 or self.parameter_shapes != result.inputs.get('parameter_shapes', {})):
             raise ValueError('Sources changed; call analyze again before expand')
         call = next(c for c in result.calls if c.id == call_id)
+        if isolate:
+            if call.target is None or call.binding_status == 'invalid':
+                raise ValueError('Isolated expansion requires a unique usable target')
+            definition = next(d for d in self._definition_index.find(call.target.module, call.target.qualname)
+                              if d[0] == call.target)
+            inputs = copy.deepcopy(result.inputs)
+            inputs.pop('entry_binding', None)
+            inputs['expansion_context'] = {'incoming_call_id': call.id,
+                'caller': asdict(call.caller), 'target': asdict(call.target),
+                'parameter_facts': copy.deepcopy(self._incoming_facts(definition, call))}
+            updated = FlowAnalysis(call.target, inputs)
+            # The selected edge starts a bounded context. Recursion below this
+            # entry is still checked by _walk; no root facts are merged into it.
+            context = CallContext(call.caller.module, call.target, copy.deepcopy(call))
+            self._walk(updated, definition, additional_depth, context, 500, 2000)
+            updated.boundaries = _unique(updated.boundaries)
+            return updated
         updated = copy.deepcopy(result)
         if call.target is not None:
             updated.boundaries = [b for b in updated.boundaries if not (b.get('call_id') == call_id and b['reason'] == 'depth_limit')]
@@ -2578,12 +2599,25 @@ class _Summary:
         if len(statements) != 1 or not isinstance(statements[0], ast.Assign):
             return []
         assignment = statements[0]
+        expression = assignment.value
+        if isinstance(expression, ast.DictComp):
+            def stable_function(symbol):
+                matches = self.analyzer._definition_index.find(self.ref.module, symbol)
+                return (len(matches) == 1 and not matches[0][1].decorator_list
+                    and matches[0][0].lineno < expression.lineno
+                    and '.' not in symbol and self.analyzer._stable_import_name(
+                        self.ref.module + '.' + symbol))
+            try:
+                expression = generated_dict(expression, bodies[0][1], facts[0], stable_function)
+            except DispatchLimit:
+                self.add_boundary('generated_dispatch_budget', assignment, env)
+                return []
         if (assignment not in bodies[0][1] or len(assignment.targets) != 1
-                or not isinstance(assignment.value, ast.Dict)
+                or not isinstance(expression, ast.Dict)
                 or any(not isinstance(key, ast.Constant) or not isinstance(key.value, str)
-                       for key in assignment.value.keys)):
+                       for key in expression.keys)):
             return []
-        if len(assignment.value.keys) > 64:
+        if len(expression.keys) > 64:
             self.add_boundary('literal_dispatch_budget', assignment, env)
             return []
         for statement in bodies[0][1]:
@@ -2597,7 +2631,7 @@ class _Summary:
         summary = _Summary(self.analyzer, self.result, module_ref, self.node,
                            self.remaining)
         module_env = {}
-        values = summary.expression(assignment.value, module_env)
+        values = summary.expression(expression, module_env)
         env.update({key: value for key, value in module_env.items()
                     if key.startswith('$heap:')})
         self.remaining = summary.remaining
@@ -4259,6 +4293,20 @@ class _Summary:
             capture_values = {}
             params = target[1].args if target else None
             contract = self.analyzer.return_summaries.get(canonical) if target is None else None
+            if (contract is None and target is None and name == 'isinstance'
+                    and builtin_status == 'confirmed_builtin' and len(node.args) == 2
+                    and not node.keywords and isinstance(node.args[0], ast.Name)
+                    and isinstance(node.args[1], ast.Name) and node.args[1].id == 'str'
+                    and self.analyzer._builtin_name_status(self.ref, self.node, 'str', env)
+                        == 'confirmed_builtin'):
+                functions, closed = self.callable_targets(env.get(node.args[0].id, []))
+                if (functions and closed and all(not function.decorator_list
+                        and '.' not in ref.qualname for ref, function in functions)):
+                    contract = {'parameters': ['object', 'classinfo'], 'returns': [],
+                        'provenance': 'Closed source function object is not a builtin str'}
+                    call.target_status = 'python_protocol'
+                    call.implicit_protocol = {'kind': 'source_function_isinstance',
+                        'type': 'str', 'result': False, 'evidence': self.evidence(node)}
             if (contract is None and target is None and builtin_status == 'confirmed_builtin'
                     and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set')
                     and canonical == self.ref.module + '.' + name
@@ -6810,7 +6858,7 @@ class _Summary:
                     conditions=_unique(value.get('conditions', []) + list(self.conditions)))
                     for value in remaining]
                 return True
-        if (positive and isinstance(test, ast.Call) and isinstance(test.func, ast.Name)
+        if (allow_callable and isinstance(test, ast.Call) and isinstance(test.func, ast.Name)
                 and test.func.id == 'isinstance' and len(test.args) == 2 and not test.keywords
                 and isinstance(test.args[0], ast.Name) and isinstance(test.args[1], ast.Name)
                 and test.args[1].id == 'str'
@@ -6818,9 +6866,15 @@ class _Summary:
                         and name not in self.analyzer.module_bindings.get(self.ref.module, set())
                         and self.analyzer._resolve(self.ref, name) is None for name in ('str', 'isinstance'))):
             name = test.args[0].id
-            env[name] = [dict(v, python_shape='str',
-                              conditions=v.get('conditions', []) + list(self.conditions))
-                         for v in env.get(name, [])]
+            targets, complete = self.callable_targets(env.get(name, []))
+            if targets and complete:
+                # Closed source function objects are not strings. Do not run
+                # an impossible recursive branch and contaminate its sibling.
+                return not positive
+            if positive:
+                env[name] = [dict(v, python_shape='str',
+                                  conditions=v.get('conditions', []) + list(self.conditions))
+                             for v in env.get(name, [])]
         return True
 
     def try_statement(self, node, env):
