@@ -6,11 +6,16 @@ Project-level Python static analysis for API ownership and library usage provena
 
 ## Status
 
-PCResolve 1.0.7 provides stable ownership and symbol-provenance output plus an
+This checkout targets PCResolve 1.0.8, with stable ownership and symbol-provenance output plus an
 opt-in experimental value-flow API for parameters, receivers, returns, and
 supported mutation effects. This release also supports single-file ownership
 analysis and keeps the ownership implementation aligned with the documented
 shared-facts architecture.
+
+The experimental `flow-0.2` API includes bounded source constructor/lookup,
+incoming-call context, generated-dispatch, scalar-truth and entry-alias facts.
+These additions retain explicit source assumptions and unsupported-operation
+boundaries; the stable ownership schema remains `1.0`.
 
 ## What is PCResolve?
 
