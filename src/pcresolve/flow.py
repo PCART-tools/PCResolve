@@ -33,6 +33,7 @@ from ._class_name_binding import source_binding as source_class_name_binding
 from ._class_name_binding import _write_name as class_write_name
 from ._class_read_binding import source_binding as source_class_read_binding
 from .finite_dispatch import generated_dict, DispatchLimit
+from .entry_alias import reference as source_entry_alias
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -2125,6 +2126,7 @@ class FlowAnalyzer:
         self._class_effect_fact_steps = max_call_contexts
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         entry_binding = None
+        entry_alias = None
         if not matches:
             classes = [(r, n) for r, n in self.classes if _matches(r, entry)]
             if len(classes) == 1:
@@ -2132,6 +2134,11 @@ class FlowAnalyzer:
                 if target is not None:
                     matches = [target]
                     entry_binding = constructor_entry_binding(self, classes[0], target)
+        if not matches:
+            alias = source_entry_alias(self, entry)
+            if alias is not None:
+                target, entry_alias = alias
+                matches = [target]
         if not matches and not entry.lineno and '.' in entry.qualname:
             owner, _, method = entry.qualname.rpartition('.')
             inherited = self._inherited_method(entry.module, owner, method)
@@ -2148,6 +2155,11 @@ class FlowAnalyzer:
                               'coverage': 'explicit value dependencies and limited local container effects; no general heap or path feasibility proof'})
         if conditional_source_state:
             result.inputs['conditional_source_state'] = True
+        if entry_alias is not None:
+            result.inputs['entry_alias'] = entry_alias
+            result.boundaries.append({'reason': 'source_entry_alias',
+                'function': asdict(result.entry), 'boundary_kind': 'assumption',
+                'assumptions': copy.deepcopy(entry_alias['assumptions'])})
         reachable_modules = self._reachable_modules(matches[0][0].module)
         unreferenced = self._unreferenced_parameters(matches[0][1])
         for boundary in self.index_boundaries:
@@ -2476,6 +2488,7 @@ class FlowAnalyzer:
                               if d[0] == call.target)
             inputs = copy.deepcopy(result.inputs)
             inputs.pop('entry_binding', None)
+            inputs.pop('entry_alias', None)
             inputs['expansion_context'] = {'incoming_call_id': call.id,
                 'caller': asdict(call.caller), 'target': asdict(call.target),
                 'parameter_facts': copy.deepcopy(self._incoming_facts(definition, call))}

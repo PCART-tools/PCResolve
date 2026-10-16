@@ -1712,6 +1712,16 @@ expansion.
 
 ## Source updates and resource limits
 
+An API entry may select a plain function captured by a module/class assignment,
+including chained aliases whose original name is subsequently deleted.
+`inputs.entry_alias` describes lexical definition selection (`source_reference`),
+not runtime attribute binding. It records the requested selector, original
+function, assignment spans, source hashes, activation conditions and source
+assumptions. Visible replacement, function-object writes, namespace reflection,
+definition-time calls, customized class lookup and unresolved bases stop this
+bounded selection. Lookup/chain budgets raise an explicit `ValueError`.
+Conditions on the original definition remain coverage boundaries.
+
 An unshadowed, singly bound `bool(value)` exposes
 `implicit_protocol.kind=builtin_scalar_truth`. Its exact-input precondition is
 limited to builtin None/bool/int/float/str/bytes, with completion and absence of
