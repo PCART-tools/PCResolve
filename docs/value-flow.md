@@ -753,6 +753,16 @@ value includes `name_basis="source_class_metadata"`, `name_metadata` and
 `name_evidence`. This permits finite computed names, not conditional cache-read
 safety, return payload types or backend selection. Exhausted checks retain
 `class_attribute_effect_budget`.
+The escape index also retains class references contained in local containers,
+aliases, unpacked assignments and lambda captures. Passing or invoking those
+values, writing through their projections, storing a class into an attribute or
+subscript, or directly returning/yielding a class reference prevents the
+metadata proof. Function and lambda parameters shadow enclosing references.
+These are conservative escape hazards, never exact class identities or a heap
+model. Call-result provenance remains separate: assigning `Factory()` does not
+identify its result with `Factory`, and a nested constructor call inside an
+unknown call argument is not assumed to return an ordinary instance. The index
+uses its existing finite node budget and query-local cache.
 An ordinary helper's omitted argument stays aliasable even when the source
 signature spells a primitive default: `__defaults__` and `__kwdefaults__` can be
 replaced through aliases. Explicit primitive argument facts, including

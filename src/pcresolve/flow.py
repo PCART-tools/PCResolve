@@ -1062,13 +1062,48 @@ class FlowAnalyzer:
                 target = self._class_symbol(ref.module + '.' + name)
             return [target[0]] if target else method_owner(ref.module + '.' + name)
 
-        def walk(node, ref, aliases):
+        def exposed(expression, ref, aliases, held, result_only=False, contained_only=False):
+            # Containment is an escape hazard, never an exact class identity.
+            found, pending = [], [(expression, aliases, held, result_only)]
+            while pending:
+                child, names, captures, projection = pending.pop()
+                remaining[0] -= 1
+                if remaining[0] < 0:
+                    break
+                if child is None or projection and isinstance(child, ast.Call):
+                    # Returning a call does not itself prove a returned class.
+                    # Calls and their arguments are inspected separately below.
+                    continue
+                if isinstance(child, ast.Lambda):
+                    defaults = child.args.defaults + [v for v in child.args.kw_defaults if v is not None]
+                    pending.extend((value, names, captures, projection) for value in defaults)
+                    bound = function_scope_facts(child, FLOW_SCOPE).bound
+                    local = dict(names)
+                    local.update({name: None for name in bound})
+                    retained = {name: refs for name, refs in captures.items() if name not in bound}
+                    pending.append((child.body, local, retained, False))
+                    continue
+                if isinstance(child, (ast.Name, ast.Attribute)):
+                    if not contained_only:
+                        found.extend(identity(child, ref, names))
+                    if isinstance(child, ast.Name):
+                        found.extend(captures.get(child.id, []))
+                pending.extend((value, names, captures, projection) for value in ast.iter_child_nodes(child))
+            return _unique(found)
+
+        def escape(references, ref, node):
+            writes.extend((class_ref, '*', 'visible_class_escape', ref, node)
+                          for class_ref in references)
+
+        def walk(node, ref, aliases, held):
             remaining[0] -= 1
             if remaining[0] < 0:
                 return
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
                 local = dict(aliases)
-                local.update({name: None for name in function_scope_facts(node, FLOW_SCOPE).bound})
+                bound = function_scope_facts(node, FLOW_SCOPE).bound
+                local.update({name: None for name in bound})
+                retained = {name: refs for name, refs in held.items() if name not in bound}
                 args = node.args
                 for parameter in args.posonlyargs + args.args + args.kwonlyargs + [
                         arg for arg in (args.vararg, args.kwarg) if arg]:
@@ -1076,14 +1111,15 @@ class FlowAnalyzer:
                 child_ref = FunctionRef(ref.module, (ref.qualname + '.' if ref.qualname else '')
                                         + getattr(node, 'name', '<lambda>'), ref.file_path)
                 for statement in node.body if not isinstance(node, ast.Lambda) else []:
-                    walk(statement, child_ref, local)
+                    walk(statement, child_ref, local, retained)
                 return
             if isinstance(node, ast.ClassDef):
                 child_ref = FunctionRef(ref.module, (ref.qualname + '.' if ref.qualname else '')
                                         + node.name, ref.file_path)
                 local = dict(aliases)
+                retained = dict(held)
                 for statement in node.body:
-                    walk(statement, child_ref, local)
+                    walk(statement, child_ref, local, retained)
                 return
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 for fact in import_facts(node):
@@ -1105,6 +1141,9 @@ class FlowAnalyzer:
                     target = identity(owner, ref, aliases)
                 for class_ref in target:
                     writes.append((class_ref, attribute, 'visible_method_write', ref, node))
+                if include_escapes:
+                    escape([value for value in exposed(node.value, ref, aliases, held)
+                            if value not in target], ref, node)
             if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute)):
                 function = ast.unparse(node.func)
                 first, dot, rest = function.partition('.')
@@ -1118,32 +1157,40 @@ class FlowAnalyzer:
                             and isinstance(node.args[1].value, str) else '*')
                         writes.extend((class_ref, attribute, 'visible_dynamic_attribute_write', ref, node)
                                       for class_ref in target)
-                if include_escapes:
+            if include_escapes:
+                if isinstance(node, ast.Call):
+                    escape(exposed(node.func, ref, aliases, held, contained_only=True), ref, node)
                     arguments = list(node.args) + [keyword.value for keyword in node.keywords]
                     for argument in arguments:
-                        for child in ast.walk(argument):
-                            remaining[0] -= 1
-                            if remaining[0] < 0:
-                                return
-                            if isinstance(child, (ast.Name, ast.Attribute)):
-                                writes.extend((class_ref, '*', 'visible_class_escape', ref, node)
-                                              for class_ref in identity(child, ref, aliases))
+                        escape(exposed(argument, ref, aliases, held), ref, node)
+                elif isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)):
+                    escape(exposed(node.value, ref, aliases, held, result_only=True), ref, node)
             for child in ast.iter_child_nodes(node):
-                walk(child, ref, aliases)
-            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                walk(child, ref, aliases, held)
+            if isinstance(node, (ast.Assign, ast.AnnAssign)) or include_escapes and isinstance(
+                    node, (ast.AugAssign, ast.NamedExpr)):
                 target = identity(node.value, ref, aliases)
+                contained = (exposed(node.value, ref, aliases, held, result_only=True)
+                             if include_escapes else [])
                 for destination in node.targets if isinstance(node, ast.Assign) else [node.target]:
                     if isinstance(destination, ast.Name):
                         previous = aliases.get(destination.id)
                         previous = ([previous] if isinstance(previous, FunctionRef) else
                                     previous if isinstance(previous, list) else [])
                         aliases[destination.id] = _unique(previous + target)
+                    if include_escapes:
+                        if isinstance(destination, (ast.Attribute, ast.Subscript)):
+                            escape(contained, ref, node)
+                        else:
+                            for child in ast.walk(destination):
+                                if isinstance(child, ast.Name):
+                                    held[child.id] = _unique(held.get(child.id, []) + contained)
 
         for module, bodies in self.module_bodies.items():
             for path, body in bodies:
-                aliases = {}
+                aliases, held = {}, {}
                 for statement in body:
-                    walk(statement, FunctionRef(module, '', path), aliases)
+                    walk(statement, FunctionRef(module, '', path), aliases, held)
         result = writes, remaining[0] < 0
         if include_escapes:
             self._class_binding_escape_cache = result
