@@ -85,15 +85,26 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             result = None
         return result if result is not None and len(result) <= 2000 else None
 
-    def literal_payload(value):
+    def literal_payload(value, payloads):
+        if isinstance(value, ast.Name):
+            return payloads.get(value.id)
         # literal_eval also accepts set(), whose source spelling may be shadowed.
         if value is None or any(isinstance(item, ast.Call) for item in ast.walk(value)):
-            return False
+            return None
         try:
             ast.literal_eval(value)
-            return True
+            return ()
         except (ValueError, TypeError, RecursionError):
-            return False
+            return None
+
+    def plain_write(name, value, plain, payloads):
+        plain.discard(name)
+        proof = literal_payload(value, payloads)
+        if proof is not None:
+            plain.add(name)
+            for source in proof:
+                if source not in evidence:
+                    evidence.append(source)
 
     def safe(value, aliases, names, plain, depth=0):
         if depth > 64:
@@ -145,19 +156,17 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             evidence.append(statement)
         return True
 
-    def target(value, aliases, statement, plain, payload=None):
+    def target(value, aliases, statement, plain, payloads, payload=None):
         if (not isinstance(value, ast.Attribute) or not isinstance(value.value, ast.Name)
                 or value.value.id not in aliases):
             return False
         name = attribute_name(value.attr)
         if not write(name, statement):
             return False
-        plain.discard(name)
-        if literal_payload(payload):
-            plain.add(name)
+        plain_write(name, payload, plain, payloads)
         return True
 
-    def block(statements, aliases, names, plain):
+    def block(statements, aliases, names, plain, payloads):
         for statement in statements:
             if isinstance(statement, ast.Assign):
                 if isinstance(statement.value, ast.Name) and statement.value.id in aliases:
@@ -166,32 +175,43 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                     aliases.update(item.id for item in statement.targets)
                     for item in statement.targets:
                         names.pop(item.id, None)
+                        payloads.pop(item.id, None)
                     continue
                 if not safe(statement.value, aliases, names, plain):
                     return False
                 name = literal_name(statement.value, names, aliases)
+                payload = literal_payload(statement.value, payloads)
                 for item in statement.targets:
                     if isinstance(item, ast.Name):
                         aliases.discard(item.id)
                         names.pop(item.id, None)
+                        payloads.pop(item.id, None)
                         if name is not None:
                             names[item.id] = name
-                    elif not target(item, aliases, statement, plain, statement.value):
+                        if payload is not None:
+                            payloads[item.id] = payload + (statement,)
+                    elif not target(item, aliases, statement, plain, payloads, statement.value):
                         return False
             elif isinstance(statement, ast.AnnAssign):
                 if not safe(statement.annotation, aliases, names, plain) or not safe(
                         statement.value, aliases, names, plain):
                     return False
                 if isinstance(statement.target, ast.Name):
+                    if statement.value is None:
+                        continue
+                    payload = literal_payload(statement.value, payloads)
                     aliases.discard(statement.target.id)
                     name = literal_name(statement.value, names, aliases)
                     names.pop(statement.target.id, None)
+                    payloads.pop(statement.target.id, None)
                     if name is not None:
                         names[statement.target.id] = name
-                elif not target(statement.target, aliases, statement, plain, statement.value):
+                    if payload is not None:
+                        payloads[statement.target.id] = payload + (statement,)
+                elif not target(statement.target, aliases, statement, plain, payloads, statement.value):
                     return False
             elif isinstance(statement, ast.Delete):
-                if not all(target(item, aliases, statement, plain) for item in statement.targets):
+                if not all(target(item, aliases, statement, plain, payloads) for item in statement.targets):
                     return False
             elif isinstance(statement, ast.If):
                 if not safe(statement.test, aliases, names, plain):
@@ -199,8 +219,9 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 left, right = set(aliases), set(aliases)
                 left_names, right_names = dict(names), dict(names)
                 left_plain, right_plain = set(plain), set(plain)
-                if not block(statement.body, left, left_names, left_plain) or not block(
-                        statement.orelse, right, right_names, right_plain):
+                left_payloads, right_payloads = dict(payloads), dict(payloads)
+                if not block(statement.body, left, left_names, left_plain, left_payloads) or not block(
+                        statement.orelse, right, right_names, right_plain, right_payloads):
                     return False
                 aliases.update(left | right)
                 names.clear()
@@ -208,6 +229,9 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                               if right_names.get(name) == value})
                 plain.clear()
                 plain.update(left_plain & right_plain)
+                payloads.clear()
+                payloads.update({name: tuple(dict.fromkeys(proof + right_payloads[name]))
+                                 for name, proof in left_payloads.items() if name in right_payloads})
             elif isinstance(statement, ast.Expr):
                 call = statement.value
                 if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
@@ -220,9 +244,8 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                             or not all(safe(arg, aliases, names, plain) for arg in call.args[2:])
                             or not write(name, statement)):
                         return False
-                    plain.discard(name)
-                    if call.func.id == 'setattr' and literal_payload(call.args[2]):
-                        plain.add(name)
+                    plain_write(name, call.args[2] if call.func.id == 'setattr' else None,
+                                plain, payloads)
                 elif not safe(call, aliases, names, plain):
                     return False
             elif isinstance(statement, ast.Return):
@@ -235,6 +258,6 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
     ordinary = {arg.arg for arg in node.args.posonlyargs + node.args.args + node.args.kwonlyargs}
     names = {name: value for name, value in (string_literals or {}).items()
              if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
-    if not block(node.body, {parameter}, names, set()):
+    if not block(node.body, {parameter}, names, set(), {}):
         return None
     return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes), tuple(metadata_evidence))

@@ -738,6 +738,14 @@ this same helper definitely overwrites the attribute with a builtin literal
 payload on every incoming branch. Deletion or an unknown subsequent value loses
 that evidence. Preexisting attributes, conditional initialization probes,
 descriptor results and deferred class captures do not establish read safety.
+Local assignments can carry a builtin literal payload through ordinary aliases
+and annotated assignments before the write. At a branch join, every incoming
+branch must retain such a payload; the literal values may differ because the
+proof only excludes descriptor invocation. Rebinding an alias to an unknown
+value kills its evidence, while rebinding another name does not change an object
+already written to the class. Supporting assignments remain in the effect's
+source evidence. This does not infer exact cache contents, constructor return
+types, incoming argument values or source defaults.
 An all-underscore lexical class name leaves private names unchanged, consistently
 in both class-write effects and stored-attribute provenance.
 This local read check proves neither the helper's return payload nor effects on
