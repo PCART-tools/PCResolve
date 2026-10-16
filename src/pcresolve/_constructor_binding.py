@@ -7,7 +7,8 @@ from dataclasses import asdict
 
 from .scope_facts import statement_scope_facts
 from .effect_facts import contains_yield
-from ._constructor_entry import source_member
+from ._constructor_entry import source_member, _definition_issues
+from .class_attribute_effects import _ClassEffectLimit
 
 
 ## Explain one selected constructor phase without claiming initialized instance state.
@@ -62,6 +63,12 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     if not hierarchy or len(hierarchy) > 64:
         issue('constructor_mro_unconfirmed')
     checked = (hierarchy or [])[:64]
+    definition_paths = set()
+    try:
+        for reason, owner, source in _definition_issues(analyzer, checked, definition_paths):
+            issue('constructor_' + reason, owner, source)
+    except _ClassEffectLimit:
+        issue('constructor_class_definition_budget')
     selected = None
     for owner, cls in checked:
         if cls.keywords or cls.decorator_list:
@@ -89,7 +96,7 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
                    'no_unmodeled_indirect_class_mutation']
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
-    paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path}
+    paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path} | definition_paths
     return {'status': 'unconfirmed' if issues else 'source_bound',
         'basis': 'source_snapshot', 'phase': phase,
         'execution_scope': scope, 'instance_state': 'unmodeled',

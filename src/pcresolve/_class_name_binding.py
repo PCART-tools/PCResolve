@@ -6,17 +6,8 @@ import copy
 from dataclasses import asdict, replace
 
 from .class_attribute_effects import _ClassEffectLimit
+from ._class_definition import namespace_issues
 from .scope_facts import statement_scope_facts
-
-
-def _literal(value):
-    if value is None or any(isinstance(node, ast.Call) for node in ast.walk(value)):
-        return False
-    try:
-        ast.literal_eval(value)
-        return True
-    except (ValueError, TypeError, RecursionError):
-        return False
 
 
 def _write_name(value, function, receiver, class_name, before):
@@ -181,31 +172,8 @@ def source_binding(summary, identity, definition, parameter, call, node):
                         or analyzer._builtin_name_status(function_ref, function, item.func.id)
                            != 'confirmed_builtin'):
                     issue('class_name_dynamic_write_unconfirmed', function_ref, item)
-    for owner, source_class in hierarchy:
-        for member in source_class.body:
-            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                member_ref = replace(owner, qualname=owner.qualname + '.' + member.name, lineno=member.lineno)
-                if member.decorator_list and analyzer._descriptor_kind((member_ref, member)) is None:
-                    issue('class_name_namespace_unconfirmed', owner, member)
-                expressions = member.args.defaults + [value for value in member.args.kw_defaults if value is not None]
-                expressions += [arg.annotation for arg in member.args.posonlyargs + member.args.args
-                                + member.args.kwonlyargs if arg.annotation is not None]
-                expressions += [arg.annotation for arg in (member.args.vararg, member.args.kwarg)
-                                if arg is not None and arg.annotation is not None]
-                if member.returns is not None:
-                    expressions.append(member.returns)
-                if any(not (isinstance(value, ast.Name) or _literal(value)) for value in expressions):
-                    issue('class_name_definition_evaluation_unconfirmed', owner, member)
-            elif isinstance(member, (ast.Assign, ast.AnnAssign)):
-                targets = member.targets if isinstance(member, ast.Assign) else [member.target]
-                if (not all(isinstance(target, ast.Name) for target in targets)
-                        or member.value is not None and not _literal(member.value)
-                        or isinstance(member, ast.AnnAssign)
-                        and not isinstance(member.annotation, (ast.Name, ast.Constant))):
-                    issue('class_name_namespace_unconfirmed', owner, member)
-            elif not (isinstance(member, ast.Pass) or isinstance(member, ast.Expr)
-                      and isinstance(member.value, ast.Constant) and isinstance(member.value.value, str)):
-                issue('class_name_namespace_unconfirmed', owner, member)
+    for reason, owner, source in namespace_issues(analyzer, hierarchy):
+        issue('class_name_' + reason, owner, source)
     writes, truncated = ([], False) if issues else analyzer._class_binding_writes(include_escapes=True)
     if truncated:
         raise _ClassEffectLimit()

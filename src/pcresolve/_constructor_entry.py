@@ -6,6 +6,8 @@ from dataclasses import asdict
 
 from .effect_facts import contains_yield
 from .scope_facts import statement_scope_facts
+from .class_attribute_effects import _ClassEffectLimit
+from ._class_definition import namespace_issues
 
 
 def _overload_declaration(analyzer, owner, cls, member):
@@ -32,6 +34,12 @@ def _overload_declaration(analyzer, owner, cls, member):
     return (all(value is None or isinstance(value, (ast.Name, ast.Constant))
                 for value in annotations)
             and all(isinstance(value, ast.Constant) for value in defaults))
+
+
+def _definition_issues(analyzer, hierarchy, dependencies=None):
+    return namespace_issues(analyzer, hierarchy,
+        declaration=lambda owner, cls, member: _overload_declaration(analyzer, owner, cls, member),
+        dependencies=dependencies)
 
 
 ## Select a direct member or one final implementation after proven typing stubs.
@@ -63,14 +71,25 @@ def binding(analyzer, class_target, target):
     phase = method.name
     issues = []
 
-    def issue(reason):
-        if {'reason': reason} not in issues:
-            issues.append({'reason': reason})
+    def issue(reason, owner=None, source=None):
+        item = {'reason': reason}
+        if source is not None:
+            item['evidence'] = {'file_path': owner.file_path,
+                'lineno': source.lineno, 'col_offset': source.col_offset,
+                'end_lineno': source.end_lineno, 'end_col_offset': source.end_col_offset}
+        if item not in issues:
+            issues.append(item)
 
     hierarchy = analyzer._class_mro(class_ref.module, class_ref.qualname)
     if not hierarchy or len(hierarchy) > 64:
         issue('constructor_mro_unconfirmed')
     checked = (hierarchy or [])[:64]
+    definition_paths = set()
+    try:
+        for reason, owner, source in _definition_issues(analyzer, checked, definition_paths):
+            issue('constructor_' + reason, owner, source)
+    except _ClassEffectLimit:
+        issue('constructor_class_definition_budget')
     if not analyzer._stable_import_name(class_ref.module + '.' + class_ref.qualname):
         issue('constructor_class_origin_unconfirmed')
     for owner, base in checked:
@@ -99,7 +118,7 @@ def binding(analyzer, class_target, target):
     if any(attribute in affected and any(written == owner for owner, _ in checked)
            for written, attribute, _, _, _ in writes):
         issue('constructor_binding_write')
-    paths = {owner.file_path for owner, _ in checked} | {ref.file_path}
+    paths = {owner.file_path for owner, _ in checked} | {ref.file_path} | definition_paths
     assumptions = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_binding',
                    'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:

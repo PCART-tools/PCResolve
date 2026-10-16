@@ -543,6 +543,19 @@ It does not claim initialized state or later lifecycle effects. Unconfirmed
 bindings have no body calls and retain `constructor_entry_unconfirmed`;
 unavailable/ambiguous phase definitions still raise the entry-resolution error.
 Generic method queries do not acquire this class invocation binding.
+Both class queries and explicit source constructor calls check restricted
+namespace evaluation throughout the source MRO. Unknown class-body values,
+decorators, evaluated defaults/annotations and other executable class statements
+cannot establish the original allocator or initializer: they can install
+descriptors or creation hooks that replace it. Literal namespaces and proven
+builtin method descriptors retain their phase binding. A zero-argument source
+instance can also be a class value when ordinary construction and the absence
+of creation-time hooks are proven from its restricted source MRO. Its source
+hashes join the constructor premise; its later descriptor reads remain a separate
+proof. Unknown factories and locally shadowed constructors do not qualify.
+Inspection exhaustion retains `constructor_class_definition_budget`; failed
+entry bindings supply no body calls. This is separate from proving a complete
+constructor lifecycle.
 Constructor lookup can select one final implementation after import-backed
 `typing.overload` declarations, recording `stdlib_typing_overload_binding`.
 This bounded form requires simple annotations and constant defaults. Shadowed
