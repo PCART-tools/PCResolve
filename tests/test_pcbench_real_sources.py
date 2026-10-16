@@ -124,14 +124,17 @@ def test_tornado_inherited_new_preserves_class_context_and_unknown_configuration
         assert any(boundary['reason'] == 'class_attribute_state_unknown'
                    for boundary in result.boundaries)
 
-    for name in ('super(Configurable, cls).__new__', 'instance.initialize'):
-        call = result.find_calls(callee_name=name)[0]
-        assert call.target is None
-        assert call.target_candidates == []
-        assert call.target_status == 'receiver_unresolved'
-        assert any(boundary.get('call_id') == call.id
-                   and boundary['reason'] == 'receiver_unresolved'
-                   for boundary in result.boundaries)
+    allocator = result.find_calls(callee_name='super(Configurable, cls).__new__')[0]
+    assert allocator.target is None and allocator.target_status == 'builtin_allocation'
+    assert all(value.get('value_incomplete') and value.get('conditions')
+               and value.get('attribute_provenance') for value in allocator.result_sources)
+    call = result.find_calls(callee_name='instance.initialize')[0]
+    assert call.target is None and call.target_status == 'receiver_unresolved'
+    assert {target['qualname'] for target in call.target_candidates} == {
+        'AsyncHTTPClient.initialize', 'SimpleAsyncHTTPClient.initialize'}
+    assert any(boundary.get('call_id') == call.id
+               and boundary['reason'] == 'class_attribute_state_unknown'
+               for boundary in result.boundaries)
 
     update = next(call for call in result.find_calls(callee_name='args.update')
                   if any(value['kind'] == 'parameter' and value['source'] == 'kwargs'

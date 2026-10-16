@@ -26,6 +26,7 @@ from ._callable_instance_binding import source_binding
 from ._constructor_binding import source_binding as constructor_source_binding
 from ._constructor_entry import binding as constructor_entry_binding
 from ._constructor_entry import source_member as constructor_source_member
+from ._constructor_entry import _definition_issues as constructor_definition_issues
 from .mapping_remainders import mapping_remainder, _ProofLimit
 from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 from ._class_name_binding import source_binding as source_class_name_binding
@@ -1416,6 +1417,27 @@ class FlowAnalyzer:
             and member.name == '__new__' or
             '__new__' in statement_scope_facts([member]).bound
             for member in cls.body) for _, cls in hierarchy)
+
+    def _explicit_object_allocation(self, class_ref):
+        # Explicit object.__new__ bypasses the selected class's __new__ and
+        # __init__. Its source class/MRO must still identify an ordinary object
+        # layout, and class-definition evaluation must preserve that identity.
+        hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
+        if not hierarchy or len(hierarchy) > 64:
+            return False
+        if any(cls.keywords or cls.decorator_list or self.definition_conditions.get(owner)
+                or owner != class_ref and '__init_subclass__' in statement_scope_facts(cls.body).bound
+                for owner, cls in hierarchy):
+            return False
+        writes, truncated = self._class_binding_writes()
+        if truncated or any(attribute in ('__class__', '__bases__', '*')
+                and any(written == owner for owner, _ in hierarchy)
+                for written, attribute, _, _, _ in writes):
+            return False
+        try:
+            return not constructor_definition_issues(self, hierarchy)
+        except _ClassEffectLimit:
+            return False
 
     ## Summarize enter returns symbolically, never caching a caller object identity.
     #  @param definition Exact source protocol method.
@@ -3727,19 +3749,28 @@ class _Summary:
                         and len(node.args) == 1 and not node.keywords):
                     receiver = self.class_values(env.get(receiver_name, []), env=env)
                     types = _unique([value.get('class_type') for value in receiver])
-                    if receiver and all(types) and len(types) == 1:
+                    if (receiver and all(types) and len(types) == 1
+                            and not any(value.get('value_incomplete') for value in receiver)):
                         class_ref = FunctionRef(**types[0])
                         hierarchy = self.analyzer._class_mro(class_ref.module, class_ref.qualname)
                         owner_index = next((index for index, (ref, _) in enumerate(hierarchy or ())
                             if ref.module == self.ref.module and ref.qualname == owner), None)
-                        if owner_index is not None and not any(
-                                self.analyzer._definition_index.find(ref.module, ref.qualname + '.__new__')
+                        writes, truncated = self.analyzer._class_binding_writes()
+                        changed = truncated or any(attribute in ('__new__', '__class__', '__bases__', '*')
+                            and any(written == ref for ref, _ in hierarchy or ())
+                            for written, attribute, _, _, _ in writes)
+                        if owner_index is not None and not changed and not any(
+                                '__new__' in statement_scope_facts(cls.body).bound
                                 or cls.keywords or cls.decorator_list
                                 for ref, cls in hierarchy[owner_index + 1:]):
-                            classes = self.class_values(self.expression(node.args[0], env), env=env)
-                            if classes and len({(value['module'], value['source']) for value in classes}) == 1:
-                                allocation_class = FunctionRef(**classes[0]['class_type'])
+                            classes = self.class_values(self.expression(node.args[0], env),
+                                                        allow_incomplete=True, env=env)
+                            if classes:
+                                if (len({(value['module'], value['source']) for value in classes}) == 1
+                                        and not any(value.get('value_incomplete') for value in classes)):
+                                    allocation_class = FunctionRef(**classes[0]['class_type'])
                                 allocation_values = classes
+                                allocation_candidates = classes
                                 dispatch_kind = 'builtin_allocation'
             if (target is None and isinstance(node.func, ast.Attribute)
                     and isinstance(node.func.value, ast.Name)
@@ -3761,12 +3792,16 @@ class _Summary:
                     allocation_candidates = classes
                     allocation_values = classes
                     dispatch_kind = 'builtin_allocation'
-            allocation_candidates = [value for value in allocation_candidates
-                if self.analyzer._ordinary_construction(FunctionRef(**value['class_type']))]
+            possible_allocations = allocation_candidates
+            allocation_candidates = [value for value in possible_allocations
+                if (self.analyzer._ordinary_construction if construction_candidates
+                    else self.analyzer._explicit_object_allocation)(FunctionRef(**value['class_type']))]
+            if len(allocation_candidates) != len(possible_allocations):
+                allocation_candidates = [dict(value, value_incomplete=True) for value in allocation_candidates]
+            if allocation_class and not self.analyzer._explicit_object_allocation(allocation_class):
+                allocation_class = None
             if not allocation_candidates and allocation_class is None and dispatch_kind == 'builtin_allocation':
                 dispatch_kind = None
-            if allocation_class and not self.analyzer._ordinary_construction(allocation_class):
-                allocation_class = None
             if (target is None and isinstance(node.func, ast.Attribute)
                     and receiver_values and all((value.get('instance_type') and not value.get('value_incomplete')
                                                 or value.get('instance_candidates'))
@@ -4405,8 +4440,9 @@ class _Summary:
             source_super = (name == 'super' and builtin_status == 'confirmed_builtin'
                 and len(node.args) == 2 and not node.keywords
                 and not any(isinstance(argument, ast.Starred) for argument in node.args)
-                and all(values and all(value.get('class_type') for value in values)
-                        for values in actual_values.values()))
+                and all(known and not any(value.get('value_incomplete') for value in known)
+                        for known in (self.class_values(values, env=env)
+                                      for values in actual_values.values())))
             preserved_classes = (self.class_attribute_effect(
                 selected_target, call, capture_values, env, node)
                 if selected_target and not invalid_binding

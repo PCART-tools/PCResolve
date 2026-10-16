@@ -823,6 +823,16 @@ a complete MRO proving that the next allocator is the builtin. Its
 `builtin_allocator_source_unavailable` records the unexpanded builtin body.
 Unknown classes, shadowed builtins, custom allocators, and visible receiver
 attribute mutation leave subsequent receiver calls unresolved.
+Explicit builtin allocation bypasses the allocated class's own `__new__` and
+`__init__`; it therefore has a separate source-layout/definition guard from
+ordinary `Class(...)` construction. A custom `__new__` on that class does not
+invalidate an explicit object allocation. An assigned, replaced or source-defined
+allocator selected by `super` is not treated as `object.__new__`.
+Both explicit forms preserve conditional class candidates, attribute provenance
+and `value_incomplete`. Dropping an unsupported layout alternative keeps the
+remaining candidates incomplete. These facts can identify possible instance
+methods while configured state and actual dispatch remain unresolved; they do
+not select a default backend or prove initialization.
 
 For a source-class receiver, classmethod binding preserves the first parameter's
 root and adds `class_type`. In a `Derived.root` context, a super call into a base
