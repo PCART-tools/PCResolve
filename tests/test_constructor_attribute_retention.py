@@ -121,3 +121,19 @@ class Entry(Parent):
         super(Entry, self).__init__()
 ''')
     assert not stores
+
+
+@pytest.mark.parametrize('tail,closed', [
+    ('', True),
+    ("        kwargs.pop('legacy', None)\n", False),
+    ("        self.options.pop('legacy', None)\n", False),
+    ('        self.reset()\n    def reset(self):\n        self.options.clear()\n', False),
+])
+def test_retaining_the_capture_object_is_distinct_from_preserving_its_elements(
+        tmp_path, tail, closed):
+    _, stores = facts(tmp_path, '''class Entry:
+    def __init__(self, **kwargs):
+        self.options = kwargs
+''' + tail)
+    fact = next(item for item in stores if item['attribute'] == 'options')
+    assert fact.get('capture_mapping_parameter') == ('kwargs' if closed else None)

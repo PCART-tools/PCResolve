@@ -511,6 +511,11 @@ establish that its selected execution reaches this store. These records do not
 observe execution, prove arbitrary method completion, or describe initialized
 instance state. Custom attribute protocols, slots, descriptors, receiver escapes,
 open dispatch, recursion and exhausted proof budgets supply no retention witness.
+`capture_mapping_parameter` additionally names a direct `**kwargs` capture only
+when its sole source use is this store and the destination is never read by the
+constructor's checked method closure. This proves preservation of captured keys,
+separately from retaining the mapping object. Consumers must also establish the
+actual builtin keyword-capture binding; arbitrary mapping aliases do not qualify.
 
 For an explicit source class call whose selected target is a source `__new__`,
 `constructor_bindings` can establish the implicit first class argument under

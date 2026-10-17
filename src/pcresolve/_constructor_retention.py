@@ -70,6 +70,7 @@ def retained_stores(analyzer, hierarchy, target, binding):
     remaining = [10000]
     checked = {}
     writes = []
+    reads = set()
     calls = set()
 
     def charge(node):
@@ -190,6 +191,9 @@ def retained_stores(analyzer, hierarchy, target, binding):
                     visit(argument, node)
                 return
             if isinstance(node, ast.Attribute):
+                if (isinstance(node.ctx, ast.Load) and isinstance(node.value, ast.Name)
+                        and node.value.id == receiver):
+                    reads.add(node.attr)
                 if node.attr in forbidden:
                     raise _OpenReceiver()
                 if (isinstance(node.ctx, ast.Load) and node.attr in captures
@@ -223,6 +227,9 @@ def retained_stores(analyzer, hierarchy, target, binding):
     if any(attribute in calls for _, attribute, _, _ in writes):
         return []
     paths = {owner.file_path for owner in checked} | set(binding['source_hashes'])
+    capture = initializer.args.kwarg.arg if initializer.args.kwarg else None
+    capture_uses = [node for node in ast.walk(initializer)
+                    if isinstance(node, ast.Name) and node.id == capture]
     result = []
     for owner, attribute, destination, statement in writes:
         if (owner != ref or attribute in namespace or attribute.startswith('__')
@@ -236,6 +243,9 @@ def retained_stores(analyzer, hierarchy, target, binding):
             'receiver': initializer.args.posonlyargs[0].arg if initializer.args.posonlyargs
                         else initializer.args.args[0].arg,
             'attribute': attribute, 'store_protocol': 'ordinary_instance_dict',
+            'capture_mapping_parameter': (
+                capture if capture and len(capture_uses) == 1
+                and statement.value is capture_uses[0] and attribute not in reads else None),
             'retention_scope': 'normal_constructor_return_after_store',
             'runtime_store_confirmed': False,
             'store_evidence': asdict(SourceSpan.from_ast(ref.file_path, statement)),
