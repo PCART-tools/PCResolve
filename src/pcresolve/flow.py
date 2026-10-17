@@ -370,6 +370,7 @@ class FlowAnalyzer:
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
         self._coroutine_namespace_premises = None
+        self._property_namespace_premises = None
         self._context_enter_cache = {}
         self._context_enter_stack = []
         self._context_exit_stack = []
@@ -769,18 +770,19 @@ class FlowAnalyzer:
             self._builtin_scope_cache[node] = facts
         return facts
 
-    ## Classify a bare builtin spelling for container and return protocols only.
+    ## Classify a bare builtin spelling under explicit lexical lookup rules.
     #  @param ref Source function identity.
     #  @param node Source function or lambda whose lexical names are checked.
     #  @param name Bare name, not an attribute or import alias.
     #  @param env Optional current bindings, including unknown/empty local bindings.
+    #  @param definition_scope Check a definition's enclosing scope, not its future body locals.
     #  @return confirmed_builtin, source_binding, or unconfirmed; no runtime proof.
-    def _builtin_name_status(self, ref, node, name, env=None):
+    def _builtin_name_status(self, ref, node, name, env=None, definition_scope=False):
         if not hasattr(builtins, name):
             return 'unconfirmed'
         if env is not None and name in env:
             return 'source_binding'
-        facts = self._builtin_scope_facts(node)
+        facts = (statement_scope_facts([]) if definition_scope else self._builtin_scope_facts(node))
         if name in facts.bound:
             return 'source_binding'
         nonlocal_name = name in facts.nonlocals

@@ -520,6 +520,16 @@ Class namespace formation separately counts the expressions evaluated by class
 and function definitions, including defaults, annotations and decorators. A
 method's deferred body does not consume that namespace-formation budget. Global
 mutation checks and subsequent method/effect analyses still inspect those bodies.
+An unshadowed builtin `property` decorator and its local `getter`/`setter`/`deleter`
+chain can form a class namespace without executing the accessor bodies. The
+`builtin_property_namespace_construction` premise records that distinction;
+it does not establish safe descriptor reads or writes. Import aliases, preceding
+class bindings, evaluated defaults and annotations remain checked. Visible builtin
+namespace writes, reflection, module escapes and exhausted scans prevent this
+premise. Source dependencies cover the inspected snapshot, with an explicit
+`no_unmodeled_indirect_builtin_mutation` assumption. Unused descriptors therefore
+need not block an ordinary constructor entry, while actual descriptor operations
+still require their own execution proof.
 `capture_mapping_parameter` additionally names a direct `**kwargs` capture only
 when its sole source use is this store and the destination is never read by the
 constructor's checked method closure. This proves preservation of captured keys,

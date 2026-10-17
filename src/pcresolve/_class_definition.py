@@ -7,6 +7,7 @@ from dataclasses import replace
 from .class_attribute_effects import _ClassEffectLimit
 from .scope_facts import statement_scope_facts
 from ._stdlib_function_decorators import namespace_function_decorator
+from ._property_namespace import property_declaration
 
 _CLASS_DEFINITION_NODE_LIMIT = 2000
 
@@ -103,20 +104,29 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
                 if inspected[0] > _CLASS_DEFINITION_NODE_LIMIT:
                     raise _ClassEffectLimit()
             shadowed = set()
+            properties = set()
             for member in cls.body:
+                property_premise = None
                 if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     if declaration is not None and declaration(owner, cls, member):
-                        shadowed.update(statement_scope_facts([member]).bound)
+                        bound = statement_scope_facts([member]).bound
+                        shadowed.update(bound)
+                        properties.difference_update(bound)
                         continue
                     ref = replace(owner, qualname=owner.qualname + '.' + member.name, lineno=member.lineno)
                     if member.decorator_list and analyzer._descriptor_kind((ref, member)) is None:
-                        premise = (namespace_function_decorator(
+                        property_premise = (property_declaration(
+                            analyzer, owner, member, shadowed, properties, dependencies)
+                            if assumptions is not None else None)
+                        premise = property_premise or (namespace_function_decorator(
                             analyzer, owner, member, shadowed, dependencies)
                             if assumptions is not None else None)
                         if premise is None:
                             issues.append(('namespace_unconfirmed', owner, member))
                         else:
                             assumptions.add(premise)
+                            if property_premise:
+                                assumptions.add('no_unmodeled_indirect_builtin_mutation')
                     expressions = member.args.defaults + [v for v in member.args.kw_defaults if v is not None]
                     parameters = member.args.posonlyargs + member.args.args + member.args.kwonlyargs
                     parameters += [arg for arg in (member.args.vararg, member.args.kwarg) if arg is not None]
@@ -136,7 +146,11 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
                 elif not (isinstance(member, ast.Pass) or isinstance(member, ast.Expr)
                           and isinstance(member.value, ast.Constant) and isinstance(member.value.value, str)):
                     issues.append(('namespace_unconfirmed', owner, member))
-                shadowed.update(statement_scope_facts([member]).bound)
+                bound = statement_scope_facts([member]).bound
+                shadowed.update(bound)
+                properties.difference_update(bound)
+                if property_premise:
+                    properties.add(member.name)
         return issues
 
     return inspect(hierarchy, ())
