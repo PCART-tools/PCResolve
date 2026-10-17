@@ -1802,6 +1802,17 @@ control-flow reachability, successful completion, or compatibility. Consumers
 may use disjoint keys to establish non-use of an individual captured element,
 while retaining those limits. The ownership schema remains unchanged.
 
+Function summaries can also expose `mapping_return_transfers`. These conditional
+facts describe a keyword capture copied by `update` into a fresh local dictionary
+that is returned at one final return statement. A bounded dictionary field path
+and source spans identify the transfer. Later field accesses are conservatively
+listed as excluded keys; whole-mapping escape, rebinding, dynamic paths, captured
+aliases and visible reflection prevent the fact. The summary assumes standard
+builtin dictionaries and no external frame introspection. It never establishes
+normal completion (`normal_completion_proven` remains false), or classifies a
+concrete argument. A consumer needs independent completion evidence before using
+the conditional retention fact as an actual consumption witness.
+
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 
 ```python

@@ -38,6 +38,7 @@ from .conditional_constructor import signature_reference as conditional_construc
 from .conditional_constructor import supports_entry as conditional_constructor_entry
 from .keyword_validation import checks as keyword_validation_checks
 from .mapping_key_access import footprints as mapping_key_access_footprints
+from .mapping_return_transfer import transfers as mapping_return_transfers
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -7120,6 +7121,8 @@ class _Summary:
                                       'keyword_checks': keyword_validation_checks(
                                           self.analyzer, self.ref, self.node),
                                       'mapping_key_accesses': mapping_key_access_footprints(
+                                          self.analyzer, self.ref, self.node),
+                                      'mapping_return_transfers': mapping_return_transfers(
                                           self.analyzer, self.ref, self.node),
                                       'parameter_shapes': copy.deepcopy(shapes),
                                       'generator': generator,
