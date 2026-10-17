@@ -1834,6 +1834,15 @@ store span, attribute and hash. Its `requires_observation` status leaves
 establish runtime attribute protocols, constructor selection, normal completion
 or retention in an actual returned instance; those require independent evidence.
 
+Optional `capture_rejection_guards` locate a formal container's truth test,
+possibly as the last operand of an `and` expression, followed by one direct
+raise of an unshadowed builtin `TypeError` or `ValueError`. Only a constant
+message is supported. Source identities, guard/presence/raise spans and hashes
+describe the obligation; `guard_completed` and `runtime_rejection_confirmed`
+remain false. A consumer must independently establish exact builtin dictionary
+type, original element provenance, actual true-guard completion and the escaping
+original-call exception. The source fact alone establishes no rejection.
+
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 
 ```python

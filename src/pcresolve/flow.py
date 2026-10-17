@@ -40,6 +40,7 @@ from .keyword_validation import checks as keyword_validation_checks
 from .mapping_attribute_transfer import transfers as mapping_attribute_transfers
 from .mapping_key_access import footprints as mapping_key_access_footprints
 from .mapping_return_transfer import transfers as mapping_return_transfers
+from .capture_rejection_guard import checks as capture_rejection_checks
 from .container_predicates import checks as container_predicate_checks
 
 
@@ -7121,6 +7122,8 @@ class _Summary:
         self.result.functions.append({'function': asdict(self.ref),
                                       'parameters': [a.arg for a in parameters],
                                       'keyword_checks': keyword_validation_checks(
+                                          self.analyzer, self.ref, self.node),
+                                      'capture_rejection_guards': capture_rejection_checks(
                                           self.analyzer, self.ref, self.node),
                                       'mapping_key_accesses': mapping_key_access_footprints(
                                           self.analyzer, self.ref, self.node),
