@@ -1821,6 +1821,24 @@ user-defined truth methods and does not satisfy this model. Consumers must
 establish the exact input from their own query, rather than infer it from the
 protocol's presence.
 
+An unshadowed, singly bound `len(value)` similarly exposes
+`implicit_protocol.kind=builtin_container_length`, with exact builtin
+dict/list/tuple/str/bytes/set/frozenset input types. It does not infer that an
+unknown parameter has one of those types. The source call/hash, exact binding,
+conditional completion/effect scope and runtime-unconfirmed status remain explicit.
+
+Function summaries may expose `cached_local_imports` for finite absolute
+from-imports whose source module was already imported unconditionally before
+the containing function's definition. Unique source exports and ordinary module
+namespace syntax are checked. Each record retains initialization/import evidence,
+path conditions and source hashes. `bound_on_normal_cached_import_return` is
+conditional on the initialized module cache and source namespace bindings being
+preserved, the standard import binding, and no external import hook or indirect
+module mutation. It neither observes import success nor declares arbitrary module
+execution harmless. Visible cache writes, dynamic exports, relative/new imports,
+wildcards and exhausted checks supply no such record. Consumers must preserve the
+premises and apply the explicit imported-name bindings; source ownership is unchanged.
+
 `expand(result, call_id, isolate=True)` returns only the selected callee's
 incoming context rather than merging it with the parent snapshot. The additive
 `inputs.expansion_context` records the exact incoming call, caller, target and

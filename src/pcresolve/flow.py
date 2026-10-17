@@ -43,6 +43,7 @@ from .mapping_key_access import footprints as mapping_key_access_footprints
 from .mapping_return_transfer import transfers as mapping_return_transfers
 from .capture_rejection_guard import checks as capture_rejection_checks
 from .container_predicates import checks as container_predicate_checks
+from ._cached_imports import cached_import
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -2465,7 +2466,8 @@ class FlowAnalyzer:
                 result.functions.append(copy.deepcopy(function))
             else:
                 for field in ('returns', 'mapping_effects', 'loops', 'receiver_contexts',
-                              'return_objects', 'decorator_effects', 'context_managers'):
+                              'return_objects', 'decorator_effects', 'context_managers',
+                              'cached_local_imports'):
                     if field in function:
                         previous[field] = _unique(previous.get(field, []) + function[field])
         for call in summary.calls:
@@ -2571,6 +2573,7 @@ class _Summary:
                              self.analyzer.texts[ref.file_path].split('\n')]
         self.evidence_cache = {}
         self.mapping_effects = []
+        self.cached_local_imports = []
         self.receiver_class = receiver_class
         self.normal_returns = []
         self.incomplete_return = False
@@ -4377,6 +4380,16 @@ class _Summary:
                         'status': 'requires_exact_input', 'runtime_input_confirmed': False,
                         'precondition': {'argument': {'position': 0},
                             'exact_types': ['NoneType', 'bool', 'int', 'float', 'str', 'bytes']},
+                        'completion': 'normal_return_if_precondition',
+                        'effects': 'none_if_precondition', 'call_id': call.id,
+                        'source_hash': self.analyzer.hashes[self.ref.file_path],
+                        'evidence': self.evidence(node)}
+                elif name == 'len':
+                    call.implicit_protocol = {'kind': 'builtin_container_length', 'builtin': 'len',
+                        'status': 'requires_exact_input', 'runtime_input_confirmed': False,
+                        'precondition': {'argument': {'position': 0},
+                            'exact_types': ['dict', 'list', 'tuple', 'str', 'bytes',
+                                            'set', 'frozenset']},
                         'completion': 'normal_return_if_precondition',
                         'effects': 'none_if_precondition', 'call_id': call.id,
                         'source_hash': self.analyzer.hashes[self.ref.file_path],
@@ -6723,6 +6736,9 @@ class _Summary:
                     'conditions': list(self.conditions)}]
             return normal(env)
         if isinstance(node, ast.ImportFrom):
+            cached = cached_import(self.analyzer, self.ref, node, self.evidence, self.conditions)
+            if cached is not None and cached not in self.cached_local_imports:
+                self.cached_local_imports.append(cached)
             if node.level:
                 self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'relative_local_import', 'evidence': self.evidence(node)})
             for fact in import_facts(node):
@@ -7173,6 +7189,8 @@ class _Summary:
                                       'decorator_effects': self.analyzer._decoration_facts((self.ref, self.node))})
         if self.context_managers:
             self.result.functions[-1]['context_managers'] = self.context_managers
+        if self.cached_local_imports:
+            self.result.functions[-1]['cached_local_imports'] = self.cached_local_imports
         decorations = self.result.functions[-1]['decorator_effects']
         if decorations and self.analyzer._descriptor_kind((self.ref, self.node)) is None:
             for fact in decorations:
