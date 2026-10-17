@@ -1813,6 +1813,18 @@ normal completion (`normal_completion_proven` remains false), or classifies a
 concrete argument. A consumer needs independent completion evidence before using
 the conditional retention fact as an actual consumption witness.
 
+Function summaries optionally expose bounded `container_predicates` obligations.
+These locate formal-parameter truth tests, string-key membership and lexically
+unshadowed builtin `len` comparisons with integer constants. For Boolean
+expressions, only the definitely evaluated first operand is described. Each fact
+includes source identity, predicate and guard spans, source hash and operation
+details. Its status is `requires_observation`: `predicate_completed` and
+`container_type_proven` remain false. The producer asserts neither execution,
+runtime container type, argument origin nor a consumption verdict. Consumers
+must obtain those facts independently. Nested named scopes and expressions
+outside the bounded grammar are excluded; budget exhaustion returns no partial
+set. The stable ownership contract remains unchanged.
+
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 
 ```python

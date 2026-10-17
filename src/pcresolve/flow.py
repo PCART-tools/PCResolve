@@ -39,6 +39,7 @@ from .conditional_constructor import supports_entry as conditional_constructor_e
 from .keyword_validation import checks as keyword_validation_checks
 from .mapping_key_access import footprints as mapping_key_access_footprints
 from .mapping_return_transfer import transfers as mapping_return_transfers
+from .container_predicates import checks as container_predicate_checks
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -7123,6 +7124,8 @@ class _Summary:
                                       'mapping_key_accesses': mapping_key_access_footprints(
                                           self.analyzer, self.ref, self.node),
                                       'mapping_return_transfers': mapping_return_transfers(
+                                          self.analyzer, self.ref, self.node),
+                                      'container_predicates': container_predicate_checks(
                                           self.analyzer, self.ref, self.node),
                                       'parameter_shapes': copy.deepcopy(shapes),
                                       'generator': generator,
