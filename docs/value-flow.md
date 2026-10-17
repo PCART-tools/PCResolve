@@ -1839,6 +1839,18 @@ execution harmless. Visible cache writes, dynamic exports, relative/new imports,
 wildcards and exhausted checks supply no such record. Consumers must preserve the
 premises and apply the explicit imported-name bindings; source ownership is unchanged.
 
+The internal caller-input reader can inspect an exact top-level call `SourceSpan`
+through `SourceStore`, retaining its content hash, imported target reference,
+binding/evaluation spans and JSON-safe primitive/list/tuple literals. The scope
+is argument reads on a normal, bounded module prefix; it does not establish that
+the client reaches the call or that the imported implementation executes.
+Opaque calls, mutation, conditional prefixes, namespace customization, ambiguous
+positions and exhausted node/literal budgets retain boundaries. Nested alias
+copies count toward the literal budget. No client module is imported or executed.
+These internal facts are not yet part of the ordinary flow query or an implicit
+runtime-value/default assumption; a consumer must separately match its call and
+source binding before using them.
+
 `expand(result, call_id, isolate=True)` returns only the selected callee's
 incoming context rather than merging it with the parent snapshot. The additive
 `inputs.expansion_context` records the exact incoming call, caller, target and
