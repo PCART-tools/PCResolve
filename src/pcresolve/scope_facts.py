@@ -54,6 +54,23 @@ class _ScopeCollector(ast.NodeVisitor):
         self.bound = set()
         self.globals = set()
         self.nonlocals = set()
+        self._pending = None
+
+    def visit(self, node):
+        if self._pending is not None:
+            self._pending.append(node)
+            return
+        self._pending = [node]
+        try:
+            while self._pending:
+                ast.NodeVisitor.visit(self, self._pending.pop())
+        finally:
+            self._pending = None
+
+    def generic_visit(self, node):
+        # Handlers keep their scope-specific stopping rules. Descendant syntax
+        # is scheduled explicitly rather than consuming a Python call stack.
+        self._pending.extend(reversed(list(ast.iter_child_nodes(node))))
 
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Load):
