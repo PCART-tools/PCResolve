@@ -1839,6 +1839,14 @@ execution harmless. Visible cache writes, dynamic exports, relative/new imports,
 wildcards and exhausted checks supply no such record. Consumers must preserve the
 premises and apply the explicit imported-name bindings; source ownership is unchanged.
 
+The optional `builtin_exact_callability` obligation records an unshadowed
+`callable(x)` with one positional input. A consumer must establish one of the
+listed exact, noncallable builtin types; the conditional result is false, with
+no custom protocol or effect. Unknown objects, subclasses and source callable
+instances do not discharge this obligation. Its dependency is on the input
+object's type only, not the contents or element presence of a container. This
+does not establish that the original call returned normally at runtime.
+
 The internal caller-input reader can inspect an exact top-level call `SourceSpan`
 through `SourceStore`, retaining its content hash, imported target reference,
 binding/evaluation spans and JSON-safe primitive/list/tuple literals. The scope

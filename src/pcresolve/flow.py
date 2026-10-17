@@ -4367,7 +4367,7 @@ class _Summary:
                     call.implicit_protocol = {'kind': 'source_function_isinstance',
                         'type': 'str', 'result': False, 'evidence': self.evidence(node)}
             if (contract is None and target is None and builtin_status == 'confirmed_builtin'
-                    and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set')
+                    and name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set', 'callable')
                     and canonical == self.ref.module + '.' + name
                     and len(node.args) == 1 and not node.keywords
                     and not isinstance(node.args[0], ast.Starred)):
@@ -4375,7 +4375,19 @@ class _Summary:
                     {'parameter': 'object', 'relation': 'derived'}],
                     'provenance': 'Python builtin result dependency (not owner preservation)'}
                 call.target_status = 'python_protocol'
-                if name == 'bool':
+                if name == 'callable':
+                    call.implicit_protocol = {'kind': 'builtin_exact_callability',
+                        'builtin': 'callable', 'status': 'requires_exact_input',
+                        'runtime_input_confirmed': False,
+                        'precondition': {'argument': {'position': 0}, 'exact_types': [
+                            'NoneType', 'bool', 'int', 'float', 'str', 'bytes',
+                            'dict', 'list', 'tuple', 'set', 'frozenset']},
+                        'result': False, 'dependency': 'input_object_type_only',
+                        'completion': 'normal_return_if_precondition',
+                        'effects': 'none_if_precondition', 'call_id': call.id,
+                        'source_hash': self.analyzer.hashes[self.ref.file_path],
+                        'evidence': self.evidence(node)}
+                elif name == 'bool':
                     call.implicit_protocol = {'kind': 'builtin_scalar_truth', 'builtin': 'bool',
                         'status': 'requires_exact_input', 'runtime_input_confirmed': False,
                         'precondition': {'argument': {'position': 0},
