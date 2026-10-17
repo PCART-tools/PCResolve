@@ -84,16 +84,24 @@ def test_unproven_coroutine_names_do_not_establish_a_constructor(
     assert not result.calls
 
 
-def test_source_module_named_asyncio_cannot_claim_stdlib_coroutine(tmp_path):
+@pytest.mark.parametrize("body,status", [
+    ("    return function\n", "source_bound"),
+    ("    opaque(function)\n    return function\n", "unconfirmed"),
+])
+def test_source_module_named_asyncio_cannot_claim_stdlib_coroutine(tmp_path, body, status):
     (tmp_path / "asyncio.py").write_text(
-        "def coroutine(function):\n    return function\n", encoding="utf-8"
+        "def coroutine(function):\n" + body, encoding="utf-8"
     )
     (tmp_path / "sample.py").write_text(
         SOURCE.format(imports="import asyncio", decorator="asyncio.coroutine"),
         encoding="utf-8",
     )
     result = FlowAnalyzer(project_root=tmp_path).analyze(FunctionRef("sample", "Entry"))
-    assert result.inputs["entry_binding"]["status"] == "unconfirmed"
+    binding = result.inputs["entry_binding"]
+    assert binding["status"] == status
+    assert "stdlib_asyncio_coroutine_binding" not in binding["assumptions"]
+    assert ("source_function_namespace_preservation" in binding["assumptions"]) == (
+        status == "source_bound")
 
 
 @pytest.mark.parametrize("name", ["__init__", "__new__"])

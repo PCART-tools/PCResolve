@@ -530,6 +530,14 @@ premise. Source dependencies cover the inspected snapshot, with an explicit
 `no_unmodeled_indirect_builtin_mutation` assumption. Unused descriptors therefore
 need not block an ordinary constructor entry, while actual descriptor operations
 still require their own execution proof.
+A unique ordinary source function decorator can also supply
+`source_function_namespace_preservation` when the existing bounded decorator
+effect analysis proves both original-function identity and execution binding
+preserved, without unresolved effects. Its source hashes and assumptions become
+constructor-binding premises. Returning the original function alone is insufficient:
+unknown calls, replacement wrappers, execution-attribute writes, ambiguous lookup
+and exhausted checks remain unconfirmed. A decorated initializer requires this
+same proof for its own decoration before its body can become a constructor entry.
 `capture_mapping_parameter` additionally names a direct `**kwargs` capture only
 when its sole source use is this store and the destination is never read by the
 constructor's checked method closure. This proves preservation of captured keys,

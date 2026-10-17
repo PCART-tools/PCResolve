@@ -7,7 +7,7 @@ from dataclasses import asdict
 from .effect_facts import contains_yield
 from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
-from ._class_definition import namespace_issues
+from ._class_definition import namespace_issues, _source_function_decoration
 from ._constructor_retention import retained_stores
 
 
@@ -110,7 +110,9 @@ def binding(analyzer, class_target, target):
         if method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod':
             issue('constructor_new_descriptor_unconfirmed')
     elif phase == '__init__':
-        if method.decorator_list or not analyzer._ordinary_construction(class_ref):
+        preserved = not method.decorator_list or _source_function_decoration(
+            analyzer, target, definition_paths, definition_assumptions)
+        if not preserved or not analyzer._ordinary_construction(class_ref):
             issue('constructor_initialization_unconfirmed')
     else:
         issue('constructor_phase_unconfirmed')

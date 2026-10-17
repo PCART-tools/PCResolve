@@ -43,6 +43,32 @@ def _literal(value):
         return False
 
 
+def _source_function_decoration(analyzer, target, dependencies, assumptions):
+    # Reuse the bounded execution-effect proof; identity alone permits unknown
+    # helper calls and is not enough to authorize class namespace formation.
+    decorator = analyzer._decorator_definition(target)
+    if decorator is None or not isinstance(decorator[1], ast.FunctionDef):
+        return None
+    active = getattr(analyzer, '_namespace_decoration_active', set())
+    ref = target[0]
+    if ref in active or len(active) >= 8:
+        return None
+    analyzer._namespace_decoration_active = active
+    active.add(ref)
+    try:
+        facts = analyzer._decoration_facts(target)
+    finally:
+        active.remove(ref)
+    if (len(facts) != 1 or facts[0]['body_binding_status'] != 'preserved'
+            or facts[0]['identity_status'] != 'preserved' or facts[0]['boundaries']):
+        return None
+    fact = facts[0]
+    if dependencies is not None:
+        dependencies.update(fact['source_hashes'])
+    assumptions.update(fact['assumptions'])
+    return 'source_function_namespace_preservation'
+
+
 ## Identify class-definition operations that can change a source namespace.
 #  @param analyzer Snapshot lookup machinery confirming builtin method descriptors.
 #  @param hierarchy Bounded source MRO, whose metaclasses/hooks are checked separately.
@@ -121,6 +147,9 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
                         premise = property_premise or (namespace_function_decorator(
                             analyzer, owner, member, shadowed, dependencies)
                             if assumptions is not None else None)
+                        if premise is None and assumptions is not None:
+                            premise = _source_function_decoration(
+                                analyzer, (ref, member), dependencies, assumptions)
                         if premise is None:
                             issues.append(('namespace_unconfirmed', owner, member))
                         else:
