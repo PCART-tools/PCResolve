@@ -76,6 +76,9 @@ def test_nonplain_instance_protocol_does_not_prove_retention(tmp_path, extra):
     '        self.callback = lambda: self\n'
     '        alias = self.callback\n        external(alias)\n',
     '        self.abort()\n    def abort(self):\n        raise ValueError()\n',
+    "        peek = locals\n        peek()['self'].value = 0\n",
+    "        from builtins import locals as peek\n        peek()['self'].value = 0\n",
+    "        import inspect\n        inspect.currentframe().f_locals['self'].value = 0\n",
 ])
 def test_later_writes_receiver_escape_and_open_dispatch_keep_retention_unproven(tmp_path, tail):
     _, stores = facts(tmp_path, '''class Entry:

@@ -25,6 +25,9 @@ def retained_stores(analyzer, hierarchy, target, binding):
         return []
     forbidden = {'__setattr__', '__delattr__', '__getattribute__', '__getattr__',
                  '__slots__', '__dict__', '__class__'}
+    reflection = {'exec', 'eval', 'globals', 'locals', 'vars', '__import__',
+                  '__builtins__', 'getattr', 'compile', 'currentframe', '_getframe',
+                  'f_locals', 'f_globals', 'f_back'}
     namespace = set()
     captures = set()
     for _, cls in hierarchy:
@@ -120,9 +123,13 @@ def retained_stores(analyzer, hierarchy, target, binding):
                 # The consumer selects root guards but does not execute these
                 # receiver-only callees. Do not use a vacuous normal-return proof.
                 raise _OpenReceiver()
+            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                    and node.id in reflection
+                    or isinstance(node, ast.Attribute) and node.attr in reflection):
+                raise _OpenReceiver()
             if isinstance(node, (ast.Global, ast.Nonlocal, ast.Await, ast.Yield, ast.YieldFrom,
                                  ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith,
-                                 ast.Try, ast.NamedExpr, ast.ClassDef)):
+                                 ast.Try, ast.NamedExpr, ast.ClassDef, ast.Import, ast.ImportFrom)):
                 raise _OpenReceiver()
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
                 if receiver_read(node) and not (isinstance(node, ast.Lambda) and captured_store):
