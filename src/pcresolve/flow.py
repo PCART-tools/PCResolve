@@ -34,6 +34,8 @@ from ._class_name_binding import _write_name as class_write_name
 from ._class_read_binding import source_binding as source_class_read_binding
 from .finite_dispatch import generated_dict, DispatchLimit
 from .entry_alias import reference as source_entry_alias
+from .conditional_constructor import signature_reference as conditional_constructor_signature
+from .conditional_constructor import supports_entry as conditional_constructor_entry
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -2146,8 +2148,10 @@ class FlowAnalyzer:
                 matches = [inherited]
         if len(matches) != 1:
             raise ValueError('Entry must identify exactly one available definition')
-        if conditional_source_state and (entry_binding is None or entry_binding['status'] != 'source_bound'):
-            raise ValueError('Conditional state analysis requires a bound source class entry')
+        if conditional_source_state and (
+                entry_binding is not None and entry_binding['status'] != 'source_bound'
+                or entry_binding is None and not conditional_constructor_entry(matches[0][1])):
+            raise ValueError('Conditional state analysis requires a source class binding or bounded constructor query')
         result = FlowAnalysis(matches[0][0], {'source_files': sorted(self.files), 'sha256': dict(self.hashes),
                               'import_roots': list(self.roots), 'max_depth': max_depth,
                               'return_summaries': copy.deepcopy(self.return_summaries),
@@ -4524,6 +4528,15 @@ class _Summary:
                     self.result.boundaries.append({'call_id': call.id,
                         'reason': 'constructor_binding_unconfirmed',
                         'issues': copy.deepcopy(fact['issues']), 'evidence': self.evidence(node)})
+                    conditional = conditional_constructor_signature(self, node, fact, call.id)
+                    if conditional is not None and call.binding_status != 'invalid':
+                        conditional.update(call_id=call.id, call_evidence=self.evidence(node))
+                        call.conditional_source_bindings = [conditional]
+                        call.conditions = copy.deepcopy(conditional['conditions'])
+                        self.result.boundaries.append({'call_id': call.id,
+                            'reason': 'conditional_constructor_signature',
+                            'boundary_kind': 'required_condition',
+                            'condition': copy.deepcopy(conditional['conditions'][-1])})
             if instance_parameter is not None:
                 if self.implicit_keyword_conflict(call, instance_parameter, {'receiver': True},
                         {arg.arg for arg in target[1].args.posonlyargs}):

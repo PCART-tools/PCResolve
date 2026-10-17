@@ -756,7 +756,7 @@ class, effect call/target/span, `status="required"`, `runtime_confirmed=false`
 and `feasibility="not_proven"`. `conditional_source_bindings` matches the later
 lookup, source hashes and required conditions; `source_lookup_candidate` in an
 ordinary result identifies an available conditional requery, not a resolved edge.
-The mode requires a bound source-class entry and does not promote generic,
+For class lookups the mode requires a bound source-class entry and does not promote generic,
 rebound or projected receiver parameters. Known method/MRO writes, source
 binding conflicts and budgets remain boundaries. Sole normal continuations
 retain their guard, and source-class identity guards can exclude incompatible
@@ -764,6 +764,19 @@ branches. `candidate_paths` keeps each allocated receiver candidate's conditions
 separate. The ordinary analysis mode remains the default. Expansion restores
 its input mode, and these conditional facts must not be reused as ordinary
 binding/effect proofs or to decide parameter consumption.
+
+A bounded plain function with a named `isinstance` class probe may also request
+this mode. A direct source initializer can expose a
+`conditional_constructor_signature` reference under a required
+`source_constructor_lookup` predicate. The reference records source hashes,
+call evidence, preceding type-check IDs and the original unconfirmed binding
+issues. Its `scope="signature_only"` permits signature comparison, never an
+implicit receiver, body execution or constructor lifecycle proof. Ordinary
+constructor bindings stay unconfirmed. The bounded definition grammar permits
+literal namespace values, unshadowed builtin `dict`, builtin property chains,
+and limited annotations; annotation lookup remains conditional. Custom
+construction, visible method replacement, unknown decorators/factories, other
+class escapes and exhausted budgets produce no such reference.
 
 For a restricted source class, an optional `class_read_bindings` premise can
 prove that a named attribute is absent or holds a builtin literal payload.
