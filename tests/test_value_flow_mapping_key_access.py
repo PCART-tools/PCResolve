@@ -30,7 +30,6 @@ def test_key_local_reads_are_control_flow_independent_source_facts(tmp_path):
     '    return target(**params)\n',
     '    return len(params)\n',
     '    return params.get(value)\n',
-    "    return params.pop('mean', None)\n",
     "    params['mean'] = 1\n",
     "    del params['mean']\n",
     "    def nested():\n        return params.get('mean')\n    return nested()\n",
@@ -50,3 +49,23 @@ def test_unsupported_access_never_produces_a_closed_footprint(tmp_path, body):
 
 def test_unused_capture_and_ordinary_parameter_have_no_key_read_fact(tmp_path):
     assert not analyze(tmp_path, '    return value\n')['functions'][0]['mapping_key_accesses']
+
+
+def test_fixed_key_pop_is_local_when_the_remaining_mapping_never_escapes(tmp_path):
+    result = analyze(tmp_path, "    mode = params.pop('mode', 'normal')\n"
+                     "    return params.get('index', mode)\n")
+    fact = result['functions'][0]['mapping_key_accesses'][0]
+    assert fact['keys'] == ['index', 'mode']
+    assert {item['operation'] for item in fact['accesses']} == {'get', 'pop'}
+
+
+@pytest.mark.parametrize('body', [
+    "    params.pop('mode', None)\n    return params\n",
+    "    params.pop('mode', None)\n    return bool(params)\n",
+    "    return params.pop(value, None)\n",
+    "    return params.pop('mode', *value)\n",
+    "    return params.pop('mode', **value)\n",
+    "    method = params.pop\n    return method('mode')\n",
+])
+def test_pop_cannot_hide_dynamic_keys_aliases_or_remaining_container_use(tmp_path, body):
+    assert not analyze(tmp_path, body)['functions'][0]['mapping_key_accesses']

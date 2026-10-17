@@ -31,7 +31,7 @@ def footprints(analyzer, ref, node):
             return []
         if not isinstance(item, ast.Name) or item.id != name:
             continue
-        # Captures, rebinding, aliases and writes are outside this footprint.
+        # Captures, rebinding, aliases and non-key-local writes are excluded.
         current = parents.get(item)
         while current is not None and current is not node:
             if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
@@ -50,12 +50,13 @@ def footprints(analyzer, ref, node):
               and len(parent.comparators) == 1 and parent.comparators[0] is item
               and isinstance(parent.ops[0], (ast.In, ast.NotIn))):
             operation, key = 'contains', parent.left
-        elif isinstance(parent, ast.Attribute) and parent.value is item and parent.attr == 'get':
+        elif (isinstance(parent, ast.Attribute) and parent.value is item
+              and parent.attr in {'get', 'pop'}):
             call = parents.get(parent)
             if (isinstance(call, ast.Call) and call.func is parent and not call.keywords
                     and len(call.args) in (1, 2)
                     and not any(isinstance(arg, ast.Starred) for arg in call.args)):
-                operation, key = 'get', call.args[0]
+                operation, key = parent.attr, call.args[0]
         if operation is None or not isinstance(key, ast.Constant) or type(key.value) is not str:
             return []
         accesses.append({'operation': operation, 'key': key.value,
