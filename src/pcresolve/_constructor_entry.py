@@ -36,10 +36,10 @@ def _overload_declaration(analyzer, owner, cls, member):
             and all(isinstance(value, ast.Constant) for value in defaults))
 
 
-def _definition_issues(analyzer, hierarchy, dependencies=None):
+def _definition_issues(analyzer, hierarchy, dependencies=None, assumptions=None):
     return namespace_issues(analyzer, hierarchy,
         declaration=lambda owner, cls, member: _overload_declaration(analyzer, owner, cls, member),
-        dependencies=dependencies)
+        dependencies=dependencies, assumptions=assumptions if assumptions is not None else set())
 
 
 ## Select a direct member or one final implementation after proven typing stubs.
@@ -85,8 +85,10 @@ def binding(analyzer, class_target, target):
         issue('constructor_mro_unconfirmed')
     checked = (hierarchy or [])[:64]
     definition_paths = set()
+    definition_assumptions = set()
     try:
-        for reason, owner, source in _definition_issues(analyzer, checked, definition_paths):
+        for reason, owner, source in _definition_issues(
+                analyzer, checked, definition_paths, definition_assumptions):
             issue('constructor_' + reason, owner, source)
     except _ClassEffectLimit:
         issue('constructor_class_definition_budget')
@@ -121,6 +123,7 @@ def binding(analyzer, class_target, target):
     paths = {owner.file_path for owner, _ in checked} | {ref.file_path} | definition_paths
     assumptions = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_binding',
                    'no_external_monkeypatch_or_import_hook', 'no_unmodeled_indirect_class_mutation']
+    assumptions.extend(sorted(definition_assumptions))
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
     return {'query_kind': 'source_class_call',

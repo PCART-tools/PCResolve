@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from .class_attribute_effects import _ClassEffectLimit
 from .scope_facts import statement_scope_facts
+from ._stdlib_function_decorators import namespace_function_decorator
 
 _CLASS_DEFINITION_NODE_LIMIT = 2000
 
@@ -25,9 +26,11 @@ def _literal(value):
 #  @param hierarchy Bounded source MRO, whose metaclasses/hooks are checked separately.
 #  @param declaration Optional predicate confirming a harmless typing declaration.
 #  @param dependencies Optional set collecting additional source construction premises.
+#  @param assumptions Optional set enabling and collecting standard decorator premises.
 #  @return Tuples of neutral issue reason, source owner and AST witness.
 #  @throws _ClassEffectLimit When inspecting the hierarchy exceeds the node limit.
-def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None):
+def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
+                     assumptions=None):
     inspected = [0]
 
     def plain_instance(value, owner, shadowed, seen):
@@ -86,7 +89,13 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None):
                         continue
                     ref = replace(owner, qualname=owner.qualname + '.' + member.name, lineno=member.lineno)
                     if member.decorator_list and analyzer._descriptor_kind((ref, member)) is None:
-                        issues.append(('namespace_unconfirmed', owner, member))
+                        premise = (namespace_function_decorator(
+                            analyzer, owner, member, shadowed, dependencies)
+                            if assumptions is not None else None)
+                        if premise is None:
+                            issues.append(('namespace_unconfirmed', owner, member))
+                        else:
+                            assumptions.add(premise)
                     expressions = member.args.defaults + [v for v in member.args.kw_defaults if v is not None]
                     parameters = member.args.posonlyargs + member.args.args + member.args.kwonlyargs
                     parameters += [arg for arg in (member.args.vararg, member.args.kwarg) if arg is not None]

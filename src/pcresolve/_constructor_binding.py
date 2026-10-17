@@ -64,8 +64,10 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
         issue('constructor_mro_unconfirmed')
     checked = (hierarchy or [])[:64]
     definition_paths = set()
+    definition_assumptions = set()
     try:
-        for reason, owner, source in _definition_issues(analyzer, checked, definition_paths):
+        for reason, owner, source in _definition_issues(
+                analyzer, checked, definition_paths, definition_assumptions):
             issue('constructor_' + reason, owner, source)
     except _ClassEffectLimit:
         issue('constructor_class_definition_budget')
@@ -94,6 +96,7 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     assumptions = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_binding',
                    'no_external_monkeypatch_or_import_hook',
                    'no_unmodeled_indirect_class_mutation']
+    assumptions.extend(sorted(definition_assumptions))
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
     paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path} | definition_paths

@@ -366,6 +366,7 @@ class FlowAnalyzer:
         self._decoration_fact_cache = {}
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
+        self._coroutine_namespace_premises = None
         self._context_enter_cache = {}
         self._context_enter_stack = []
         self._context_exit_stack = []
