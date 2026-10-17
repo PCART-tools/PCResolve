@@ -11,9 +11,10 @@ from dataclasses import asdict
 #  @param node Source function AST.
 #  @return Bounded obligations requiring independent store and retention evidence.
 def transfers(analyzer, ref, node):
+    if not isinstance(node, ast.FunctionDef):
+        return []
     positional = node.args.posonlyargs + node.args.args
-    if (not node.args.kwarg or not positional or node.name != '__init__'
-            or isinstance(node, ast.AsyncFunctionDef)):
+    if not node.args.kwarg or not positional or node.name != '__init__':
         return []
     nodes = list(ast.walk(node))
     if len(nodes) > 4000 or any(isinstance(n, (ast.Yield, ast.YieldFrom, ast.Await)) for n in nodes):

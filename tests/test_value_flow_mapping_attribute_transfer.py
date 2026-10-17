@@ -31,3 +31,12 @@ def test_constructor_capture_store_is_only_an_observation_obligation(tmp_path):
 ])
 def test_copy_alias_escape_nested_scope_and_conditional_store_are_excluded(tmp_path, body):
     assert not query(tmp_path, body)
+
+
+def test_assigned_lambda_with_keyword_capture_is_not_a_constructor_store(tmp_path):
+    (tmp_path / 'example.py').write_text('callback = lambda self, **kw: kw\n')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    analyzer._index()
+    reference = next(ref for ref, node in analyzer.definitions if '<lambda>' in ref.qualname)
+    result = analyzer.analyze(reference)
+    assert not result.functions[0]['mapping_attribute_transfers']
