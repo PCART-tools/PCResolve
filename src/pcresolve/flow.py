@@ -37,6 +37,7 @@ from .entry_alias import reference as source_entry_alias
 from .conditional_constructor import signature_reference as conditional_constructor_signature
 from .conditional_constructor import supports_entry as conditional_constructor_entry
 from .keyword_validation import checks as keyword_validation_checks
+from .mapping_key_access import footprints as mapping_key_access_footprints
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -7117,6 +7118,8 @@ class _Summary:
         self.result.functions.append({'function': asdict(self.ref),
                                       'parameters': [a.arg for a in parameters],
                                       'keyword_checks': keyword_validation_checks(
+                                          self.analyzer, self.ref, self.node),
+                                      'mapping_key_accesses': mapping_key_access_footprints(
                                           self.analyzer, self.ref, self.node),
                                       'parameter_shapes': copy.deepcopy(shapes),
                                       'generator': generator,

@@ -1791,6 +1791,17 @@ file facts. Semantic contexts, effects and return summaries remain query-local.
 Import-root changes, unavailable sources and changes with identical size/mtime
 are checked against the actual source version.
 
+Function summaries optionally expose `mapping_key_accesses`. A `key_local`
+footprint lists every syntactic access to a `**kwargs` capture when all of them
+are fixed string-key subscriptions, membership tests or `get` calls. It includes
+the function identity, source hash and individual source spans. Whole-container
+use, mutation, aliases, dynamic keys, nested capture and visible frame/namespace
+inspection prevent this fact. Empty read sets produce no footprint. This bounded
+source property assumes no external frame introspection; it does not prove
+control-flow reachability, successful completion, or compatibility. Consumers
+may use disjoint keys to establish non-use of an individual captured element,
+while retaining those limits. The ownership schema remains unchanged.
+
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 
 ```python
