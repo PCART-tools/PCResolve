@@ -1825,6 +1825,15 @@ must obtain those facts independently. Nested named scopes and expressions
 outside the bounded grammar are excluded; budget exhaustion returns no partial
 set. The stable ownership contract remains unchanged.
 
+`mapping_attribute_transfers` optionally describes a constructor's direct,
+top-level assignment of its keyword capture into a first-parameter attribute.
+The capture must have exactly one syntactic use, excluding aliases, copies,
+other capture accesses and nested stores. The fact records source identity,
+store span, attribute and hash. Its `requires_observation` status leaves
+`store_completed` and `returned_instance_retention_proven` false. It does not
+establish runtime attribute protocols, constructor selection, normal completion
+or retention in an actual returned instance; those require independent evidence.
+
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 
 ```python
