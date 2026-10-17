@@ -9,6 +9,7 @@ from dataclasses import asdict
 from .program_facts import FunctionSignature, bind_ast_call
 from .scope_facts import statement_scope_facts
 from .effect_facts import container_method_effect, contains_yield
+from ._decorator_text import literal_argument, text_call
 
 
 def _data(value=None, known=False):
@@ -144,10 +145,18 @@ class _DecoratorEffects:
         for item in records:
             expression = item['node']
             value = (_data(expression.value, True) if isinstance(expression, ast.Constant)
-                     else self.document_argument(expression, call_ref))
-            env[item['parameter']] = value or _data()
+                     else self.document_argument(expression, call_ref)
+                     or literal_argument(self, expression, call_ref))
+            if item['destination_kind'] == 'var_positional':
+                sequence = env.setdefault(item['parameter'], dict(
+                    _data(), sequence_shape='tuple', elements=[]))
+                sequence['elements'].append(value or _data())
+            else:
+                env[item['parameter']] = value or _data()
             if value is None:
                 self.issue('decorator_argument_unproven', call_ref, expression)
+        if node.args.vararg:
+            env.setdefault(node.args.vararg.arg, dict(_data(), sequence_shape='tuple', elements=[]))
         if receiver:
             self.construction['parameter_bindings'] = [
                 {'parameter': item['parameter'], 'argument': item['argument'],
@@ -488,9 +497,26 @@ class _DecoratorEffects:
             value = self.expression(node.value, env, target, initializing)
             if value['kind'] == 'function' and node.attr == '__doc__':
                 return self.documentation
+            if value['kind'] == 'function' and node.attr == '__qualname__':
+                # The fresh function starts with an exact string. Writes and
+                # escaping calls retain their own effect boundaries; this is
+                # not a general claim about arbitrary function metadata reads.
+                self.extra_assumptions.append('fresh_source_function_metadata_binding')
+                return dict(_data(), python_shape='str')
             if value['kind'] == 'receiver' and node.attr in self.state:
                 return self.state[node.attr]
             self.issue('decorator_attribute_unproven', ref, node)
+            return _data()
+        if (isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant)
+                and type(node.slice.value) is int):
+            value = self.expression(node.value, env, target, initializing)
+            if value.get('sequence_shape') in ('list', 'tuple'):
+                if value.get('element_shape') == 'str':
+                    return dict(_data(), python_shape='str')
+                elements = value.get('elements', [])
+                if -len(elements) <= node.slice.value < len(elements):
+                    return elements[node.slice.value]
+            self.issue('decorator_projection_unproven', ref, node)
             return _data()
         if isinstance(node, ast.IfExp):
             test = self.expression(node.test, env, target, initializing)
@@ -531,6 +557,12 @@ class _DecoratorEffects:
             children = [item for item in ast.iter_child_nodes(node) if isinstance(item, ast.expr)]
             values = [self.expression(item, env, target, initializing) for item in children]
             if (isinstance(node, ast.Compare) and len(node.ops) == 1
+                    and isinstance(node.ops[0], (ast.Is, ast.IsNot))
+                    and isinstance(node.comparators[0], ast.Constant)
+                    and node.comparators[0].value is None and _data_shapes(values[0])
+                    and 'NoneType' not in _data_shapes(values[0])):
+                return _data(isinstance(node.ops[0], ast.IsNot), True)
+            if (isinstance(node, ast.Compare) and len(node.ops) == 1
                     and all(value.get('known') and type(value['value']) in (
                         str, int, bool, float, type(None)) for value in values)):
                 comparison = {ast.Eq: operator.eq, ast.NotEq: operator.ne,
@@ -568,6 +600,10 @@ class _DecoratorEffects:
                     and node.func.value.id in env or isinstance(node.func.value, ast.Attribute)
                     and isinstance(node.func.value.value, ast.Name) and node.func.value.value.id in env):
                 data_receiver = self.expression(node.func.value, env, target, initializing)
+            text_result = (text_call(self, node, data_receiver, arguments, ref)
+                           if isinstance(node.func, ast.Attribute) else None)
+            if text_result is not None:
+                return text_result
             if (data_receiver and data_receiver.get('python_shape') == 'str'
                     and node.func.attr == 'join' and len(node.args) == 1 and not node.keywords
                     and arguments[0].get('sequence_shape') in ('list', 'tuple')

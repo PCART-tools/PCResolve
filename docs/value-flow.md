@@ -1103,6 +1103,22 @@ assumption. Local source modules, visible alias replacement, uncertain input
 shapes and unsupported argument binding do not acquire this protocol. This
 does not model arbitrary external helpers or custom string-like objects.
 
+Finite decoration text also supports `str.split` with an explicit nonempty
+literal separator, integer indexing of its string results, and `str.format`
+with literal templates and string operands. Format fields allow only empty or
+numeric positions, with no attribute/item lookup, conversion or format specifier.
+Effects record `protocol="finite_builtin_text"`, argument/output shapes and the
+specific restriction. These are normal-completion effects, not a proof that
+formatting succeeds. Fresh input-function `__qualname__` contributes only its
+initial string shape, never a canonical lexical value; unknown writes and escapes
+still block preservation. Factory positional captures preserve a finite tuple
+of arguments rather than replacing earlier captured values. A preceding unique
+module string literal can supply capture data under the explicit
+`source_literal_binding_no_indirect_mutation` premise. Rebinding, class shadowing,
+visible matching namespace writes, local reflection and exhausted snapshot scans
+retain boundaries. All supporting source evidence and assumptions stay in the
+decoration fact; no target module is imported or executed.
+
 Function summaries can additionally expose bounded `keyword_checks` for an
 ordinary mapping `items()` loop followed by `getattr(receiver, f"prefix{key}",
 None)`, `not callable(result)` and an `AttributeError` raise. Each
