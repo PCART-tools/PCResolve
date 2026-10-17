@@ -49,6 +49,17 @@ facts are interpreted.
 `SourceStore` creates a `SourceSnapshot` containing the exact decoded sources,
 ASTs, hashes, module names, and read errors observed by one run.
 
+`source_syntax.py` supports historical `async` and `await` attribute names for
+the value-flow read policy. Token-local normalization retains original names,
+source text, byte spans and hashes; unrelated syntax errors remain boundaries.
+The ownership read policy keeps its existing parser behavior.
+
+`star_imports.py` supplies source witnesses for wildcard imports whose exporting
+modules declare literal `__all__` lists or tuples. It requires unique, stable
+source definitions and bounds traversal. Open exports, rebinding, observable
+module mutation, import cycles and exhausted budgets supply no resolved alias.
+Consumers use these neutral facts without importing the analyzed package.
+
 Ownership wraps that snapshot in three internal types:
 
 | Type | Responsibility |

@@ -21,6 +21,7 @@ from .return_resolution import (CallBinding, ReturnCall,
 from .effect_facts import (container_method_effect, contains_yield,
                            function_effects, FunctionEffect, finite_key_delete_sites)
 from .import_facts import import_facts, resolve_relative_module
+from .star_imports import static_star_imports
 from ._decorator_effects import _DecoratorEffects
 from ._callable_instance_binding import source_binding
 from ._constructor_binding import source_binding as constructor_source_binding
@@ -430,6 +431,11 @@ class FlowAnalyzer:
             self.definitions.extend(definitions)
             self.classes.extend(classes)
             self.definition_conditions.update(conditions)
+        star_facts = static_star_imports(self.module_bodies)
+        for module, aliases in star_facts.aliases.items():
+            self.imports[module].update(aliases)
+            for name, statement in star_facts.bindings[module].items():
+                self.import_binding_facts[module][0][name] = [statement]
         self._file_indexes = next_file_indexes
         self._definition_index = DefinitionIndex(
             [DefinitionRecord(ref.module, ref.qualname, (ref, node),
@@ -2136,6 +2142,20 @@ class FlowAnalyzer:
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         entry_binding = None
         entry_alias = None
+        if not matches and not entry.file_path and not entry.lineno:
+            qualified = entry.module + '.' + entry.qualname
+            imported = self._resolve_import_binding(qualified)
+            if imported is not None:
+                matches = [imported]
+            elif self._stable_import_name(qualified):
+                imported_class = self._definition_index.resolve_qualified(
+                    [qualified], self.imports, kind='class',
+                    qualified_guard=self._stable_import_name)
+                if imported_class is not None:
+                    target = self._constructor_target(imported_class)
+                    if target is not None:
+                        matches = [target]
+                        entry_binding = constructor_entry_binding(self, imported_class, target)
         if not matches:
             classes = [(r, n) for r, n in self.classes if _matches(r, entry)]
             if len(classes) == 1:

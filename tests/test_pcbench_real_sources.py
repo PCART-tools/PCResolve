@@ -311,18 +311,15 @@ def test_aiohttp_assignment_boundaries_do_not_name_kwargs():
                                for root in item['affected_values']}
                for item in assignments)
     assert all(item['affected_scope'] == 'known' for item in assignments)
-    full = FlowAnalyzer(project_root=source('aiohttp-0.8.2').parent).analyze(
+    analyzer = FlowAnalyzer(project_root=source('aiohttp-0.8.2').parent)
+    full = analyzer.analyze(
         FunctionRef(module='aiohttp.connector', qualname='BaseConnector.__init__'))
     unavailable = [item for item in full.boundaries
                    if item['reason'] == 'source_unavailable']
-    assert unavailable
-    assert any(item['affected_scope'] == 'none'
-               and item['entry_relation'] == 'unrelated'
-               for item in unavailable)
-    assert all(item['affected_scope'] == 'none' or
-               {'kind': 'parameter', 'name': 'kwargs',
-                'element_path': []} in item['unaffected_values']
-               for item in unavailable)
+    assert not unavailable
+    legacy = [document for document in analyzer._source_snapshot.documents.values()
+              if document.syntax_features == ('legacy_keyword_attributes',)]
+    assert legacy and any(document.file_path.endswith('client.py') for document in legacy)
 
 
 def test_keras_and_dask_mapping_element_facts():

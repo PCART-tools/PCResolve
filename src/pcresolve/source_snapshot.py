@@ -7,16 +7,18 @@ import hashlib
 import os
 from dataclasses import dataclass
 from types import MappingProxyType
+from .source_syntax import parse_python_source
 
 
 ## Decode policy retained by the existing public analysis adapters.
 @dataclass(frozen=True)
 class SourceReadPolicy:
     encoding: str
+    legacy_keyword_attributes: bool = False
 
 
 OWNERSHIP_SOURCE = SourceReadPolicy('utf-8')
-FLOW_SOURCE = SourceReadPolicy('utf-8-sig')
+FLOW_SOURCE = SourceReadPolicy('utf-8-sig', legacy_keyword_attributes=True)
 OWNERSHIP_MODULES = 'ownership_compatibility'
 FLOW_MODULES = 'flow_compatibility'
 
@@ -31,6 +33,7 @@ class SourceDocument:
     tree: object = None
     error: object = None
     error_stage: str = ''
+    syntax_features: tuple = ()
 
 
 ## Captured source set; later reads do not change its documents or AST versions.
@@ -49,6 +52,7 @@ class SourceStore:
     ## Initialize an empty source cache.
     def __init__(self):
         self._cache = {}
+        self._cache_policies = {}
 
     ## Capture files in caller-selected order without discovering extra sources.
     #  @param files Source paths chosen by the consumer's input policy.
@@ -71,7 +75,10 @@ class SourceStore:
                                                  error_stage='read')
                 continue
             cached = self._cache.get(path)
-            if cached is not None and cached.text == text:
+            reusable = (self._cache_policies.get(path) == policy
+                        or cached is not None and cached.tree is not None
+                        and (not cached.syntax_features or policy.legacy_keyword_attributes))
+            if cached is not None and cached.text == text and reusable:
                 document = cached
             else:
                 digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
@@ -81,10 +88,19 @@ class SourceStore:
                 except SyntaxError as error:
                     document = SourceDocument(path, text, digest,
                                               error=error.with_traceback(None), error_stage='parse')
+                    if policy.legacy_keyword_attributes:
+                        try:
+                            tree = parse_python_source(text)
+                        except SyntaxError:
+                            pass
+                        else:
+                            document = SourceDocument(path, text, digest, tree,
+                                syntax_features=('legacy_keyword_attributes',))
                 else:
                     document = SourceDocument(path, text, digest, tree)
             documents[path] = next_cache[path] = document
         self._cache = next_cache
+        self._cache_policies = {path: policy for path in next_cache}
         return SourceSnapshot(paths, MappingProxyType(documents), policy)
 
 

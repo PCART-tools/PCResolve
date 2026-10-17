@@ -6,10 +6,11 @@ from pathlib import Path
 
 
 PACKAGE = Path(__file__).parents[1] / 'src' / 'pcresolve'
-SHARED_MODULES = frozenset([
+DIRECT_SHARED_MODULES = frozenset([
     'program_facts', 'source_snapshot', 'call_resolution', 'scope_facts',
     'return_resolution', 'effect_facts', 'import_facts',
 ])
+SHARED_MODULES = DIRECT_SHARED_MODULES | {'source_syntax', 'star_imports'}
 OWNERSHIP_ADAPTERS = (
     'single_file.py', 'cross_file.py', 'mapping_facts.py',
     'single_file_builtins.py',
@@ -53,8 +54,8 @@ def test_analyzers_consume_the_shared_layer_through_explicit_imports():
     ownership_imports = set().union(*(
         _local_imports(PACKAGE / name)
         for name in OWNERSHIP_ADAPTERS))
-    assert SHARED_MODULES <= flow_imports
-    assert SHARED_MODULES <= ownership_imports
+    assert DIRECT_SHARED_MODULES | {'star_imports'} <= flow_imports
+    assert DIRECT_SHARED_MODULES <= ownership_imports
 
 
 def test_internal_package_import_graph_is_acyclic():
