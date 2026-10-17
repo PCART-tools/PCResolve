@@ -42,6 +42,13 @@ def test_cached_import_requires_prior_module_initialization_and_stable_source_ex
      'def value(): return 7\n'),
     ('from dependency import ready\nimport sys\nsys.modules.clear()\n',
      'def value(): return 7\n'),
+    ('from dependency import ready\n__builtins__ = opaque\n', 'def value(): return 7\n'),
+    ('from dependency import ready\nimport builtins\nbuiltins.__import__ = opaque\n',
+     'def value(): return 7\n'),
+    ('from dependency import ready\nimport sys\ncache = sys.modules\nopaque(cache)\n',
+     'def value(): return 7\n'),
+    ('from dependency import ready\nimport dependency\ndependency.__class__ = opaque\n',
+     'def value(): return 7\n'),
 ])
 def test_open_initialization_or_export_cannot_supply_a_cached_binding(tmp_path, prefix, export):
     result = analyze(tmp_path, prefix, export)

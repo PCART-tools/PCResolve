@@ -44,14 +44,19 @@ def cached_import(analyzer, ref, node, evidence, conditions):
                 return None
             if analyzer._analysis_budget is not None:
                 analyzer._analysis_budget.checkpoint()
+            if (isinstance(child, ast.Name)
+                    and child.id in ('__builtins__', 'exec', 'eval', 'globals', 'locals', 'vars')
+                    or isinstance(child, ast.Attribute)
+                    and child.attr in ('__import__', '__class__', '__getattr__',
+                                       '__path__', '__dict__')
+                    and isinstance(child.ctx, (ast.Store, ast.Del))):
+                return None
             # A visible cache write contradicts the cached-import premise.
-            if (isinstance(child, ast.Subscript)
-                    and isinstance(child.ctx, (ast.Store, ast.Del))
-                    and isinstance(child.value, ast.Attribute) and child.value.attr == 'modules'
-                    or isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
-                    and child.func.attr in ('clear', 'pop', 'popitem', 'update', 'setdefault')
-                    and isinstance(child.func.value, ast.Attribute)
-                    and child.func.value.attr == 'modules'):
+            if (isinstance(child, ast.Attribute) and child.attr == 'modules'
+                    or isinstance(child, ast.ImportFrom) and child.module == 'sys'
+                    and any(alias.name in ('modules', '*') for alias in child.names)
+                    or isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+                    and child.func.id in ('setattr', 'delattr')):
                 return None
     target_path, target_body = target_bodies[0]
     bound = statement_scope_facts(target_body).bound
