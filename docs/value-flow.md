@@ -511,6 +511,11 @@ establish that its selected execution reaches this store. These records do not
 observe execution, prove arbitrary method completion, or describe initialized
 instance state. Custom attribute protocols, slots, descriptors, receiver escapes,
 open dispatch, recursion and exhausted proof budgets supply no retention witness.
+Class mutation and escape checks charge syntax that can carry references or
+effects. Primitive constant leaves and AST operator/context markers are skipped;
+their parent operations still inspect literal names used by reflected writes.
+This avoids exhausting the proof budget on repeated literal data without raising
+the bound or omitting later name-bearing writes, containers or closures.
 `capture_mapping_parameter` additionally names a direct `**kwargs` capture only
 when its sole source use is this store and the destination is never read by the
 constructor's checked method closure. This proves preservation of captured keys,

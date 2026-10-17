@@ -46,6 +46,8 @@ from .container_predicates import checks as container_predicate_checks
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
+_CLASS_BINDING_IRRELEVANT_LEAVES = (
+    ast.Constant, ast.expr_context, ast.operator, ast.unaryop, ast.boolop, ast.cmpop)
 _DECORATOR_EFFECT_NODE_LIMIT = 2000
 _CONTEXT_PROTOCOL_NODE_LIMIT = 2000
 _CONTEXT_EXIT_PATH_LIMIT = 32
@@ -1091,6 +1093,8 @@ class FlowAnalyzer:
             found, pending = [], [(expression, aliases, held, result_only)]
             while pending:
                 child, names, captures, projection = pending.pop()
+                if child is None or isinstance(child, _CLASS_BINDING_IRRELEVANT_LEAVES):
+                    continue
                 remaining[0] -= 1
                 if remaining[0] < 0:
                     break
@@ -1120,6 +1124,10 @@ class FlowAnalyzer:
                           for class_ref in references)
 
         def walk(node, ref, aliases, held):
+            # These leaves cannot contain an import, class reference, closure or
+            # effect. Inspect their parent operations, not repeated literal data.
+            if isinstance(node, _CLASS_BINDING_IRRELEVANT_LEAVES):
+                return
             remaining[0] -= 1
             if remaining[0] < 0:
                 return
