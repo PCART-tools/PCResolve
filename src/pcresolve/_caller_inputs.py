@@ -191,6 +191,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000):
     while isinstance(head, ast.Attribute):
         head = head.value
     result.update(target=qualified, call_evidence=span(call),
+                  call_syntax=ast.dump(call, include_attributes=False),
                   target_binding_evidence=origin_evidence[head.id])
     arguments = [({'position': index}, argument) for index, argument in enumerate(call.args)]
     arguments.extend(({'keyword': keyword.arg}, keyword.value) for keyword in call.keywords)

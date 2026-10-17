@@ -31,6 +31,8 @@ result = target(X, metric, p=None)
 ''')
     assert result['status'] == 'source_bound'
     assert result['target'] == 'unavailable.target'
+    expected = ast.parse('target(X, metric, p=None)', mode='eval').body
+    assert result['call_syntax'] == ast.dump(expected, include_attributes=False)
     assert result['runtime_values_observed'] is False
     assert len(result['source_hashes']) == 1
     values = result['arguments']
