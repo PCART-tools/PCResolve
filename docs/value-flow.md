@@ -516,6 +516,10 @@ effects. Primitive constant leaves and AST operator/context markers are skipped;
 their parent operations still inspect literal names used by reflected writes.
 This avoids exhausting the proof budget on repeated literal data without raising
 the bound or omitting later name-bearing writes, containers or closures.
+Class namespace formation separately counts the expressions evaluated by class
+and function definitions, including defaults, annotations and decorators. A
+method's deferred body does not consume that namespace-formation budget. Global
+mutation checks and subsequent method/effect analyses still inspect those bodies.
 `capture_mapping_parameter` additionally names a direct `**kwargs` capture only
 when its sole source use is this store and the destination is never read by the
 constructor's checked method closure. This proves preservation of captured keys,

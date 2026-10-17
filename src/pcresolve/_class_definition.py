@@ -11,6 +11,27 @@ from ._stdlib_function_decorators import namespace_function_decorator
 _CLASS_DEFINITION_NODE_LIMIT = 2000
 
 
+def _namespace_syntax(root):
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Function bodies are deferred. Defaults, annotations and decorators
+            # can execute while forming the class namespace and remain in scope.
+            children = []
+            for name, value in ast.iter_fields(node):
+                if name == 'body':
+                    continue
+                if isinstance(value, ast.AST):
+                    children.append(value)
+                elif isinstance(value, list):
+                    children.extend(item for item in value if isinstance(item, ast.AST))
+        else:
+            children = list(ast.iter_child_nodes(node))
+        pending.extend(reversed(children))
+
+
 def _literal(value):
     if value is None or any(isinstance(node, ast.Call) for node in ast.walk(value)):
         return False
@@ -77,7 +98,7 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
             if owner in seen:
                 issues.append(('namespace_unconfirmed', owner, cls))
                 continue
-            for _ in ast.walk(cls):
+            for _ in _namespace_syntax(cls):
                 inspected[0] += 1
                 if inspected[0] > _CLASS_DEFINITION_NODE_LIMIT:
                     raise _ClassEffectLimit()
