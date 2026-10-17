@@ -39,11 +39,12 @@ def literal_argument(proof, expression, caller):
            and node.id in ('exec', 'eval', 'globals', 'locals', 'vars', '__import__')
            for statement in bodies[0][1] for node in ast.walk(statement)):
         return None
-    writes = getattr(analyzer, '_decorator_literal_writes', None)
-    if writes is None:
-        writes, count = set(), 0
+    cached = getattr(analyzer, '_decorator_literal_writes', None)
+    if cached is None:
+        writes, paths, count = set(), set(), 0
         for module_bodies in analyzer.module_bodies.values():
-            for _, body in module_bodies:
+            for path, body in module_bodies:
+                paths.add(path)
                 for statement in body:
                     for node in ast.walk(statement):
                         count += 1
@@ -66,12 +67,15 @@ def literal_argument(proof, expression, caller):
                             key = node.args[1]
                             writes.add(key.value if isinstance(key, ast.Constant)
                                        and type(key.value) is str else '*')
-        analyzer._decorator_literal_writes = writes
+        cached = writes, paths
+        analyzer._decorator_literal_writes = cached
+    writes, paths = cached
     if name in writes:
         return None
     # Dynamic names elsewhere are not assigned to this module without an alias
     # proof. The explicit source-binding premise excludes indirect mutation.
     proof.extra_assumptions.append('source_literal_binding_no_indirect_mutation')
+    proof.dependency_paths.update(paths)
     proof.evidence.append(proof.evidence_at(caller, bindings[0]))
     return {'kind': 'data', 'value': bindings[0].value.value, 'known': True,
             'python_shape': 'str'}

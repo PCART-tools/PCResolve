@@ -87,6 +87,7 @@ class _DecoratorEffects:
         self.documentation = dict(_data(), python_shape=(
             'str' if ast.get_docstring(self.node, clean=False) is not None else 'str_or_none'))
         self.extra_assumptions = []
+        self.dependency_paths = set()
 
     def issue(self, reason, ref, node, **details):
         self.boundaries.append({'reason': reason, 'function': asdict(ref),
@@ -905,6 +906,7 @@ class _DecoratorEffects:
                 'evidence': evidence, 'completion': 'normal_return', 'basis': 'source_snapshot',
                 'runtime_target_confirmed': False,
                 'source_hashes': {path: self.analyzer.hashes[path] for path in sorted({
-                    item['file_path'] for item in evidence}) if path in self.analyzer.hashes},
+                    item['file_path'] for item in evidence} | self.dependency_paths)
+                    if path in self.analyzer.hashes},
                 'assumptions': ['source_snapshot_bindings_hold', 'builtin_function_attribute_semantics',
                                 'no_external_monkeypatch_or_import_hook'] + _unique(self.extra_assumptions)}

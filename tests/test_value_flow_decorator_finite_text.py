@@ -66,7 +66,9 @@ def test_open_captures_and_unsupported_format_protocols_retain_boundaries(tmp_pa
 
 
 def test_literal_scan_budget_and_source_edits_cannot_reuse_a_stale_fact(tmp_path, monkeypatch):
-    decoration(tmp_path)
+    witness = tmp_path / 'unrelated.py'
+    witness.write_text('def utility(): return 1\n', encoding='utf-8')
+    assert str(witness) in decoration(tmp_path)['source_hashes']
     analyzer = FlowAnalyzer(project_root=tmp_path)
     entry = FunctionRef('sample', 'Model.forward')
 
