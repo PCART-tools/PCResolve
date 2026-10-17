@@ -637,6 +637,28 @@ class _DecoratorEffects:
                 result = self.source_call(selected, node, arguments, receiver, initializing)
                 if result is not None:
                     return result
+            # Finite standard-library protocols, with exact builtin string input.
+            # They do not grant arbitrary imported helpers an effect-free model.
+            if (qualified in ('inspect.cleandoc', 'textwrap.dedent') and imported
+                    and first not in self.analyzer._scope_facts(definition).bound
+                    and qualified.partition('.')[0] not in self.analyzer.module_bodies
+                    and self.analyzer._stable_import_name(ref.module + '.' + first)
+                    and all(self.analyzer._stable_import_name(module + '.' + alias)
+                        for module, imports in self.analyzer.imports.items()
+                        for alias, canonical in imports.items()
+                        if canonical in (qualified, qualified.partition('.')[0]))
+                    and len(arguments) == 1 and not node.keywords
+                    and not any(isinstance(arg, ast.Starred) for arg in node.args)
+                    and _data_shapes(arguments[0]) == {'str'}):
+                self.effects.append({'operation': 'builtin_call', 'target': qualified,
+                    'impact': 'data_only', 'element_path': [],
+                    'protocol': 'stdlib_text_normalization',
+                    'input_shapes': [['str']], 'output_shape': 'str',
+                    'completion': 'normal_return', 'function': asdict(ref),
+                    'evidence': self.evidence_at(ref, node),
+                    'conditions': copy.deepcopy(self.conditions)})
+                self.extra_assumptions.append('standard_library_text_protocols_hold')
+                return dict(_data(), python_shape='str')
             imported_target = None
             if (isinstance(node.func, (ast.Name, ast.Attribute)) and imported
                     and first not in self.analyzer._scope_facts(definition).bound

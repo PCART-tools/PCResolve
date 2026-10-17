@@ -522,9 +522,11 @@ def test_real_shadow_cache_and_helper_proofs_keep_unclosed_protocol_boundaries(i
         assert any(item['function']['qualname'] == 'cleandoc'
                    and item['reason'] == 'decorator_statement_unsupported' for item in fact['boundaries'])
     else:
-        helper = next(item for item in fact['boundaries'] if item.get('source_target') == 'inspect.cleandoc')
-        assert helper['source_available'] is False
-        assert helper['affected_roles'] == ['documentation_data']
+        helper = next(item for item in fact['effects']
+                      if item.get('target') == 'inspect.cleandoc')
+        assert helper['protocol'] == 'stdlib_text_normalization'
+        assert helper['input_shapes'] == [['str']]
+        assert fact['body_binding_status'] == 'unknown'
     loader = analyzer.analyze(FunctionRef(module='matplotlib.docstring', qualname='_ArtistKwdocLoader.__missing__'))
     call = loader.find_calls(callee_name='self.setdefault')[0]
     assert call.target_status == 'builtin_method_candidate'
@@ -561,8 +563,9 @@ def test_shadow_original_frozen_import_closure_preserves_partial_proof():
     fact = result.functions[0]['decorator_effects'][0]
     assert fact['identity_status'] == 'preserved' and fact['body_binding_status'] == 'unknown'
     assert not analyzer._class_binding_writes(include_escapes=True)[1]
-    assert any(item.get('source_target') == 'inspect.cleandoc' and item['source_available'] is False
-               for item in fact['boundaries'])
+    assert any(item.get('target') == 'inspect.cleandoc'
+               and item.get('protocol') == 'stdlib_text_normalization'
+               for item in fact['effects'])
     assert any(item['operation'] == 'construction' and item['target'] == 'documentation_cache'
                for item in fact['effects'])
     assert any(item['function']['qualname'] == '_ArtistKwdocLoader.__missing__'

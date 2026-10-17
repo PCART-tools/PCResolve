@@ -1053,6 +1053,25 @@ receiver shape, sequence shape and element shapes. Unknown/custom iterables or
 elements keep their issues. This does not declare an outer formatting helper
 safe: helpers outside the source set retain their own unresolved boundary.
 
+For stable imports of `inspect.cleandoc` and `textwrap.dedent`, an exact builtin
+string input supports a finite `stdlib_text_normalization` protocol. It records
+the canonical target, input/output shapes, source call evidence and normal
+completion, under the explicit `standard_library_text_protocols_hold`
+assumption. Local source modules, visible alias replacement, uncertain input
+shapes and unsupported argument binding do not acquire this protocol. This
+does not model arbitrary external helpers or custom string-like objects.
+
+Function summaries can additionally expose bounded `keyword_checks` for an
+ordinary mapping `items()` loop followed by `getattr(receiver, f"prefix{key}",
+None)`, `not callable(result)` and an `AttributeError` raise. Each
+`mapping_member_validation` record is marked `requires_observation`, retains
+the exact function, key/lookup variables, attribute template, source hash and
+lookup/guard/raise spans, and sets `runtime_rejection_confirmed=false`. It does
+not prove mapping shape, receiver lookup, reachability, exception escape or a
+particular argument's rejection. Nested definitions and shadowed protocols do
+not acquire a caller's check. Consumers need independent call-specific facts
+to discharge these obligations; this is not a static property-name whitelist.
+
 The proof also distinguishes input functions from scalar documentation data and
 restricted constructor-backed documentation caches. Source helpers use exact
 ordinary bindings (including literal defaults), retain their target and binding
