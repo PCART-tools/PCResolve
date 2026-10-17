@@ -502,6 +502,16 @@ running the real-source tests outside the local PCBench workspace.
 
 ### Source constructor invocation bindings
 
+Source class queries may additionally expose `retained_instance_attribute_stores`
+inside `entry_binding`. Each record describes an ordinary fresh-instance dictionary
+store that is not overwritten or deleted by the bounded constructor/method closure.
+It includes the exact store span, checked source methods, source hashes and premises.
+The scope is `normal_constructor_return_after_store`: the consumer must still
+establish that its selected execution reaches this store. These records do not
+observe execution, prove arbitrary method completion, or describe initialized
+instance state. Custom attribute protocols, slots, descriptors, receiver escapes,
+open dispatch, recursion and exhausted proof budgets supply no retention witness.
+
 For an explicit source class call whose selected target is a source `__new__`,
 `constructor_bindings` can establish the implicit first class argument under
 standard builtin type-call lookup assumptions. A known source MRO, unique member

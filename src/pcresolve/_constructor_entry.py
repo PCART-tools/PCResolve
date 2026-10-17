@@ -8,6 +8,7 @@ from .effect_facts import contains_yield
 from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
 from ._class_definition import namespace_issues
+from ._constructor_retention import retained_stores
 
 
 def _overload_declaration(analyzer, owner, cls, member):
@@ -126,7 +127,7 @@ def binding(analyzer, class_target, target):
     assumptions.extend(sorted(definition_assumptions))
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
-    return {'query_kind': 'source_class_call',
+    result = {'query_kind': 'source_class_call',
         'status': 'unconfirmed' if issues else 'source_bound', 'basis': 'source_snapshot',
         'receiver_class': asdict(class_ref), 'target': asdict(ref), 'phase': phase,
         'hierarchy': [asdict(owner) for owner, _ in checked],
@@ -144,3 +145,5 @@ def binding(analyzer, class_target, target):
                           if path in analyzer.hashes},
         'assumptions': assumptions,
         'issues': issues}
+    result['retained_instance_attribute_stores'] = retained_stores(analyzer, checked, target, result)
+    return result
