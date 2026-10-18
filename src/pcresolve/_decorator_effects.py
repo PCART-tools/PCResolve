@@ -12,6 +12,7 @@ from .effect_facts import container_method_effect, contains_yield
 from ._decorator_text import literal_argument, text_call
 from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
+from ._decorator_imports import cached_import as decorator_cached_import
 
 
 def _data(value=None, known=False):
@@ -724,7 +725,14 @@ class _DecoratorEffects:
                 first, dot, rest = name.partition('.')
                 imported = self.analyzer.imports.get(ref.module, {}).get(first)
                 qualified = (imported + (dot + rest if dot else '') if imported else ref.module + '.' + name)
-                if first not in self.analyzer._scope_facts(definition).bound:
+                local_import = env.get(first, {})
+                if local_import.get('category') == 'source_import':
+                    qualified = local_import['qualified'] + (dot + rest if dot else '')
+                    selected = self.analyzer._resolve_import_binding(qualified)
+                    class_target = self.analyzer._class_symbol(qualified)
+                    if class_target:
+                        return self.data_instance(class_target, node, target)
+                elif first not in self.analyzer._scope_facts(definition).bound:
                     selected = self.analyzer._resolve_import_binding(qualified)
                     class_target = self.analyzer._class_symbol(qualified)
                     if class_target:
@@ -853,6 +861,22 @@ class _DecoratorEffects:
                 self.issue('decorator_raise_protocol_unproven', ref, statement)
                 return returns + [_data()], True
             if isinstance(statement, ast.Pass):
+                continue
+            if isinstance(statement, ast.ImportFrom):
+                fact = decorator_cached_import(self, ref, statement)
+                if fact is None:
+                    self.issue('decorator_cached_import_unproven', ref, statement)
+                    return returns + [_data()], True
+                self.dependency_paths.update(fact['source_hashes'])
+                self.extra_assumptions.extend(fact['assumptions'])
+                self.effects.append({'operation': 'cached_import', 'target': 'source_module',
+                    'impact': 'conditional_import_binding', 'element_path': [], 'binding': fact,
+                    'function': asdict(ref), 'evidence': self.evidence_at(ref, statement),
+                    'conditions': copy.deepcopy(self.conditions),
+                    'completion': 'normal_cached_import_return'})
+                for item in fact['bindings']:
+                    env[item['name']] = dict(_data(), category='source_import',
+                        qualified=item['module'] + '.' + item['attribute'])
                 continue
             if isinstance(statement, ast.Expr):
                 self.expression(statement.value, env, target, initializing)

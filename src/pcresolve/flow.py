@@ -370,6 +370,8 @@ class FlowAnalyzer:
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
         self._class_decoration_cache = {}
+        self._decorator_import_namespace_cache = {}
+        self._module_getattr_cache_premises = None
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
         self._coroutine_namespace_premises = None

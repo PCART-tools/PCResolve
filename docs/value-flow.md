@@ -1183,6 +1183,33 @@ slice bounds, arbitrary exception types/causes and unsupported data callbacks
 still retain boundaries. This does not approve class-property queries or imports
 inside those callbacks.
 
+A local absolute `from` import inside a decorator can expose a
+`cached_import` effect under the decorated function's preceding top-level
+source imports. A relative package initialization may identify an available
+source submodule. The effect records a `source_cached_import_binding`, including
+the callback and decorated entry identities, exact imported aliases, import and
+initialization spans, source hashes, and explicit initialized-cache/import
+namespace assumptions. A separate bounded check examines the entry, callback,
+exporting module and relevant package namespaces; ordinary instance/class field stores do not by
+themselves change module exports. Visible module/cache writes or escapes,
+function-export escapes or execution-field writes, reflective namespace access,
+custom module lookup, unconfirmed exports and exhausted budgets retain
+`decorator_cached_import_unproven`. The source cache is still a premise, not an
+observation that initialization or the callback completed. Imported references
+can be used by the existing exact source-helper binding, without inferring
+arbitrary class/instance behavior or executing any imported module.
+For a `from package import child` initialization witness, an existing package
+attribute or custom module lookup cannot stand in for a loaded submodule. A
+bounded source property-dispatch factory can supply `source_module_getattr_missing`
+when the requested name is outside its finite property table. Its checked grammar
+builds properties from a fresh ordinary source class, closes over a copied property
+table and instance, uses the standard `functools.lru_cache(None)` protocol, and
+raises builtin `AttributeError` for other names. The missing branch executes no
+property getter. Class/factory identities, property names, source hashes and cache,
+builtin and dispatch-table assumptions accompany the import as `package_lookups`.
+Customized classes, mutable dispatch code, changed support functions, package
+attribute/path writes and unsupported lookup factories keep the import boundary.
+
 Function summaries can additionally expose bounded `keyword_checks` for an
 ordinary mapping `items()` loop followed by `getattr(receiver, f"prefix{key}",
 None)`, `not callable(result)` and an `AttributeError` raise. Each
