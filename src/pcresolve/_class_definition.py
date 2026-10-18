@@ -46,9 +46,6 @@ def _literal(value):
 def _source_function_decoration(analyzer, target, dependencies, assumptions):
     # Reuse the bounded execution-effect proof; identity alone permits unknown
     # helper calls and is not enough to authorize class namespace formation.
-    decorator = analyzer._decorator_definition(target)
-    if decorator is None or not isinstance(decorator[1], ast.FunctionDef):
-        return None
     active = getattr(analyzer, '_namespace_decoration_active', set())
     ref = target[0]
     if ref in active or len(active) >= 8:

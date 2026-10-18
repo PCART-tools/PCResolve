@@ -1162,6 +1162,12 @@ module string literal can supply capture data under the explicit
 visible matching namespace writes, local reflection and exhausted snapshot scans
 retain boundaries. All supporting source evidence and assumptions stay in the
 decoration fact; no target module is imported or executed.
+Class namespace formation and initializer entry selection consume this same
+complete function-decoration proof for source callable instances and supported
+decorator factories, as well as direct source functions. Identity alone is still
+insufficient: body binding, absence of unproved effects, source dependencies and
+query recursion guards must all hold. The class resolver does not independently
+guess that a callable instance only edits documentation.
 
 Guarded documentation callbacks additionally support exact builtin string
 `endswith` with one literal suffix, `len` of a builtin string, and string slices
