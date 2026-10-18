@@ -2,6 +2,7 @@
 #  Builtin property construction is separate from descriptor access or execution.
 
 import ast
+import builtins
 from dataclasses import replace
 
 from .class_attribute_effects import _ClassEffectLimit
@@ -61,10 +62,11 @@ def _readonly_module_use(analyzer, owner, module, path, node, parent, parents):
         ref, scope, name, definition_scope=definition_scope) == 'confirmed_builtin'
 
 
-def _stable_builtin_namespace(analyzer, owner):
-    cached = getattr(analyzer, '_property_namespace_premises', None)
-    if cached is not None:
-        return cached
+def _stable_builtin_namespace(analyzer, owner, protected=('property',)):
+    cache = getattr(analyzer, '_property_namespace_premises', None)
+    key = tuple(sorted(protected))
+    if isinstance(cache, dict) and key in cache:
+        return cache[key]
     paths, inspected, stable = set(), 0, 'builtins' not in analyzer.module_bodies
     for module, bodies in analyzer.module_bodies.items():
         for path, body in bodies:
@@ -83,6 +85,13 @@ def _stable_builtin_namespace(analyzer, owner):
             aliases = {fact.python_binding for node in nodes for fact in import_facts(node)
                        if fact.kind == 'import' and fact.name == 'builtins'}
             for node in nodes:
+                if (key != ('property',) and isinstance(node, ast.ImportFrom)
+                        and node.level == 0 and node.module == 'builtins'
+                        and any(not isinstance(getattr(builtins, alias.name, None), type)
+                                for alias in node.names)):
+                    # Imported builtin functions expose their module via
+                    # __self__; a plain type reference does not grant that alias.
+                    stable = False
                 if (isinstance(node, ast.ImportFrom) and node.level == 0
                         and node.module == 'builtins'
                         and any(alias.name == '*' or alias.name.startswith('__')
@@ -115,7 +124,7 @@ def _stable_builtin_namespace(analyzer, owner):
                 while isinstance(current, (ast.Attribute, ast.Subscript)):
                     if (isinstance(current, ast.Attribute)
                             and current.attr.startswith('__') and current.attr.endswith('__')
-                            or (first_attribute == 'property'
+                            or (first_attribute in protected
                                 or first_attribute.startswith('__')
                                 and first_attribute.endswith('__'))
                             and isinstance(current.ctx, (ast.Store, ast.Del))):
@@ -126,7 +135,9 @@ def _stable_builtin_namespace(analyzer, owner):
                         break
                     current = following
     result = stable, tuple(sorted(paths))
-    analyzer._property_namespace_premises = result
+    cache = cache if isinstance(cache, dict) else {}
+    cache[key] = result
+    analyzer._property_namespace_premises = cache
     return result
 
 

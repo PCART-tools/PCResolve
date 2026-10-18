@@ -1152,6 +1152,20 @@ visible matching namespace writes, local reflection and exhausted snapshot scans
 retain boundaries. All supporting source evidence and assumptions stay in the
 decoration fact; no target module is imported or executed.
 
+Guarded documentation callbacks additionally support exact builtin string
+`endswith` with one literal suffix, `len` of a builtin string, and string slices
+whose bounds are known integers or `None` (with a nonzero step). Finite integer
+signs and scalar Boolean negation retain their builtin shapes. An unshadowed
+`KeyError`, `TypeError`, `ValueError` or `AttributeError` raise with scalar data
+arguments terminates that exceptional path; it does not establish that decoration
+returns normally. Its `builtin_exception_raise` record has `exceptional_exit`
+completion. String-length and exception protocols require a separately bounded
+builtin namespace guard, whose full source dependencies and explicit preservation
+assumptions accompany the decoration fact. Namespace mutation/escape, unknown
+slice bounds, arbitrary exception types/causes and unsupported data callbacks
+still retain boundaries. This does not approve class-property queries or imports
+inside those callbacks.
+
 Function summaries can additionally expose bounded `keyword_checks` for an
 ordinary mapping `items()` loop followed by `getattr(receiver, f"prefix{key}",
 None)`, `not callable(result)` and an `AttributeError` raise. Each

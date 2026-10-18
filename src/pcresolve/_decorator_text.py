@@ -101,14 +101,20 @@ def text_call(proof, node, receiver, arguments, ref):
                 or spec or conversion) for _, field, spec, conversion in fields):
             return None
         result = {'kind': 'data', 'known': False, 'python_shape': 'str'}
+    elif (method == 'endswith' and len(arguments) == 1 and arguments[0].get('known')
+          and type(arguments[0].get('value')) is str and len(arguments[0]['value']) <= 10000):
+        result = {'kind': 'data', 'known': bool(receiver.get('known')), 'python_shape': 'bool'}
+        if receiver.get('known') and type(receiver.get('value')) is str:
+            result['value'] = receiver['value'].endswith(arguments[0]['value'])
     else:
         return None
     proof.effects.append({'operation': 'builtin_call', 'target': 'str.' + method,
         'impact': 'data_only', 'element_path': [], 'receiver_shape': 'str',
         'protocol': 'finite_builtin_text',
         'argument_shapes': [['str'] for _ in arguments],
-        'output_shape': 'list_of_str' if method == 'split' else 'str',
+        'output_shape': 'list_of_str' if method == 'split' else 'bool' if method == 'endswith' else 'str',
         'restriction': 'explicit_nonempty_separator' if method == 'split'
+                       else 'literal_string_suffix' if method == 'endswith'
                        else 'no_attribute_or_item_fields',
         'function': dict(module=ref.module, qualname=ref.qualname,
                          file_path=ref.file_path, lineno=ref.lineno),

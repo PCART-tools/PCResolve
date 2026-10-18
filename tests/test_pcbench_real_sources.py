@@ -387,13 +387,15 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
                for item in result.boundaries)
 
 
-@pytest.mark.parametrize('source_id,files,module,entry,target,identity', [
+@pytest.mark.parametrize('source_id,files,module,entry,target,identity,frontier,protocols', [
     ('pandas-2.0.0', ['core/series.py', 'core/generic.py', 'util/_decorators.py'],
-     'pandas.core.series', 'Series.take', 'Appender.__call__', 'unknown'),
+     'pandas.core.series', 'Series.take', 'Appender.__call__', 'unknown',
+     'decorator_call_unresolved', set()),
     ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py'],
-     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved')])
+     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved',
+     'decorator_statement_unsupported', {'str.endswith', 'len', 'str.__getitem__', 'KeyError'})])
 def test_real_decorated_entries_expose_identity_and_unclosed_effects(
-        source_id, files, module, entry, target, identity):
+        source_id, files, module, entry, target, identity, frontier, protocols):
     result = analyze(source_id, files, module, entry)
     fact = result.functions[0]['decorator_effects'][0]
     assert fact['function'] == result.to_dict()['entry']
@@ -403,7 +405,9 @@ def test_real_decorated_entries_expose_identity_and_unclosed_effects(
     assert fact['runtime_target_confirmed'] is False
     assert any(item['element_path'] == ['__doc__'] and item['impact'] == 'documentation'
                for item in fact['effects'])
-    assert any(item['reason'] == 'decorator_call_unresolved' for item in fact['boundaries'])
+    assert any(item['reason'] == frontier for item in fact['boundaries'])
+    assert protocols <= {effect['target'] for effect in fact['effects']
+                         if isinstance(effect['target'], str)}
     assert fact['source_hashes'] and fact['evidence']
     assert any(item['reason'] == 'decorator_effect_unconfirmed'
                and item['function'] == fact['function'] for item in result.boundaries)

@@ -10,6 +10,8 @@ from .program_facts import FunctionSignature, bind_ast_call
 from .scope_facts import statement_scope_facts
 from .effect_facts import container_method_effect, contains_yield
 from ._decorator_text import literal_argument, text_call
+from ._property_namespace import _stable_builtin_namespace
+from .class_attribute_effects import _ClassEffectLimit
 
 
 def _data(value=None, known=False):
@@ -98,6 +100,25 @@ class _DecoratorEffects:
         return (name not in self.analyzer._scope_facts(node).bound
                 and not any(name in bindings for bindings in
                             self.analyzer.import_binding_facts.get(ref.module, [])))
+
+    def scalar_builtin_namespace(self, ref, node):
+        if self.analyzer.index_boundaries:
+            self.issue('decorator_builtin_namespace_unproven', ref, node)
+            return False
+        try:
+            stable, paths = _stable_builtin_namespace(self.analyzer, ref,
+                ('len', 'KeyError', 'TypeError', 'ValueError', 'AttributeError',
+                 'isinstance', 'type', 'super'))
+        except _ClassEffectLimit:
+            self.issue('decorator_effect_budget', ref, node)
+            return False
+        self.dependency_paths.update(paths)
+        if not stable:
+            self.issue('decorator_builtin_namespace_unproven', ref, node)
+            return False
+        self.extra_assumptions.extend(['standard_builtin_namespace_preserved',
+                                       'no_unmodeled_indirect_builtin_mutation'])
+        return True
 
     ## Read documentation only from a unique, undecorated source function binding.
     #  @param expression Constructor/factory argument in its defining scope.
@@ -519,6 +540,25 @@ class _DecoratorEffects:
                     return elements[node.slice.value]
             self.issue('decorator_projection_unproven', ref, node)
             return _data()
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice):
+            value = self.expression(node.value, env, target, initializing)
+            limits = [self.expression(item, env, target, initializing)
+                      if item is not None else _data(None, True)
+                      for item in (node.slice.lower, node.slice.upper, node.slice.step)]
+            if (_data_shapes(value) == {'str'} and all(item.get('known')
+                    and type(item.get('value')) in (int, type(None)) for item in limits)
+                    and limits[2]['value'] != 0):
+                bounds = [item['value'] for item in limits]
+                self.effects.append({'operation': 'builtin_call', 'target': 'str.__getitem__',
+                    'impact': 'data_only', 'element_path': [],
+                    'protocol': 'finite_builtin_text_slice', 'receiver_shape': 'str',
+                    'bounds': bounds, 'output_shape': 'str', 'completion': 'normal_return',
+                    'function': asdict(ref), 'evidence': self.evidence_at(ref, node),
+                    'conditions': copy.deepcopy(self.conditions)})
+                return (_data(value['value'][slice(*bounds)], True) if value.get('known')
+                        else dict(_data(), python_shape='str'))
+            self.issue('decorator_text_slice_unproven', ref, node)
+            return _data()
         if isinstance(node, ast.IfExp):
             test = self.expression(node.test, env, target, initializing)
             cases = self.truth_cases(test, ref, node.test)
@@ -557,6 +597,14 @@ class _DecoratorEffects:
         if isinstance(node, (ast.BinOp, ast.UnaryOp, ast.Compare)):
             children = [item for item in ast.iter_child_nodes(node) if isinstance(item, ast.expr)]
             values = [self.expression(item, env, target, initializing) for item in children]
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not) and _data_shapes(values[0]):
+                truth = _truth(values[0])
+                return _data(not truth, True) if truth is not None else _shaped_data({'bool'})
+            if (isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub))
+                    and _data_shapes(values[0]) == {'int'}):
+                operation = operator.pos if isinstance(node.op, ast.UAdd) else operator.neg
+                return (_data(operation(values[0]['value']), True) if values[0].get('known')
+                        else _shaped_data({'int'}))
             if (isinstance(node, ast.Compare) and len(node.ops) == 1
                     and isinstance(node.ops[0], (ast.Is, ast.IsNot))
                     and isinstance(node.comparators[0], ast.Constant)
@@ -595,6 +643,19 @@ class _DecoratorEffects:
                 return _data(False, True)
             arguments = [self.expression(item, env, target, initializing) for item in node.args]
             arguments.extend(self.expression(item.value, env, target, initializing) for item in node.keywords)
+            if (isinstance(node.func, ast.Name) and node.func.id == 'len'
+                    and len(node.args) == 1 and not node.keywords
+                    and _data_shapes(arguments[0]) == {'str'}
+                    and self.analyzer._builtin_name_status(ref, definition, 'len') == 'confirmed_builtin'
+                    and self.scalar_builtin_namespace(ref, node)):
+                self.effects.append({'operation': 'builtin_call', 'target': 'len',
+                    'impact': 'data_only', 'element_path': [],
+                    'protocol': 'exact_builtin_string_length', 'input_shapes': [['str']],
+                    'output_shape': 'int', 'completion': 'normal_return',
+                    'function': asdict(ref), 'evidence': self.evidence_at(ref, node),
+                    'conditions': copy.deepcopy(self.conditions)})
+                return (_data(len(arguments[0]['value']), True) if arguments[0].get('known')
+                        else _shaped_data({'int'}))
             data_receiver = None
             if isinstance(node.func, ast.Attribute) and (isinstance(node.func.value, ast.Constant)
                     or isinstance(node.func.value, ast.Name)
@@ -769,6 +830,28 @@ class _DecoratorEffects:
             if isinstance(statement, ast.Return):
                 returns.append(self.expression(statement.value, env, target, initializing))
                 return returns, False
+            if isinstance(statement, ast.Raise):
+                raised = statement.exc
+                if (isinstance(raised, ast.Call) and isinstance(raised.func, ast.Name)
+                        and raised.func.id in ('KeyError', 'TypeError', 'ValueError', 'AttributeError')
+                        and not raised.keywords and not any(isinstance(arg, ast.Starred) for arg in raised.args)
+                        and (statement.cause is None or isinstance(statement.cause, ast.Constant)
+                             and statement.cause.value is None)
+                        and self.analyzer._builtin_name_status(ref, definition, raised.func.id)
+                            == 'confirmed_builtin' and self.scalar_builtin_namespace(ref, statement)):
+                    values = [self.expression(arg, env, target, initializing) for arg in raised.args]
+                    scalar = {'str', 'int', 'bool', 'float', 'NoneType'}
+                    if all(_data_shapes(value) and _data_shapes(value) <= scalar for value in values):
+                        self.effects.append({'operation': 'raise', 'target': raised.func.id,
+                            'impact': 'control_only', 'element_path': [],
+                            'protocol': 'builtin_exception_raise',
+                            'argument_shapes': [sorted(_data_shapes(value)) for value in values],
+                            'completion': 'exceptional_exit', 'function': asdict(ref),
+                            'evidence': self.evidence_at(ref, statement),
+                            'conditions': copy.deepcopy(self.conditions)})
+                        return returns, False
+                self.issue('decorator_raise_protocol_unproven', ref, statement)
+                return returns + [_data()], True
             if isinstance(statement, ast.Pass):
                 continue
             if isinstance(statement, ast.Expr):
