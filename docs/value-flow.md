@@ -57,6 +57,16 @@ retain their boundaries. No empty source/path collection is a no-flow proof.
 These obligations do not add fields or change the experimental schema, and
 do not affect the separate stable ownership output.
 
+Source module-callable lookup also checks visible `global` rebinding in nested
+function and class scopes, including method bodies. A declaration paired with
+assignment, deletion, an imported/defined name, exception-handler binding or
+definition-time assignment prevents selecting the previous module definition.
+The uncertainty boundary `module_callable_binding_unconfirmed` retains the
+nominal definition and declaration witnesses without making them usable call
+targets. Read-only declarations and unrelated local writes do not invalidate
+that module binding. This is a source-wide may-write check, not a proof that the
+write executes or that a particular replacement is called.
+
 ## Finite-key mapping remainders
 
 `calls[*].effects` may contain `kind="mapping_remainder"` for a bounded source

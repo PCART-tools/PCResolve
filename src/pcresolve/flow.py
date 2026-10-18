@@ -472,11 +472,23 @@ class FlowAnalyzer:
                      | _attribute_write_roots(statement))
             for name in names:
                 bindings.setdefault(name, []).append(statement)
-            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                for nested in ast.walk(statement):
-                    if isinstance(nested, ast.Global):
-                        for name in nested.names:
-                            bindings.setdefault(name, []).append(nested)
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                for scope in ast.walk(statement):
+                    if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        continue
+                    facts = self._builtin_scope_facts(scope)
+                    changed = facts.globals & facts.bound
+                    if not changed:
+                        continue
+                    pending = list(scope.body)
+                    while pending:
+                        nested = pending.pop()
+                        if isinstance(nested, ast.Global):
+                            for name in changed & set(nested.names):
+                                bindings.setdefault(name, []).append(nested)
+                        elif not isinstance(nested, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                     ast.ClassDef, ast.Lambda)):
+                            pending.extend(ast.iter_child_nodes(nested))
         aliases = {}
         for node in tree.body:
             for fact in import_facts(node):
@@ -3765,6 +3777,16 @@ class _Summary:
             protocol = getattr(node, '_flow_implicit_protocol', {})
             target = (getattr(node, '_flow_protocol_target', None) if protocol else
                       self.analyzer._resolve(self.ref, name) if binding is None else None)
+            global_rebound = False
+            global_declarations = []
+            nominal_target = target
+            if target and not protocol and '.' not in target[0].qualname:
+                definitions = self.analyzer.import_binding_facts.get(target[0].module, [])
+                global_declarations = [statement for statement in definitions[0].get(
+                    target[0].qualname, []) if isinstance(statement, ast.Global)] if len(definitions) == 1 else []
+                global_rebound = bool(global_declarations)
+                if global_rebound:
+                    target = None
             canonical = self.ref.module + '.' + name
             constructor_class = None
             allocation_class = None
@@ -3774,7 +3796,7 @@ class _Summary:
             callable_instance_fact = None
             callable_instance_cause = None
             bounded_targets = []
-            callable_incomplete = False
+            callable_incomplete = global_rebound
             receiver_values = (self.expression(node.func.value, env)
                                 if isinstance(node.func, ast.Attribute) else [])
             receiver_sources = self.materialize(receiver_values, env)
@@ -4125,6 +4147,13 @@ class _Summary:
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
             call.implicit_protocol = copy.deepcopy(protocol)
+            if global_rebound:
+                self.result.boundaries.append({'call_id': call_id,
+                    'reason': 'module_callable_binding_unconfirmed',
+                    'boundary_kind': 'uncertainty', 'nominal_target': asdict(nominal_target[0]),
+                    'declarations': [self.evidence_at(nominal_target[0], declaration)
+                                     for declaration in global_declarations],
+                    'evidence': self.evidence(node)})
             if getattr(self.analyzer, '_conditional_source_state', False):
                 contexts = [context for value in receiver_sources
                             for context in value.get('instance_candidate_contexts', [])] or receiver_sources
