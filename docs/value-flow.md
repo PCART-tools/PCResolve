@@ -775,7 +775,18 @@ are separate state. Different branch values do not become a single name. A local
 caller variable without an incoming literal fact remains unknown. String
 arguments to attribute builtins
 retain their literal spelling, while attribute syntax uses lexical private-name
-mangling. Direct reads and unshadowed `getattr`/`hasattr` are admitted only after
+mangling. Finite `for` loops over fresh list/tuple literals of strings can also
+contribute a write set, including nested loops and `else` blocks. Every possible
+write is retained; writing a method inside a loop still invalidates that method's
+lookup. The loop's source span is included in the effect evidence. An empty
+literal skips its body. Iteration over caller/local objects, comprehensions,
+dynamic elements, `break` and `continue` remain unsupported. Each literal sequence
+is limited to 64 strings of at most 2000 characters, and expansion consumes the
+same bounded source-work budget as the surrounding effect proof. These facts
+still prove only other-attribute preservation on normal return, not completion
+or class-decorator identity.
+
+Direct reads and unshadowed `getattr`/`hasattr` are admitted only after
 this same helper definitely overwrites the attribute with a builtin literal
 payload on every incoming branch. Deletion or an unknown subsequent value loses
 that evidence. Preexisting attributes, conditional initialization probes,

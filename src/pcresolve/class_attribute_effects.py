@@ -16,7 +16,7 @@ class ClassAttributeWrites:
     attributes: tuple
     ## Source statements establishing those operations.
     evidence: tuple
-    ## Inspected AST size, charged to the query's shared effect budget.
+    ## Inspected AST size including finite-loop expansion, charged to the query budget.
     nodes: int
     ## Source metadata reads whose entry literals participated in this proof.
     metadata_evidence: tuple = ()
@@ -51,6 +51,19 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         nodes.append(item)
     if charge is not None:
         charge(len(nodes))
+    inspected = len(nodes)
+
+    def expand(statements):
+        nonlocal inspected
+        count = sum(1 for statement in statements for _ in ast.walk(statement))
+        available = max_nodes - inspected
+        spent = min(count, available)
+        inspected += spent
+        if charge is not None:
+            charge(spent)
+        if count > available:
+            raise _ClassEffectLimit()
+
     if any(isinstance(item, (ast.Global, ast.Nonlocal, ast.Yield, ast.YieldFrom,
                              ast.Await, ast.NamedExpr)) for item in nodes):
         return None
@@ -266,6 +279,29 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 payloads.clear()
                 payloads.update({name: tuple(dict.fromkeys(proof + right_payloads[name]))
                                  for name, proof in left_payloads.items() if name in right_payloads})
+            elif isinstance(statement, ast.For):
+                # Only a fresh builtin literal sequence is exact here. Iterating
+                # a caller object, a local alias or a comprehension needs its own
+                # binding/mutation proof and must not acquire one by unrolling.
+                if (not isinstance(statement.target, ast.Name)
+                        or not isinstance(statement.iter, (ast.List, ast.Tuple))
+                        or len(statement.iter.elts) > 64
+                        or any(not isinstance(item, ast.Constant)
+                               or type(item.value) is not str or len(item.value) > 2000
+                               for item in statement.iter.elts)):
+                    return False
+                if statement not in evidence:
+                    evidence.append(statement)
+                for item in statement.iter.elts:
+                    expand(statement.body)
+                    variable = statement.target.id
+                    aliases.discard(variable)
+                    names[variable] = item.value
+                    payloads[variable] = (statement,)
+                    if not block(statement.body, aliases, names, plain, payloads):
+                        return False
+                if not block(statement.orelse, aliases, names, plain, payloads):
+                    return False
             elif isinstance(statement, ast.Expr):
                 call = statement.value
                 if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
@@ -294,5 +330,5 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
              if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
     if not block(node.body, {parameter}, names, set(), {}):
         return None
-    return ClassAttributeWrites(tuple(attributes), tuple(evidence), len(nodes),
+    return ClassAttributeWrites(tuple(attributes), tuple(evidence), inspected,
                                 tuple(metadata_evidence), tuple(read_evidence))
