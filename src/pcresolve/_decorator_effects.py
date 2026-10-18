@@ -13,6 +13,7 @@ from ._decorator_text import literal_argument, text_call
 from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 from ._decorator_imports import cached_import as decorator_cached_import
+from ._decorator_exceptions import builtin_raise, translate as translate_exceptions
 
 
 def _data(value=None, known=False):
@@ -839,26 +840,8 @@ class _DecoratorEffects:
                 returns.append(self.expression(statement.value, env, target, initializing))
                 return returns, False
             if isinstance(statement, ast.Raise):
-                raised = statement.exc
-                if (isinstance(raised, ast.Call) and isinstance(raised.func, ast.Name)
-                        and raised.func.id in ('KeyError', 'TypeError', 'ValueError', 'AttributeError')
-                        and not raised.keywords and not any(isinstance(arg, ast.Starred) for arg in raised.args)
-                        and (statement.cause is None or isinstance(statement.cause, ast.Constant)
-                             and statement.cause.value is None)
-                        and self.analyzer._builtin_name_status(ref, definition, raised.func.id)
-                            == 'confirmed_builtin' and self.scalar_builtin_namespace(ref, statement)):
-                    values = [self.expression(arg, env, target, initializing) for arg in raised.args]
-                    scalar = {'str', 'int', 'bool', 'float', 'NoneType'}
-                    if all(_data_shapes(value) and _data_shapes(value) <= scalar for value in values):
-                        self.effects.append({'operation': 'raise', 'target': raised.func.id,
-                            'impact': 'control_only', 'element_path': [],
-                            'protocol': 'builtin_exception_raise',
-                            'argument_shapes': [sorted(_data_shapes(value)) for value in values],
-                            'completion': 'exceptional_exit', 'function': asdict(ref),
-                            'evidence': self.evidence_at(ref, statement),
-                            'conditions': copy.deepcopy(self.conditions)})
-                        return returns, False
-                self.issue('decorator_raise_protocol_unproven', ref, statement)
+                if builtin_raise(self, statement, env, target, initializing, _data_shapes):
+                    return returns, False
                 return returns + [_data()], True
             if isinstance(statement, ast.Pass):
                 continue
@@ -877,6 +860,16 @@ class _DecoratorEffects:
                 for item in fact['bindings']:
                     env[item['name']] = dict(_data(), category='source_import',
                         qualified=item['module'] + '.' + item['attribute'])
+                continue
+            if isinstance(statement, ast.Try):
+                translated = translate_exceptions(self, statement, env, target, initializing, _data_shapes)
+                if translated is None:
+                    self.issue('decorator_statement_unsupported', ref, statement)
+                    return returns + [_data()], True
+                values, falls = translated
+                returns.extend(values)
+                if not falls:
+                    return returns, False
                 continue
             if isinstance(statement, ast.Expr):
                 self.expression(statement.value, env, target, initializing)

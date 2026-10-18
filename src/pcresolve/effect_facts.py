@@ -5,6 +5,38 @@ import ast
 from dataclasses import dataclass
 
 
+## Match syntax for a finite builtin exception handler that only raises again.
+#  @param handler ExceptHandler source node; no source is executed.
+#  @return Syntactic translation shape, or None; builtin bindings and data effects
+#          still require a caller-specific proof.
+def builtin_exception_translation(handler):
+    supported = {'KeyError', 'TypeError', 'ValueError', 'AttributeError'}
+    if (not isinstance(handler, ast.ExceptHandler) or len(handler.body) != 1
+            or not isinstance(handler.body[0], ast.Raise)):
+        return None
+    caught = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
+    if (not 1 <= len(caught) <= 4
+            or any(not isinstance(item, ast.Name) or item.id not in supported for item in caught)):
+        return None
+    raised = handler.body[0]
+    if (not isinstance(raised.exc, ast.Call) or not isinstance(raised.exc.func, ast.Name)
+            or raised.exc.func.id not in supported or raised.exc.keywords
+            or any(not isinstance(arg, (ast.Name, ast.Constant)) for arg in raised.exc.args)):
+        return None
+    if raised.cause is None:
+        cause = 'implicit_context'
+    elif isinstance(raised.cause, ast.Constant) and raised.cause.value is None:
+        cause = 'suppressed_context'
+    elif (handler.name is not None and isinstance(raised.cause, ast.Name)
+            and raised.cause.id == handler.name):
+        cause = 'caught_exception'
+    else:
+        return None
+    return {'caught_types': [item.id for item in caught], 'exception_name': handler.name,
+            'raised_type': raised.exc.func.id, 'cause_kind': cause,
+            'argument_names': [arg.id for arg in raised.exc.args if isinstance(arg, ast.Name)]}
+
+
 ## Exact supported behavior of one builtin container method call.
 @dataclass(frozen=True)
 class ContainerMethodEffect:

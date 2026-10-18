@@ -393,7 +393,7 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
      'decorator_call_unresolved', set()),
     ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py', '__init__.py', '_api/__init__.py'],
      'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved',
-     'decorator_statement_unsupported', {'str.endswith', 'len', 'str.__getitem__', 'KeyError'})])
+     'decorator_expression_unsupported', {'str.endswith', 'len', 'str.__getitem__', 'KeyError'})])
 def test_real_decorated_entries_expose_identity_and_unclosed_effects(
         source_id, files, module, entry, target, identity, frontier, protocols):
     result = analyze(source_id, files, module, entry)
@@ -415,9 +415,16 @@ def test_real_decorated_entries_expose_identity_and_unclosed_effects(
             {'name': 'Artist', 'module': 'matplotlib.artist', 'attribute': 'Artist'},
             {'name': 'kwdoc', 'module': 'matplotlib.artist', 'attribute': 'kwdoc'}]
         assert imported['initialization_function'] == fact['function']
-        assert any(boundary['reason'] == 'decorator_statement_unsupported'
-                   and boundary['evidence']['source_text'].startswith('try:')
+        translated = next(effect for effect in fact['effects']
+                          if effect.get('exception_translation'))
+        assert translated['exception_translation']['caught_types'] == ['ValueError']
+        assert translated['exception_translation']['cause_kind'] == 'caught_exception'
+        assert any(boundary['reason'] == 'decorator_expression_unsupported'
+                   and boundary['evidence']['source_text'].startswith('[cls for cls in')
                    for boundary in fact['boundaries'])
+        assert not any(boundary['reason'] == 'decorator_statement_unsupported'
+                       and boundary['evidence']['source_text'].startswith('try:')
+                       for boundary in fact['boundaries'])
     assert fact['source_hashes'] and fact['evidence']
     assert any(item['reason'] == 'decorator_effect_unconfirmed'
                and item['function'] == fact['function'] for item in result.boundaries)

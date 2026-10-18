@@ -1183,6 +1183,19 @@ slice bounds, arbitrary exception types/causes and unsupported data callbacks
 still retain boundaries. This does not approve class-property queries or imports
 inside those callbacks.
 
+A bounded `try` can retain its normal body when every handler only translates
+an exception into another exceptional exit. The supported handlers match up to
+four unshadowed builtin exception types and contain one scalar-data builtin
+raise. Chaining may use the caught exception name, `None`, or implicit context.
+Handler arguments must be immutable local data untouched by the try body, since
+the exception may occur after any body prefix. The nested `exception_translation`
+record carries exact try/handler spans, catch types, exception binding, argument
+names, cause kind and `exceptional_exit_only` completion, under
+`builtin_exception_handler_semantics`; it never claims an observed exception.
+Returning or mutating handlers, `else`, `finally`, rebound inputs and custom
+exception protocols remain boundaries. The try body is still fully analyzed;
+this rule cannot discharge an unresolved query, iterator, unpack or callback.
+
 A local absolute `from` import inside a decorator can expose a
 `cached_import` effect under the decorated function's preceding top-level
 source imports. A relative package initialization may identify an available
