@@ -1414,6 +1414,29 @@ class FlowAnalyzer:
         return self._definition_index.resolve_qualified(
             [qualified], self.imports, qualified_guard=self._stable_import_name)
 
+    def _module_global_declarations(self, ref):
+        definitions = self.import_binding_facts.get(ref.module, [])
+        name = ref.qualname.partition('.')[0]
+        return ([statement for statement in definitions[0].get(name, [])
+                 if isinstance(statement, ast.Global)] if len(definitions) == 1 else [])
+
+    def _module_global_rebindings(self):
+        result = []
+        for module, bodies in sorted(self.module_bodies.items()):
+            for (path, _), bindings in zip(bodies, self.import_binding_facts.get(module, [])):
+                for name, statements in sorted(bindings.items()):
+                    if self._analysis_budget is not None:
+                        self._analysis_budget.checkpoint()
+                    declarations = [statement for statement in statements if isinstance(statement, ast.Global)]
+                    if declarations:
+                        result.append({'kind': 'module_global_rebinding', 'status': 'may_write',
+                            'basis': 'source_snapshot', 'module': module, 'name': name,
+                            'declarations': [{'file_path': path, 'lineno': statement.lineno,
+                                'col_offset': statement.col_offset, 'end_lineno': statement.end_lineno,
+                                'end_col_offset': statement.end_col_offset} for statement in declarations],
+                            'source_hash': self.hashes[path]})
+        return result
+
     def _resolve_class(self, caller, name):
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports, kind='class')
@@ -2210,6 +2233,7 @@ class FlowAnalyzer:
             raise ValueError('Conditional state analysis requires a source class binding or bounded constructor query')
         result = FlowAnalysis(matches[0][0], {'source_files': sorted(self.files), 'sha256': dict(self.hashes),
                               'import_roots': list(self.roots), 'max_depth': max_depth,
+                              'module_global_rebindings': self._module_global_rebindings(),
                               'return_summaries': copy.deepcopy(self.return_summaries),
                               'parameter_shapes': copy.deepcopy(self.parameter_shapes),
                               'coverage': 'explicit value dependencies and limited local container effects; no general heap or path feasibility proof'})
@@ -2220,6 +2244,16 @@ class FlowAnalyzer:
             result.boundaries.append({'reason': 'source_entry_alias',
                 'function': asdict(result.entry), 'boundary_kind': 'assumption',
                 'assumptions': copy.deepcopy(entry_alias['assumptions'])})
+        elif entry_binding is None:
+            declarations = self._module_global_declarations(result.entry)
+            if declarations:
+                result.boundaries.append({'reason': 'module_callable_binding_unconfirmed',
+                    'function': asdict(result.entry), 'nominal_target': asdict(result.entry),
+                    'lookup_scope': 'module_entry', 'boundary_kind': 'uncertainty',
+                    'declarations': [{'file_path': result.entry.file_path,
+                        'lineno': statement.lineno, 'col_offset': statement.col_offset,
+                        'end_lineno': statement.end_lineno, 'end_col_offset': statement.end_col_offset}
+                        for statement in declarations]})
         reachable_modules = self._reachable_modules(matches[0][0].module)
         unreferenced = self._unreferenced_parameters(matches[0][1])
         for boundary in self.index_boundaries:
@@ -3781,9 +3815,7 @@ class _Summary:
             global_declarations = []
             nominal_target = target
             if target and not protocol and '.' not in target[0].qualname:
-                definitions = self.analyzer.import_binding_facts.get(target[0].module, [])
-                global_declarations = [statement for statement in definitions[0].get(
-                    target[0].qualname, []) if isinstance(statement, ast.Global)] if len(definitions) == 1 else []
+                global_declarations = self.analyzer._module_global_declarations(target[0])
                 global_rebound = bool(global_declarations)
                 if global_rebound:
                     target = None

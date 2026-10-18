@@ -66,6 +66,17 @@ nominal definition and declaration witnesses without making them usable call
 targets. Read-only declarations and unrelated local writes do not invalidate
 that module binding. This is a source-wide may-write check, not a proof that the
 write executes or that a particular replacement is called.
+Definition queries retain their lexical body facts but attach the same uncertainty
+with `lookup_scope="module_entry"` when the public module name (including a
+class prefix) may be rebound. A consumer querying a public API must not equate
+that source definition with the current exported callable. A separately proved
+captured-function alias retains its own origin evidence instead.
+`inputs.module_global_rebindings` lists the same may-write declarations for all
+modules in the source snapshot, with module/name, source spans and hashes. It
+lets a consumer check the requested public class prefix or reexport separately
+from an inherited implementation's owner. This table does not establish module
+initialization, whole-object integrity, execution of a write or a replacement's
+runtime value.
 
 ## Finite-key mapping remainders
 
