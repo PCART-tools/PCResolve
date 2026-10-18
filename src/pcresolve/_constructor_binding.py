@@ -9,6 +9,7 @@ from .scope_facts import statement_scope_facts
 from .effect_facts import contains_yield
 from ._constructor_entry import source_member, _definition_issues
 from .class_attribute_effects import _ClassEffectLimit
+from ._class_decoration import constructor_decorations
 
 
 ## Explain one selected constructor phase without claiming initialized instance state.
@@ -46,7 +47,8 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     if not parameters:
         issue('implicit_receiver_parameter_missing', ref, method)
     if initializer:
-        if method.decorator_list or not analyzer._ordinary_construction(class_ref):
+        if method.decorator_list or not analyzer._ordinary_construction(
+                class_ref, allow_bounded_decorations=True):
             issue('constructor_initialization_unconfirmed', ref, method)
     elif (phase != '__new__'
             or method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod'):
@@ -72,9 +74,15 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     except _ClassEffectLimit:
         issue('constructor_class_definition_budget')
     selected = None
+    decorations = []
     for owner, cls in checked:
-        if cls.keywords or cls.decorator_list:
+        facts = constructor_decorations(analyzer, (owner, cls))
+        if cls.keywords or facts is None:
             issue('constructor_class_lookup_customization', owner, cls)
+        for fact in facts or []:
+            decorations.append(fact)
+            definition_paths.update(fact['source_hashes'])
+            definition_assumptions.update(fact['assumptions'])
         if owner != class_ref and any('__init_subclass__' in
                 statement_scope_facts([member]).bound for member in cls.body):
             issue('constructor_class_creation_hook', owner, cls)
@@ -100,7 +108,7 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
     paths = {item[0].file_path for item in checked} | {ref.file_path, summary.ref.file_path} | definition_paths
-    return {'status': 'unconfirmed' if issues else 'source_bound',
+    result = {'status': 'unconfirmed' if issues else 'source_bound',
         'basis': 'source_snapshot', 'phase': phase,
         'execution_scope': scope, 'instance_state': 'unmodeled',
         'body_execution': ('synchronous' if isinstance(method, ast.FunctionDef)
@@ -118,3 +126,6 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
         'source_hashes': {path: analyzer.hashes[path] for path in sorted(paths)
                           if path in analyzer.hashes},
         'assumptions': assumptions, 'issues': issues}
+    if decorations:
+        result['class_decorations'] = decorations
+    return result

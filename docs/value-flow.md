@@ -786,6 +786,18 @@ same bounded source-work budget as the surrounding effect proof. These facts
 still prove only other-attribute preservation on normal return, not completion
 or class-decorator identity.
 
+Constructor selection can separately admit a bounded source class decorator
+whose sole ordinary parameter is returned unchanged at one final return. The
+parameter cannot be rebound, and the rest of the body must have a complete
+`class_attribute_write_set` under the rules above. Protocol attributes, class
+escapes, dynamic names, replacement returns and unproved decorator factories
+remain unsupported. `class_decorations` on entry/call constructor bindings records
+the decorator, written names, source/return spans, hashes and assumptions. Identity
+is conditional on normal decoration return; neither successful decoration nor
+ordinary instance attribute protocols follow. Allocation/instance-state and
+function-decorator proofs retain their existing stricter restrictions. Extra
+decorator source dependencies participate in constructor binding validation.
+
 Direct reads and unshadowed `getattr`/`hasattr` are admitted only after
 this same helper definitely overwrites the attribute with a builtin literal
 payload on every incoming branch. Deletion or an unknown subsequent value loses

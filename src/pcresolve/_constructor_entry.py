@@ -9,6 +9,7 @@ from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
 from ._class_definition import namespace_issues, _source_function_decoration
 from ._constructor_retention import retained_stores
+from ._class_decoration import constructor_decorations
 
 
 def _overload_declaration(analyzer, owner, cls, member):
@@ -95,9 +96,15 @@ def binding(analyzer, class_target, target):
         issue('constructor_class_definition_budget')
     if not analyzer._stable_import_name(class_ref.module + '.' + class_ref.qualname):
         issue('constructor_class_origin_unconfirmed')
+    decorations = []
     for owner, base in checked:
-        if base.keywords or base.decorator_list or analyzer.definition_conditions.get(owner):
+        facts = constructor_decorations(analyzer, (owner, base))
+        if base.keywords or facts is None or analyzer.definition_conditions.get(owner):
             issue('constructor_class_lookup_customization')
+        for fact in facts or []:
+            decorations.append(fact)
+            definition_paths.update(fact['source_hashes'])
+            definition_assumptions.update(fact['assumptions'])
         if owner != class_ref and any('__init_subclass__' in
                 statement_scope_facts([member]).bound for member in base.body):
             issue('constructor_class_creation_hook')
@@ -112,7 +119,8 @@ def binding(analyzer, class_target, target):
     elif phase == '__init__':
         preserved = not method.decorator_list or _source_function_decoration(
             analyzer, target, definition_paths, definition_assumptions)
-        if not preserved or not analyzer._ordinary_construction(class_ref):
+        if not preserved or not analyzer._ordinary_construction(
+                class_ref, allow_bounded_decorations=True):
             issue('constructor_initialization_unconfirmed')
     else:
         issue('constructor_phase_unconfirmed')
@@ -147,5 +155,7 @@ def binding(analyzer, class_target, target):
                           if path in analyzer.hashes},
         'assumptions': assumptions,
         'issues': issues}
+    if decorations:
+        result['class_decorations'] = decorations
     result['retained_instance_attribute_stores'] = retained_stores(analyzer, checked, target, result)
     return result

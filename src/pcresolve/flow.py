@@ -44,6 +44,7 @@ from .mapping_return_transfer import transfers as mapping_return_transfers
 from .capture_rejection_guard import checks as capture_rejection_checks
 from .container_predicates import checks as container_predicate_checks
 from ._cached_imports import cached_import
+from ._class_decoration import constructor_decorations
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -368,6 +369,7 @@ class FlowAnalyzer:
         self._callable_instance_binding_cache = {}
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
+        self._class_decoration_cache = {}
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
         self._coroutine_namespace_premises = None
@@ -679,7 +681,8 @@ class FlowAnalyzer:
         # whether initialization applies. A direct __init__ cannot override
         # an inherited __new__, and an unresolved allocator cannot license it.
         for method in ('__new__', '__init__'):
-            if method == '__init__' and not self._ordinary_construction(ref):
+            if method == '__init__' and not self._ordinary_construction(
+                    ref, allow_bounded_decorations=True):
                 return None
             for owner, cls in hierarchy:
                 members = [member for member in cls.body
@@ -1432,7 +1435,7 @@ class FlowAnalyzer:
                      else module + '.' + expression)
         return self._class_symbol(next_name, seen + (qualified,))
 
-    def _ordinary_construction(self, class_ref):
+    def _ordinary_construction(self, class_ref, allow_bounded_decorations=False):
         hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
         if hierarchy is None:
             return False
@@ -1445,11 +1448,13 @@ class FlowAnalyzer:
                 statement_scope_facts([member]).bound for member in cls.body)
                 for owner, cls in hierarchy):
             return False
-        return all(not cls.decorator_list and not cls.keywords and not any(
+        return all((constructor_decorations(self, (owner, cls)) is not None
+                    if allow_bounded_decorations else not cls.decorator_list)
+            and not cls.keywords and not any(
             isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
             and member.name == '__new__' or
             '__new__' in statement_scope_facts([member]).bound
-            for member in cls.body) for _, cls in hierarchy)
+            for member in cls.body) for owner, cls in hierarchy)
 
     def _explicit_object_allocation(self, class_ref):
         # Explicit object.__new__ bypasses the selected class's __new__ and
