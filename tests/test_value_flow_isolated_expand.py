@@ -35,6 +35,39 @@ def test_separate_call_edges_do_not_share_callable_targets():
         assert all(item['incoming_call_id'] == edge.id for item in call.analysis_contexts)
 
 
+def test_isolated_expansion_can_retain_only_the_fresh_receiver_lineage(tmp_path):
+    (tmp_path / 'cases.py').write_text('''class Base:
+    def __init__(self, **kwargs):
+        self.forward(**kwargs)
+    def forward(self, **kwargs):
+        self.consume(**kwargs)
+    def consume(self, **kwargs):
+        pass
+class Box(Base):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+''', encoding='utf-8')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    root = analyzer.analyze(FunctionRef('cases', 'Box'))
+    before = root.to_dict()
+    super_call = root.find_calls(callee_name='super().__init__')[0]
+
+    child = analyzer.expand(root, super_call.id, isolate=True, preserve_lineage=True)
+    assert child.inputs['entry_binding'] == root.inputs['entry_binding']
+    assert [call.id for call in child.calls if call.id == super_call.id] == [super_call.id]
+    forward = child.find_calls(callee_name='self.forward')[0]
+    assert forward.instance_method_bindings[0]['status'] == 'source_bound'
+    assert forward.instance_method_bindings[0]['origin']['path'] == [super_call.id]
+
+    grandchild = analyzer.expand(child, forward.id, isolate=True, preserve_lineage=True)
+    consume = grandchild.find_calls(callee_name='self.consume')[0]
+    assert grandchild.inputs['entry_binding'] == root.inputs['entry_binding']
+    assert {call.id for call in grandchild.calls} >= {super_call.id, forward.id}
+    assert consume.instance_method_bindings[0]['status'] == 'source_bound'
+    assert consume.instance_method_bindings[0]['origin']['path'] == [super_call.id, forward.id]
+    assert root.to_dict() == before
+
+
 def test_isolation_keeps_recursion_boundary_and_validates_arguments():
     analyzer = FlowAnalyzer(project_root=ROOT)
     original = analyzer.analyze(FunctionRef('cases', 'loop'))

@@ -90,3 +90,108 @@ def test_constructor_slot_proof_does_not_prove_ordinary_instance_attribute_proto
     values = {}
     exec(compile(tree, str(ROOT / 'cases.py'), 'exec'), values)
     assert values['decorated'](old=1) == {'old': 1}
+
+
+def test_literal_alias_decorator_records_generated_setter_names(tmp_path):
+    source = '''from functools import partial, wraps
+def define_aliases(alias_d, cls=None):
+    if cls is None:
+        return partial(define_aliases, alias_d)
+    def make_alias(name):
+        @wraps(getattr(cls, name))
+        def method(self, *args, **kwargs):
+            return getattr(self, name)(*args, **kwargs)
+        return method
+    for prop, aliases in alias_d.items():
+        exists = False
+        for prefix in ['get_', 'set_']:
+            if prefix + prop in vars(cls):
+                exists = True
+                for alias in aliases:
+                    method = make_alias(prefix + prop)
+                    method.__name__ = prefix + alias
+                    method.__doc__ = 'Alias for ' + prefix + prop
+                    setattr(cls, prefix + alias, method)
+        if not exists:
+            raise ValueError(prop)
+    cls._alias_map = alias_d
+    return cls
+def fixed(allowed=0): return allowed
+@define_aliases({'color': ['c']})
+class Public:
+    def __init__(self, **kwargs): fixed(**kwargs)
+    def set_color(self, value): pass
+def client(**kwargs): return Public(**kwargs)
+'''
+    path = tmp_path / 'example.py'
+    path.write_text(source, encoding='utf-8')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    analyzer._index()
+    target, cls = analyzer._definition_index.find('example', 'Public', kind='class')[0]
+    from pcresolve._class_decoration import constructor_decorations
+    decorations = constructor_decorations(analyzer, (target, cls))
+    assert decorations is not None
+    decoration = decorations[0]
+    assert decoration['identity_status'] == 'preserved'
+    assert 'set_c' in decoration['attributes']
+    assert 'set_bbox_transmuter' not in decoration['attributes']
+    assert decoration['generated_class_members'][0]['attribute'] == 'set_c'
+
+
+def test_source_singleton_metadata_decorator_preserves_a_class_constructor(tmp_path):
+    (tmp_path / 'documentation.py').write_text('''import inspect
+class Substitution:
+    def __init__(self): self.params = {}
+    def __call__(self, func):
+        if func.__doc__:
+            func.__doc__ = inspect.cleandoc(func.__doc__) % self.params
+        return func
+class ArtistPropertiesSubstitution(Substitution):
+    def __call__(self, obj):
+        super().__call__(obj)
+        if isinstance(obj, type) and obj.__init__ != object.__init__:
+            self(obj.__init__)
+        return obj
+interpd = ArtistPropertiesSubstitution()
+''', encoding='utf-8')
+    (tmp_path / 'entry.py').write_text('''import documentation
+def fixed(allowed=0): return allowed
+@documentation.interpd
+class Public:
+    def __init__(self, **kwargs): fixed(**kwargs)
+''', encoding='utf-8')
+    result = FlowAnalyzer(project_root=tmp_path).analyze(FunctionRef('entry', 'Public'))
+    binding = result.inputs['entry_binding']
+    assert binding['status'] == 'source_bound'
+    decoration, = binding['class_decorations']
+    assert decoration['kind'] == 'source_metadata_instance_class_decoration'
+    assert decoration['identity_status'] == 'preserved'
+    assert decoration['metadata_attributes'] == ['__doc__']
+    assert decoration['attributes'] == []
+    assert result.find_calls(callee_name='fixed')
+
+
+def test_replacing_source_singleton_metadata_decorator_keeps_constructor_unconfirmed(tmp_path):
+    (tmp_path / 'documentation.py').write_text('''import inspect
+class Substitution:
+    def __init__(self): self.params = {}
+    def __call__(self, func):
+        if func.__doc__:
+            func.__doc__ = inspect.cleandoc(func.__doc__) % self.params
+        return func
+class ArtistPropertiesSubstitution(Substitution):
+    def __call__(self, obj):
+        super().__call__(obj)
+        if isinstance(obj, type) and obj.__init__ != object.__init__:
+            self(obj.__init__)
+        return type('Replacement', (), {})
+interpd = ArtistPropertiesSubstitution()
+''', encoding='utf-8')
+    (tmp_path / 'entry.py').write_text('''import documentation
+def fixed(allowed=0): return allowed
+@documentation.interpd
+class Public:
+    def __init__(self, **kwargs): fixed(**kwargs)
+''', encoding='utf-8')
+    with pytest.raises(ValueError):
+        FlowAnalyzer(project_root=tmp_path).analyze(FunctionRef('entry', 'Public'))

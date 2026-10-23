@@ -14,6 +14,7 @@ from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 from ._decorator_imports import cached_import as decorator_cached_import
 from ._decorator_exceptions import builtin_raise, translate as translate_exceptions
+from ._runtime_namespace import unmodified as namespace_unmodified
 
 
 def _data(value=None, known=False):
@@ -99,7 +100,8 @@ class _DecoratorEffects:
                                 'conditions': copy.deepcopy(self.conditions), **details})
 
     def builtin(self, name, ref, node):
-        return (name not in self.analyzer._scope_facts(node).bound
+        return (namespace_unmodified(self.analyzer, ref.module + '.' + name)
+                and name not in self.analyzer._scope_facts(node).bound
                 and not any(name in bindings for bindings in
                             self.analyzer.import_binding_facts.get(ref.module, [])))
 
@@ -357,6 +359,9 @@ class _DecoratorEffects:
 
     def source_call(self, selected, node, arguments, receiver=None, initializing=False):
         ref, definition = selected
+        if not namespace_unmodified(self.analyzer, ref.module + '.' + ref.qualname):
+            self.issue('decorator_helper_namespace_unproven', ref, node)
+            return _data()
         params = definition.args.posonlyargs + definition.args.args
         signature = FunctionSignature.from_ast(definition.args, params[1:] if receiver else params)
         records, reasons = bind_ast_call(node, signature)
@@ -790,7 +795,11 @@ class _DecoratorEffects:
         if isinstance(node, ast.Attribute):
             receiver = self.expression(node.value, env, target, initializing)
             if receiver['kind'] == 'function':
+                module_shapes = _data_shapes(value)
+                module_metadata = (node.attr == '__module__' and bool(module_shapes)
+                                   and module_shapes <= {'str', 'NoneType'})
                 impact = ('documentation' if node.attr == '__doc__' else
+                          'module_metadata' if module_metadata else
                           'execution_binding' if node.attr in ('__code__', '__defaults__', '__kwdefaults__') else
                           'signature_metadata' if node.attr in ('__signature__', '__annotations__', '__wrapped__') else
                           'unmodeled_attribute')
@@ -798,9 +807,18 @@ class _DecoratorEffects:
                     'element_path': [node.attr], 'impact': impact,
                     'function': asdict(ref), 'evidence': self.evidence_at(ref, node),
                     'conditions': copy.deepcopy(self.conditions)})
+                if impact == 'documentation':
+                    self.effects[-1].update(value_shapes=sorted(module_shapes),
+                        protocol='builtin_function_documentation_attribute',
+                        execution_fields_unchanged=True, runtime_write_confirmed=False)
+                if module_metadata:
+                    self.effects[-1].update(protocol='builtin_function_module_attribute',
+                        value_shapes=sorted(module_shapes), execution_fields_unchanged=True,
+                        runtime_write_confirmed=False)
+                    self.extra_assumptions.append('builtin_function_module_attribute')
                 if impact == 'execution_binding':
                     self.issue('decorator_execution_binding_write', ref, node)
-                elif impact != 'documentation':
+                elif impact not in ('documentation', 'module_metadata'):
                     self.issue('decorator_attribute_effect_unproven', ref, node)
                 if value['kind'] == 'function':
                     self.issue('decorator_object_escape', ref, node)

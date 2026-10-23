@@ -5,6 +5,66 @@ import ast
 from dataclasses import dataclass
 
 
+## Walk immediate evaluation, including declaration inputs but not deferred bodies.
+#  @param root Source execution scope to inspect.
+#  @return Iterator of AST nodes evaluated within this scope.
+def execution_nodes(root):
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        yield node
+        if node is not root and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            children = list(getattr(node, 'decorator_list', [])) + list(node.args.defaults)
+            children.extend(value for value in node.args.kw_defaults if value is not None)
+            arguments = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+            arguments += [arg for arg in (node.args.vararg, node.args.kwarg) if arg]
+            children.extend(arg.annotation for arg in arguments if arg.annotation is not None)
+            if getattr(node, 'returns', None) is not None:
+                children.append(node.returns)
+        else:
+            children = list(ast.iter_child_nodes(node))
+        pending.extend(reversed(children))
+
+
+## Describe syntactic evaluation prerequisites without claiming reachability.
+#  @param root Source tree or expression; no source is executed.
+#  @return Iterator of (node, prerequisite tuple) pairs. Each prerequisite pairs
+#          a phase kind with its source declaration/generator node. Empty means
+#          no deferred-body prerequisite, not guaranteed execution or completion.
+def evaluation_contexts(root):
+    pending = [(root, ())]
+    while pending:
+        node, requirements = pending.pop()
+        yield node, requirements
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            inputs = list(getattr(node, 'decorator_list', [])) + list(node.args.defaults)
+            inputs.extend(value for value in node.args.kw_defaults if value is not None)
+            arguments = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+            arguments += [arg for arg in (node.args.vararg, node.args.kwarg) if arg]
+            inputs.extend(arg.annotation for arg in arguments if arg.annotation is not None)
+            if getattr(node, 'returns', None) is not None:
+                inputs.append(node.returns)
+            body_requirements = requirements + (('function_invocation', node),)
+            if isinstance(node, ast.AsyncFunctionDef):
+                phase = 'async_generator_resumption' if contains_yield(node) else 'coroutine_resumption'
+                body_requirements += ((phase, node),)
+            elif contains_yield(node):
+                body_requirements += (('generator_resumption', node),)
+            body = [node.body] if isinstance(node, ast.Lambda) else node.body
+            children = [(item, requirements) for item in inputs]
+            children.extend((item, body_requirements) for item in body)
+        elif isinstance(node, ast.GeneratorExp):
+            deferred = requirements + (('generator_resumption', node),)
+            children = [(node.elt, deferred)]
+            for index, generator in enumerate(node.generators):
+                children.append((generator.iter, requirements if index == 0 else deferred))
+                children.append((generator.target, deferred))
+                children.extend((condition, deferred) for condition in generator.ifs)
+        else:
+            children = [(child, requirements) for child in ast.iter_child_nodes(node)]
+        pending.extend(reversed(children))
+
+
 ## Match syntax for a finite builtin exception handler that only raises again.
 #  @param handler ExceptHandler source node; no source is executed.
 #  @return Syntactic translation shape, or None; builtin bindings and data effects

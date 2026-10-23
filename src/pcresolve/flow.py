@@ -23,9 +23,21 @@ from .effect_facts import (container_method_effect, contains_yield,
 from .import_facts import import_facts, resolve_relative_module
 from .star_imports import static_star_imports
 from ._decorator_effects import _DecoratorEffects
+from ._function_factory import factory_wrapper
+from ._metadata_queries import metadata_query
+from ._metadata_observer import observer_effects
+from ._source_dependencies import publish as publish_source_dependencies
+from ._source_dependencies import validate as validate_source_dependencies
 from ._callable_instance_binding import source_binding
 from ._constructor_binding import source_binding as constructor_source_binding
 from ._constructor_entry import binding as constructor_entry_binding
+from ._fresh_receiver import (method_binding as fresh_method_binding,
+                              super_method_binding as fresh_super_method_binding,
+                              incoming_origin as fresh_incoming_origin)
+from ._fresh_receiver import recover_lookup_receiver as fresh_lookup_receiver
+from ._fresh_member_checks import fresh_checks as fresh_mapping_member_checks
+from ._contextmanager_instance_effects import (
+    temporary_receiver_attributes as bounded_temporary_receiver_attributes)
 from ._constructor_entry import source_member as constructor_source_member
 from ._constructor_entry import _definition_issues as constructor_definition_issues
 from .mapping_remainders import mapping_remainder, _ProofLimit
@@ -44,7 +56,12 @@ from .mapping_return_transfer import transfers as mapping_return_transfers
 from .capture_rejection_guard import checks as capture_rejection_checks
 from .container_predicates import checks as container_predicate_checks
 from ._cached_imports import cached_import
-from ._class_decoration import constructor_decorations
+from ._class_decoration import constructor_decorations, member_preservation
+from ._class_metadata_read import native_function_scalar
+from ._class_creation import creation_effects
+from ._class_type_tests import native_class_operand
+from ._fresh_decoration import fresh_decoration
+from ._runtime_namespace import unmodified as namespace_unmodified
 
 
 _CLASS_BINDING_NODE_LIMIT = 1000000
@@ -138,6 +155,7 @@ class FlowCall:
     conditional_returns: list = field(default_factory=list)
     class_method_bindings: list = field(default_factory=list)
     constructor_bindings: list = field(default_factory=list)
+    instance_method_bindings: list = field(default_factory=list)
     implicit_protocol: dict = field(default_factory=dict)
     class_metadata_bindings: list = field(default_factory=list)
     class_read_bindings: list = field(default_factory=list)
@@ -311,8 +329,13 @@ class FlowAnalyzer:
     #  @param return_summaries Opt-in exact callable summaries with provenance.
     #  @param parameter_shapes Opt-in trusted parameter shape contracts.
     #  @param analysis_limits Optional cooperative resource limits for each analyze().
+    #  @param support_source_protocols Opt in to separately versioned dependency protocol proofs.
     def __init__(self, source_files=None, import_roots=None, project_root=None,
-                 return_summaries=None, parameter_shapes=None, analysis_limits=None):
+                 return_summaries=None, parameter_shapes=None, analysis_limits=None,
+                 support_source_protocols=False):
+        if type(support_source_protocols) is not bool:
+            raise ValueError('support_source_protocols must be bool')
+        self.support_source_protocols = support_source_protocols
         self.analysis_limits = analysis_limits
         self._analysis_budget = None
         if (source_files is None) == (project_root is None):
@@ -345,9 +368,30 @@ class FlowAnalyzer:
     def add_files(self, files):
         self.files.update(os.path.abspath(p) for p in files if str(p).endswith(('.py', '.pyi')))
 
-    def _index(self):
+    def _index(self, preserve_source_facts=False):
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
+        source_fact_cache_names = (
+            '_scope_fact_cache', '_class_binding_write_cache',
+            '_class_binding_escape_cache', '_class_decoration_cache',
+            '_class_creation_cache', '_native_class_protocol_cache',
+            '_builtin_scope_cache', '_builtin_module_cache',
+            '_decorator_import_namespace_cache', '_fresh_receiver_hook_premise',
+            '_fresh_receiver_metadata_guard', '_fresh_function_observer_premise',
+            '_contextmanager_namespace_premise', '_function_namespace_cache',
+            '_function_factory_cache', '_signature_factory_namespace',
+            '_metadata_stdlib_namespace',
+            '_partial_class_namespace_premise', '_module_getattr_cache_premises',
+            '_coroutine_namespace_premises', '_property_namespace_premises',
+            '_decorator_literal_writes', '_class_type_test_namespace',
+        )
+        runtime_namespace_cache = getattr(self, '_runtime_namespace_cache', False)
+        previous_runtime_namespace = (
+            runtime_namespace_cache
+            if self._analysis_budget is None and runtime_namespace_cache is not False
+            else False)
+        previous_source_facts = ({name: getattr(self, name) for name in source_fact_cache_names
+                                  if hasattr(self, name)} if preserve_source_facts else {})
         self._scope_fact_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
@@ -369,8 +413,30 @@ class FlowAnalyzer:
         self._callable_instance_binding_cache = {}
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
+        self._fresh_decoration_fact_cache = {}
         self._class_decoration_cache = {}
+        self._class_creation_cache = {}
+        self._metadata_query_cache = {}
+        self._metadata_observer_cache = {}
+        self._native_class_protocol_cache = {}
+        self._class_type_test_namespace = None
+        self._class_identity_cache = {}
+        self._class_identity_steps = 20000
+        self._class_identity_layout_guard = None
+        self._class_identity_instance_guards = {}
+        self._class_identity_guard_failures = {}
         self._decorator_import_namespace_cache = {}
+        self._fresh_receiver_hook_premise = None
+        self._fresh_receiver_metadata_guard = None
+        self._fresh_function_observer_premise = False
+        self._contextmanager_namespace_premise = None
+        self._function_namespace_cache = {}
+        self._function_factory_cache = {}
+        self._signature_factory_namespace = None
+        self._metadata_stdlib_namespace = {}
+        self._runtime_namespace_cache = False
+        self._supporting_source_hashes = {}
+        self._partial_class_namespace_premise = None
         self._module_getattr_cache_premises = None
         self._builtin_scope_cache = {}
         self._builtin_module_cache = {}
@@ -391,6 +457,14 @@ class FlowAnalyzer:
                 and self._indexed_roots == tuple(self.roots)
                 and all(previous.documents[path] is self._source_snapshot.documents[path]
                         for path in previous.files)):
+            for name, value in previous_source_facts.items():
+                setattr(self, name, value)
+            # Runtime namespace writes depend only on this immutable source
+            # generation. Preserve both complete results and conservative
+            # unknown results across unbudgeted queries; budgeted queries must
+            # rebuild so their work limits remain authoritative.
+            if self._analysis_budget is None:
+                self._runtime_namespace_cache = previous_runtime_namespace
             return
         # Clear the reusable generation before construction so an interrupted
         # or failed build cannot expose partially rebuilt facts on the next query.
@@ -715,10 +789,13 @@ class FlowAnalyzer:
         if not hierarchy or len(hierarchy) > 64:
             return None
         for _, cls in hierarchy:
-            if (cls.decorator_list or cls.keywords or any(name in
+            if (cls.keywords or any(name in
                     statement_scope_facts(cls.body).bound
                     for name in ('__getattribute__', '__getattr__'))):
                 return None
+        if member_preservation(self, hierarchy,
+                {method, '__getattribute__', '__getattr__', '__class__', '__bases__', '*'}) is None:
+            return None
         writes, truncated = self._class_binding_writes()
         if truncated or any(attribute in (method, '*', '__class__', '__bases__')
                 and any(written == ref for ref, _ in hierarchy)
@@ -842,6 +919,8 @@ class FlowAnalyzer:
         if name in names:
             return 'source_binding'
         if uncertain or '*' in names or '__builtins__' in names:
+            return 'unconfirmed'
+        if not namespace_unmodified(self, ref.module + '.' + name):
             return 'unconfirmed'
         return 'confirmed_builtin'
 
@@ -1072,11 +1151,12 @@ class FlowAnalyzer:
                     return None
         return name
 
-    def _class_binding_writes(self, include_escapes=False):
+    def _class_binding_writes(self, include_escapes=False, private_result=None):
         cached = self._class_binding_escape_cache if include_escapes else self._class_binding_write_cache
-        if cached is not None:
+        if cached is not None and private_result is None:
             return cached
         writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
+        closure_bindings = {}
 
         def method_owner(qualified):
             target = self._resolve_import_binding(qualified) if include_escapes else None
@@ -1123,6 +1203,26 @@ class FlowAnalyzer:
                     # Returning a call does not itself prove a returned class.
                     # Calls and their arguments are inspected separately below.
                     continue
+                if (isinstance(child, ast.Attribute)
+                        and native_function_scalar(self, child,
+                            lambda value: identity(value, ref, names))):
+                    # This scalar projection grants no class/method alias.
+                    # Other escapes and every visible writer stay in the scan;
+                    # consumers still require the complete closed-use invariant.
+                    continue
+                if (private_result is not None and isinstance(child, ast.Call)
+                        and isinstance(child.func, ast.Attribute)
+                        and isinstance(child.func.value, ast.Call)):
+                    constructor = child.func.value
+                    references = identity(constructor.func, ref, names)
+                    if private_result(ref, child, references):
+                        # Only the constructor's class identity is projected
+                        # out. Input capabilities and both calls remain checked.
+                        pending.extend((argument, names, captures, projection)
+                                       for argument in constructor.args)
+                        pending.extend((keyword.value, names, captures, projection)
+                                       for keyword in constructor.keywords)
+                        continue
                 if isinstance(child, ast.Lambda):
                     defaults = child.args.defaults + [v for v in child.args.kw_defaults if v is not None]
                     pending.extend((value, names, captures, projection) for value in defaults)
@@ -1130,7 +1230,31 @@ class FlowAnalyzer:
                     local = dict(names)
                     local.update({name: None for name in bound})
                     retained = {name: refs for name, refs in captures.items() if name not in bound}
-                    pending.append((child.body, local, retained, False))
+                    if ref not in closure_bindings:
+                        enclosing = self._definition_index.find(ref.module, ref.qualname)
+                        scope = self._scope_facts(enclosing[0][1]) if len(enclosing) == 1 else None
+                        closure_bindings[ref] = ((scope.bound | scope.nonlocals) - scope.globals
+                                                 if scope is not None else set())
+                    for name in transitive_captured_names(child, set(names) | set(captures)):
+                        remaining[0] -= 1
+                        if remaining[0] < 0:
+                            break
+                        references = identity(ast.Name(id=name, ctx=ast.Load()), ref, names)
+                        found.extend(captures.get(name, ()))
+                        global_class = self._class_symbol(ref.module + '.' + name)
+                        if (name in closure_bindings[ref] or global_class is None
+                                or references != [global_class[0]]):
+                            found.extend(references)
+                    # A global name used as a future call's receiver is not
+                    # stored in this function's closure. Actual arguments,
+                    # returns and writes in that future body are scanned below.
+                    pending.append((child.body, local, retained, True))
+                    continue
+                if isinstance(child, ast.Call) and native_class_operand(self, ref, child, names):
+                    # The tested value still evaluates normally; nested calls
+                    # can expose a class even though the native class operand
+                    # itself does not pass to a user __instancecheck__ hook.
+                    pending.append((child.args[0], names, captures, projection))
                     continue
                 if isinstance(child, (ast.Name, ast.Attribute)):
                     if not contained_only:
@@ -1163,6 +1287,14 @@ class FlowAnalyzer:
                     local[parameter.arg] = None
                 child_ref = FunctionRef(ref.module, (ref.qualname + '.' if ref.qualname else '')
                                         + getattr(node, 'name', '<lambda>'), ref.file_path)
+                if isinstance(node, ast.Lambda):
+                    for value in args.defaults + [v for v in args.kw_defaults if v is not None]:
+                        walk(value, ref, aliases, held)
+                    # Keep the enclosing source scope for builtin lookup;
+                    # lambda parameters are masked in the scanner environment.
+                    future = ast.copy_location(ast.Return(value=node.body), node.body)
+                    walk(future, ref, local, retained)
+                    return
                 for statement in node.body if not isinstance(node, ast.Lambda) else []:
                     walk(statement, child_ref, local, retained)
                 return
@@ -1183,6 +1315,8 @@ class FlowAnalyzer:
                          if fact.level else fact.module) + '.' + fact.name)
                     target = self._class_symbol(qualified)
                     aliases[fact.python_binding] = target[0] if target else qualified
+                    if include_escapes and target and ref.qualname:
+                        held[fact.python_binding] = _unique(held.get(fact.python_binding, []) + [target[0]])
             if isinstance(node, (ast.Attribute, ast.Subscript)) and isinstance(node.ctx, (ast.Store, ast.Del)):
                 owner = node.value
                 attribute = node.attr if isinstance(node, ast.Attribute) else '*'
@@ -1214,6 +1348,8 @@ class FlowAnalyzer:
                 if isinstance(node, ast.Call):
                     escape(exposed(node.func, ref, aliases, held, contained_only=True), ref, node)
                     arguments = list(node.args) + [keyword.value for keyword in node.keywords]
+                    if native_class_operand(self, ref, node, aliases):
+                        arguments = arguments[:1]
                     for argument in arguments:
                         escape(exposed(argument, ref, aliases, held), ref, node)
                 elif isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)):
@@ -1245,6 +1381,8 @@ class FlowAnalyzer:
                 for statement in body:
                     walk(statement, FunctionRef(module, '', path), aliases, held)
         result = writes, remaining[0] < 0
+        if private_result is not None:
+            return result
         if include_escapes:
             self._class_binding_escape_cache = result
         else:
@@ -1356,6 +1494,25 @@ class FlowAnalyzer:
                     expression, multiple=len(decorators) != 1)
                 for expression in decorators]
         return copy.deepcopy(self._decoration_fact_cache[ref])
+
+    def _fresh_decoration_facts(self, target):
+        ref, node = target
+        if ref not in self._fresh_decoration_fact_cache:
+            self._fresh_decoration_fact_cache[ref] = []
+            ordinary = self._decoration_facts(target)
+            if (len(ordinary) == 1 and ordinary[0]['identity_status'] == 'preserved'
+                    and ordinary[0]['body_binding_status'] == 'unknown'):
+                summary = _Summary(self, FlowAnalysis(ref, {}), ref, node, 0)
+                fact = fresh_decoration(self, target, summary.evidence_at, _DECORATOR_EFFECT_NODE_LIMIT)
+                if fact is not None:
+                    self._fresh_decoration_fact_cache[ref] = [fact]
+        return copy.deepcopy(self._fresh_decoration_fact_cache[ref])
+
+    def _binding_decoration_facts(self, target):
+        facts = self._decoration_facts(target)
+        if len(facts) == 1 and facts[0]['body_binding_status'] != 'preserved':
+            return self._fresh_decoration_facts(target) or facts
+        return facts
 
     def _decorated_target(self, target):
         decorator = self._decorator_definition(target)
@@ -1481,9 +1638,14 @@ class FlowAnalyzer:
                 and any(written == owner for owner, _ in hierarchy)
                 for written, attribute, _, _, _ in writes):
             return False
-        if any(owner != class_ref and any('__init_subclass__' in
-                statement_scope_facts([member]).bound for member in cls.body)
-                for owner, cls in hierarchy):
+        # Ancestor decoration has already happened when a new subclass hook
+        # observes its inherited namespace. Establish that completed prefix
+        # before asking for the current class's creation effects.
+        if allow_bounded_decorations and any(
+                constructor_decorations(self, parent) is None
+                for parent in reversed(hierarchy[1:])):
+            return False
+        if creation_effects(self, hierarchy[0]) is None:
             return False
         return all((constructor_decorations(self, (owner, cls)) is not None
                     if allow_bounded_decorations else not cls.decorator_list)
@@ -2176,9 +2338,11 @@ class FlowAnalyzer:
     #  @param conditional_source_state Retain source-class lookup under explicit state predicates.
     #  @return FlowAnalysis snapshot; cutoffs are explicit boundaries.
     def analyze(self, entry, max_depth=1, max_functions=500, max_call_contexts=2000,
-                conditional_source_state=False):
+                conditional_source_state=False, max_class_effect_steps=8000):
         if type(conditional_source_state) is not bool:
             raise ValueError('conditional_source_state must be bool')
+        if type(max_class_effect_steps) is not int or max_class_effect_steps < 1:
+            raise ValueError('max_class_effect_steps must be a positive integer')
         self._conditional_source_state = conditional_source_state
         if min(max_depth, max_functions, max_call_contexts) < 1:
             raise ValueError('Depth and budgets must be positive')
@@ -2192,7 +2356,7 @@ class FlowAnalyzer:
         self._object_fact_steps = max_call_contexts
         self._effect_fact_functions = max_functions
         self._effect_fact_steps = max_call_contexts
-        self._class_effect_fact_steps = max_call_contexts
+        self._class_effect_fact_steps = max_class_effect_steps
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         entry_binding = None
         entry_alias = None
@@ -2235,6 +2399,7 @@ class FlowAnalyzer:
             raise ValueError('Conditional state analysis requires a source class binding or bounded constructor query')
         result = FlowAnalysis(matches[0][0], {'source_files': sorted(self.files), 'sha256': dict(self.hashes),
                               'import_roots': list(self.roots), 'max_depth': max_depth,
+                              'max_class_effect_steps': max_class_effect_steps,
                               'module_global_rebindings': self._module_global_rebindings(),
                               'return_summaries': copy.deepcopy(self.return_summaries),
                               'parameter_shapes': copy.deepcopy(self.parameter_shapes),
@@ -2281,11 +2446,13 @@ class FlowAnalyzer:
             if entry_binding['status'] != 'source_bound':
                 if self._analysis_budget is not None:
                     self._analysis_budget.checkpoint(force=True)
+                publish_source_dependencies(self, result)
                 return result
             if entry_binding['phase'] == '__new__':
                 result.boundaries.append({'function': asdict(result.entry),
                     'reason': 'constructor_initialization_unmodeled', 'phase': '__init__'})
         self._walk(result, matches[0], max_depth, context, max_functions, max_call_contexts)
+        publish_source_dependencies(self, result)
         result.boundaries = _unique(result.boundaries)
         if self._analysis_budget is not None:
             self._analysis_budget.checkpoint(force=True)
@@ -2312,6 +2479,9 @@ class FlowAnalyzer:
                         'call_context': []}}]
             else:
                 incoming[parameter] = [{'instance_type': identity}]
+                if entry_binding.get('fresh_receiver_origin'):
+                    incoming[parameter][0]['fresh_receiver_origin'] = copy.deepcopy(
+                        entry_binding['fresh_receiver_origin'])
         key = (ref, receiver_class, context.edge.id if context.edge else None,
                repr(incoming))
         if key in self._context_summaries:
@@ -2358,6 +2528,7 @@ class FlowAnalyzer:
                         conditional_source_bindings=copy.deepcopy(call.conditional_source_bindings),
                         candidate_paths=copy.deepcopy(call.candidate_paths),
                         constructor_bindings=copy.deepcopy(call.constructor_bindings),
+                        instance_method_bindings=copy.deepcopy(call.instance_method_bindings),
                         implicit_protocol=copy.deepcopy(call.implicit_protocol),
                         conditions=copy.deepcopy(call.conditions if self._conditional_source_state
                             else getattr(selected[1], '_flow_conditions', [])))
@@ -2383,24 +2554,84 @@ class FlowAnalyzer:
         if edge is None or edge.binding_status == 'invalid':
             return {}
         normal_binding = edge.binding_status != 'complete'
+        fresh_super = [fact for fact in edge.instance_method_bindings
+                       if fact.get('kind') == 'fresh_source_super_method'
+                       and fact.get('status') == 'source_bound'
+                       and fact.get('target') == asdict(definition[0])
+                       and edge.target_status == 'super_method']
+        fresh_instance = [fact for fact in edge.instance_method_bindings
+                          if fact.get('kind') == 'fresh_source_instance_method'
+                          and fact.get('status') == 'source_bound'
+                          and fact.get('target') == asdict(definition[0])
+                          and fact.get('call_id') == edge.id]
+        seeded_receiver = {}
+        if len(fresh_instance) == 1:
+            parameters = definition[1].args.posonlyargs + definition[1].args.args
+            fact = fresh_instance[0]
+            origin = fact.get('origin')
+            identity = fact.get('receiver_class')
+            receiver_values = edge.receiver_sources
+            receiver_records = [record for record in edge.parameter_bindings
+                if record.get('argument') == {'receiver': True}
+                and record.get('parameter') == (parameters[0].arg if parameters else None)
+                and record.get('status') == 'exact']
+            if (parameters and isinstance(origin, dict) and identity == origin.get('allocation', {}).get(
+                    'receiver_class') and len(receiver_records) == 1 and receiver_values
+                    and all(value.get('fresh_receiver_origin') == origin
+                        and value.get('instance_type') in (None, identity)
+                        and value.get('relation') == 'direct'
+                        and not any(value.get(flag) for flag in (
+                            'projection', 'output_path', 'attribute_provenance',
+                            'import_modified', 'import_incomplete'))
+                        for value in receiver_values)):
+                receiver = {'instance_type': copy.deepcopy(identity),
+                    'fresh_receiver_origin': fresh_incoming_origin(fact, parameters[0].arg)}
+                mutations = [value.get('class_lookup_mutations', []) for value in receiver_values]
+                if all(item == mutations[0] for item in mutations) and mutations[0]:
+                    receiver['class_lookup_mutations'] = copy.deepcopy(mutations[0])
+                conditions = [value.get('conditions', []) for value in receiver_values]
+                if all(item == conditions[0] for item in conditions) and conditions[0]:
+                    receiver['conditions'] = copy.deepcopy(conditions[0])
+                seeded_receiver[parameters[0].arg] = [receiver]
         if normal_binding and (not edge.binding_issues or any(
                 issue.get('kind') != 'dynamic_expansion' for issue in edge.binding_issues)):
-            return {}
+            if len(fresh_super) == 1:
+                parameters = definition[1].args.posonlyargs + definition[1].args.args
+                if parameters:
+                    parameter = parameters[0].arg
+                    origin = fresh_incoming_origin(fresh_super[0], parameter)
+                    identity = copy.deepcopy(origin['allocation']['receiver_class'])
+                    return {parameter: [{'instance_type': identity,
+                                         'fresh_receiver_origin': origin}]}
+            return seeded_receiver
         ordinary = {argument.arg for argument in definition[1].args.posonlyargs
                     + definition[1].args.args + definition[1].args.kwonlyargs}
-        incoming = {}
+        incoming = dict(seeded_receiver)
         for parameter in sorted(ordinary):
+            if parameter in seeded_receiver:
+                continue
             arguments = [argument for argument in edge.argument_sources
                          if argument.get('parameter') == parameter]
             records = [item for item in edge.parameter_bindings
                        if item.get('parameter') == parameter]
-            if (not records and len(arguments) == 1
-                    and arguments[0].get('argument') == {'receiver': True}
-                    and any(fact.get('status') == 'source_bound'
-                        and fact.get('target') == asdict(definition[0])
-                        and fact.get('implicit_binding', {}).get('parameter') == parameter
-                        and fact.get('implicit_binding', {}).get('status') == 'static_bound'
-                        for fact in edge.class_method_bindings)):
+            exact_super_receiver = (len(fresh_super) == 1 and len(arguments) == 1
+                and arguments[0].get('argument') == {'receiver': True}
+                and arguments[0].get('sources')
+                and all(value.get('fresh_receiver_origin') == fresh_super[0].get('origin')
+                    and value.get('relation') == 'direct'
+                    and value.get('source') == fresh_super[0].get('origin', {}).get('parameter')
+                    and not any(value.get(flag) for flag in (
+                        'projection', 'output_path', 'attribute_provenance',
+                        'import_modified', 'import_incomplete', 'value_incomplete'))
+                    for value in arguments[0]['sources']))
+            exact_class_receiver = (len(arguments) == 1
+                and arguments[0].get('argument') == {'receiver': True}
+                and any(fact.get('status') == 'source_bound'
+                    and fact.get('target') == asdict(definition[0])
+                    and fact.get('implicit_binding', {}).get('parameter') == parameter
+                    and fact.get('implicit_binding', {}).get('status') == 'static_bound'
+                    for fact in edge.class_method_bindings))
+            if (not records and (exact_super_receiver or exact_class_receiver)):
                 records = [{'argument': {'receiver': True}, 'parameter': parameter, 'status': 'exact'}]
             if (not arguments or any(argument.get('target_path') for argument in arguments)
                     or len(records) != 1 or records[0]['status'] != 'exact'):
@@ -2438,6 +2669,12 @@ class FlowAnalyzer:
                             'attribute_provenance'))):
                     values.append({'instance_type': copy.deepcopy(value['instance_type']),
                         'conditions': copy.deepcopy(value.get('conditions', []))})
+                    bindings = [fact for fact in edge.instance_method_bindings
+                                if fact.get('status') == 'source_bound'
+                                and fact.get('target') == asdict(definition[0])
+                                and records[0].get('argument') == {'receiver': True}]
+                    if len(bindings) == 1:
+                        values[-1]['fresh_receiver_origin'] = fresh_incoming_origin(bindings[0], parameter)
                     continue
                 if value.get('instance_type') or 'instance_candidates' in value:
                     values.append({'instance_candidates': [], 'value_incomplete': True})
@@ -2510,6 +2747,28 @@ class FlowAnalyzer:
                 incoming[name] = [{'capture_container_binding': copy.deepcopy(binding)}]
         return incoming
 
+    @staticmethod
+    def _merge_fresh_mapping_checks(previous, current):
+        """Keep bounded receiver alternatives only when their lookup proof agrees."""
+        if previous == current:
+            return copy.deepcopy(previous)
+        if (not previous or not current or len(previous) > 8 or len(current) > 8
+                or any(not isinstance(item, dict) for item in previous + current)):
+            return []
+        shared_fields = (
+            'kind', 'status', 'function', 'mapping_parameter', 'receiver_parameter',
+            'key_variable', 'value_variable', 'lookup_variable', 'attribute_template',
+            'iteration_evidence', 'lookup_evidence', 'guard_evidence', 'raise_evidence',
+            'invocation_evidence', 'key_conditions', 'attribute_requires_nondunder',
+            'runtime_lookup_confirmed', 'runtime_rejection_confirmed', 'receiver_class',
+            'member_names', 'source_hash', 'source_hashes', 'assumptions')
+        reference = previous[0]
+        if any(any(item.get(field) != reference.get(field) for field in shared_fields)
+               for item in previous[1:] + current):
+            return []
+        merged = _unique(copy.deepcopy(previous) + copy.deepcopy(current))
+        return merged if len(merged) <= 8 else []
+
     def _merge_summary(self, result, summary):
         result.boundaries.extend(summary.boundaries)
         for function in summary.functions:
@@ -2518,9 +2777,13 @@ class FlowAnalyzer:
             if previous is None:
                 result.functions.append(copy.deepcopy(function))
             else:
+                previous['fresh_mapping_member_checks'] = self._merge_fresh_mapping_checks(
+                    previous.get('fresh_mapping_member_checks', []),
+                    function.get('fresh_mapping_member_checks', []))
                 for field in ('returns', 'mapping_effects', 'loops', 'receiver_contexts',
                               'return_objects', 'decorator_effects', 'context_managers',
-                              'cached_local_imports'):
+                              'cached_local_imports', 'source_wrapper_forwarding',
+                              'native_callable_metadata_queries', 'native_class_metadata_observers'):
                     if field in function:
                         previous[field] = _unique(previous.get(field, []) + function[field])
         for call in summary.calls:
@@ -2545,7 +2808,7 @@ class FlowAnalyzer:
                               'return_dependencies', 'decorator_identity_evidence'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 for field in ('callable_sources', 'analysis_contexts', 'conditional_returns',
-                              'class_method_bindings', 'constructor_bindings', 'class_metadata_bindings',
+                              'class_method_bindings', 'constructor_bindings', 'instance_method_bindings', 'class_metadata_bindings',
                               'class_read_bindings', 'conditional_source_bindings', 'candidate_paths'):
                     setattr(previous, field, _unique(getattr(previous, field) + getattr(call, field)))
                 if previous.callable_instance_evidence != call.callable_instance_evidence:
@@ -2566,13 +2829,29 @@ class FlowAnalyzer:
     #  @param additional_depth Layers below the selected target.
     #  @param isolate Return only the selected incoming context, without merging the caller snapshot.
     #  @return New snapshot, leaving result unchanged.
-    def expand(self, result, call_id, additional_depth=1, isolate=False):
+    def expand(self, result, call_id, additional_depth=1, isolate=False,
+               preserve_lineage=False):
         if type(isolate) is not bool:
             raise ValueError('isolate must be bool')
+        if type(preserve_lineage) is not bool:
+            raise ValueError('preserve_lineage must be bool')
+        if preserve_lineage and not isolate:
+            raise ValueError('preserve_lineage requires isolate=True')
         if additional_depth < 1:
             raise ValueError('additional_depth must be positive')
-        self._index()
+        max_class_effect_steps = result.inputs.get('max_class_effect_steps', 8000)
+        if type(max_class_effect_steps) is not int or max_class_effect_steps < 1:
+            raise ValueError('Class-effect analysis budget must be a positive integer')
+        dependencies = result.inputs.get('supporting_source_sha256', {})
+        if dependencies and not self.support_source_protocols:
+            raise ValueError('Supporting source protocols are not enabled for expansion')
+        validate_source_dependencies(dependencies, self._analysis_budget)
+        self._index(preserve_source_facts=True)
+        # Expansion is part of the same query snapshot. Keep its class-effect
+        # allowance aligned with the budget that produced the parent facts.
+        self._class_effect_fact_steps = max_class_effect_steps
         self._conditional_source_state = result.inputs.get('conditional_source_state') is True
+        self._supporting_source_hashes.update(dependencies)
         if (self.hashes != result.inputs['sha256'] or sorted(self.files) != result.inputs['source_files']
                 or self.return_summaries != result.inputs.get('return_summaries', {})
                 or self.parameter_shapes != result.inputs.get('parameter_shapes', {})):
@@ -2584,17 +2863,38 @@ class FlowAnalyzer:
             definition = next(d for d in self._definition_index.find(call.target.module, call.target.qualname)
                               if d[0] == call.target)
             inputs = copy.deepcopy(result.inputs)
-            inputs.pop('entry_binding', None)
-            inputs.pop('entry_alias', None)
+            if not preserve_lineage:
+                inputs.pop('entry_binding', None)
+                inputs.pop('entry_alias', None)
             inputs['expansion_context'] = {'incoming_call_id': call.id,
                 'caller': asdict(call.caller), 'target': asdict(call.target),
                 'parameter_facts': copy.deepcopy(self._incoming_facts(definition, call))}
             updated = FlowAnalysis(call.target, inputs)
+            if preserve_lineage:
+                lineage_ids = {call.id}
+                for binding in getattr(call, 'instance_method_bindings', ()):
+                    origin = binding.get('origin') if isinstance(binding, dict) else None
+                    if isinstance(origin, dict) and isinstance(origin.get('path'), (list, tuple)):
+                        lineage_ids.update(item for item in origin['path'] if isinstance(item, str))
+                for value in getattr(call, 'receiver_sources', ()):
+                    origin = value.get('fresh_receiver_origin') if isinstance(value, dict) else None
+                    if isinstance(origin, dict) and isinstance(origin.get('path'), (list, tuple)):
+                        lineage_ids.update(item for item in origin['path'] if isinstance(item, str))
+                lineage_calls = [item for item in result.calls if item.id in lineage_ids]
+                if ({item.id for item in lineage_calls} != lineage_ids
+                        or sum(item.id == call.id for item in lineage_calls) != 1):
+                    raise ValueError('Expansion lineage call facts are incomplete')
+                updated.calls = copy.deepcopy(lineage_calls)
+                updated.boundaries = copy.deepcopy([
+                    item for item in result.boundaries
+                    if item.get('call_id') in lineage_ids
+                    or item.get('reason') == 'source_constructor_entry_binding'])
             # The selected edge starts a bounded context. Recursion below this
             # entry is still checked by _walk; no root facts are merged into it.
             context = CallContext(call.caller.module, call.target, copy.deepcopy(call))
             self._walk(updated, definition, additional_depth, context, 500, 2000)
             updated.boundaries = _unique(updated.boundaries)
+            publish_source_dependencies(self, updated)
             return updated
         updated = copy.deepcopy(result)
         if call.target is not None:
@@ -2608,6 +2908,7 @@ class FlowAnalyzer:
                               if d[0] == call.target)
             self._walk(updated, definition, additional_depth, context, 500, 2000)
         updated.boundaries = _unique(updated.boundaries)
+        publish_source_dependencies(self, updated)
         return updated
 
 
@@ -3791,6 +4092,7 @@ class _Summary:
             self.conditions = before
             return values
         if isinstance(node, ast.Call):
+            fresh_instance_method_bindings = []
             location = _call_span(node)
             if location not in self.evaluated_calls and self.analyzer._class_return_stack:
                 if self.analyzer._fact_calls <= 0:
@@ -4044,8 +4346,11 @@ class _Summary:
                 allocation_class = None
             if not allocation_candidates and allocation_class is None and dispatch_kind == 'builtin_allocation':
                 dispatch_kind = None
+            receiver_values = fresh_lookup_receiver(self, node, receiver_values)
             if (target is None and isinstance(node.func, ast.Attribute)
-                    and receiver_values and all((value.get('instance_type') and not value.get('value_incomplete')
+                    and receiver_values and all((value.get('instance_type') and (
+                                                    not value.get('value_incomplete')
+                                                    or value.get('fresh_receiver_origin'))
                                                 or value.get('instance_candidates'))
                                                 and value.get('relation') == 'direct'
                                                 and not value.get('projection')
@@ -4069,12 +4374,18 @@ class _Summary:
                     elif candidate not in candidates:
                         candidates.append(candidate)
                 receiver_complete = all(not value.get('value_incomplete') for value in receiver_values)
-                if complete_candidates and len(candidates) == 1 and receiver_complete:
-                    target = candidates[0]
-                    bound_receiver = True
-                    dispatch_kind = ('returned_field_candidate'
-                                     if returned_field_receiver else
-                                     'receiver_type_evidence')
+                if complete_candidates and len(candidates) == 1:
+                    candidate = candidates[0]
+                    fresh_binding = (fresh_method_binding(
+                        self, node, candidate, receiver_values) if not receiver_complete else None)
+                    if receiver_complete or fresh_binding is not None:
+                        target = candidate
+                        bound_receiver = True
+                        dispatch_kind = ('returned_field_candidate'
+                                         if returned_field_receiver else
+                                         'receiver_type_evidence')
+                        if fresh_binding is not None:
+                            fresh_instance_method_bindings = [fresh_binding]
                 elif candidates and (complete_candidates or any(
                         value.get('instance_candidates') for value in receiver_values)):
                     bounded_targets = candidates
@@ -4149,14 +4460,21 @@ class _Summary:
                         'target': asdict(target[0]), 'evidence': self.evidence(node)})
                 target, bounded_targets, bound_receiver, dispatch_kind = None, [], False, None
             identity_decorator = None
+            wrapper_forwarding_candidate = False
             descriptor_kind = self.analyzer._descriptor_kind(target) if target else None
             if target and getattr(target[1], 'decorator_list', []) and descriptor_kind is None:
                 identity_decorator = self.analyzer._identity_decorator(target)
-                decoration_facts = self.analyzer._decoration_facts(target)
+                decoration_facts = self.analyzer._binding_decoration_facts(target)
                 body_preserved = (len(decoration_facts) == 1
                     and decoration_facts[0]['body_binding_status'] == 'preserved')
                 if identity_decorator is not None or body_preserved:
                     decorated_target_candidate = body_preserved and identity_decorator is None
+                elif (factory_wrapper(self.analyzer, target) or {}).get('forwarding') is not None:
+                    # Preserve only the nominal original body. This wrapper's
+                    # path condition requires concrete invocation arguments;
+                    # generic ownership/value-flow consumers retain a boundary.
+                    wrapper_forwarding_candidate = True
+                    decorated_target_candidate = True
                 elif dispatch_kind in (
                         'constructor', 'instance_method', 'field_method',
                         'receiver_type_evidence', 'returned_field_candidate',
@@ -4175,11 +4493,18 @@ class _Summary:
                 bound_receiver = True
                 dispatch_kind = 'constructor' if constructor_class is not None else 'classmethod'
             call_id = _call_key(self.ref.file_path, node)
+            if target and (not namespace_unmodified(self.analyzer, self.ref.module + '.' + name)
+                    or not namespace_unmodified(self.analyzer,
+                        target[0].module + '.' + target[0].qualname)):
+                self.result.boundaries.append({'call_id': call_id,
+                    'reason': 'dynamic_source_namespace_binding', 'boundary_kind': 'uncertainty',
+                    'target': asdict(target[0]), 'evidence': self.evidence(node)})
             constructor_values = (self.expression(node.func, env)
                 if constructor_class is not None and target
                 and dispatch_kind == 'constructor' else [])
             call = FlowCall(call_id, self.ref, name, node.lineno, node.col_offset,
                             node.end_lineno, node.end_col_offset, target[0] if target else None)
+            call.instance_method_bindings = fresh_instance_method_bindings
             call.implicit_protocol = copy.deepcopy(protocol)
             if global_rebound:
                 self.result.boundaries.append({'call_id': call_id,
@@ -4253,7 +4578,8 @@ class _Summary:
                     'returns': [self.evidence_at(
                         identity_decorator['decorator'], returned)
                         for returned in identity_decorator['returns']]}]
-                if identity_decorator['effects_unmodeled']:
+                if (identity_decorator['effects_unmodeled'] and not (body_preserved
+                        and decoration_facts[0].get('kind') == 'source_fresh_function_decoration')):
                     self.result.boundaries.append({
                         'call_id': call_id, 'callee_name': name,
                         'reason': 'identity_decorator_effects_unmodeled',
@@ -4261,6 +4587,11 @@ class _Summary:
                         'evidence': self.evidence_at(
                             identity_decorator['decorator'],
                             identity_decorator['definition'])})
+            if wrapper_forwarding_candidate:
+                self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
+                    'reason': 'identity_decorator_effects_unmodeled',
+                    'affected_scope': 'unknown', 'affected_values': [],
+                    'evidence': self.evidence_at(target[0], target[1])})
             if callable_instance_fact is not None:
                 call.callable_instance_evidence = self.module_callable_evidence(
                     callable_instance_fact, node)
@@ -4338,7 +4669,7 @@ class _Summary:
                     'reason': 'decorated_caller_semantics',
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence(self.node)})
-                facts = self.analyzer._decoration_facts((self.ref, self.node))
+                facts = self.analyzer._binding_decoration_facts((self.ref, self.node))
                 if len(facts) == 1 and facts[0]['body_binding_status'] == 'preserved':
                     self.result.boundaries[-1].update(boundary_kind='assumption',
                         body_binding_status='preserved', function=asdict(self.ref),
@@ -4349,7 +4680,7 @@ class _Summary:
                     'reason': 'decorated_target_candidate',
                     'affected_scope': 'unknown', 'affected_values': [],
                     'evidence': self.evidence_at(target[0], target[1])})
-                facts = self.analyzer._decoration_facts(target)
+                facts = self.analyzer._binding_decoration_facts(target)
                 if len(facts) == 1 and facts[0]['body_binding_status'] == 'preserved':
                     self.result.boundaries[-1].update(boundary_kind='assumption',
                         body_binding_status='preserved', function=asdict(target[0]),
@@ -4407,10 +4738,20 @@ class _Summary:
                             and node.func.attr == 'join' and len(node.args) == 1 and not node.keywords
                             and not isinstance(node.args[0], ast.Starred))
             if target and bound_receiver and dispatch_kind in (
+                    'super_method',):
+                fresh = fresh_super_method_binding(self, node, target, receiver_values)
+                if fresh is not None:
+                    call.instance_method_bindings = [fresh]
+            if target and bound_receiver and dispatch_kind in (
                     'instance_method', 'field_method', 'receiver_type_evidence',
                     'returned_field_candidate'):
+                fresh = fresh_method_binding(self, node, target, receiver_values)
+                if fresh is not None:
+                    call.instance_method_bindings = [fresh]
                 self.result.boundaries.append({'call_id': call_id, 'callee_name': name,
-                                               'reason': 'dynamic_method_override_possible'})
+                    'reason': 'dynamic_method_override_possible',
+                    **({'boundary_kind': 'assumption', 'binding_status': 'source_bound',
+                        'assumptions': copy.deepcopy(fresh['assumptions'])} if fresh is not None else {})})
             if returned_field_receiver and (target or bounded_targets):
                 self.result.boundaries.append({
                     'call_id': call_id, 'callee_name': name,
@@ -4589,6 +4930,31 @@ class _Summary:
                                                          target_parameter=parameter,
                                                          target_path=target_path,
                                                          argument=slot, status='flow_found'))
+            fresh_super = (call.instance_method_bindings[0]
+                if len(call.instance_method_bindings) == 1
+                and call.instance_method_bindings[0].get('kind') == 'fresh_source_super_method'
+                and call.instance_method_bindings[0].get('status') == 'source_bound'
+                else None)
+            receiver_parameters = (target[1].args.posonlyargs + target[1].args.args
+                if target is not None else [])
+            if (fresh_super is not None and receiver_parameters
+                    and fresh_super.get('call_id') == call.id
+                    and fresh_super.get('target') == asdict(target[0])
+                    and call.receiver_sources and all(
+                        value.get('fresh_receiver_origin') == fresh_super.get('origin')
+                        and value.get('relation') == 'direct'
+                        and value.get('source') == fresh_super.get('origin', {}).get('parameter')
+                        and not any(value.get(flag) for flag in (
+                            'projection', 'output_path', 'attribute_provenance',
+                            'import_modified', 'import_incomplete', 'value_incomplete'))
+                        for value in call.receiver_sources)
+                    and not any(binding.get('argument') == {'receiver': True}
+                        and binding.get('parameter') == receiver_parameters[0].arg
+                        for binding in call.parameter_bindings)):
+                call.parameter_bindings.append({'argument': {'receiver': True},
+                    'parameter': receiver_parameters[0].arg, 'status': 'exact',
+                    'binding_kind': 'implicit_receiver', 'destination_kind': 'parameter',
+                    'basis': 'source_bound_super_method_wrapper'})
             if literal_join:
                 call.target_status = 'python_protocol'
                 call.argument_sources[0]['parameter'] = 'iterable'
@@ -6089,6 +6455,28 @@ class _Summary:
                          or value.get('class_type') or value.get('callable_type') else value
                          for value in values]
 
+    def apply_temporary_receiver_attributes(self, env, effect, entering):
+        receiver = effect['receiver_parameter']
+        expected = effect['receiver_origin']
+        additions = set(effect['attributes'])
+        prior = set(effect['prior_own_attributes'])
+        updated = []
+        for value in env.get(receiver, []):
+            origin = value.get('fresh_receiver_origin')
+            if (origin and origin.get('current_function') == expected.get('current_function')
+                    and origin.get('allocation') == expected.get('allocation')):
+                changed = copy.deepcopy(value)
+                new_origin = copy.deepcopy(origin)
+                own = set(origin.get('own_attributes', ()))
+                new_origin['own_attributes'] = sorted(
+                    own | additions if entering else own - additions | prior)
+                changed['fresh_receiver_origin'] = new_origin
+                updated.append(changed)
+            else:
+                updated.append(value)
+        if updated:
+            env[receiver] = _unique(updated)
+
     ## Evaluate only proven builtin literal truth or exception/None identity tests.
     #  @param node Exit expression; no arbitrary truth protocol is executed.
     #  @param env Current bounded lexical/object facts.
@@ -6327,6 +6715,18 @@ class _Summary:
                 first_outcome = len(completed)
                 kind, state, pending, exception = outcome
                 self.conditions = _unique(before + record['conditions'])
+                temporary_effect = record.get('bounded_temporary_receiver_effects')
+                if temporary_effect is not None:
+                    self.apply_temporary_receiver_attributes(state, temporary_effect,
+                                                              entering=False)
+                    record['exit'].setdefault('executions', []).append({
+                        'call_id': None, 'cleanup_order': len(record['exit']['executions']),
+                        'incoming_exit': {'kind': kind, 'exception': exception if kind == 'raise' else None,
+                                          'origin': origin},
+                        'status': 'source_modeled', 'issues': [],
+                        'evidence': temporary_effect['evidence']})
+                    completed.append((kind, state, pending, exception))
+                    continue
                 target, call = self.context_exit_call(node, record, outcome, origin)
                 if call:
                     self.conditions.append({'context_exit': call.id, 'incoming_exit_kind': kind,
@@ -6395,6 +6795,11 @@ class _Summary:
                         'exception': item[3] if item[0] == 'raise' else None}
                         for item in completed[first_outcome:]))
             outcomes = completed
+            if (record.get('bounded_temporary_receiver_effects') is not None
+                    and record['exit'].get('executions')
+                    and all(item.get('status') == 'source_modeled'
+                            for item in record['exit']['executions'])):
+                record['exit']['completion'] = 'source_modeled'
             if len(outcomes) > _CONTEXT_EXIT_PATH_LIMIT:
                 self.add_boundary('context_exit_path_budget', node, _merge_env([item[1] for item in outcomes]),
                                   affected_scope='unknown',
@@ -6446,6 +6851,8 @@ class _Summary:
         exceptions = []
         exits = []
         for index, item in enumerate(node.items):
+            temporary_effect = (bounded_temporary_receiver_attributes(self, item.context_expr, env)
+                                if item.optional_vars is None else None)
             if _may_raise(item.context_expr):
                 failed = copy.deepcopy(env)
                 if exits:
@@ -6454,9 +6861,16 @@ class _Summary:
                     self.unknown_context_effects(failed)
                 exceptions.extend(self.cleanup_context_exits(node,
                     [('raise', failed, [], None)], exits, 'context_expression'))
+            before_expression = copy.deepcopy(env) if temporary_effect is not None else None
             values = self.marked(self.expression(item.context_expr, env), item.context_expr)
+            if temporary_effect is not None:
+                env.clear()
+                env.update(before_expression)
             target, receiver, issues = self.context_protocol(values, '__enter__')
             exit_target, _, exit_issues = self.context_protocol(values, '__exit__')
+            if temporary_effect is not None:
+                receiver = FunctionRef(**temporary_effect['receiver_class'])
+                issues, exit_issues = [], []
             if exit_target is not None and not self.context_signature_valid(exit_target, 3):
                 exit_issues.append('binding_unconfirmed')
             assumptions = ['source_snapshot_bindings_hold', 'standard_type_special_method_lookup',
@@ -6475,30 +6889,39 @@ class _Summary:
                     | {ref.file_path for ref, _ in hierarchy or ()})
                     if path in self.analyzer.hashes}
             missing_exit = receiver is not None and exit_issues == ['definition_unavailable']
-            call = (None if missing_exit else
+            call = (None if temporary_effect is not None or missing_exit else
                     self.context_enter_call(item, index, node, values, target, env, proof))
-            fact = self.analyzer._context_enter_returns(target, receiver) if target and call else {
-                'paths': [], 'completion': 'unknown', 'issues': ['context_enter_unresolved']}
-            if missing_exit:
+            if temporary_effect is not None:
+                fact = {'paths': [[]], 'completion': 'normal_possible', 'issues': [],
+                        'effects_status': 'source_modeled'}
+            elif target and call:
+                fact = self.analyzer._context_enter_returns(target, receiver)
+            else:
+                fact = {'paths': [], 'completion': 'unknown',
+                        'issues': ['context_enter_unresolved']}
+            if temporary_effect is None and missing_exit:
                 fact = {'paths': [], 'completion': 'no_normal_return',
                         'issues': ['context_exit_definition_unavailable'], 'exceptions': ['TypeError']}
-            elif target is not None and not self.context_signature_valid(target, 0):
+            elif temporary_effect is None and target is not None and not self.context_signature_valid(target, 0):
                 fact = {'paths': [], 'completion': 'no_normal_return',
                         'issues': ['context_enter_binding_unconfirmed'], 'exceptions': ['TypeError']}
                 if call is not None:
                     call.binding_status = 'invalid'
                     call.binding_issues.append({'kind': 'implicit_receiver_binding', 'status': 'invalid'})
-            elif call is not None and call.binding_status != 'complete':
+            elif temporary_effect is None and call is not None and call.binding_status != 'complete':
                 fact = {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_binding_unconfirmed']}
-            elif call is None:
+            elif temporary_effect is None and call is None:
                 fact = {'paths': [], 'completion': 'unknown', 'issues': ['context_enter_budget']}
             prior_conditions = copy.deepcopy(self.conditions)
             condition = {'context_enter': call.id if call else proof['with_id'] + ':enter:%s' % index,
                          'completion': 'normal_return', 'basis': 'source_snapshot'}
             self.conditions = self.conditions + [condition]
             returned = []
-            complete = bool(fact['paths']) and not fact['issues']
+            complete = (temporary_effect is not None
+                        or bool(fact['paths']) and not fact['issues'])
             for path in fact['paths']:
+                if temporary_effect is not None:
+                    break
                 known = []
                 for value in path:
                     alias = (value.get('kind') == 'parameter'
@@ -6532,9 +6955,12 @@ class _Summary:
                     'return_status': 'source_proven' if complete else 'unconfirmed',
                     'completion': fact['completion'], 'effects_status': fact.get('effects_status', 'unmodeled')},
                 'exit': {'target': asdict(exit_target[0]) if exit_target else None,
-                    'effects_status': 'source_noop' if self.context_exit_noop(exit_target) else 'unmodeled',
+                    'effects_status': ('source_modeled' if temporary_effect is not None else
+                        'source_noop' if self.context_exit_noop(exit_target) else 'unmodeled'),
                     'issues': exit_issues, 'completion': 'deferred'},
                 'basis': 'source_snapshot', 'runtime_target_confirmed': False, 'assumptions': assumptions}
+            if temporary_effect is not None:
+                record['bounded_temporary_receiver_effects'] = temporary_effect
             self.context_managers.append(record)
             self.conditions = prior_conditions
             failed = copy.deepcopy(env)
@@ -6563,7 +6989,9 @@ class _Summary:
                 if reason in ('context_enter_budget', 'context_enter_recursion'):
                     self.add_boundary(reason, item.context_expr, env, values,
                                       call_id=call.id if call else None)
-            if fact.get('effects_status') != 'source_modeled':
+            if temporary_effect is not None:
+                self.apply_temporary_receiver_attributes(env, temporary_effect, entering=True)
+            elif fact.get('effects_status') != 'source_modeled':
                 self.add_boundary('context_enter_effects_unmodeled', item.context_expr, env,
                     [value for items in env.values() for value in items],
                     affected_scope='unknown', call_id=call.id if call else None)
@@ -6580,7 +7008,8 @@ class _Summary:
     def statement(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
-        normal = lambda e: [('normal', e, [], None)]
+        def normal(e):
+            return [('normal', e, [], None)]
         if self.context_execution:
             if isinstance(node, ast.Nonlocal):
                 return normal(env)
@@ -7211,6 +7640,7 @@ class _Summary:
                     previous.conditional_source_bindings + call.conditional_source_bindings)
                 previous.candidate_paths = _unique(previous.candidate_paths + call.candidate_paths)
                 previous.constructor_bindings = _unique(previous.constructor_bindings + call.constructor_bindings)
+                previous.instance_method_bindings = _unique(previous.instance_method_bindings + call.instance_method_bindings)
                 previous.result_sources = _merge_result_sources(
                     previous.result_sources, call.result_sources)
                 if previous.binding_status != call.binding_status:
@@ -7249,6 +7679,7 @@ class _Summary:
                                  if v['kind'] == 'call_result' and v['source'] == call.id]
         self.result.functions.append({'function': asdict(self.ref),
                                       'parameters': [a.arg for a in parameters],
+                                      'fresh_mapping_member_checks': fresh_mapping_member_checks(self),
                                       'keyword_checks': keyword_validation_checks(
                                           self.analyzer, self.ref, self.node),
                                       'capture_rejection_guards': capture_rejection_checks(
@@ -7269,6 +7700,18 @@ class _Summary:
                                       'decorator_effects': self.analyzer._decoration_facts((self.ref, self.node))})
         if self.context_managers:
             self.result.functions[-1]['context_managers'] = self.context_managers
+        fresh = self.analyzer._fresh_decoration_facts((self.ref, self.node))
+        if fresh:
+            self.result.functions[-1]['fresh_function_decorations'] = fresh
+        wrapper = factory_wrapper(self.analyzer, (self.ref, self.node))
+        if wrapper is not None and 'forwarding' in wrapper:
+            self.result.functions[-1]['source_wrapper_forwarding'] = [wrapper]
+        query = metadata_query(self.analyzer, (self.ref, self.node))
+        if query is not None:
+            self.result.functions[-1]['native_callable_metadata_queries'] = [query]
+        observers = observer_effects(self.analyzer, (self.ref, self.node))
+        if observers:
+            self.result.functions[-1]['native_class_metadata_observers'] = observers
         if self.cached_local_imports:
             self.result.functions[-1]['cached_local_imports'] = self.cached_local_imports
         decorations = self.result.functions[-1]['decorator_effects']

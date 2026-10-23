@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+from pcresolve._class_definition import matplotlib_docstring_keyword_only_chain
+from pcresolve._constructor_entry import source_member
+from pcresolve._class_decoration import constructor_decorations
 
 
 INVENTORY = Path('C:/GitHub/VPPDetector/tmp/pcbench_sources/sources.json')
@@ -365,6 +368,86 @@ def test_matplotlib_decorated_super_has_source_candidate_and_boundary(source_id,
     assert any(item['call_id'] == call.id
                and item['reason'] == 'decorated_target_candidate'
                for item in result.boundaries)
+
+
+def test_fancy_arrow_patch_entry_decorator_chain_proves_keyword_forwarding():
+    package = source('matplotlib-3.6.0')
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib constructor decorator sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    analyzer._index()
+    owner, cls = analyzer._definition_index.find(
+        'matplotlib.patches', 'FancyArrowPatch', kind='class')[0]
+    target = source_member(analyzer, owner, cls, '__init__')
+    assert target is not None
+    dependencies = set()
+    assumptions = set()
+    wrapper = matplotlib_docstring_keyword_only_chain(
+        analyzer, owner, target, dependencies, assumptions)
+    assert wrapper['kind'] == 'source_matplotlib_keyword_only_wrapper'
+    assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
+    assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
+    assert 'matplotlib_docstring_identity_over_keyword_only_wrapper' in assumptions
+    assert any(path.endswith('_api\\deprecation.py') for path in dependencies)
+    entry = analyzer.analyze(FunctionRef(
+        module='matplotlib.patches', qualname='FancyArrowPatch'))
+    binding = entry.inputs['entry_binding']
+    assert binding['status'] == 'source_bound'
+    assert binding['constructor_wrapper_forwarding']['forwarding']['forwarded_function'][
+        'qualname'] == 'FancyArrowPatch.__init__'
+    assert not any(boundary['reason'] == 'constructor_entry_unconfirmed'
+                   for boundary in entry.boundaries)
+
+
+def test_matplotlib_350_patch_alias_decorator_proves_its_generated_names():
+    report = Path('C:/GitHub/VPPDetector/evaluation/pcbench/shadow-chain-9f6f877-20261011.json')
+    if not report.is_file():
+        pytest.skip('Frozen Shadow source closure is not available')
+    hashes = json.loads(report.read_text(encoding='utf-8'))['source_hashes']
+    selected = [Path(path) for path in hashes]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Frozen Shadow source files are not available')
+    package = next(path.parent for path in selected if path.name == 'docstring.py')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    analyzer._index()
+    owner, cls = analyzer._definition_index.find(
+        'matplotlib.patches', 'Patch', kind='class')[0]
+    facts = constructor_decorations(analyzer, (owner, cls))
+    assert facts is not None
+    assert any(fact.get('kind') == 'source_class_alias_decoration'
+               and fact.get('identity_status') == 'preserved'
+               and 'set_aa' in fact.get('attributes', [])
+               for fact in facts)
+
+
+def test_matplotlib_350_shadow_class_entry_binds_constructor():
+    report = Path('C:/GitHub/VPPDetector/evaluation/pcbench/shadow-chain-9f6f877-20261011.json')
+    if not report.is_file():
+        pytest.skip('Frozen Shadow source closure is not available')
+    hashes = json.loads(report.read_text(encoding='utf-8'))['source_hashes']
+    selected = [Path(path) for path in hashes]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Frozen Shadow source files are not available')
+    package = next(path.parent for path in selected if path.name == 'docstring.py')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    result = analyzer.analyze(FunctionRef(
+        module='matplotlib.patches', qualname='Shadow', file_path=str(package / 'patches.py')))
+    binding = result.inputs['entry_binding']
+    assert binding['status'] == 'source_bound'
+    assert binding['target']['qualname'] == 'Shadow.__init__'
+    assert 'matplotlib_docstring_identity_decorator' in binding['assumptions']
+    update = result.find_calls(callee_name='self.update')[0]
+    assert update.target is not None
+    assert update.target.qualname == 'Artist.update'
+    assert any(fact.get('kind') == 'fresh_source_instance_method'
+               and fact.get('status') == 'source_bound'
+               for fact in update.instance_method_bindings)
+    assert any(value.get('kind') == 'parameter' and value.get('source') == 'kwargs'
+               and value.get('output_path') == ['*']
+               for value in update.parameter_flows)
 
 
 def test_matplotlib_shadow_receiver_candidate_retains_decorated_class_boundary():

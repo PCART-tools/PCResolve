@@ -10,6 +10,7 @@ from .effect_facts import contains_yield
 from ._constructor_entry import source_member, _definition_issues
 from .class_attribute_effects import _ClassEffectLimit
 from ._class_decoration import constructor_decorations
+from ._class_creation import creation_effects
 
 
 ## Explain one selected constructor phase without claiming initialized instance state.
@@ -83,13 +84,16 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
             decorations.append(fact)
             definition_paths.update(fact['source_hashes'])
             definition_assumptions.update(fact['assumptions'])
-        if owner != class_ref and any('__init_subclass__' in
-                statement_scope_facts([member]).bound for member in cls.body):
-            issue('constructor_class_creation_hook', owner, cls)
         members = [member for member in cls.body
                    if phase in statement_scope_facts([member]).bound]
         if selected is None and members:
             selected = owner, source_member(analyzer, owner, cls, phase)
+    hooks = creation_effects(analyzer, checked[0]) if checked else None
+    if hooks is None:
+        issue('constructor_class_creation_hook')
+    for fact in hooks or []:
+        definition_paths.update(fact['source_hashes'])
+        definition_assumptions.update(fact['assumptions'])
     owner_name = ref.qualname.rpartition('.')[0]
     if (selected is None or selected[0].module != ref.module
             or selected[0].qualname != owner_name or selected[1] != target):
@@ -128,4 +132,6 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
         'assumptions': assumptions, 'issues': issues}
     if decorations:
         result['class_decorations'] = decorations
+    if hooks:
+        result['class_creation_hooks'] = hooks
     return result

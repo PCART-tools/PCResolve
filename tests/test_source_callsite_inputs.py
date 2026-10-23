@@ -16,6 +16,13 @@ def query(tmp_path, source, *, which=-1, **options):
     return literal_inputs(SourceSpan.from_ast(str(path), calls[which]), **options)
 
 
+def _put(root, name, text):
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    return path
+
+
 def test_callsite_literals_retain_import_target_spans_and_source_hash(tmp_path, monkeypatch):
     original = builtins.__import__
 
@@ -69,7 +76,6 @@ def test_target_rebinding_nested_calls_and_nonmodule_scope_retain_boundaries(tmp
         'from unavailable import target\nX = [1]\ny = 1 if flag else 2\nresult = target(X)\n',
         'from unavailable import target\nX = [1]\ny: effect() = 1\nresult = target(X)\n',
         'from unavailable import target\nX = [1]\nresult = target(-unknown, X)\n',
-        'from unavailable import instance\nX = [1]\nresult = instance.method(X)\n',
     ]
     for source in examples:
         result = query(tmp_path, source, which=0 if 'target(opaque()' in source else -1)
@@ -109,3 +115,57 @@ def test_invalid_spans_and_source_failures_are_explicit(tmp_path):
     assert literal_inputs(SourceSpan('', 1, 0, 1, 3))['status'] == 'unconfirmed'
     missing = literal_inputs(SourceSpan(str(tmp_path / 'missing.py'), 1, 0, 1, 3))
     assert missing['boundaries'] == [{'reason': 'caller_source_unavailable'}]
+
+
+def test_imported_stub_return_protocol_proves_local_call_result_iterable(tmp_path):
+    _put(tmp_path, 'numpy/__init__.pyi', 'from .factory import arange as arange\n')
+    _put(tmp_path, 'numpy/factory.pyi', '''
+class Array:
+    def __iter__(self): ...
+def arange(start, stop, step) -> Array: ...
+''')
+    result = query(tmp_path, '''import numpy as np
+ticks = np.arange(0, 1, 0.2)
+np.consume(ticks)
+''', import_roots=[tmp_path])
+    argument = result['arguments'][0]
+    assert result['status'] == 'source_bound'
+    assert argument['status'] == 'source_protocol'
+    assert argument['protocol']['kind'] == 'iterable'
+    assert argument['protocol']['basis'] == 'bounded_stub_return_protocol'
+    assert argument['protocol']['call_target'] == 'numpy.arange'
+    assert result['supporting_source_sha256']
+    assert all(path.startswith(str(tmp_path)) for path in result['supporting_source_sha256'])
+
+
+def test_unannotated_or_noniterable_stub_return_stays_unproven(tmp_path):
+    _put(tmp_path, 'numpy/__init__.pyi', 'from .factory import make as make\n')
+    _put(tmp_path, 'numpy/factory.pyi', '''
+class Token: ...
+def make() -> Token: ...
+''')
+    result = query(tmp_path, '''import numpy as np
+value = np.make()
+np.consume(value)
+''', import_roots=[tmp_path])
+    assert result['arguments'][0]['status'] == 'unproven'
+    assert result['arguments'][0].get('protocol') is None
+
+
+def test_iterability_fact_is_available_for_exact_method_callsite(tmp_path):
+    _put(tmp_path, 'numpy/__init__.pyi', 'from .factory import arange as arange\n')
+    _put(tmp_path, 'numpy/factory.pyi', '''
+class Array:
+    def __iter__(self): ...
+def arange(start, stop, step) -> Array: ...
+''')
+    result = query(tmp_path, '''import numpy as np
+ticks = np.arange(0, 1, 0.2)
+array = np.wrap(ticks)
+array.api(ticks, legacy=None)
+''', import_roots=[tmp_path])
+    assert result['status'] == 'source_bound'
+    assert result['target'] is None
+    assert result['target_status'] == 'receiver_expression_only'
+    assert result['target_expression'] == "Attribute(value=Name(id='array', ctx=Load()), attr='api', ctx=Load())"
+    assert result['arguments'][0]['status'] == 'source_protocol'

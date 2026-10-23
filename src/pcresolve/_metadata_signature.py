@@ -1,0 +1,762 @@
+## @package pcresolve._metadata_signature
+#  Native inspect metadata formation from bounded, callback-free source data.
+
+import ast
+import copy
+import inspect
+from dataclasses import asdict
+
+from ._function_factory import _canonical, _signature_namespace
+from ._metadata_namespace import builtin_namespace
+from .class_attribute_effects import _ClassEffectLimit
+from ._runtime_namespace import unmodified
+from ._class_definition import namespace_issues
+from .scope_facts import statement_scope_facts
+
+
+def _span(ref, node):
+    return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
+            'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
+
+
+def _marker_default(analyzer, caller, expression):
+    ref, function = caller
+    if not isinstance(expression, ast.Name):
+        return None
+    name = expression.id
+    scope = analyzer._scope_facts(function)
+    if name in scope.bound | scope.nonlocals or '.' in ref.qualname.rpartition('.')[0]:
+        return None
+    tables = analyzer.import_binding_facts.get(ref.module, [])
+    bindings = tables[0].get(name, []) if len(tables) == 1 else []
+    if len(bindings) != 1 or not isinstance(bindings[0], ast.Assign):
+        return None
+    assignment = bindings[0]
+    bodies = analyzer.module_bodies.get(ref.module, [])
+    if (len(bodies) != 1 or assignment not in bodies[0][1]
+            or len(assignment.targets) != 1 or not isinstance(assignment.targets[0], ast.Name)
+            or assignment.targets[0].id != name or not unmodified(analyzer, ref.module + '.' + name)):
+        return None
+    call = assignment.value
+    if not isinstance(call, ast.Call) or call.args or call.keywords or not isinstance(call.func, ast.Name):
+        return None
+    selected = analyzer._definition_index.find(ref.module, call.func.id, kind='class')
+    if len(selected) != 1:
+        return None
+    owner, cls = selected[0]
+    if (cls.bases or cls.keywords or cls.decorator_list or cls not in bodies[0][1]
+            or cls.lineno >= assignment.lineno or analyzer.definition_conditions.get(owner)
+            or not analyzer._stable_import_name(owner.module + '.' + owner.qualname)
+            or {'__new__', '__init__', '__del__'} & statement_scope_facts(cls.body).bound):
+        return None
+    if namespace_issues(analyzer, selected, assumptions=set()):
+        return None
+    writes, truncated = analyzer._class_binding_writes(include_escapes=True)
+    if truncated or any(written == owner for written, _, _, _, _ in writes):
+        return None
+    return {'kind': 'source_marker_metadata_default', 'binding_name': name,
+        'source_class': asdict(owner), 'binding_evidence': _span(ref, assignment),
+        'allocation': {'protocol': 'builtin_object_new_and_init_no_arguments',
+                       'evidence': _span(ref, call)},
+        'signature_use': 'opaque_reference_storage', 'runtime_creation_confirmed': False,
+        'source_hashes': dict(sorted(analyzer.hashes.items()))}
+
+
+def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
+    # Native kind enums are instances of a mutable Python enum class. Retaining
+    # an alias and reflecting its class can change constructor comparisons.
+    inspected = 0
+
+    def canonical(ref, scope, node):
+        value = _canonical(analyzer, ref, scope, node)
+        if value:
+            return value
+        if not isinstance(node, (ast.Name, ast.Attribute)):
+            return ''
+        name = ast.unparse(node)
+        head, dot, rest = name.partition('.')
+        bindings = (analyzer._scope_facts(scope).bound
+                    if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+                    else statement_scope_facts(scope.body).bound if isinstance(scope, ast.ClassDef)
+                    else set())
+        imported = analyzer.imports.get(ref.module, {}).get(head, '')
+        if head in bindings or not imported:
+            return ''
+        if imported in ('inspect', 'functools') or imported.startswith(('inspect.', 'functools.')):
+            return imported + (dot + rest if dot else '')
+        return ''
+
+    def identity_operand(node, parent):
+        return (isinstance(parent, ast.Compare)
+                and all(isinstance(operator, (ast.Is, ast.IsNot)) for operator in parent.ops)
+                and (parent.left is node or any(value is node for value in parent.comparators)))
+
+    signature_source_cache = {}
+    parameter_cache = {}
+
+    def source_signature_decorator(scope, scope_ref):
+        """Prove that inspect.signature receives a fresh source function."""
+        if scope in signature_source_cache:
+            return signature_source_cache[scope]
+        signature_source_cache[scope] = False
+        if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return False
+        parameters = scope.args.posonlyargs + scope.args.args
+        if not any(parameter.arg == 'func' for parameter in parameters):
+            return False
+        signatures = []
+        for statement in scope.body:
+            if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and isinstance(statement.value, ast.Call)
+                    and canonical(scope_ref, scope, statement.value.func)
+                        == 'inspect.signature'
+                    and len(statement.value.args) == 1
+                    and isinstance(statement.value.args[0], ast.Name)
+                    and statement.value.args[0].id == 'func'
+                    and not statement.value.keywords):
+                signatures.append(statement.targets[0].id)
+        if len(signatures) != 1:
+            return False
+        signature_name = signatures[0]
+        helper_name = scope_ref.module + '.' + scope_ref.qualname
+
+        def refers_to_helper(module_ref, lexical_scope, expression):
+            resolved = canonical_name(module_ref, lexical_scope, expression)
+            if resolved == helper_name:
+                return True
+            if not resolved:
+                return False
+            selected = analyzer._definition_index.resolve_qualified(
+                [resolved], analyzer.imports, qualified_guard=analyzer._stable_import_name)
+            return selected is not None and selected[0] == scope_ref
+
+        def canonical_name(module_ref, lexical_scope, expression):
+            return canonical(module_ref, lexical_scope, expression)
+
+        partial_bindings = set()
+        for statement in scope.body:
+            if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and isinstance(statement.value, ast.Call)
+                    and canonical(scope_ref, scope, statement.value.func)
+                        == 'functools.partial'
+                    and statement.value.args
+                    and refers_to_helper(scope_ref, scope, statement.value.args[0])):
+                expansions = [keyword for keyword in statement.value.keywords
+                              if keyword.arg is None]
+                kwargs_name = scope.args.kwarg.arg if scope.args.kwarg is not None else None
+                if (len(expansions) > 1
+                        or any(not isinstance(keyword.value, ast.Name)
+                               or keyword.value.id != kwargs_name for keyword in expansions)):
+                    continue
+                partial_bindings.add(statement.targets[0].id)
+        if len(partial_bindings) != 1:
+            return False
+        partial_name = next(iter(partial_bindings))
+        curried = False
+        for index, statement in enumerate(scope.body):
+            if not isinstance(statement, ast.If) or not isinstance(statement.test, ast.Compare):
+                continue
+            test = statement.test
+            if (len(test.ops) == 1 and isinstance(test.ops[0], (ast.Is, ast.IsNot))
+                    and isinstance(test.left, ast.Name) and test.left.id == 'func'
+                    and len(test.comparators) == 1 and isinstance(test.comparators[0], ast.Constant)
+                    and test.comparators[0].value is None
+                    and isinstance(test.ops[0], ast.Is)):
+                prior = scope.body[:index]
+                if prior and (isinstance(prior[0], ast.Expr)
+                              and isinstance(prior[0].value, ast.Constant)
+                              and isinstance(prior[0].value.value, str)):
+                    prior = prior[1:]
+                factory = [item for item in prior if isinstance(item, ast.Assign)
+                    and len(item.targets) == 1 and isinstance(item.targets[0], ast.Name)
+                    and item.targets[0].id == partial_name]
+                kwargs_name = scope.args.kwarg.arg if scope.args.kwarg is not None else None
+                local_extractions = [item for item in prior if item not in factory]
+                safe_extractions = (not local_extractions or bool(kwargs_name) and all(
+                    isinstance(item, ast.Assign) and len(item.targets) == 1
+                    and isinstance(item.targets[0], ast.Name)
+                    and isinstance(item.value, ast.Call)
+                    and isinstance(item.value.func, ast.Attribute)
+                    and item.value.func.attr == 'pop'
+                    and isinstance(item.value.func.value, ast.Name)
+                    and item.value.func.value.id == kwargs_name
+                    and len(item.value.args) == 2 and not item.value.keywords
+                    and isinstance(item.value.args[0], ast.Constant)
+                    and type(item.value.args[0].value) is str
+                    and isinstance(item.value.args[1], ast.Constant)
+                    and item.value.args[1].value is None
+                    for item in local_extractions))
+                kwargs_stores = [node for node in ast.walk(scope)
+                    if isinstance(node, ast.Name) and node.id == kwargs_name
+                    and isinstance(node.ctx, (ast.Store, ast.Del))]
+                curried = (len(factory) == 1 and safe_extractions
+                    and (not kwargs_stores or all(node is item.value.func.value
+                        for item in local_extractions for node in kwargs_stores))
+                    and isinstance(factory[0].value, ast.Call)
+                    and canonical(scope_ref, scope, factory[0].value.func) == 'functools.partial'
+                    and factory[0] in prior
+                    and statement.orelse == [] and len(statement.body) == 1
+                    and isinstance(statement.body[0], ast.Return)
+                    and isinstance(statement.body[0].value, ast.Name)
+                    and statement.body[0].value.id == partial_name)
+        if not curried:
+            return False
+        # Source invocations must be bottom-most decorators or be stacked over
+        # this same verified decorator. That chain preserves a native
+        # Signature created by this function.
+        calls = []
+        for candidate_module, candidate_bodies in analyzer.module_bodies.items():
+            if not candidate_bodies:
+                continue
+            module_ref = type(scope_ref)(candidate_module, '', candidate_bodies[0][0])
+            for _, body in candidate_bodies:
+                for current in ast.walk(ast.Module(body=body, type_ignores=[])):
+                    if not isinstance(current, ast.Call):
+                        continue
+                    if not refers_to_helper(module_ref, None, current.func):
+                        continue
+                    decorated = next((definition for definition in body_nodes(body)
+                        if isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and current in definition.decorator_list), None)
+                    if decorated is None:
+                        return False
+                    if any(item.arg == 'func' for item in current.keywords):
+                        return False
+                    if (any(not isinstance(value, ast.Constant) for value in current.args)
+                            or any(not isinstance(item.value, ast.Constant)
+                                   for item in current.keywords)):
+                        return False
+                    calls.append((current, decorated, module_ref))
+        if not calls:
+            return False
+        for _, decorated, _ in calls:
+            # Defaults and annotations execute before decorator application.
+            # Keep their signature metadata inputs to inert source expressions.
+            arguments = decorated.args.posonlyargs + decorated.args.args + decorated.args.kwonlyargs
+            arguments += [arg for arg in (decorated.args.vararg, decorated.args.kwarg) if arg]
+            values = decorated.args.defaults + [item for item in decorated.args.kw_defaults if item]
+            values += [arg.annotation for arg in arguments if arg.annotation is not None]
+            values += [decorated.returns] if decorated.returns is not None else []
+
+            def inert_declaration_value(value, depth=0):
+                if depth > 8:
+                    return False
+                if isinstance(value, (ast.Constant, ast.Name, ast.Attribute)):
+                    return True
+                return (isinstance(value, ast.Tuple)
+                        and all(inert_declaration_value(item, depth + 1) for item in value.elts))
+
+            if any(not inert_declaration_value(value) for value in values):
+                return False
+            # A lower decorator may run before this signature-inspecting
+            # helper. Admit it only when PCResolve independently proves that
+            # it returns the same fresh function and changes no execution or
+            # signature metadata. This covers documentation-only source
+            # decorators without treating arbitrary wrappers as transparent.
+            for current, current_decorated, module_ref in calls:
+                if current_decorated is not decorated:
+                    continue
+                position = decorated.decorator_list.index(current)
+                for inner in decorated.decorator_list[position + 1:]:
+                    if (isinstance(inner, ast.Call)
+                            and refers_to_helper(module_ref, None, inner.func)):
+                        continue
+                    try:
+                        from ._decorator_effects import _DecoratorEffects
+                        decoration = _DecoratorEffects(analyzer, (module_ref, decorated),
+                            _span, 2000).fact(inner)
+                    except _ClassEffectLimit:
+                        return False
+                    if (decoration.get('identity_status') != 'preserved'
+                            or any(boundary.get('reason') != 'decorator_data_protocol_unproven'
+                                   for boundary in decoration.get('boundaries', ()))
+                            or any(effect.get('target') == 'input_function'
+                                   and effect.get('impact') not in ('documentation', 'module_metadata')
+                                   for effect in decoration.get('effects', ()))):
+                        # Some documentation formatters are callable objects
+                        # whose ordinary effect summary cannot bind inherited
+                        # helper calls. For the bottom-most decorator only,
+                        # independently prove formatting on the fresh function
+                        # before its name is bound. This proof does not cover
+                        # arbitrary wrappers or any execution-field mutation.
+                        if decorated.decorator_list.index(inner) != len(decorated.decorator_list) - 1:
+                            return False
+                        decorated_ref = next((candidate for candidate, definition
+                            in analyzer.definitions if definition is decorated), None)
+                        if decorated_ref is None:
+                            return False
+                        fresh_node = copy.copy(decorated)
+                        fresh_node.decorator_list = [inner]
+                        try:
+                            from ._fresh_decoration import fresh_decoration
+                            from .flow import FlowAnalysis, _Summary
+                            summary = _Summary(analyzer, FlowAnalysis(decorated_ref, {}),
+                                decorated_ref, fresh_node, 0)
+                            fresh = fresh_decoration(analyzer, (decorated_ref, fresh_node),
+                                summary.evidence_at, 2000)
+                        except _ClassEffectLimit:
+                            return False
+                        if (fresh is None or fresh.get('identity_status') != 'preserved'
+                                or fresh.get('body_binding_status') != 'preserved'
+                                or fresh.get('boundaries')):
+                            return False
+                        if any(effect.get('target') == 'input_function'
+                                and effect.get('impact') not in ('documentation', 'module_metadata')
+                                for effect in fresh.get('effects', ())):
+                            return False
+                        if decorator_evidence is not None:
+                            key = (decorated_ref, inner.lineno, inner.col_offset,
+                                   inner.end_lineno, inner.end_col_offset)
+                            if all(item.get('_dedup_key') != key for item in decorator_evidence):
+                                fresh['_dedup_key'] = key
+                                decorator_evidence.append(fresh)
+        signature_source_cache[scope] = signature_name
+        return signature_name
+
+    def body_nodes(body):
+        pending = list(body)
+        while pending:
+            current = pending.pop()
+            yield current
+            pending.extend(ast.iter_child_nodes(current))
+
+    def signature_parameters(scope, scope_ref, value_name):
+        cache_key = (scope, ast.dump(value_name, include_attributes=False))
+        if cache_key in parameter_cache:
+            return parameter_cache[cache_key]
+        signature_name = source_signature_decorator(scope, scope_ref)
+        if not signature_name:
+            parameter_cache[cache_key] = False
+            return False
+        if isinstance(value_name, ast.Attribute) and value_name.attr == 'kind':
+            receiver = value_name.value
+            if (isinstance(receiver, ast.Subscript) and isinstance(receiver.value, ast.Attribute)
+                    and receiver.value.attr == 'parameters'
+                    and isinstance(receiver.value.value, ast.Name)
+                    and receiver.value.value.id == signature_name):
+                parameter_cache[cache_key] = True
+                return True
+            if isinstance(receiver, ast.Name):
+                # Comprehension variables from signature.parameters.values()
+                # retain the exact native Parameter entries.
+                for node in ast.walk(scope):
+                    if not isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+                        continue
+                    for generator in node.generators:
+                        iterable = generator.iter
+                        if (isinstance(generator.target, ast.Name)
+                                and generator.target.id == receiver.id
+                                and isinstance(iterable, ast.Call)
+                                and isinstance(iterable.func, ast.Attribute)
+                                and iterable.func.attr == 'values'
+                                and isinstance(iterable.func.value, ast.Attribute)
+                                and iterable.func.value.attr == 'parameters'
+                                and isinstance(iterable.func.value.value, ast.Name)
+                                and iterable.func.value.value.id == signature_name):
+                            parameter_cache[cache_key] = True
+                            return True
+        elif isinstance(value_name, ast.Name):
+            for node in ast.walk(scope):
+                if not isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+                    continue
+                for generator in node.generators:
+                    iterable = generator.iter
+                    if (isinstance(generator.target, ast.Name)
+                            and generator.target.id == value_name.id
+                            and isinstance(iterable, ast.Call)
+                            and isinstance(iterable.func, ast.Attribute)
+                            and iterable.func.attr == 'values'
+                            and isinstance(iterable.func.value, ast.Attribute)
+                            and iterable.func.value.attr == 'parameters'
+                            and isinstance(iterable.func.value.value, ast.Name)
+                            and iterable.func.value.value.id == signature_name):
+                        parameter_cache[cache_key] = True
+                        return True
+        parameter_cache[cache_key] = False
+        return False
+
+    scope_refs = {node: ref for ref, node in analyzer.definitions}
+    parameter_kind_uses = set()
+
+    def native_kind_comparison(node, parent, scope):
+        if (not isinstance(parent, ast.Compare) or len(parent.ops) != 1
+                or not isinstance(parent.ops[0], (ast.Eq, ast.NotEq))):
+            return False
+        other = (parent.comparators[0] if parent.left is node and len(parent.comparators) == 1
+                 else parent.left if parent.comparators == [node] else None)
+        scope_ref = scope_refs.get(scope)
+        if other is None or scope_ref is None:
+            return False
+        if signature_parameters(scope, scope_ref, other):
+            return True
+        # Parameter.kind may appear on the left while the enum constant is
+        # reached through a module-level alias on the right.
+        return signature_parameters(scope, scope_ref, parent.left)
+
+    def native_kind_replacement(node, parent, scope):
+        if not isinstance(parent, ast.keyword) or parent.arg != 'kind':
+            return False
+        call = parents.get(parent)
+        if (not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute)
+                or call.func.attr != 'replace' or not isinstance(call.func.value, ast.Name)):
+            return False
+        scope_ref = scope_refs.get(scope)
+        return (scope_ref is not None
+                and signature_parameters(scope, scope_ref, call.func.value))
+
+    module_aliases = set()
+
+    for module, bodies in analyzer.module_bodies.items():
+        nodes, parents, scopes = [], {}, {}
+        for _, body in bodies:
+            pending = [(node, None) for node in body]
+            while pending:
+                node, scope = pending.pop()
+                inspected += 1
+                if inspected > 1000000:
+                    return False
+                if analyzer._analysis_budget is not None:
+                    analyzer._analysis_budget.checkpoint()
+                nodes.append(node)
+                scopes[node] = scope
+                for child in ast.iter_child_nodes(node):
+                    parents[child] = node
+                    pending.append((child, node if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                                                     ast.ClassDef, ast.Lambda)) else scope))
+        reference = type(caller_ref)(module, '', bodies[0][0])
+        for node in nodes:
+            if (isinstance(node, ast.Attribute)
+                    and canonical(reference, scopes[node], node.value) == 'inspect.Parameter'
+                    and node.attr in ('POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD', 'VAR_POSITIONAL',
+                                      'KEYWORD_ONLY', 'VAR_KEYWORD')):
+                parent = parents.get(node)
+                if identity_operand(node, parent):
+                    continue
+                if native_kind_comparison(node, parent, scopes[node]):
+                    parameter_kind_uses.add(node)
+                    continue
+                if isinstance(parent, ast.Assign) and parent.value is node:
+                    continue
+                if (isinstance(parent, ast.Call) and len(parent.args) >= 2 and parent.args[1] is node
+                        and canonical(reference, scopes[parent], parent.func) == 'inspect.Parameter'):
+                    continue
+                return False
+        aliases = set()
+        # Merge lexical aliases conservatively within this module. Shadowing
+        # may reject a proof but cannot erase a possible enum capability.
+        for _ in range(64):
+            previous = set(aliases)
+            for node in nodes:
+                if not isinstance(node, ast.Assign):
+                    continue
+                value = node.value
+                source = (isinstance(value, ast.Attribute)
+                    and canonical(reference, scopes[value], value.value) == 'inspect.Parameter'
+                    and value.attr in ('POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD', 'VAR_POSITIONAL',
+                                       'KEYWORD_ONLY', 'VAR_KEYWORD'))
+                if source or isinstance(value, ast.Name) and value.id in aliases:
+                    if isinstance(scopes[node], ast.ClassDef):
+                        # A module/class slot is externally retrievable even
+                        # when this file contains no direct read of the alias.
+                        return False
+                    if any(not isinstance(target, ast.Name) for target in node.targets):
+                        return False
+                    if scopes[node] is None:
+                        if (len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name)
+                                or not unmodified(analyzer, module + '.' + node.targets[0].id)):
+                            return False
+                        module_aliases.add((module, node.targets[0].id))
+                    aliases.update(target.id for target in node.targets)
+            if aliases == previous:
+                break
+        else:
+            return False
+        for node in nodes:
+            if not isinstance(node, ast.Name) or node.id not in aliases or not isinstance(node.ctx, ast.Load):
+                continue
+            parent = parents.get(node)
+            if identity_operand(node, parent):
+                continue
+            if native_kind_comparison(node, parent, scopes[node]):
+                parameter_kind_uses.add(node)
+                continue
+            if native_kind_replacement(node, parent, scopes[node]):
+                parameter_kind_uses.add(node)
+                continue
+            if getattr(analyzer, '_debug_kind_aliases', False):
+                scope = scopes[node]
+                scope_ref = scope_refs.get(scope)
+                parameter_key = (scope, ast.dump(
+                    parents.get(parent).func.value if isinstance(parent, ast.keyword)
+                    and isinstance(parents.get(parent), ast.Call)
+                    and isinstance(parents[parent].func, ast.Attribute)
+                    else node, include_attributes=False))
+                print('KIND_ALIAS_DETAIL', module, ast.unparse(node),
+                    ast.unparse(parent) if parent is not None else None,
+                    getattr(scope_ref, 'qualname', None),
+                    signature_source_cache.get(scope), parameter_cache.get(parameter_key),
+                    flush=True)
+            if isinstance(parent, ast.Assign) and parent.value is node:
+                continue
+            if (isinstance(parent, ast.Call) and len(parent.args) >= 2 and parent.args[1] is node
+                    and canonical(reference, scopes[parent], parent.func) == 'inspect.Parameter'):
+                continue
+            return False
+    # A locally safe enum alias cannot cross an import boundary and acquire
+    # a new callback-capable use in another source module.
+    for module, local in module_aliases:
+        qualified = module + '.' + local
+        for candidate_module, bodies in analyzer.module_bodies.items():
+            for local_name, imported in analyzer.imports.get(candidate_module, {}).items():
+                if imported != qualified:
+                    continue
+                if any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                       and node.id == local_name and not identity_operand(node, None)
+                       for _, body in bodies for node in ast.walk(ast.Module(body=body, type_ignores=[]))):
+                    return False
+    return True
+
+
+## Bind native Signature/Parameter constructors using literal source metadata.
+#  @param analyzer Fixed source/import snapshot and cooperative effect budget.
+#  @param caller Exact source definition containing the construction.
+#  @param call Actual outer Signature invocation, never a target runtime value.
+#  @param native_lists Source-bound private query results keyed by internal names.
+#  @return Source-bound normal-return formation evidence or None for open inputs.
+def signature_creation(analyzer, caller, call, native_lists=None):
+    ref, function = caller
+    if (not isinstance(call, ast.Call)
+            or _canonical(analyzer, ref, function, call.func) != 'inspect.Signature'):
+        return None
+    nodes = list(ast.walk(call))
+    analyzer._class_effect_fact_steps -= len(nodes)
+    if analyzer._analysis_budget is not None:
+        analyzer._analysis_budget.checkpoint()
+    if len(nodes) > 2000 or analyzer._class_effect_fact_steps < 0:
+        raise _ClassEffectLimit()
+    if (len(call.args) != 1 or not isinstance(call.args[0], (ast.List, ast.Tuple))
+            or any(item.arg != 'return_annotation' for item in call.keywords)
+            or len(call.keywords) > 1 or not _signature_namespace(analyzer)
+            or not _kind_aliases_closed(analyzer, ref, decorator_evidence := [])
+            or not builtin_namespace(analyzer, ref)[0]):
+        return None
+
+    def literal(node):
+        if isinstance(node, ast.Constant):
+            value = node.value
+            if (type(value) in (bool, float, type(None))
+                    or type(value) is str and len(value) <= 2000
+                    or type(value) is int and value.bit_length() <= 64):
+                return value
+        if (isinstance(node, ast.Attribute) and node.attr == 'empty'
+                and _canonical(analyzer, ref, function, node.value) in ('inspect.Parameter', 'inspect.Signature')):
+            return inspect.Signature.empty
+        raise ValueError('Open signature data')
+
+    def exclusion_sequence(node, input_query):
+        """Resolve one direct class literal only under a proved module prefix."""
+        if not isinstance(node, (ast.List, ast.Tuple)):
+            binding = (input_query or {}).get('input_binding', {})
+            prefix = binding.get('module_prefix') or binding.get('class_creation_prefix')
+            receiver = (binding.get('receiver_class')
+                        or (input_query or {}).get('receiver_class'))
+            if (not isinstance(node, ast.Attribute) or not isinstance(node.value, ast.Name)
+                    or not isinstance(prefix, dict) or not isinstance(receiver, dict)):
+                return None
+            if prefix.get('kind') == 'source_module_fresh_class_prefix':
+                if (prefix.get('status') != 'source_bound'
+                        or prefix.get('call_effects') != 'unproved'
+                        or prefix.get('phase') != 'before_module_call'
+                        or prefix.get('receiver_class') != receiver
+                        or len((input_query or {}).get('input_binding', {}).get(
+                            'matching_members', ())) < 0):
+                    return None
+                owner = analyzer._definition_index.find(
+                    receiver.get('module'), receiver.get('qualname'), kind='class')
+                if (len(owner) != 1 or owner[0][0].file_path != receiver.get('file_path')
+                        or owner[0][0].lineno != receiver.get('lineno')
+                        or owner[0][1].name != node.value.id
+                        or owner[0][1].decorator_list or owner[0][1].bases
+                        or owner[0][1].keywords):
+                    return None
+                phase = 'module_call_entry'
+            elif prefix.get('kind') == 'source_class_creation_prefix':
+                if (prefix.get('status') != 'source_bound'
+                        or prefix.get('phase') != 'after_class_body_before_class_decorators'
+                        or prefix.get('receiver_class') != receiver
+                        or any(name == '*' or name == node.attr
+                               for name in prefix.get('possible_class_writes', ()))):
+                    return None
+                candidates = []
+                for item in prefix.get('class_hierarchy', ()):
+                    if (item.get('module') == ref.module and item.get('qualname') == node.value.id):
+                        candidates.extend(analyzer._definition_index.find(
+                            item['module'], item['qualname'], kind='class'))
+                if len(candidates) != 1 or candidates[0][1].decorator_list or candidates[0][1].keywords:
+                    return None
+                owner = candidates
+                phase = 'class_creation_entry'
+            else:
+                return None
+            matches = []
+            for statement in owner[0][1].body:
+                if (isinstance(statement, ast.Assign)
+                        and len(statement.targets) == 1
+                        and isinstance(statement.targets[0], ast.Name)
+                        and statement.targets[0].id == node.attr):
+                    matches.append((statement, statement.value))
+                elif (isinstance(statement, ast.AnnAssign)
+                        and isinstance(statement.target, ast.Name)
+                        and statement.target.id == node.attr):
+                    matches.append((statement, statement.value))
+            if len(matches) != 1 or matches[0][1] is None:
+                return None
+            statement, node = matches[0]
+            if (not isinstance(node, (ast.List, ast.Tuple))
+                    or statement not in owner[0][1].body):
+                return None
+            table_binding = {'kind': 'source_class_literal_string_sequence',
+                'attribute': matches[0][0].targets[0].id if isinstance(
+                    matches[0][0], ast.Assign) else matches[0][0].target.id,
+                'source_class': asdict(owner[0][0]), 'receiver_class': receiver, 'phase': phase,
+                'required_preservation': 'complete_current_call',
+                'binding_evidence': _span(owner[0][0], statement),
+                'source_hashes': dict(prefix.get('source_hashes', {})),
+                'assumptions': list(prefix.get('assumptions', ())) + [
+                    'source_class_literal_sequence_binding']}
+        else:
+            table_binding = None
+        values = node.elts
+        if (len(values) > 2000 or any(not isinstance(value, ast.Constant)
+                or type(value.value) is not str or len(value.value) > 2000 for value in values)):
+            return None
+        if table_binding is not None:
+            table_binding['values'] = [value.value for value in values]
+            table_binding['value_evidence'] = _span(
+                owner[0][0], matches[0][0])
+        return [value.value for value in values], table_binding
+
+    parameters, evidence, defaults, dynamic = [], [], [], []
+    try:
+        for expression in call.args[0].elts:
+            generator = None
+            input_query = None
+            filters = []
+            if isinstance(expression, ast.Starred) and isinstance(expression.value, ast.ListComp):
+                comprehension = expression.value
+                if len(comprehension.generators) != 1:
+                    return None
+                generator = comprehension.generators[0]
+                if (generator.is_async or not isinstance(generator.target, ast.Name)
+                        or not isinstance(generator.iter, ast.Name)):
+                    return None
+                if len(generator.ifs) > 64:
+                    return None
+                input_query = (native_lists or {}).get(generator.iter.id)
+                for condition in generator.ifs:
+                    if (not isinstance(condition, ast.Compare) or len(condition.ops) != 1
+                            or not isinstance(condition.ops[0], ast.NotIn)
+                            or not isinstance(condition.left, ast.Name)
+                            or condition.left.id != generator.target.id
+                            or len(condition.comparators) != 1
+                            ):
+                        return None
+                    sequence = exclusion_sequence(condition.comparators[0], input_query)
+                    if sequence is None:
+                        return None
+                    exclusions, table_binding = sequence
+                    filters.append({'operation': 'native_string_not_in_literal_sequence',
+                        'excluded_names': exclusions,
+                        **({'table_binding': table_binding} if table_binding is not None else {}),
+                        'evidence': _span(ref, condition)})
+                if (not isinstance(input_query, dict) or input_query.get('status') != 'source_bound'
+                        or input_query.get('result_shape') != 'native_string_list'):
+                    return None
+                expression = comprehension.elt
+                if not isinstance(expression, ast.Call):
+                    return None
+                if any(isinstance(node, ast.Name) and node.id == generator.target.id
+                       for value in [expression.func] + [item.value for item in expression.keywords]
+                       for node in ast.walk(value)):
+                    return None
+            elif dynamic:
+                # Only a trailing native keyword-only segment is modeled.
+                return None
+            if (not isinstance(expression, ast.Call) or len(expression.args) != 2
+                    or _canonical(analyzer, ref, function, expression.func) != 'inspect.Parameter'
+                    or any(item.arg not in ('default', 'annotation') for item in expression.keywords)
+                    or len({item.arg for item in expression.keywords}) != len(expression.keywords)):
+                return None
+            name, kind = expression.args
+            if (not isinstance(kind, ast.Attribute)
+                    or _canonical(analyzer, ref, function, kind.value) != 'inspect.Parameter'
+                    or kind.attr not in ('POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD', 'VAR_POSITIONAL',
+                                         'KEYWORD_ONLY', 'VAR_KEYWORD')):
+                return None
+            if generator is not None:
+                if (kind.attr != 'KEYWORD_ONLY' or not isinstance(name, ast.Name)
+                        or name.id != generator.target.id
+                        or any(isinstance(node, ast.Name) and node.id == generator.target.id
+                               for node in ast.walk(kind))):
+                    return None
+                name_value = 'source_dynamic_parameter_' + str(len(dynamic))
+                while any(parameter.name == name_value for parameter in parameters):
+                    name_value += '_'
+                dynamic.append({'kind': 'native_keyword_only_parameter_segment',
+                    'input_query': copy.deepcopy(input_query), 'names': 'unresolved_native_strings',
+                    'parameter_kind': 'KEYWORD_ONLY', 'evidence': _span(ref, comprehension),
+                    'filters': filters,
+                    'completion': 'normal_return_only',
+                    'validation': 'name_validity_and_duplicates_may_raise'})
+            elif isinstance(name, ast.Constant) and type(name.value) is str and len(name.value) <= 2000:
+                name_value = name.value
+            else:
+                return None
+            metadata = {}
+            for item in expression.keywords:
+                try:
+                    metadata[item.arg] = literal(item.value)
+                except ValueError:
+                    marker = _marker_default(analyzer, caller, item.value) if item.arg == 'default' else None
+                    if marker is None:
+                        return None
+                    defaults.append(marker)
+                    # Host placeholders validate structural signature rules;
+                    # they never represent or execute the target marker value.
+                    metadata[item.arg] = object()
+            parameters.append(inspect.Parameter(name_value, getattr(inspect.Parameter, kind.attr), **metadata))
+            evidence.append(_span(ref, expression))
+        # These host stdlib objects contain source literals only. No target
+        # function, annotation, default expression or target package is loaded.
+        inspect.Signature(parameters, **{item.arg: literal(item.value) for item in call.keywords})
+    except (ValueError, TypeError):
+        return None
+    assumptions = ['source_snapshot_bindings_hold', 'standard_library_inspect_signature_creation',
+        'standard_library_inspect_parameter_creation', 'standard_builtin_namespace_preserved',
+        'no_unmodeled_indirect_builtin_mutation', 'no_unmodeled_indirect_module_mutation',
+        'no_external_monkeypatch_or_import_hook']
+    hashes = dict(analyzer.hashes)
+    for decorator in decorator_evidence:
+        assumptions.extend(decorator.get('assumptions', ()))
+        hashes.update(decorator.get('source_hashes', {}))
+    for segment in dynamic:
+        assumptions.extend(segment['input_query']['assumptions'])
+        hashes.update(segment['input_query']['source_hashes'])
+        for filter_fact in segment['filters']:
+            binding = filter_fact.get('table_binding')
+            if binding is not None:
+                assumptions.extend(binding['assumptions'])
+                hashes.update(binding['source_hashes'])
+    return {'kind': 'source_native_signature_creation', 'status': 'source_bound',
+        'caller': asdict(ref), 'result_kind': 'native_inspect_signature',
+        'completion': 'normal_return_only', 'runtime_creation_confirmed': False,
+        'call_evidence': _span(ref, call), 'parameter_evidence': evidence,
+        'input_binding': ('source_dynamic_native_metadata' if dynamic else
+                          'source_marker_native_metadata' if defaults else 'literal_native_metadata'),
+        'dynamic_parameters': dynamic,
+        'decorator_evidence': [{key: value for key, value in fact.items() if key != '_dedup_key'}
+                               for fact in decorator_evidence],
+        'default_bindings': defaults, 'value_operations': 'storage_only' if defaults else 'native_literal_data',
+        'source_hashes': dict(sorted(hashes.items())), 'assumptions': sorted(set(assumptions))}

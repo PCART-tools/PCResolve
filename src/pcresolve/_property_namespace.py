@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from .class_attribute_effects import _ClassEffectLimit
 from .import_facts import import_facts
+from .scope_facts import statement_scope_facts
 
 _PROPERTY_NAMESPACE_NODE_LIMIT = 1000000
 
@@ -175,6 +176,55 @@ def property_declaration(analyzer, owner, member, shadowed, properties, dependen
             builtin = (imported + (dot + rest if dot else '') == 'builtins.property'
                        and analyzer._stable_import_name(owner.module + '.' + head))
     if not accessor and not builtin:
+        return None
+    stable, paths = _stable_builtin_namespace(analyzer, owner)
+    if not stable:
+        return None
+    if dependencies is not None:
+        dependencies.update(paths)
+    return 'builtin_property_namespace_construction'
+
+
+## Prove direct native property construction from preceding plain class functions.
+#  @param analyzer Source/import and builtin binding machinery.
+#  @param owner Exact class declaration identity.
+#  @param cls Class whose statement order supplies the accessors.
+#  @param member Property assignment currently being evaluated.
+#  @param shadowed Names already bound in this executing namespace.
+#  @param dependencies Optional set collecting the namespace guard's source files.
+#  @return Construction premise, without invoking any accessor or descriptor.
+def property_assignment(analyzer, owner, cls, member, shadowed, dependencies=None):
+    if not isinstance(member, (ast.Assign, ast.AnnAssign)):
+        return None
+    expression = member.value
+    if (not isinstance(expression, ast.Call) or not isinstance(expression.func, ast.Name)
+            or expression.func.id != 'property' or 'property' in shadowed
+            or not 1 <= len(expression.args) <= 4
+            or any(keyword.arg != 'doc' for keyword in expression.keywords)
+            or len(expression.keywords) > 1 or len(expression.args) == 4 and expression.keywords):
+        return None
+    # Class-body lookup includes prior class locals, unlike an ordinary method.
+    ref = replace(owner, qualname=owner.qualname + '.<namespace>')
+    if analyzer._builtin_name_status(ref, cls, 'property') != 'confirmed_builtin':
+        return None
+    prior = []
+    for statement in cls.body:
+        if statement is member:
+            break
+        prior.append(statement)
+    for expression_arg in expression.args[:3]:
+        if isinstance(expression_arg, ast.Constant) and expression_arg.value is None:
+            continue
+        if not isinstance(expression_arg, ast.Name):
+            return None
+        matches = [statement for statement in prior
+                   if expression_arg.id in statement_scope_facts([statement]).bound]
+        if (len(matches) != 1 or not isinstance(matches[0], (ast.FunctionDef, ast.AsyncFunctionDef))
+                or matches[0].name != expression_arg.id or matches[0].decorator_list):
+            return None
+    docs = expression.args[3:] + [keyword.value for keyword in expression.keywords]
+    if any(not isinstance(value, ast.Constant) or type(value.value) not in (str, type(None))
+           for value in docs):
         return None
     stable, paths = _stable_builtin_namespace(analyzer, owner)
     if not stable:

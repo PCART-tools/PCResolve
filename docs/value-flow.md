@@ -1196,6 +1196,414 @@ Returning or mutating handlers, `else`, `finally`, rebound inputs and custom
 exception protocols remain boundaries. The try body is still fully analyzed;
 this rule cannot discharge an unresolved query, iterator, unpack or callback.
 
+For an ordinary source class query, an optional `fresh_receiver_origin` describes
+the empty instance dictionary supplied by builtin object allocation at initializer
+entry. It is separate from `instance_state="unmodeled"`: it does not assert that
+construction completes, that a direct initializer query allocates an instance,
+or that later instance state is known. Custom lookup/storage/allocation protocols,
+visible class escapes or mutations, frame/GC hooks and incomplete builtin premises
+prevent this origin. The source snapshot and external-observation assumptions
+remain explicit.
+The allocation's optional `frame_observation="native_metadata_only"` alternative
+requires the complete shared `observation_guard`: source frame factories,
+metadata fields, non-escape evidence, namespace guard, hashes and assumptions.
+It permits only guarded native frame metadata reads, including the module-name
+key of `f_globals`; frame/local-object escape, tracing, GC introspection and
+unproved factory bindings still prevent allocation evidence. Imported aliases
+of observer capabilities are checked by their canonical source binding.
+The same guard also supports direct two-name iteration over native
+`traceback.walk_stack(None)`, with a separate
+`standard_traceback_frame_iteration_protocol` premise. Other arguments, escaped
+iterators or frames, replaced factories and frame-metadata access without a
+validated native frame binding remain open. Fresh receiver and fresh function
+checks share this guard instead of maintaining independent hook-name lists.
+Calls can carry `instance_method_bindings` with kind
+`fresh_source_instance_method` and `instance_state="lookup_prefix_only"`. A bound
+plain source method requires this allocation origin and a completely bounded
+prefix with no receiver escape, opaque call, overwritten local or method field.
+New ordinary dictionary stores can preserve a different method lookup; their
+field names and source spans accompany the binding. Exact native keyword-capture
+expansion is allowed without modeling arbitrary mapping protocols. A matching
+`dynamic_method_override_possible` boundary becomes an explicit assumption; the
+binding is retained per incoming context and across source-backed expansion.
+The receiver origin can enter the selected helper, but cannot cross an unproved
+call or authorize later ambient instance state.
+
+A direct mapping-member checker can additionally expose
+`fresh_mapping_member_checks`. The supported source body consists of one
+`items()` loop, a finite attribute-name template, a builtin callability guard
+raising `AttributeError`, and one setter invocation. Its
+`requires_single_exact_mapping_item` status obliges the consumer to supply the
+entire exact one-item dictionary. The record supplies a protected finite source
+namespace, own dictionary fields, allocation/call path and source hashes;
+nondunder names outside that namespace are missing under the stated assumptions.
+`value_stores` describes only setters that store their sole value argument into
+a previously absent plain instance dictionary field. Other setters, multiple
+iterations, custom descriptors/protocols, pre-loop effects and incomplete source
+premises remain unproved. These are source obligations, never runtime rejection
+or lookup observations, and the older `keyword_checks` contract is unchanged.
+Conflicting or unproved incoming checker contexts remove the static obligation
+when summaries merge. The source namespace applies declaring-class private-name
+mangling; implicit builtin dunder attributes are outside the missing-name proof.
+
+Class decorations may bind a source factory whose first branch tests its final
+class parameter against `None` and returns standard `functools.partial` of that
+same source function with preceding literal arguments. The bounded factory path
+has no other statement or callback. `source_partial_class_decorator` records
+the source function, literal capture positions, late class parameter, factory and
+partial spans, full source hashes and standard-partial/builtin assumptions. It
+has `normal_factory_return_only` completion and never executes target code.
+On the later class invocation, the remaining source body still requires the
+ordinary class-effect proof. String captures can supply finite attribute names;
+unknown callbacks, class escape and constructor-slot writes remain boundaries.
+The partial namespace guard rejects module writes/escapes, saved or escaped
+partial references and unsupported dynamic imports. A direct builtin
+`isinstance(value, functools.partial)` is a read-only type test only with checked
+lexical and snapshot-wide builtin bindings. A factory binding on its own does
+not preserve any constructor or approve arbitrary alias-generation logic.
+
+For a freshly bound literal factory table, `source_literal_loop_expansion` can
+specialize one reached table loop into finite local assignments. It supports
+native dictionary `items()` and finite list/tuple iteration, including nested
+literal sequences. Conditions, helper calls and deferred function bodies remain
+in the specialized source; this is not an effect-completeness or call-success
+proof. Literal bindings are invalidated by local definitions and other rebindings.
+Mutable input aliases, mutation/escape, unknown iterators, break/continue and
+exhausted generated/inspection budgets stop specialization. Nested literal
+dictionary keys are decoded as data, so structural slot names cannot disappear
+into serialization metadata. Empty loops create no target bindings. Source loop
+spans, generated/inspected AST sizes, finite iteration count and source hashes
+accompany a closed decoration as `literal_loop_expansion`. Constructor admission
+still requires the independent complete class-effect proof over that source.
+
+`source_deferred_class_functions` separates plain local function creation from
+execution of its body during class decoration. A private source factory can
+create and return one undecorated function with no evaluated defaults or
+annotations. Argument evaluation remains in the enclosing effect check. Fresh
+function metadata writes and stores in nonstructural class attributes can be
+bounded without executing future method bodies. The evidence records source
+declarations, factory invocations, metadata/class stores, source hashes and
+function-creation assumptions; its scope is `class_decoration_only` and future
+method effects remain `unmodeled`. A stored function is opaque, never a literal
+class-field invariant: subsequent reads/calls, reflection, escapes, evaluated
+decorators, uncertain function bindings and constructor-slot stores still need
+independent proofs. Nested helper returns and parameter names do not count as
+returns or assignments in the enclosing decorator scope.
+
+Fresh function creation can additionally apply default standard `functools.wraps`
+when both the new wrapper and the wrapped function have proved plain-function
+metadata. The namespace premise checks `wraps`, `update_wrapper`, `partial`,
+`WRAPPER_ASSIGNMENTS`, `WRAPPER_UPDATES` and their builtin dependencies, rejecting
+visible writes, reflective references and escapes. A wrapped argument may be
+another unescaped fresh local function, or a separately checked literal-name
+`getattr` on the protected source class. The latter records a
+`source_plain_class_function_read` at this class-decoration prefix: ordinary
+source metaclasses, class namespace formation, the MRO-selected undecorated
+function, already applied inner decorators, prior direct/reflective class
+writes and visible function namespace writes/escapes all participate. Unproved
+base creation hooks remain a boundary. Exact string factory arguments can
+specialize a lookup name, without replacing future method closure cells.
+`standard_fresh_function_metadata_wrapper` records the source lookup and
+metadata-only default protocol with `normal_return_only` completion. It does
+not approve arbitrary descriptors, nondefault copy operations, method execution
+or future effects of generated aliases.
+
+The class escape scan distinguishes an ordinary source class used as the class
+operand of native `isinstance`/`issubclass` from a class passed to an unknown
+callback. This requires guarded builtin names and namespace capabilities, source
+bases of ordinary metaclass `type`, and no class decorator that could replace
+the object. Tuples must contain only independently proved native class operands.
+A unique, unconditional local source import can supply that operand, with all
+other lexical bindings excluded. Shadowed calls, custom/unproved metaclasses,
+saved method values, opaque nested argument calls and actual class escapes
+remain visible. This bounds escape syntax only; it establishes neither the
+predicate result nor general callback purity, and it does not change ownership.
+
+An optional `fresh_function_decorations` alternative separates computed
+documentation from the binding of a fresh source function. It applies before
+the declaration binds its name, with no input-function escape or execution-field
+write. Native string formatting can call a source dictionary subclass whose
+values remain unknown: the callback receives text/keys/values, not that fresh
+function. Conditional normal completion preserves its original body without
+claiming formatting success, callback purity or a concrete documentation value.
+The ordinary `decorator_effects` record and its data boundaries are retained.
+
+The alternative carries full snapshot hashes, creation/effect evidence,
+native dictionary method premises and an `observation_guard`. The latter rejects
+local-frame/GC discovery, escaped frame objects and function execution-field
+changes. Native frame metadata loops may read code/line information and the
+module-name key without exporting a frame or its locals. Guarded source module
+initialization and indirect-mutation/observation exclusions remain explicit
+premises, not observations of a completed import or decorator execution.
+
+Value-flow namespace lookup separately checks bounded runtime writes through
+module/class aliases, `globals()` dictionaries and reflective export setters.
+An affected name, or all names for a dynamic key, cannot retain a static source
+callable/builtin binding. Other exports remain independent. These guards also
+apply to source helpers selected after documentation formatting, preventing a
+callback from changing a later helper while its stale body is reused. Unknown
+indirect mutation and scan exhaustion do not authorize an empty-write proof.
+
+`source_class_creation_hook` describes a separate `before_class_decorators`
+phase. For an ordinary source hierarchy it selects only the first inherited
+`__init_subclass__` in the new class's MRO, including Python's implicit
+classmethod binding. Ancestor creation phases are retained once per source
+class. The initial bounded subset admits native ordinary class-slot stores and
+deletes, with complete source namespaces, builtin bindings and hook execution
+namespace guards. Structural writes, unknown explicit or implicit callbacks,
+cooperative `super` calls, deferred hooks and exhausted budgets remain open.
+An exact `cls.helper()` expression statement can additionally expand a finite
+source `classmethod` graph in that new class's MRO. Each callee must have the
+same native effect proof, with no explicit arguments, inferred return value or
+unknown descriptor. The union includes transitive writes; any possible write
+to a called method, including an ancestor creation phase or visible namespace
+replacement, invalidates dispatch. Recursion, argument evaluation, unknown
+conditions, more than 16 functions and exhausted shared node budgets remain
+boundaries. `method_calls` records caller/target identities and source spans,
+the implicit receiver, `builtin_classmethod` binding and conditional normal
+return scope under `source_class_creation_call_graph`. It establishes neither
+completion of the class definition nor arbitrary classmethod purity.
+Creating a lambda callback does not execute its body. Immediate-expression
+checks still inspect positional and keyword-only defaults; the whole source
+remains subject to the node budget and class-namespace escape checks. Closures
+referring to creation-function parameters or local cells remain open, including
+cells assigned after the callback declaration. Calling that callback during
+creation still requires a separate invocation proof. Storing it only adds the
+written class slot; it establishes no callable behavior or value invariant.
+Each record carries the new class and selected hook identities, source spans,
+possible written slots, source hashes and assumptions; completion is
+`normal_return_only`, without an observed hook invocation or initialized state.
+Constructor entry and actual constructor-call bindings share these records.
+Possible hook writes participate in class-function reads, fresh member lookup,
+absent-name checks, plain instance stores and constructor retention. A hook-added
+slot is not assumed absent or a proved setter, and an overwritten method cannot
+reuse its source declaration. Thus constructor-slot preservation does not imply
+that every generated class member or helper body is modeled.
+
+Metadata-observer query templates can bind exact native literal positional and
+keyword arguments through the source signature, including literal defaults and
+keyword-only parameters. `query_arguments` records explicit arguments and the
+defaults actually used; it is a caller obligation, not an observed invocation.
+Different typed argument profiles have separate cache entries. Native string
+padding, concatenation, percent formatting of private native data, and sorting
+private string sequences preserve a data-only result on normal return. Class
+capabilities, user formatting/sorting callbacks and unsupported defaults remain
+open. These templates do not independently bind a real class input or authorize
+a decorator body to execute.
+
+Private observer-result projections use the same exact literal argument profile;
+expanded arguments, evaluated expressions and invalid signature bindings keep
+the observer escape unresolved. Directory-derived names retain evidence for an
+exact prefix removal and restoration. A native `hasattr` result is true only
+conditionally on that unchanged directory namespace; `native_member_lookups`
+records the derivation without claiming an observed lookup. Source-created regex
+members have separate `native_data_members` creation records and binding
+obligations. Native code metadata requires callback-free code/string-varname
+inputs. Optional regex captures retain their possible `None` result; slicing or
+regex operations narrow data only on normal return, never prove completion.
+Immediately consumed string-join generators use the same private comprehension
+check as lists: receiver-field or existing-heap mutations reject the proof,
+rather than disappearing when the temporary comprehension frame is discarded.
+Bounded observer loops retain both zero-iteration and symbolic-iteration paths.
+Normal exhaustion and `continue` enter `else`; `break` leaves only its own loop,
+while returned paths remain returned. The existing loop mutation/rebinding
+guards still apply. This control-flow support does not establish native MRO
+contents or authorize class-member lookups on ancestors.
+
+An optional observer MRO query retains a separate capability for ancestors;
+`native_mro_queries` records source evidence, not an observed hierarchy. Its
+`ancestry` input obligation requires a native type MRO and unchanged member
+namespaces throughout that hierarchy. Prefix-matching ancestor lookups further
+require native functions/methods or absence. Unlike a lookup on the original
+directory owner, ancestor `hasattr` keeps both answers and `getattr(..., None)`
+keeps a possibly absent callable. A truth guard refines that capability only
+within its selected branch. Native function documentation and name metadata
+have explicit callback-free input protocols; no concrete documentation is
+computed. Plain native string f-strings can restore an exact directory-derived
+prefix, but conversions, format specifications and changed prefixes supply no
+member-presence evidence. MRO sequences, ancestor classes and callables cannot
+escape as private data results or authorize invocation of the observed method.
+
+Private native tuple rows can be unpacked into names in a single synchronous
+comprehension. Row arity and each position's data shape must agree; starred or
+attribute targets remain unsupported. Fresh row heaps stay reachable from the
+result, while mutations to existing heaps/receiver fields still reject the
+query. A provably empty private iterable skips its element expression. Native
+string replacement and literal string-set membership do not invent concrete
+text or membership answers; class sets retain separate creation and unchanged
+binding obligations alongside regex members. Table formatting supports
+immediately consumed native integer `max` generators and two-list native `zip`
+comprehensions, string padding, and private-list expansion. It does not expose a
+stored lazy iterator or permit key/format callbacks. Nullable native text keeps
+its `None` alternative: length and padding summarize normal returns only, so
+neither empty `max` nor a `None` input is claimed to complete successfully.
+
+Class-creation hooks can additionally retain `signature_creations` for native
+`inspect.Signature`/`inspect.Parameter` formation from literal metadata. Records
+bind the actual import-backed constructors, native kind enums and bounded
+literal names/defaults/annotations; host stdlib validation sees only those
+literals and never executes target expressions. Duplicate names, invalid
+ordering/kinds, expanded arguments, open inputs and constructor/enum capabilities
+escaping the audited namespace keep the hook unresolved. An alias to a native
+kind enum is also a route to its mutable Python enum class, so unknown use of
+that alias cannot be ignored. The result is an opaque native Signature value
+on normal return, not proof that the hook ran. Dynamic setter-derived parameter
+lists and function-metadata writes still need their own input/effect binding.
+
+`source_function_metadata_creation` separates a newly created function's native
+metadata from its later namespace binding. Plain declarations and bounded,
+identity/body-preserving documentation/module decoration can retain native
+documentation/module shapes, code and source-signature formation. Documentation
+write effects now record their value shapes. A later write cannot be replaced
+with the original AST docstring: all possible native shapes are retained, and
+open/non-text documentation or signature/execution-field changes supply no
+native metadata formation proof. Non-literal annotation resolution stays open.
+The initial module field additionally requires the standard source module-name
+binding and no visible source writer of that module's `__name__`; the function
+creation syntax alone does not establish a string module field. Declaration
+syntax and decoration use the shared cooperative evidence budget, and exhaustion
+publishes no partial metadata formation.
+The record explicitly sets `current_namespace_binding_confirmed=false` and does
+not authorize inherited member lookup, generated aliases or an observer input.
+Existing fresh-class callable metadata queries can consume it for a directly
+declared decorated method, after their independent creation-phase and protected
+slot checks. Documentation lookup still requires a definitely native string
+field; an unproved inherited-documentation fallback remains unresolved.
+Default `functools.wraps` in a bounded class alias factory can also consume this
+formation evidence when reading a decorated source method. The separate class
+creation, prior-write, hierarchy and visible function-escape checks must still
+establish the lookup. Formation does not discharge any of those checks. The
+lookup records the formation and its supporting hashes and assumptions; the
+generated function's future call behavior remains unmodeled by this proof.
+
+Class creation hooks can additionally consume an immediate private class
+metadata observer query with an independently bound observer entry and literal
+query arguments. `class_metadata_queries` records the conditional query and its
+fresh class input. The input depends only on completed ancestor creation phases,
+not on the current hook's eventual proof. Matching source members require unique
+declarations and native function metadata formation. Ancestor decorators,
+non-function matching slots, visible class/function escapes and open inherited
+documentation retain boundaries. The complete hook call graph must preserve all
+queried prefixes and the class layout; both earlier and later writes invalidate
+the input. A native result shape does not provide concrete member names or prove
+that execution completes. Dynamic generated aliases still require independent
+namespace and formation evidence.
+
+Bounded class alias factories now retain `generated_class_members` with native
+function metadata formation, literal class-store names and source write sites.
+These are formation records, not proof of current member presence or future
+method effects. Retained local aliases, later metadata writes and imprecise
+branch joins cannot reuse stale store snapshots. A later subclass metadata
+observer can consume completed ancestor decoration records only when every
+matching slot write has native function formation evidence; other writes retain
+boundaries. The construction orchestrator establishes ancestor decoration before
+checking the current subclass hook, without reversing module dependencies.
+
+Single-expression private data helpers may be represented by immediate lambdas
+for effect validation, preserving their argument binding and parameter scope.
+This does not exempt the helper body from class capability checks. Recursive,
+escaping and unresolved helper uses remain open. Native string membership in
+`vars(cls)` and a literal `getattr` fallback for an independently proved absent
+class slot have separate namespace query records. Both require an unchanged
+native class namespace and guarded builtins. The mapping itself is never exposed
+by the membership projection, and no concrete branch result is invented.
+Guarded native exception branches in class decorators contribute their argument
+effects to the bound but do not establish normal completion. Unknown exception
+constructors and protected class capabilities in exception inputs remain open.
+Source exceptions are retained in the evidence; the effect-only continuation is
+an overapproximation and does not authorize suppressing exceptions.
+
+Native signature formation can retain a module-bound source marker as a default
+when its unique unconditional creation uses an undecorated source class without
+bases, metaclass keywords or custom allocation/initialization. Declaration,
+namespace, visible class escapes/writes and module-binding guards remain
+required. `default_bindings` records that origin without importing the class or
+executing its methods. `value_operations=storage_only` does not establish
+callback-free equality, ordering or formatting of the resulting signature;
+creation-hook conditions cannot reuse the native literal-data exemption.
+The native parameter-kind capability audit admits direct and local-alias
+identity operands (`is`/`is not`). Those operations do not dispatch comparison
+methods or expose the enum object through their boolean result. Equality,
+ordering, reflection, exported aliases and unknown calls retain their separate
+boundaries; this does not establish arbitrary parameter replacement protocols.
+Signature creation also accepts a trailing keyword-only parameter comprehension
+over an independently bound private observer's native string-list result. The
+`dynamic_parameters` segment embeds that query/input evidence and retains names
+as unresolved native strings. Normal-return effects do not imply valid names,
+unique parameters or successful construction. Computed names, arbitrary filters,
+non-keyword-only dynamic kinds and comprehension-variable metadata defaults
+remain open. This fact cannot supply concrete signature names to a consumer.
+Literal string-list/tuple exclusion filters (`name not in [...]`) retain their
+source evidence and excluded strings. Their operands are native data, so this
+does not authorize arbitrary filter callbacks. Class-attribute exclusion tables
+still require a current binding proof; a source initializer alone is insufficient.
+The dynamic input's hashes and assumptions propagate into signature formation.
+
+The class-use scanner can project scalar metadata reads from a directly declared,
+undecorated method of an undecorated root class. Native class creation, namespace
+formation, source function metadata and absence of visible class writers must
+hold. Deferred methods referencing that slot keep the read open because an
+implicit receiver may mutate the function before the later read. That reference
+scan is separately bounded to 100,000 syntax nodes with cooperative checkpoints.
+Implicit class receivers additionally require bounded class-attribute effects:
+reflective writes using literal names can replace a slot without a syntactic
+`cls.member` reference. Unproved classmethods and writes to the selected slot or
+class layout retain the scalar-read boundary. Known unrelated writes alone do
+not invalidate the read.
+This projection supplies no class/function alias and does not remove any other
+escape or writer: class consumers still require the complete closed-use
+invariant. Inherited hooks and custom class creation remain outside this reader.
+
+The shared `evaluation_contexts` syntax iterator records deferred-body
+prerequisites separately from declaration inputs. Function decorators, defaults
+and annotations remain in the enclosing phase; nested function bodies require
+their containing invocations. Generator bodies additionally require resumption,
+while a generator expression's first iterable expression belongs to its
+enclosing phase. Coroutine and async-generator resumption are distinct. These
+facts do not establish reachability, import completion, conditional-branch
+selection or absence of callbacks. An empty prerequisite list does not imply
+execution, and a deferred prerequisite does not authorize dropping a class-use
+boundary without a call-context proof.
+
+`source_module_fresh_class_prefix` separately bounds a new undecorated root
+class's state before its first standalone module-level member call. It checks
+class namespace formation, native creation, observation guards and intervening
+declarations/native declaration inputs. Unknown calls, imports, class aliases,
+inherited creation, custom class decoration and prior calls retain boundaries.
+Its `normal_prefix_only` completion and `call_effects=unproved` do not establish
+the invoked member's effects, later module state or an assess result. This fact
+does not remove whole-snapshot class-use boundaries by itself.
+An intervening module assignment may retain an exact, earlier, undecorated
+source function declaration under another name. `function_aliases` records that
+binding and its deferred body; it does not execute or validate that future body.
+Unknown values, class aliases, decorator replacements and actual function calls
+are not covered by this declaration-only allowance.
+
+`source_module_classmethod_effects` composes that prefix with a direct source
+classmethod's bounded call graph. Its observer inputs use
+`module_call_entry`/`source_module_prefix` rather than the whole-snapshot class
+use invariant. The complete current call must preserve the queried member
+prefixes and class layout, including writes after the query. Unknown current
+effects and earlier calls cannot borrow the prefix. These records remain
+specific to module initialization: `post_module_namespace=unproved` prevents
+using them as proof of all subsequent library/caller state. They do not silently
+replace the existing constructor-entry or class-creation readers.
+For an undecorated function in a freshly bound module root class, None
+documentation can retain native documentation resolution when the only ancestor
+is builtin `object` and has no matching member. The input records the fresh
+module/name/qualname premise and absent native ancestor lookup. This is not a
+general inherited-docstring exemption: decorated functions, changed metadata,
+custom ancestry and current-call member writes keep their boundaries.
+
+Ordinary instance-method selection may reuse bounded class-decoration records
+for that specific member. Each decorator must preserve class identity and leave
+the selected slot and lookup/layout protocols unchanged. A class with unknown
+decoration effects remains unresolved. A fresh allocation carries the same
+`class_decorations` as its constructor entry, with their source assumptions.
+All decorator-written names join the receiver prefix and missing-member
+namespace, including slots not declared in the class body. Such a slot cannot
+be treated as an absent plain dictionary store or an unchanged source setter.
+
 A local absolute `from` import inside a decorator can expose a
 `cached_import` effect under the decorated function's preceding top-level
 source imports. A relative package initialization may identify an available
@@ -2042,6 +2450,190 @@ describe the obligation; `guard_completed` and `runtime_rejection_confirmed`
 remain false. A consumer must independently establish exact builtin dictionary
 type, original element provenance, actual true-guard completion and the escaping
 original-call exception. The source fact alone establishes no rejection.
+
+Class namespace formation distinguishes an ordinary native function result from
+preservation of the original method body. Bounded source wrappers and literal
+decorator factories may establish the former while leaving both method identity
+and future execution unproved. Supported factory operations interpret finite
+source literals, default `functools.partial`/`wraps`, and native `inspect`
+signature/parameter metadata. No target function or factory is executed. Visible
+namespace replacement, execution-slot/closure-cell writes, escaped metadata
+capabilities and open immediate effects prevent this proof. Native registry
+stores require a unique source builtin dictionary and source stores with native
+function keys. Query-local caches retain failed proofs and reset on reindexing.
+
+These internal construction facts only discharge the class-definition obligation.
+They do not authorize a decorated constructor or method's original body. A
+factory can also describe an unchanged `*args, **kwargs` forwarding path and its
+maximum positional-count condition; that path remains an unconsumed obligation,
+and other wrapper paths stay unmodeled. It uses the final closure bindings and
+excludes source `nonlocal` rebinding of the wrapper. Class formation additionally
+supports `property(getter, setter)` from preceding undecorated functions and the
+imported standard `contextlib.contextmanager` construction protocol. Accessor,
+generator and wrapper bodies remain deferred and need independent execution
+proofs when selected by a query.
+
+Class formation also admits a native `staticmethod` around a literal
+`functools.lru_cache` construction and a literal `re.compile` pattern attribute.
+The stdlib namespace audit accepts both explicit calls and bare decorator
+invocations, while rejecting entry-point replacement or exposure, private
+module capabilities and unknown construction arguments. Regex validation uses
+host stdlib on literal data only, under explicit target-stdlib premises. These
+facts describe normal construction returns and native descriptor/data kinds;
+they do not prove that a cached method body is read-only, that its arguments
+cannot escape, or that a later method invocation completes.
+
+Optional `native_callable_metadata_queries` describe bounded source scalar
+queries under explicit native-function/method input protocols. Native signature
+length and documentation-prefix queries require callback-free metadata
+resolution; they do not grant arbitrary Python objects those properties. The
+complete selected body must use only supported local data operations. The
+summary separates source writes/exposures from possible native cache-key
+retention, and describes result kinds without inventing concrete values.
+Standard metadata protocols also audit source-visible builtin dependencies of
+their stdlib implementation. An unparsed primary module leaves them unconfirmed.
+
+Class creation may instantiate such a template under `callable_metadata_queries`
+for a fresh, undecorated function owned by the new class, before its class
+decorators. The query entry requires independently guarded native class/member
+lookup. Signature metadata is initially native; documentation lookup currently
+requires a literal string and the explicit source-docstrings-preserved premise,
+so inherited-documentation callbacks are not presumed safe. Source observation
+guards protect the invocation and possible cache retention. Pending writes to
+the queried member invalidate the proof. Deferred lambda/function bodies never
+count as reached queries. Native scalar result kinds may participate in finite
+branches, retaining both possible effects rather than guessing a result. All
+query, input, entry, source-version and observation premises propagate through
+the creation-hook and constructor facts.
+
+Optional `native_class_metadata_observers` retain a conditional proof of a whole
+source observer construction and query. The bounded subset follows one private
+receiver's class-reference/data fields, source instance helpers, native cached
+scalar queries, prefix-filtered metadata enumeration and fresh string-only
+containers. It analyzes zero/one symbolic loop iterations under an invariant
+that rejects mutation of the traversed container, loop-carried name rebindings
+and receiver-field stores within loops. Class references may remain only in
+explicit private receiver fields; returning or storing them in result data, or
+passing them to an opaque operation, supplies no observer proof. Cache retention
+stays separate. Native regex failures and scalar predicates imply neither a
+concrete answer nor completion of the original query.
+
+The template requires exact native class metadata, callback-free metadata result
+kinds, source observer-member bindings and a single private-query lifetime.
+`owner_binding.status=requires_source_member_bindings` explicitly retains the
+unproved runtime member-lookup obligation; declaration syntax does not discharge
+it. Publishing the template removes no receiver/callee boundary and cannot make
+a constructor available on its own. Native source iterability dependencies keep
+the same separate versions and explicit opt-in as other source-protocol proofs.
+
+Native `isinstance`/`issubclass` class-operand checks can additionally use an
+identity-only class-decoration premise. Each normal synchronous decorator return
+must be the unchanged input reference; source rebinding, nested nonlocal writes,
+pattern binding, open resolution and observer capabilities prevent the proof.
+Literal partial factories and guarded source callable instances are supported.
+Shared instances require independent alias/use and class-layout guards; their
+original constructor is insufficient when an alias, bound method, receiver or
+class projection can escape. All source, use and alias passes are bounded and
+charged to cooperative analysis limits. Exhaustion yields no partial identity
+proof. This premise leaves decorator effects unmodeled: it neither preserves a
+constructor slot nor authorizes the original method body, and cannot replace
+the independent class-decoration write-effect proof.
+
+Function-decoration effects separately recognize assigning an exact builtin
+string or `None` to an input function's `__module__`. The `module_metadata`
+attribute-write record names the builtin protocol, value shapes and unchanged
+execution fields, with `runtime_write_confirmed=false`. It adds the explicit
+`builtin_function_module_attribute` assumption. This does not model reads of
+the changed metadata by the eventual function body; those remain independent
+value-flow obligations. Other slots, unknown value types and escaping/unknown
+decorator operations continue to block preservation.
+
+Internal dependency-source readers keep separate obligations for export-list
+construction, module binding paths and actual function execution binding:
+
+- `ExportListResolver` reads bounded literal list/tuple export constructions,
+  including concatenation and selected native list updates. Imported module
+  inputs may be independently checked; a construction fact never proves the
+  final callable namespace.
+  A direct child wildcard import in a package initializer may also supply the
+  child's implicit parent-package module attribute. This has a separate
+  `implicit_parent_submodule_attribute` binding premise. Visible competing
+  bindings, deleting the attribute, wildcard name collisions, parent-module
+  exposure, dynamic namespace capabilities and module-registry/layout writes
+  keep that premise open; a cached import cannot repair a replaced attribute.
+  An ordinary sibling import outside a package initializer supplies no such
+  local binding. Callable namespace audits track these implicit aliases too.
+- `SourceBindingResolver` follows named reexports and independently constructed
+  wildcard exports in source order. A later unknown wildcard import leaves an
+  open binding; a later definite binding may replace an earlier unknown value.
+  Finite `if` paths retain their source conditions. Missing-attribute paths are
+  distinct from unknown bindings and from paths with a possible module
+  `__getattr__`. Its unique declaration reference is conditional on normal
+  module completion and successful attribute lookup. It proves neither
+  decorator identity nor original-body preservation.
+- `SourceProtocolResolver.iterability()` independently checks the complete
+  source shape of a Boolean `try: iter(argument)` / `except TypeError` helper,
+  builtin bindings, function-object exposure and decorator execution effects.
+  For an input whose exact metaclass is native `type`, it records the handler's
+  Boolean result and absence of input mutation. Establishing that input type
+  remains a consumer obligation. No function or library name determines this
+  result. Source conditions, supporting hashes and explicit assumptions remain
+  attached to the fact. An explicitly injected analysis adapter supplies the
+  execution-binding checks; this reader never imports the flow adapter, and
+  absence of that provider yields no protocol proof.
+
+These private readers use explicit filesystem import roots, capture fresh source
+versions and never import target code. Cycles, competing declarations, dynamic
+namespace writes, unsupported effects and exhausted budgets yield no proof.
+Dependency lookup does not automatically enlarge `FlowAnalyzer`'s explicit
+source set, nor does a standalone helper fact authorize constructor selection.
+By default, the bounded class-creation call graph consumes this protocol only
+when its complete supporting source set is already selected. The explicit
+`FlowAnalyzer(..., support_source_protocols=True)` option permits independently
+audited dependency protocol sources from the supplied import roots. Their
+versions appear separately in `inputs.supporting_source_sha256`; they never
+enter `source_files`, the primary `sha256` map, ownership or the flow naming
+scope. Analysis and expansion reread these versions; a change requires a new
+analysis. Ambient primary files have a separate finite module limit from the
+dependency binding reader, while both share the syntax budget. The protocol
+namespace guard follows both function and relevant module aliases, and rejects
+an exposed module that could replace its helper. It independently requires
+ordinary native class creation, ancestor decorator identity, stable helper
+lookup and the actual implicit classmethod receiver. Reached native queries
+are recorded under `native_type_queries`, with their source call sites,
+Boolean results, primitive-binding evidence and helper protocol facts. Only a
+proved Boolean result may remove an unreachable branch from this effect-only
+analysis. All helper assumptions propagate to the hook and constructor facts.
+This neither executes the helper nor preserves future method bodies.
+
+Class escape scanning distinguishes a lambda's global name lookup from a
+retained closure cell. A future call through a global class name does not by
+itself store that class in the lambda object. Real captured class values,
+defaults, returned classes, future call arguments and future namespace writes
+remain separate escape/write evidence. Lambda parameter shadowing is retained
+when inspecting those future operations.
+
+A metadata helper's member binding may carry `private_query_results` when an
+outer expression uses the data returned by `Helper(class_input).query()`.
+The checked private receiver lifetime, observer body and frame/GC guard project
+out only the helper class used as a constructor callee. Constructor arguments,
+separate class arguments, retained instances and all source writes remain
+subject to escape checks. This query-local projection does not replace the
+shared escape cache. Its source spans, conditional observer template and
+observation assumptions remain attached to the member binding. In particular,
+it does not discharge the input class's native metadata preconditions or prove
+an actual class-creation invocation of that observer query.
+
+Function summaries may additionally expose `source_wrapper_forwarding` for a
+bounded literal decorator factory. This retains the native wrapper construction
+fact and its `forwarding` obligation: the original source function, the same
+`args`/`kwargs`, a source forwarding call and an optional maximum positional
+count. The count includes an actual implicit receiver. Paths above the maximum
+remain unmodeled; the wrapper's `__signature__` is metadata, not its execution
+signature. `identity_status=replaced` and `body_binding_status=unmodeled` remain
+unchanged. A call may retain its nominal original target with an
+`identity_decorator_effects_unmodeled` boundary. Consumers must independently
+discharge the invocation condition before interpreting that original body.
 
 Optional `AnalysisLimits` apply to `FlowAnalyzer.analyze()`:
 

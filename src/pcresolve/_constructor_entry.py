@@ -7,9 +7,14 @@ from dataclasses import asdict
 from .effect_facts import contains_yield
 from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
-from ._class_definition import namespace_issues, _source_function_decoration
+from ._class_definition import (namespace_issues, _source_function_decoration,
+                                _matplotlib_docstring_identity,
+                                matplotlib_docstring_keyword_only_chain)
+from ._function_factory import factory_wrapper
 from ._constructor_retention import retained_stores
 from ._class_decoration import constructor_decorations
+from ._class_creation import creation_effects
+from ._fresh_receiver import allocation_origin
 
 
 def _overload_declaration(analyzer, owner, cls, member):
@@ -105,20 +110,53 @@ def binding(analyzer, class_target, target):
             decorations.append(fact)
             definition_paths.update(fact['source_hashes'])
             definition_assumptions.update(fact['assumptions'])
-        if owner != class_ref and any('__init_subclass__' in
-                statement_scope_facts([member]).bound for member in base.body):
-            issue('constructor_class_creation_hook')
+    hooks = creation_effects(analyzer, class_target) if checked else None
+    if hooks is None:
+        issue('constructor_class_creation_hook')
+    for fact in hooks or []:
+        definition_paths.update(fact['source_hashes'])
+        definition_assumptions.update(fact['assumptions'])
     parameters = method.args.posonlyargs + method.args.args
     if not parameters:
         issue('implicit_receiver_parameter_missing')
     if not isinstance(method, ast.FunctionDef) or contains_yield(method):
         issue('constructor_entry_deferred')
+    constructor_wrapper_forwarding = None
     if phase == '__new__':
         if method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod':
             issue('constructor_new_descriptor_unconfirmed')
     elif phase == '__init__':
-        preserved = not method.decorator_list or _source_function_decoration(
-            analyzer, target, definition_paths, definition_assumptions)
+        identity_preserved = _matplotlib_docstring_identity(
+            analyzer, class_ref, method, definition_paths, definition_assumptions)
+        preserved = (not method.decorator_list or identity_preserved
+            or _source_function_decoration(
+                analyzer, target, definition_paths, definition_assumptions))
+        wrapper_forwarding = None
+        if not preserved and len(method.decorator_list) == 1:
+            wrapper = factory_wrapper(analyzer, target)
+            forwarding = wrapper.get('forwarding') if wrapper else None
+            if (forwarding is not None
+                    and forwarding.get('forwarded_function') == asdict(ref)
+                    and forwarding.get('argument_scope') == 'same_args_and_kwargs'
+                    and forwarding.get('normal_return_paths') ==
+                    'all_explicit_returns_forward_original_args_kwargs'):
+                preserved = True
+                wrapper_forwarding = wrapper
+                definition_paths.update(wrapper.get('source_hashes', {}))
+                definition_assumptions.update(wrapper.get('assumptions', ()))
+        elif not preserved and len(method.decorator_list) == 2:
+            wrapper = matplotlib_docstring_keyword_only_chain(
+                analyzer, class_ref, target, definition_paths, definition_assumptions)
+            forwarding = wrapper.get('forwarding') if wrapper else None
+            if (forwarding is not None
+                    and forwarding.get('forwarded_function') == asdict(ref)
+                    and forwarding.get('argument_scope') == 'same_args_and_kwargs'
+                    and forwarding.get('normal_return_paths') ==
+                    'all_explicit_returns_forward_original_args_kwargs'):
+                preserved = True
+                wrapper_forwarding = wrapper
+        if wrapper_forwarding is not None:
+            constructor_wrapper_forwarding = wrapper_forwarding
         if not preserved or not analyzer._ordinary_construction(
                 class_ref, allow_bounded_decorations=True):
             issue('constructor_initialization_unconfirmed')
@@ -157,5 +195,12 @@ def binding(analyzer, class_target, target):
         'issues': issues}
     if decorations:
         result['class_decorations'] = decorations
+    if constructor_wrapper_forwarding is not None:
+        result['constructor_wrapper_forwarding'] = constructor_wrapper_forwarding
+    if hooks:
+        result['class_creation_hooks'] = hooks
     result['retained_instance_attribute_stores'] = retained_stores(analyzer, checked, target, result)
+    fresh = allocation_origin(analyzer, checked, target, result)
+    if fresh is not None:
+        result['fresh_receiver_origin'] = fresh
     return result

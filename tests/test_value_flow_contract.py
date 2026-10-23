@@ -106,6 +106,15 @@ def test_expand_snapshot_matches_fresh_analysis(project):
     assert shallow.to_dict() == saved
 
 
+def test_expand_preserves_class_effect_analysis_budget(project):
+    analyzer = FlowAnalyzer(project_root=project)
+    shallow = analyzer.analyze(selector(), max_class_effect_steps=6000)
+
+    assert shallow.inputs['max_class_effect_steps'] == 6000
+    analyzer.expand(shallow, shallow.calls[0].id)
+    assert analyzer._class_effect_fact_steps > 2000
+
+
 def test_changed_trusted_contract_invalidates_expand(project):
     analyzer = FlowAnalyzer(project_root=project)
     result = analyzer.analyze(selector())
