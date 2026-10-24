@@ -170,6 +170,101 @@ class Fancy(Patch):
     assert update.instance_method_bindings[0]['origin']['path'] == [super_call.id]
 
 
+def test_fresh_receiver_crosses_matplotlib_docstring_keyword_only_super_chain(tmp_path):
+    package = tmp_path / 'matplotlib'
+    api = package / '_api'
+    api.mkdir(parents=True)
+    (package / '__init__.py').write_text('', encoding='utf-8')
+    (package / '_docstring.py').write_text('''import inspect
+class Substitution:
+    def __call__(self, func):
+        if func.__doc__:
+            func.__doc__ = inspect.cleandoc(func.__doc__) % self.params
+        return func
+class _ArtistPropertiesSubstitution(Substitution):
+    def __call__(self, obj):
+        super().__call__(obj)
+        if isinstance(obj, type) and obj.__init__ != object.__init__:
+            self(obj.__init__)
+        return obj
+dedent_interpd = interpd = _ArtistPropertiesSubstitution()
+''', encoding='utf-8')
+    (api / '__init__.py').write_text(
+        'from .deprecation import make_keyword_only\n', encoding='utf-8')
+    (api / 'deprecation.py').write_text('''import functools
+import inspect
+DECORATORS = {}
+def warn_deprecated(*args, **kwargs): pass
+def make_keyword_only(since, name, func=None):
+    decorator = functools.partial(make_keyword_only, since, name)
+    if func is None:
+        return decorator
+    signature = inspect.signature(func)
+    POK = inspect.Parameter.POSITIONAL_OR_KEYWORD
+    KWO = inspect.Parameter.KEYWORD_ONLY
+    assert name in signature.parameters and signature.parameters[name].kind == POK
+    names = [*signature.parameters]
+    name_idx = names.index(name)
+    kwonly = [name for name in names[name_idx:]
+              if signature.parameters[name].kind == POK]
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if len(args) > name_idx:
+            warn_deprecated(since, name=name)
+        return func(*args, **kwargs)
+    wrapper.__signature__ = signature.replace(parameters=[
+        param.replace(kind=KWO) if param.name in kwonly else param
+        for param in signature.parameters.values()])
+    DECORATORS[wrapper] = decorator
+    return wrapper
+''', encoding='utf-8')
+    (package / '_enums.py').write_text('''from enum import Enum, auto
+class _AutoStringNameEnum(Enum): pass
+class JoinStyle(str, _AutoStringNameEnum):
+    round = auto()
+class CapStyle(str, _AutoStringNameEnum):
+    round = auto()
+''', encoding='utf-8')
+    (package / 'patches.py').write_text('''from . import _api, _docstring
+from ._enums import JoinStyle, CapStyle
+class Artist:
+    def update(self, props):
+        for key, value in props.items():
+            setter = getattr(self, f'set_{key}', None)
+            if not callable(setter):
+                raise AttributeError(key)
+            setter(value)
+    def set_allowed(self, value): pass
+class Patch(Artist):
+    @_api.make_keyword_only("3.6", name="edgecolor")
+    def __init__(self, edgecolor=None, **kwargs):
+        self.update(kwargs)
+class Fancy(Patch):
+    @_docstring.dedent_interpd
+    @_api.make_keyword_only("3.6", name="path")
+    def __init__(self, path=None, **kwargs):
+        kwargs.setdefault("joinstyle", JoinStyle.round)
+        kwargs.setdefault("capstyle", CapStyle.round)
+        super().__init__(**kwargs)
+''', encoding='utf-8')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    result = analyzer.analyze(FunctionRef('matplotlib.patches', 'Fancy'), max_depth=3)
+    assert result is not None
+    super_calls = result.find_calls(callee_name='super().__init__')
+    assert super_calls, (result.inputs.get('entry_binding'), result.functions)
+    super_call = super_calls[0]
+    assert len(super_call.instance_method_bindings) == 1
+    assert super_call.instance_method_bindings[0]['kind'] == 'fresh_source_super_method'
+    update = result.find_calls(callee_name='self.update')[0]
+    assert update.instance_method_bindings[0]['status'] == 'source_bound'
+    summaries = [item for item in result.functions
+                 if item['function']['qualname'] == 'Artist.update']
+    assert len(summaries) == 1
+    checks = summaries[0].get('fresh_mapping_member_checks', [])
+    assert len(checks) == 1
+    assert 'set_allowed' in checks[0]['member_names']
+
+
 def test_fresh_receiver_origin_flows_through_nested_instance_methods(tmp_path):
     source = '''class Base:
     def __init__(self, **kwargs):

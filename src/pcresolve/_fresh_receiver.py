@@ -235,35 +235,60 @@ def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
 
 
 def _source_enum_auto_member(analyzer, owner, expression):
-    """Prove an imported enum member declared with stdlib ``auto()``."""
+    """Prove an imported source enum member declared with stdlib ``auto()``."""
     if not isinstance(expression, ast.Attribute) or not isinstance(expression.value, ast.Name):
         return False
     alias = expression.value.id
     imported = analyzer.imports.get(owner.module, {}).get(alias)
-    if (not imported or not analyzer._stable_import_name(owner.module + '.' + alias)
-            or analyzer.imports.get(owner.module, {}).get('auto') != 'enum.auto'
-            or not analyzer._stable_import_name(owner.module + '.auto')):
+    if not imported or not analyzer._stable_import_name(owner.module + '.' + alias):
         return False
     target = analyzer._resolve_class(owner, alias)
     if target is None or target[0].module + '.' + target[0].qualname != imported:
         return False
     ref, cls = target
-    hierarchy = analyzer._class_mro(ref.module, ref.qualname)
-    if (not hierarchy or len(hierarchy) > 64 or cls.decorator_list or cls.keywords
-            or analyzer.definition_conditions.get(ref)):
+    if (analyzer.imports.get(ref.module, {}).get('Enum') != 'enum.Enum'
+            or analyzer.imports.get(ref.module, {}).get('auto') != 'enum.auto'
+            or not analyzer._stable_import_name(ref.module + '.Enum')
+            or not analyzer._stable_import_name(ref.module + '.auto')):
         return False
-    enum_base = False
-    for base_ref, base_class in hierarchy:
+
+    # The ordinary MRO resolver intentionally stops at unavailable stdlib
+    # source. Walk only the source-declared bases here and accept Enum as the
+    # single trusted external endpoint; all other unresolved bases stay open.
+    pending, visited, enum_base = [(ref, cls)], set(), False
+    while pending:
+        base_ref, base_class = pending.pop()
+        key = (base_ref.module, base_ref.qualname, base_ref.file_path)
+        if key in visited or len(visited) >= 32:
+            return False
+        visited.add(key)
         if (base_class.decorator_list or base_class.keywords
                 or analyzer.definition_conditions.get(base_ref)
-                or {'__getattribute__', '__getattr__', '__bases__', '__class__'}
-                    & statement_scope_facts(base_class.body).bound):
+                or {'__getattribute__', '__getattr__', '__setattr__', '__delattr__',
+                    '__bases__', '__class__'} & statement_scope_facts(base_class.body).bound):
             return False
         for base in base_class.bases:
-            if (isinstance(base, ast.Name) and base.id == 'Enum'
-                    and analyzer.imports.get(base_ref.module, {}).get('Enum') == 'enum.Enum'
-                    and analyzer._stable_import_name(base_ref.module + '.Enum')):
+            if not isinstance(base, ast.Name):
+                return False
+            canonical = analyzer.imports.get(base_ref.module, {}).get(base.id)
+            if (canonical == 'enum.Enum'
+                    and analyzer._stable_import_name(base_ref.module + '.' + base.id)):
                 enum_base = True
+                continue
+            if (base.id in ('str', 'object')
+                    and analyzer._builtin_name_status(base_ref, base_class, base.id)
+                        == 'confirmed_builtin'):
+                continue
+            inherited = analyzer._resolve_class(base_ref, base.id)
+            if inherited is None:
+                return False
+            matches = analyzer._definition_index.find(
+                inherited[0].module, inherited[0].qualname, kind='class')
+            if len(matches) != 1 or matches[0][1] is not inherited[1]:
+                return False
+            pending.append(inherited)
+    if not enum_base:
+        return False
     members = [statement for statement in cls.body
                if expression.attr in statement_scope_facts([statement]).bound]
     if (not enum_base or len(members) != 1 or not isinstance(members[0], ast.Assign)
@@ -277,7 +302,8 @@ def _source_enum_auto_member(analyzer, owner, expression):
         return False
     writes, truncated = analyzer._class_binding_writes()
     return not truncated and not any(
-        written == ref and (attribute in (expression.attr, '*', '__class__', '__bases__'))
+        (written.module, written.qualname, written.file_path) in visited
+        and attribute in (expression.attr, '*', '__class__', '__bases__')
         for written, attribute, _, _, _ in writes)
 
 
@@ -323,11 +349,19 @@ def _bounded_capture_setdefault(summary, node):
     effect = effects[0]
     mapping = effect.get('mapping')
     evidence = effect.get('evidence')
+    try:
+        evidenced_node = (ast.parse(evidence.get('source_text', ''), mode='eval').body
+                          if isinstance(evidence, dict) else None)
+    except (SyntaxError, ValueError, TypeError):
+        evidenced_node = None
+    same_expression = (isinstance(evidenced_node, ast.Call)
+        and ast.dump(evidenced_node, include_attributes=False)
+        == ast.dump(node, include_attributes=False))
     exact_evidence = (isinstance(evidence, dict)
         and evidence.get('file_path') == summary.ref.file_path
         and (evidence.get('lineno'), evidence.get('col_offset'),
              evidence.get('end_lineno'), evidence.get('end_col_offset')) == location
-        and evidence.get('source_text') == ast.unparse(node))
+        and same_expression)
     receiver = [value for value in call.receiver_sources
                 if value.get('kind') == 'parameter' and value.get('source') == capture.arg]
     return (effect.get('kind') == 'mapping_element'
@@ -765,6 +799,18 @@ def super_method_binding(summary, node, target, receiver):
     wrapper = None
     if target[1].decorator_list:
         wrapper = factory_wrapper(analyzer, target)
+        if wrapper is None:
+            # Patch.__init__ in Matplotlib is wrapped first by its keyword-only
+            # forwarding decorator and then by the identity-preserving docstring
+            # decorator.  Constructor entry analysis already proves this exact
+            # chain; reuse that source-bound premise when carrying a fresh
+            # receiver through the corresponding super call.
+            from ._class_definition import matplotlib_docstring_keyword_only_chain
+            target_owner = next((owner for owner, _ in hierarchy
+                if expected[0].qualname == owner.qualname + '.__init__'), None)
+            if target_owner is not None:
+                wrapper = matplotlib_docstring_keyword_only_chain(
+                    analyzer, target_owner, expected, dependencies=set(), assumptions=set())
         forwarding = wrapper.get('forwarding') if wrapper else None
         if (forwarding is None or forwarding.get('forwarded_function') != asdict(target[0])
                 or forwarding.get('argument_scope') != 'same_args_and_kwargs'

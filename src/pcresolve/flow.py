@@ -4737,8 +4737,12 @@ class _Summary:
                             and isinstance(node.func.value, ast.Constant) and isinstance(node.func.value.value, str)
                             and node.func.attr == 'join' and len(node.args) == 1 and not node.keywords
                             and not isinstance(node.args[0], ast.Starred))
-            if target and bound_receiver and dispatch_kind in (
-                    'super_method',):
+            if target and dispatch_kind == 'super_method':
+                # The dedicated proof revalidates the exact builtin super()
+                # receiver, MRO target and fresh-origin lineage itself. Do not
+                # gate that proof on the generic receiver-binding flag: other
+                # uncertainty in argument expansion can clear that flag even
+                # when the super lookup remains statically exact.
                 fresh = fresh_super_method_binding(self, node, target, receiver_values)
                 if fresh is not None:
                     call.instance_method_bindings = [fresh]
