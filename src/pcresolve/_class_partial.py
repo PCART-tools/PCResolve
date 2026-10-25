@@ -10,6 +10,7 @@ from .import_facts import import_facts
 from .class_attribute_effects import _ClassEffectLimit
 from ._property_namespace import _stable_builtin_namespace
 from .effect_facts import contains_yield
+from .syntax_facts import SyntaxLimit
 
 
 def _span(ref, node):
@@ -79,24 +80,35 @@ def _namespace(analyzer, protected=('partial',)):
     stable, count = 'functools' not in analyzer.module_bodies, 0
     for module, bodies in analyzer.module_bodies.items():
         for _, body in bodies:
-            nodes, parents, aliases = [], {}, {}
-            for statement in body:
-                for node in ast.walk(statement):
-                    count += 1
-                    if count > 1000000:
-                        cache[key] = False
-                        analyzer._partial_class_namespace_premise = cache
-                        return False
-                    if analyzer._analysis_budget is not None:
+            try:
+                syntax = analyzer._syntax_facts(body, 1000000 - count)
+            except SyntaxLimit:
+                cache[key] = False
+                analyzer._partial_class_namespace_premise = cache
+                return False
+            aliases = {}
+            if syntax is None:
+                nodes, parents, imports = [], {}, []
+                for statement in body:
+                    for node in ast.walk(statement):
+                        count += 1
+                        if count > 1000000:
+                            cache[key] = False
+                            analyzer._partial_class_namespace_premise = cache
+                            return False
                         analyzer._analysis_budget.checkpoint()
-                    nodes.append(node)
-                    parents.update((child, node) for child in ast.iter_child_nodes(node))
-                    for fact in import_facts(node):
-                        if fact.kind == 'import' and fact.name == 'functools':
-                            aliases[fact.python_binding] = 'functools'
-                        elif fact.kind == 'from' and fact.module == 'functools' and not fact.level:
-                            if fact.name in protected or fact.name == '*':
-                                aliases[fact.python_binding] = 'functools.' + fact.name
+                        nodes.append(node)
+                        parents.update((child, node) for child in ast.iter_child_nodes(node))
+                        imports.extend(import_facts(node))
+            else:
+                nodes, parents, imports = syntax.nodes, syntax.parents, syntax.imports
+                count += len(nodes)
+            for fact in imports:
+                if fact.kind == 'import' and fact.name == 'functools':
+                    aliases[fact.python_binding] = 'functools'
+                elif fact.kind == 'from' and fact.module == 'functools' and not fact.level:
+                    if fact.name in protected or fact.name == '*':
+                        aliases[fact.python_binding] = 'functools.' + fact.name
             for name in aliases:
                 if not analyzer._stable_import_name(module + '.' + name):
                     stable = False

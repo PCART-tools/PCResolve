@@ -9,6 +9,7 @@ from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 from .import_facts import import_facts
 from ._class_identity import identity_decorations
+from .syntax_facts import SyntaxLimit
 
 
 def _local_import_class(analyzer, ref, scope, head, rest):
@@ -49,16 +50,21 @@ def _namespace(analyzer, ref):
     inspected = 0
     for bodies in analyzer.module_bodies.values():
         for _, body in bodies:
-            for statement in body:
-                parents = {}
-                for node in ast.walk(statement):
+            try:
+                syntax = analyzer._syntax_facts(body, 1000000 - inspected)
+            except SyntaxLimit:
+                return False
+            for statement in body if syntax is None else (None,):
+                parents = {} if syntax is None else syntax.parents
+                for node in ast.walk(statement) if syntax is None else syntax.nodes:
                     inspected += 1
                     if inspected > 1000000:
                         return False
                     if analyzer._analysis_budget is not None:
                         analyzer._analysis_budget.checkpoint()
-                    for child in ast.iter_child_nodes(node):
-                        parents[child] = node
+                    if syntax is None:
+                        for child in ast.iter_child_nodes(node):
+                            parents[child] = node
                     # A module or saved builtin function grants a route to the
                     # builtin namespace. This narrower proof does not authorize
                     # reflection through such capabilities.

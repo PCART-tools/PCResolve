@@ -47,3 +47,34 @@ def test_relevant_work_still_exhausts_the_explicit_budget(tmp_path, monkeypatch)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     analyzer._index()
     assert analyzer._class_binding_writes(include_escapes=True)[1]
+
+
+def test_class_binding_reuses_flow_scope_facts_across_scans(tmp_path, monkeypatch):
+    project(tmp_path, 'callback = lambda value: Entry\n')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    analyzer._index()
+    original = flow.function_scope_facts
+    calls = {}
+
+    def counted(node, policy=flow.FLOW_SCOPE):
+        key = (node, policy)
+        calls[key] = calls.get(key, 0) + 1
+        return original(node, policy)
+
+    monkeypatch.setattr(flow, 'function_scope_facts', counted)
+    writes = analyzer._class_binding_writes()
+    escaped_writes = analyzer._class_binding_writes(include_escapes=True)
+
+    assert writes[1] is False
+    assert escaped_writes[1] is False
+    assert calls
+    assert max(calls.values()) == 1
+
+    (tmp_path / 'entry.py').write_text('''class Entry:
+    def __init__(self, **kwargs):
+        changed = kwargs.pop('current', 0)
+''', encoding='utf-8')
+    analyzer._index()
+    assert not analyzer._scope_fact_cache
+    refreshed = analyzer._definition_index.find('entry', 'Entry.__init__')[0][1]
+    assert 'changed' in analyzer._scope_facts(refreshed).bound

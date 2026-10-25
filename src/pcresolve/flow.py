@@ -7,6 +7,7 @@ import copy
 import os
 from dataclasses import dataclass, field, asdict, replace
 from .analysis_limits import AnalysisBudget
+from . import syntax_facts
 
 from .scanner import FileScanner
 from .program_facts import SourceSpan, FunctionSignature, bind_ast_call
@@ -372,7 +373,7 @@ class FlowAnalyzer:
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
         source_fact_cache_names = (
-            '_scope_fact_cache', '_class_binding_write_cache',
+            '_scope_fact_cache', '_syntax_fact_cache', '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
             '_class_creation_cache', '_native_class_protocol_cache',
             '_builtin_scope_cache', '_builtin_module_cache',
@@ -393,6 +394,7 @@ class FlowAnalyzer:
         previous_source_facts = ({name: getattr(self, name) for name in source_fact_cache_names
                                   if hasattr(self, name)} if preserve_source_facts else {})
         self._scope_fact_cache = {}
+        self._syntax_fact_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
         self._context_summaries = {}
@@ -813,6 +815,22 @@ class FlowAnalyzer:
                 return parts[length - 1]
         return ''
 
+    ## Reuse statement-ordered syntax only within this immutable source generation.
+    #  @param body Ordered statements, never a synthetic or modified source body.
+    #  @param limit Remaining caller-specific node allowance.
+    #  @return Complete structure, or None to retain budgeted per-node traversal.
+    def _syntax_facts(self, body, limit):
+        if self._analysis_budget is not None:
+            return None
+        key = tuple(body)
+        facts = self._syntax_fact_cache.get(key)
+        if facts is None:
+            facts = syntax_facts.body_syntax(key, limit)
+            self._syntax_fact_cache[key] = facts
+        elif len(facts.nodes) > limit:
+            raise syntax_facts.SyntaxLimit()
+        return facts
+
     ## Read immutable lexical facts once per AST definition in this source generation.
     #  @param node Function or lambda definition.
     #  @return Flow-compatible lexical facts.
@@ -860,9 +878,17 @@ class FlowAnalyzer:
         facts = self._builtin_scope_cache.get(node)
         if facts is None:
             body = [node.body] if isinstance(node, ast.Lambda) else node.body
-            statements = self._builtin_statement_facts(body)
-            facts = statements if isinstance(node, ast.ClassDef) else function_scope_facts(node, _BUILTIN_SCOPE)
-            facts = replace(facts, bound=facts.bound | statements.bound)
+            facts = self._builtin_statement_facts(body)
+            # The statement collector already supplies this policy's body
+            # facts and definition-evaluation bindings. Only root parameters
+            # distinguish the function collector; do not walk its body twice.
+            if not isinstance(node, ast.ClassDef) and _BUILTIN_SCOPE.include_parameters:
+                args = node.args
+                parameters = {arg.arg for arg in args.posonlyargs + args.args + args.kwonlyargs}
+                parameters.update(arg.arg for arg in (args.vararg, args.kwarg) if arg)
+                if _BUILTIN_SCOPE.exclude_outer_declarations:
+                    parameters.difference_update(facts.globals | facts.nonlocals)
+                facts = replace(facts, bound=facts.bound | parameters)
             self._builtin_scope_cache[node] = facts
         return facts
 
@@ -1226,7 +1252,7 @@ class FlowAnalyzer:
                 if isinstance(child, ast.Lambda):
                     defaults = child.args.defaults + [v for v in child.args.kw_defaults if v is not None]
                     pending.extend((value, names, captures, projection) for value in defaults)
-                    bound = function_scope_facts(child, FLOW_SCOPE).bound
+                    bound = self._scope_facts(child).bound
                     local = dict(names)
                     local.update({name: None for name in bound})
                     retained = {name: refs for name, refs in captures.items() if name not in bound}
@@ -1278,7 +1304,7 @@ class FlowAnalyzer:
                 return
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
                 local = dict(aliases)
-                bound = function_scope_facts(node, FLOW_SCOPE).bound
+                bound = self._scope_facts(node).bound
                 local.update({name: None for name in bound})
                 retained = {name: refs for name, refs in held.items() if name not in bound}
                 args = node.args

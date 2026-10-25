@@ -8,6 +8,7 @@ from dataclasses import replace
 from .class_attribute_effects import _ClassEffectLimit
 from .import_facts import import_facts
 from .scope_facts import statement_scope_facts
+from .syntax_facts import SyntaxLimit
 
 _PROPERTY_NAMESPACE_NODE_LIMIT = 1000000
 
@@ -72,18 +73,26 @@ def _stable_builtin_namespace(analyzer, owner, protected=('property',)):
     for module, bodies in analyzer.module_bodies.items():
         for path, body in bodies:
             paths.add(path)
-            nodes, parents = [], {}
-            for statement in body:
-                for node in ast.walk(statement):
-                    inspected += 1
-                    if inspected > _PROPERTY_NAMESPACE_NODE_LIMIT:
-                        raise _ClassEffectLimit()
-                    if analyzer._analysis_budget is not None:
+            try:
+                syntax = analyzer._syntax_facts(body, _PROPERTY_NAMESPACE_NODE_LIMIT - inspected)
+            except SyntaxLimit:
+                raise _ClassEffectLimit()
+            if syntax is None:
+                nodes, parents, imports = [], {}, []
+                for statement in body:
+                    for node in ast.walk(statement):
+                        inspected += 1
+                        if inspected > _PROPERTY_NAMESPACE_NODE_LIMIT:
+                            raise _ClassEffectLimit()
                         analyzer._analysis_budget.checkpoint()
-                    nodes.append(node)
-                    for child in ast.iter_child_nodes(node):
-                        parents[child] = node
-            aliases = {fact.python_binding for node in nodes for fact in import_facts(node)
+                        nodes.append(node)
+                        for child in ast.iter_child_nodes(node):
+                            parents[child] = node
+                        imports.extend(import_facts(node))
+            else:
+                nodes, parents, imports = syntax.nodes, syntax.parents, syntax.imports
+                inspected += len(nodes)
+            aliases = {fact.python_binding for fact in imports
                        if fact.kind == 'import' and fact.name == 'builtins'}
             for node in nodes:
                 if (key != ('property',) and isinstance(node, ast.ImportFrom)
