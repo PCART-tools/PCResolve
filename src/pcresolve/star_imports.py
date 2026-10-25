@@ -24,6 +24,13 @@ class StarImportFacts:
 #  @param max_depth Maximum nested wildcard-import depth.
 #  @return Facts; open, conflicting or cyclic namespaces supply no aliases.
 def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
+    # Without a top-level wildcard import there can be no wildcard aliases.
+    # Avoid inspecting expression/function bodies merely to return empty facts.
+    if not any(isinstance(statement, ast.ImportFrom)
+               and any(alias.name == '*' for alias in statement.names)
+               for sources in module_bodies.values() if len(sources) == 1
+               for _, body in sources for statement in body):
+        return StarImportFacts({}, {})
     records = {}
     mutation_nodes = []
     remaining = max_nodes

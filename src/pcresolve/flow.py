@@ -331,9 +331,10 @@ class FlowAnalyzer:
     #  @param parameter_shapes Opt-in trusted parameter shape contracts.
     #  @param analysis_limits Optional cooperative resource limits for each analyze().
     #  @param support_source_protocols Opt in to separately versioned dependency protocol proofs.
+    #  @param source_store Optional run-local SourceStore; reads still refresh content.
     def __init__(self, source_files=None, import_roots=None, project_root=None,
                  return_summaries=None, parameter_shapes=None, analysis_limits=None,
-                 support_source_protocols=False):
+                 support_source_protocols=False, source_store=None):
         if type(support_source_protocols) is not bool:
             raise ValueError('support_source_protocols must be bool')
         self.support_source_protocols = support_source_protocols
@@ -342,7 +343,9 @@ class FlowAnalyzer:
         if (source_files is None) == (project_root is None):
             raise ValueError('Specify exactly one of source_files or project_root')
         self.files = set()
-        self._source_store = SourceStore()
+        if source_store is not None and not isinstance(source_store, SourceStore):
+            raise TypeError('source_store must be a SourceStore')
+        self._source_store = source_store if source_store is not None else SourceStore()
         self.return_summaries = copy.deepcopy(return_summaries or {})
         for contract in self.return_summaries.values():
             if not contract.get('provenance') or not isinstance(contract.get('parameters'), list):

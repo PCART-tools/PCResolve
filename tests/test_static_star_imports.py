@@ -5,6 +5,18 @@ import pytest
 from pcresolve import FlowAnalyzer, FunctionRef
 
 
+def test_no_top_level_wildcards_need_no_namespace_tree_scan(monkeypatch):
+    import ast
+    from pcresolve.star_imports import static_star_imports
+    tree = ast.parse('import dependency\ndef api():\n    return dependency.run()\n')
+    def unexpected(*args):
+        raise AssertionError('No wildcard binding can be introduced')
+    with monkeypatch.context() as context:
+        context.setattr(ast, 'walk', unexpected)
+        result = static_star_imports({'module': [('module.py', tree.body)]})
+    assert result.aliases == result.bindings == {}
+
+
 def package(tmp_path, public='from .impl import *\n', implementation=None):
     root = tmp_path / 'pkg'
     root.mkdir()

@@ -5,6 +5,7 @@
 import ast
 import hashlib
 import os
+import tokenize
 from dataclasses import dataclass
 from types import MappingProxyType
 from .source_syntax import parse_python_source
@@ -13,6 +14,7 @@ from .source_syntax import parse_python_source
 ## Decode policy retained by the existing public analysis adapters.
 @dataclass(frozen=True)
 class SourceReadPolicy:
+    ## Encoding name, or 'tokenize' for Python's declared source encoding.
     encoding: str
     legacy_keyword_attributes: bool = False
 
@@ -63,45 +65,66 @@ class SourceStore:
         paths = tuple(files)
         documents, next_cache = {}, {}
         for path in paths:
-            if budget is not None:
-                budget.checkpoint(force=True)
-            try:
-                with open(path, encoding=policy.encoding) as stream:
-                    text = stream.read()
-                if budget is not None:
-                    budget.checkpoint(force=True)
-            except (OSError, UnicodeError) as error:
-                documents[path] = SourceDocument(path, error=error.with_traceback(None),
-                                                 error_stage='read')
-                continue
-            cached = self._cache.get(path)
-            reusable = (self._cache_policies.get(path) == policy
-                        or cached is not None and cached.tree is not None
-                        and (not cached.syntax_features or policy.legacy_keyword_attributes))
-            if cached is not None and cached.text == text and reusable:
-                document = cached
-            else:
-                digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
-                try:
-                    # Keep the existing '<unknown>' parse filename in diagnostics.
-                    tree = ast.parse(text)
-                except SyntaxError as error:
-                    document = SourceDocument(path, text, digest,
-                                              error=error.with_traceback(None), error_stage='parse')
-                    if policy.legacy_keyword_attributes:
-                        try:
-                            tree = parse_python_source(text)
-                        except SyntaxError:
-                            pass
-                        else:
-                            document = SourceDocument(path, text, digest, tree,
-                                syntax_features=('legacy_keyword_attributes',))
-                else:
-                    document = SourceDocument(path, text, digest, tree)
-            documents[path] = next_cache[path] = document
+            document = self.read_document(path, policy, budget)
+            documents[path] = document
+            if document.error_stage != 'read':
+                next_cache[path] = document
         self._cache = next_cache
         self._cache_policies = {path: policy for path in next_cache}
         return SourceSnapshot(paths, MappingProxyType(documents), policy)
+
+    ## Read one document without changing the caller's selected source set.
+    #  @param path Absolute source path; consumers retain their own scope policy.
+    #  @param policy Explicit decoding and historical syntax compatibility policy.
+    #  @param budget Optional cooperative resource checks, including on cache hits.
+    #  @return SourceDocument refreshed by content, with a reusable read-only AST.
+    def read_document(self, path, policy, budget=None):
+        if budget is not None:
+            budget.checkpoint(force=True)
+        try:
+            reader = tokenize.open(path) if policy.encoding == 'tokenize' else open(
+                path, encoding=policy.encoding)
+            with reader as stream:
+                text = stream.read()
+            if budget is not None:
+                budget.checkpoint(force=True)
+        except (OSError, UnicodeError, SyntaxError) as error:
+            self._cache.pop(path, None)
+            self._cache_policies.pop(path, None)
+            return SourceDocument(path, error=error.with_traceback(None), error_stage='read')
+        cached = self._cache.get(path)
+        reusable = (self._cache_policies.get(path) == policy
+                    or cached is not None and cached.tree is not None
+                    and (not cached.syntax_features or policy.legacy_keyword_attributes))
+        if cached is not None and cached.text == text and reusable:
+            document = cached
+        else:
+            digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+            try:
+                # Keep the existing '<unknown>' parse filename in diagnostics.
+                tree = ast.parse(text)
+            except SyntaxError as error:
+                document = SourceDocument(path, text, digest,
+                                          error=error.with_traceback(None), error_stage='parse')
+                if policy.legacy_keyword_attributes:
+                    try:
+                        tree = parse_python_source(text)
+                    except SyntaxError:
+                        pass
+                    else:
+                        document = SourceDocument(path, text, digest, tree,
+                            syntax_features=('legacy_keyword_attributes',))
+            else:
+                document = SourceDocument(path, text, digest, tree)
+        # A stricter syntax consumer can reject this same source version while
+        # a historical-syntax consumer still owns a valid AST. Keep that AST's
+        # identity for later compatible reads; return the strict failure as-is.
+        if (document.error is not None and cached is not None
+                and cached.tree is not None and cached.text == text):
+            return document
+        self._cache[path] = document
+        self._cache_policies[path] = policy
+        return document
 
 
 ## Derive a module name without reading or importing the file.

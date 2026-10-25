@@ -388,6 +388,18 @@ Every analysis still reads current file contents and starts fresh query caches
 and budgets. Source or import-root changes rebuild the index; changing depth,
 budgets, or contracts always produces a new analysis snapshot.
 
+Consumers preparing source syntax before value-flow analysis may explicitly pass
+a run-local `pcresolve.source_snapshot.SourceStore` as `source_store=store` to
+`FlowAnalyzer`. `store.read_document(path, SourceReadPolicy(...))` reads one
+document without discovering or selecting additional analysis files. The
+`'tokenize'` encoding policy honors Python source encoding declarations; flow
+continues to read UTF-8-sig, and only compatible, unchanged decoded documents
+reuse their ASTs. Every read checks content, including when the AST is cached.
+ASTs are read-only by convention. The store contains no flow summaries, receiver
+state or compatibility conclusions, and sharing it never expands source scope
+or bypasses analysis budgets. Stores are local to a synchronous run, not a
+process-global or concurrent mutation API.
+
 To make additional files available in explicit-file mode:
 
 ```python
