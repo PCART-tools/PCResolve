@@ -2,12 +2,14 @@
 #  Finite export-list construction facts, not final module namespace bindings.
 
 import ast
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 
 from .import_facts import import_facts, resolve_relative_module
 from .scope_facts import statement_scope_facts
 from .source_snapshot import FLOW_SOURCE, SourceStore
+from .effect_facts import execution_nodes
 
 
 class _OpenExports(ValueError):
@@ -15,6 +17,97 @@ class _OpenExports(ValueError):
         super().__init__(reason)
         self.details = {'reason': reason, 'module': module,
                         'lineno': getattr(node, 'lineno', None)}
+
+
+def _import_execution_nodes(documents, charge):
+    """Return source nodes that may execute while captured modules initialize."""
+    functions, classes = {}, {}
+
+    def collect(module, body, prefix=''):
+        for statement in body:
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                name = '.'.join(part for part in (prefix, statement.name) if part)
+                functions.setdefault((module, name), []).append(statement)
+                collect(module, statement.body, name)
+            elif isinstance(statement, ast.ClassDef):
+                name = '.'.join(part for part in (prefix, statement.name) if part)
+                classes[(module, name)] = statement
+                collect(module, statement.body, name)
+            else:
+                for child in ast.iter_child_nodes(statement):
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        collect(module, [child], prefix)
+
+    for module, document in documents.items():
+        collect(module, document.tree.body)
+
+    def scope_imports(module, root):
+        aliases, stars = {}, []
+        package = documents[module].file_path.endswith('__init__.py')
+        for node in execution_nodes(root):
+            for fact in import_facts(node):
+                if fact.kind == 'import':
+                    target = fact.name if fact.asname else fact.python_binding
+                    aliases.setdefault(fact.python_binding, set()).add(target)
+                elif fact.wildcard:
+                    stars.append(resolve_relative_module(
+                        module, package, fact.module, fact.level))
+                else:
+                    base = resolve_relative_module(module, package, fact.module, fact.level)
+                    aliases.setdefault(fact.python_binding, set()).add(base + '.' + fact.name)
+        return aliases, stars
+
+    def targets(module, root, expression):
+        aliases, stars = scope_imports(module, root)
+        parts = []
+        while isinstance(expression, ast.Attribute):
+            parts.append(expression.attr)
+            expression = expression.value
+        if not isinstance(expression, ast.Name):
+            return ()
+        imported = aliases.get(expression.id)
+        names = ({'.'.join((base, *reversed(parts))) for base in imported}
+                 if imported else {'.'.join((module, expression.id, *reversed(parts)))})
+        result = []
+        for name in names:
+            owner, _, qualname = name.rpartition('.')
+            result.extend((target_module, node) for (target_module, target_name), nodes
+                          in functions.items() if target_module == owner and target_name == qualname
+                          for node in nodes)
+            if not parts:
+                result.extend((target_module, node) for (target_module, target_name), nodes
+                              in functions.items() if target_module in stars
+                              and target_name == expression.id
+                              and not expression.id.startswith('_') for node in nodes)
+            if name in classes:
+                klass = classes[name]
+                for method in ('__new__', '__init__', '__init_subclass__'):
+                    result.extend((target_module, node)
+                        for (target_module, target_name), nodes in functions.items()
+                        if target_module == owner and target_name == qualname + '.' + method
+                        for node in nodes)
+        return tuple(result)
+
+    pending = [(module, document.tree) for module, document in documents.items()]
+    executed, visited = set(), set()
+    while pending:
+        module, root = pending.pop()
+        if id(root) in visited:
+            continue
+        visited.add(id(root))
+        for node in execution_nodes(root):
+            charge()
+            executed.add(node)
+            if isinstance(node, ast.Call):
+                pending.extend(targets(module, root, node.func))
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                for decorator in node.decorator_list:
+                    callee = decorator.func if isinstance(decorator, ast.Call) else decorator
+                    pending.extend(targets(module, root, callee))
+                if isinstance(node, ast.ClassDef):
+                    for base in node.bases:
+                        pending.extend(targets(module, root, base))
+    return executed
 
 
 @dataclass(frozen=True)
@@ -145,6 +238,56 @@ class ExportListResolver:
             raise _OpenExports('runtime_export_rebinding')
         current, allowed = None, set()
 
+        def extension_helper(function):
+            if (not isinstance(function, ast.FunctionDef) or function.decorator_list
+                    or function.returns is not None or function.args.posonlyargs
+                    or len(function.args.args) != 1 or function.args.defaults
+                    or function.args.kwonlyargs or function.args.vararg or function.args.kwarg
+                    or function.args.args[0].annotation is not None
+                    or any(name in bindings or name in globals_written for name in ('set', 'getattr'))
+                    or len(bindings.get(function.name, ())) != 1):
+                return False
+            body = function.body
+            if len(body) != 3 or not all(isinstance(item, ast.Assign) for item in body[:2]):
+                return False
+            first, second, loop = body
+            if (len(first.targets) != 1 or not isinstance(first.targets[0], ast.Name)
+                    or len(second.targets) != 1 or not isinstance(second.targets[0], ast.Name)
+                    or not isinstance(loop, ast.For) or not isinstance(loop.target, ast.Name)):
+                return False
+            names = {function.args.args[0].arg: 'module_arg', first.targets[0].id: 'existing',
+                     second.targets[0].id: 'exports', loop.target.id: 'name'}
+            if len(names) != 4:
+                return False
+            class Rename(ast.NodeTransformer):
+                def visit_Name(self, node):
+                    node.id = names.get(node.id, node.id)
+                    return node
+            actual = Rename().visit(copy.deepcopy(ast.Module(body=body, type_ignores=[])))
+            expected = ast.parse("""existing = set(__all__)
+exports = getattr(module_arg, '__all__')
+for name in exports:
+    if name not in existing:
+        __all__.append(name)
+""")
+            if ast.dump(actual, include_attributes=False) != ast.dump(expected, include_attributes=False):
+                return False
+            # Every use must be a direct top-level call; a leaked helper could
+            # otherwise mutate the export list after construction.
+            parents = {child: node for node in ast.walk(document.tree)
+                       for child in ast.iter_child_nodes(node)}
+            for node in ast.walk(document.tree):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == function.name:
+                    call = parents.get(node)
+                    statement = parents.get(call)
+                    if not (isinstance(call, ast.Call) and call.func is node
+                            and isinstance(statement, ast.Expr) and statement in document.tree.body):
+                        return False
+            return True
+
+        helpers = {statement.name: statement for statement in document.tree.body
+                   if extension_helper(statement)}
+
         def evaluate(node):
             self.charge()
             if isinstance(node, (ast.List, ast.Tuple)) and all(
@@ -179,6 +322,30 @@ class ExportListResolver:
                 if current.kind == 'tuple' and added.kind != 'tuple':
                     raise _OpenExports('export_sequence_type_mismatch')
                 current, selected = self.bounded(current.kind, current.names + added.names), True
+            elif (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+                  and isinstance(statement.value.func, ast.Name)
+                  and statement.value.func.id in helpers):
+                call = statement.value
+                if (current is None or current.kind != 'list' or current.borrowed
+                        or len(call.args) != 1 or call.keywords
+                        or helpers[call.func.id].lineno >= statement.lineno):
+                    raise _OpenExports('export_helper_input_unproven', module, statement)
+                for prior in document.tree.body:
+                    if prior is statement:
+                        break
+                    for fact in import_facts(prior):
+                        if fact.wildcard:
+                            source = resolve_relative_module(module,
+                                document.file_path.endswith('__init__.py'), fact.module, fact.level)
+                            if {'set', 'getattr', '__all__', call.func.id} & set(self.exports(source).names):
+                                raise _OpenExports('export_helper_binding_unproven', module, prior)
+                imported = self.qualify(call.args[0], aliases, bindings, globals_written, module)
+                incoming = self.exports(imported)
+                old = set(current.names)
+                current = self.bounded('list', current.names + tuple(
+                    name for name in incoming.names if name not in old))
+                allowed.update(ast.walk(helpers[call.func.id]))
+                selected = True
             elif (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
                   and isinstance(statement.value.func, ast.Attribute)
                   and isinstance(statement.value.func.value, ast.Name)
@@ -259,6 +426,7 @@ class ExportListResolver:
         # A child may directly modify or expose its parent during its import.
         key = owner, tuple(sorted(self.documents))
         if key not in self.implicit_guards:
+            executed = _import_execution_nodes(self.documents, self.charge)
             for module, captured in list(self.documents.items()):
                 aliases, parents = {}, {}
                 for node in ast.walk(captured.tree):
@@ -287,6 +455,8 @@ class ExportListResolver:
 
                 for node in ast.walk(captured.tree):
                     self.charge()
+                    if node not in executed:
+                        continue
                     if (module == owner and isinstance(node, ast.Global)
                             and (names | import_state) & set(node.names)
                             or isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)

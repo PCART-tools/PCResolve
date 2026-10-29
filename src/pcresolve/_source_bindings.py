@@ -308,6 +308,8 @@ class SourceBindingResolver(ExportListResolver):
             return None
         paths = [{key: value for key, value in state.items() if key != 'value'}
                  for state in states if state['value'] is not None]
+        unbound_paths = [{key: value for key, value in state.items() if key != 'value'}
+                         for state in states if state['value'] is None]
         assumptions = {'source_snapshot_bindings_hold', 'standard_source_import_protocol',
             'standard_module_attribute_lookup', 'no_external_monkeypatch_or_import_hook',
             'no_unmodeled_indirect_module_mutation'}
@@ -321,7 +323,7 @@ class SourceBindingResolver(ExportListResolver):
             'completion': 'normal_module_return_and_attribute_lookup_only',
             'may_be_unbound': any(state['value'] is None for state in states),
             'runtime_target_confirmed': False, 'callable_identity_proven': False,
-            'body_binding_proven': False, 'paths': paths,
+            'body_binding_proven': False, 'paths': paths, 'unbound_paths': unbound_paths,
             'export_constructions': copy.deepcopy(self.export_facts),
             'source_hashes': hashes,
             'assumptions': sorted(assumptions)}

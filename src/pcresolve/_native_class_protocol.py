@@ -9,6 +9,7 @@ from ._runtime_namespace import unmodified
 from ._source_bindings import SourceBindingResolver
 from ._source_dependencies import register
 from ._source_protocols import SourceProtocolResolver
+from .scope_facts import statement_scope_facts
 
 
 def _public_helper_export(reader, module, name):
@@ -30,38 +31,73 @@ def _public_helper_export(reader, module, name):
                   for condition in path.get('conditions', ())]
     assumptions = set(binding['assumptions'])
     if binding.get('may_be_unbound'):
-        # NumPy's ordinary import branch is selected by a fresh module global
-        # initialized to False when it is absent. Other conditional exports
-        # remain open until their guards have an independent value proof.
-        if module != 'numpy' or name != 'iterable' or not conditions:
+        if not conditions:
             return None
-        module_path = next((path for path in binding['source_hashes']
-                            if path.endswith('numpy/__init__.py') or path.endswith('numpy\\__init__.py')),
-                           None)
-        document = next((item for item in binding_reader.documents.values()
-                         if item.file_path == module_path), None)
-        if document is None:
+        guards = []
+        defaults = []
+        for path in binding['source_hashes']:
+            document = next((item for item in binding_reader.documents.values()
+                             if item.file_path == path), None)
+            if document is None or document.tree is None:
+                continue
+            referenced_conditions = [
+                condition for condition in conditions
+                if condition.get('branch') == 'else'
+                and condition.get('evidence', {}).get('file_path') == path]
+            for condition in referenced_conditions:
+                line = condition.get('evidence', {}).get('lineno')
+                guards.extend((path, node) for node in ast.walk(document.tree)
+                    if isinstance(node, ast.If) and node.lineno == line
+                    and isinstance(node.test, ast.Name))
+            for node in document.tree.body:
+                if (isinstance(node, ast.Try) and len(node.body) == 1
+                        and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Name)
+                        and len(node.handlers) == 1
+                        and isinstance(node.handlers[0].type, ast.Name)
+                        and node.handlers[0].type.id == 'NameError'
+                        and node.handlers[0].name is None and len(node.handlers[0].body) == 1
+                        and isinstance(node.handlers[0].body[0], ast.Assign)
+                        and len(node.handlers[0].body[0].targets) == 1
+                        and isinstance(node.handlers[0].body[0].targets[0], ast.Name)
+                        and node.handlers[0].body[0].targets[0].id
+                        == node.body[0].value.id
+                        and isinstance(node.handlers[0].body[0].value, ast.Constant)
+                        and node.handlers[0].body[0].value.value is False
+                        and not node.orelse and not node.finalbody):
+                    defaults.append((path, node.body[0].value.id, node))
+        if len(guards) != 1:
             return None
-        guards = [node for node in ast.walk(document.tree) if isinstance(node, ast.If)
-                  and isinstance(node.test, ast.Name) and node.test.id == '__NUMPY_SETUP__'
-                  and any(condition.get('branch') == 'else'
-                          and condition.get('evidence', {}).get('lineno') == node.test.lineno
-                          for condition in conditions)]
-        setup_defaults = [node for node in document.tree.body if isinstance(node, ast.Try)
-            and len(node.body) == 1 and isinstance(node.body[0], ast.Expr)
-            and isinstance(node.body[0].value, ast.Name)
-            and node.body[0].value.id == '__NUMPY_SETUP__' and len(node.handlers) == 1
-            and isinstance(node.handlers[0].type, ast.Name)
-            and node.handlers[0].type.id == 'NameError' and node.handlers[0].name is None
-            and len(node.handlers[0].body) == 1
-            and isinstance(node.handlers[0].body[0], ast.Assign)
-            and len(node.handlers[0].body[0].targets) == 1
-            and isinstance(node.handlers[0].body[0].targets[0], ast.Name)
-            and node.handlers[0].body[0].targets[0].id == '__NUMPY_SETUP__'
-            and isinstance(node.handlers[0].body[0].value, ast.Constant)
-            and node.handlers[0].body[0].value.value is False
-            and not node.orelse and not node.finalbody]
-        if len(guards) != 1 or len(setup_defaults) != 1:
+        guard_path, guard = guards[0]
+        guard_name = guard.test.id
+        matching_defaults = [node for path, name, node in defaults
+                             if path == guard_path and name == guard_name]
+        document = next(item for item in binding_reader.documents.values()
+                        if item.file_path == guard_path)
+        if len(matching_defaults) != 1:
+            return None
+        default = matching_defaults[0]
+        prefix = document.tree.body[:document.tree.body.index(default)] if default in document.tree.body else ()
+        if (default not in document.tree.body or guard not in document.tree.body
+                or document.tree.body.index(default) + 1 != document.tree.body.index(guard)
+                or any(guard_name in statement_scope_facts([statement]).bound
+                    for statement in document.tree.body if statement is not default)
+                or any('NameError' in statement_scope_facts([statement]).bound for statement in prefix)
+                or any(not (isinstance(statement, ast.Import)
+                    or isinstance(statement, ast.ImportFrom)
+                        and all(alias.name != '*' for alias in statement.names)
+                    or isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant))
+                    for statement in prefix)):
+            return None
+        guard_span = {'file_path': guard_path, 'lineno': guard.test.lineno,
+            'col_offset': guard.test.col_offset, 'end_lineno': guard.test.end_lineno,
+            'end_col_offset': guard.test.end_col_offset}
+        unbound = binding.get('unbound_paths')
+        if (not isinstance(unbound, list) or not unbound
+                or any(not any(item.get('branch') == 'if' and item.get('evidence') == guard_span
+                               for item in path.get('conditions', ())) for path in unbound)
+                or any(not any(item.get('branch') == 'else' and item.get('evidence') == guard_span
+                               for item in path.get('conditions', ())) for path in binding['paths'])):
             return None
         assumptions.add('no_external_module_global_injection')
     return {'kind': 'source_module_function_reexport', 'status': 'source_bound',
@@ -79,13 +115,19 @@ def _public_helper_export(reader, module, name):
 #  @return Canonical name and conditional source protocol, or None.
 def iterability_query(analyzer, caller, expression):
     canonical = _canonical(analyzer, caller[0], caller[1], expression)
-    if not canonical or not unmodified(analyzer, canonical):
+    if not canonical:
         return None
     key = canonical
     cache = analyzer._native_class_protocol_cache
     if key not in cache:
         cache[key] = None
         module, _, name = canonical.rpartition('.')
+        # A dependency absent from the primary snapshot has its own source
+        # binding and mutation audit below; the primary index cannot establish
+        # that helper's freshness by itself.
+        if (analyzer._definition_index.find(module, name)
+                and not unmodified(analyzer, canonical)):
+            return None
         ambient = [(owner, analyzer._source_snapshot.documents[path])
                    for owner, bodies in analyzer.module_bodies.items() for path, _ in bodies]
         reader = SourceProtocolResolver(analyzer.roots, budget=analyzer._analysis_budget,

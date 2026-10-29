@@ -372,19 +372,78 @@ class FlowAnalyzer:
     def add_files(self, files):
         self.files.update(os.path.abspath(p) for p in files if str(p).endswith(('.py', '.pyi')))
 
+    ## Read bounded literal, protocol and context-manager facts for one exact caller call
+    #  @param callsite Exact caller source span.
+    #  @return Versioned caller-input fact; no caller expression is executed.
+    def caller_inputs(self, callsite):
+        if not isinstance(callsite, SourceSpan):
+            raise TypeError('callsite must be a SourceSpan')
+        from ._caller_inputs import literal_inputs
+        fact = literal_inputs(callsite, store=self._source_store, import_roots=self.roots)
+        return dict(fact, schema_version='caller-inputs-0.1')
+
+    ## Resolve a supported source protocol used by one exact function call
+    #  @param caller Function containing the call.
+    #  @param callsite Exact source span of the call expression.
+    #  @param protocol Supported source protocol query.
+    #  @return Versioned protocol fact or None when the query is unproven.
+    def source_call_protocol(self, caller, callsite, protocol='iterability'):
+        if not isinstance(caller, FunctionRef):
+            raise TypeError('caller must be a FunctionRef')
+        if not isinstance(callsite, SourceSpan):
+            raise TypeError('callsite must be a SourceSpan')
+        if protocol != 'iterability':
+            raise ValueError('Unsupported source call protocol')
+        validate_source_dependencies(getattr(self, '_supporting_source_hashes', {}))
+        self._index(preserve_source_facts=True)
+        validate_source_dependencies(self._supporting_source_hashes)
+        definitions = [(ref, node) for ref, node in self.definitions
+                       if _matches(ref, caller)
+                       and os.path.normcase(os.path.abspath(ref.file_path))
+                       == os.path.normcase(os.path.abspath(callsite.file_path))]
+        calls = [(ref, definition, node) for ref, definition in definitions
+                 for node in ast.walk(definition) if isinstance(node, ast.Call)
+                 and (node.lineno, node.col_offset, getattr(node, 'end_lineno', None),
+                      getattr(node, 'end_col_offset', None)) == callsite.coordinates]
+        if len(calls) != 1:
+            return None
+        ref, definition, node = calls[0]
+        from ._native_class_protocol import iterability_query
+        fact = iterability_query(self, (ref, definition), node.func)
+        if fact is None:
+            validate_source_dependencies(self._supporting_source_hashes)
+            return None
+        target, proof = fact
+        validate_source_dependencies(self._supporting_source_hashes)
+        return {
+            'schema_version': 'source-call-protocol-0.1',
+            'status': 'source_bound',
+            'protocol': 'iterability',
+            'caller': {'module': ref.module, 'qualname': ref.qualname,
+                       'file_path': ref.file_path, 'lineno': ref.lineno},
+            'callsite': {'file_path': callsite.file_path,
+                         'lineno': callsite.lineno, 'col_offset': callsite.col_offset,
+                         'end_lineno': callsite.end_lineno,
+                         'end_col_offset': callsite.end_col_offset},
+            'call_syntax': ast.dump(node, include_attributes=False),
+            'target': target,
+            'fact': proof,
+        }
+
     def _index(self, preserve_source_facts=False):
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
         source_fact_cache_names = (
             '_scope_fact_cache', '_syntax_fact_cache', '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
-            '_class_creation_cache', '_native_class_protocol_cache',
+            '_class_creation_cache', '_module_class_prefix_cache', '_native_class_protocol_cache',
             '_builtin_scope_cache', '_builtin_module_cache',
             '_decorator_import_namespace_cache', '_fresh_receiver_hook_premise',
             '_fresh_receiver_metadata_guard', '_fresh_function_observer_premise',
             '_contextmanager_namespace_premise', '_function_namespace_cache',
             '_function_factory_cache', '_signature_factory_namespace',
             '_metadata_stdlib_namespace',
+            '_supporting_source_hashes',
             '_partial_class_namespace_premise', '_module_getattr_cache_premises',
             '_coroutine_namespace_premises', '_property_namespace_premises',
             '_decorator_literal_writes', '_class_type_test_namespace',
@@ -421,6 +480,7 @@ class FlowAnalyzer:
         self._fresh_decoration_fact_cache = {}
         self._class_decoration_cache = {}
         self._class_creation_cache = {}
+        self._module_class_prefix_cache = {}
         self._metadata_query_cache = {}
         self._metadata_observer_cache = {}
         self._native_class_protocol_cache = {}

@@ -1,6 +1,7 @@
 ## @package tests.test_pcbench_real_sources
 #  Optional regressions against the hash-checked PCBench source inventory.
 
+import ast
 import hashlib
 import json
 import os
@@ -8,16 +9,101 @@ from pathlib import Path
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_definition import matplotlib_docstring_keyword_only_chain
+from pcresolve import FlowAnalyzer, FunctionRef, SourceSpan
+from pcresolve._class_definition import source_identity_factory_wrapper_chain
 from pcresolve._constructor_entry import source_member
 from pcresolve._class_decoration import constructor_decorations
+from pcresolve._source_protocols import SourceProtocolResolver
+from pcresolve._native_class_protocol import _public_helper_export
 
 
 INVENTORY = Path('C:/GitHub/VPPDetector/tmp/pcbench_sources/sources.json')
 FIXTURES = Path(__file__).parent / 'fixtures' / 'pcbench_regressions'
 CLASSMETHOD_CLOSURE = (Path(__file__).parent / 'fixtures' / 'value_flow_classmethod_binding'
                       / 'pandas-2.0.0-import-closure.json')
+
+
+def test_target_environment_iterability_implementation_has_source_protocol():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    if not (root / 'numpy' / 'lib' / 'function_base.py').is_file():
+        pytest.skip('Matplotlib target environment NumPy sources are unavailable')
+    resolver = SourceProtocolResolver([root], analyzer_factory=FlowAnalyzer)
+    fact = resolver.iterability('numpy.lib', 'iterable')
+    assert fact is not None, resolver.last_boundary
+    assert fact['source_binding']['target']['module'] == 'numpy.lib.function_base'
+    assert fact['source_binding']['target']['qualname'] == 'iterable'
+    assert fact['result'] is False
+
+
+def test_target_environment_public_iterability_reexport_has_a_source_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    if not (root / 'numpy' / 'lib' / 'function_base.py').is_file():
+        pytest.skip('Matplotlib target environment NumPy sources are unavailable')
+    resolver = SourceProtocolResolver([root], analyzer_factory=FlowAnalyzer)
+
+    fact = _public_helper_export(resolver, 'numpy', 'iterable')
+
+    assert fact is not None
+    assert fact['status'] == 'source_bound'
+    assert fact['target'] == 'numpy.lib.function_base.iterable'
+    assert fact['runtime_binding_confirmed'] is False
+    sources = [Path(path).as_posix() for path in fact['source_hashes']]
+    assert any(path.endswith('/numpy/__init__.py') for path in sources)
+    assert any(path.endswith('/numpy/lib/__init__.py') for path in sources)
+    assert any(path.endswith('/numpy/lib/function_base.py') for path in sources)
+
+
+def test_artist_inspector_callsite_uses_numpy_public_iterability_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    package = root / 'matplotlib'
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib target environment sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[root],
+                            support_source_protocols=True)
+    analyzer._index()
+    path = package / 'artist.py'
+    tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+    function = next(node for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef) and node.name == '__init__'
+                    and node.lineno > 1300)
+    call = next(node for node in ast.walk(function)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'iterable')
+
+    fact = analyzer.source_call_protocol(
+        FunctionRef('matplotlib.artist', 'ArtistInspector.__init__',
+                    str(path), function.lineno),
+        SourceSpan(str(path), call.lineno, call.col_offset,
+                   call.end_lineno, call.end_col_offset))
+
+    assert fact is not None
+    assert fact['target'] == 'numpy.iterable'
+    assert fact['fact']['result'] is False
+    assert fact['fact']['source_binding']['target']['module'] == 'numpy.lib.function_base'
+    assert fact['fact']['source_binding']['target']['qualname'] == 'iterable'
+
+
+def test_target_environment_decorated_constructor_has_source_entry_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    package = root / 'matplotlib'
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib target environment sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[root],
+                            support_source_protocols=True)
+
+    result = analyzer.analyze(FunctionRef('matplotlib.patches', 'FancyArrowPatch'))
+
+    binding = result.inputs['entry_binding']
+    assert binding['status'] == 'source_bound'
+    wrapper = binding['constructor_wrapper_forwarding']
+    assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
+    assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
 
 
 def source(source_id):
@@ -377,7 +463,8 @@ def test_fancy_arrow_patch_entry_decorator_chain_proves_keyword_forwarding():
         '_api/__init__.py', '_api/deprecation.py')]
     if not all(path.is_file() for path in selected):
         pytest.skip('Matplotlib constructor decorator sources are unavailable')
-    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent],
+                            support_source_protocols=True)
     analyzer._index()
     owner, cls = analyzer._definition_index.find(
         'matplotlib.patches', 'FancyArrowPatch', kind='class')[0]
@@ -385,21 +472,13 @@ def test_fancy_arrow_patch_entry_decorator_chain_proves_keyword_forwarding():
     assert target is not None
     dependencies = set()
     assumptions = set()
-    wrapper = matplotlib_docstring_keyword_only_chain(
+    wrapper = source_identity_factory_wrapper_chain(
         analyzer, owner, target, dependencies, assumptions)
-    assert wrapper['kind'] == 'source_matplotlib_keyword_only_wrapper'
+    assert wrapper['kind'] == 'source_function_factory_wrapper_creation'
     assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
     assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
-    assert 'matplotlib_docstring_identity_over_keyword_only_wrapper' in assumptions
+    assert 'source_identity_decorator_over_source_factory_wrapper' in assumptions
     assert any(path.endswith('_api\\deprecation.py') for path in dependencies)
-    entry = analyzer.analyze(FunctionRef(
-        module='matplotlib.patches', qualname='FancyArrowPatch'))
-    binding = entry.inputs['entry_binding']
-    assert binding['status'] == 'source_bound'
-    assert binding['constructor_wrapper_forwarding']['forwarding']['forwarded_function'][
-        'qualname'] == 'FancyArrowPatch.__init__'
-    assert not any(boundary['reason'] == 'constructor_entry_unconfirmed'
-                   for boundary in entry.boundaries)
 
 
 def test_matplotlib_350_patch_alias_decorator_proves_its_generated_names():
@@ -438,7 +517,7 @@ def test_matplotlib_350_shadow_class_entry_binds_constructor():
     binding = result.inputs['entry_binding']
     assert binding['status'] == 'source_bound'
     assert binding['target']['qualname'] == 'Shadow.__init__'
-    assert 'matplotlib_docstring_identity_decorator' in binding['assumptions']
+    assert 'source_callable_object_identity_decorator' in binding['assumptions']
     update = result.find_calls(callee_name='self.update')[0]
     assert update.target is not None
     assert update.target.qualname == 'Artist.update'
