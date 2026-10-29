@@ -7,6 +7,7 @@ from dataclasses import asdict
 from .program_facts import SourceSpan
 from .scope_facts import function_scope_facts, statement_scope_facts
 from ._class_creation import written_attributes
+from ._class_definition import _source_callable_object_identity
 from ._property_namespace import _stable_builtin_namespace
 
 
@@ -148,69 +149,20 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
             return owner, setter
         raise _OpenReceiver()
 
-    def docstring_identity_decorator(owner, method):
-        if (len(method.decorator_list) != 1
-                or not isinstance(method.decorator_list[0], ast.Attribute)
-                or method.decorator_list[0].attr != 'interpd'
-                or not isinstance(method.decorator_list[0].value, ast.Name)):
+    decorator_assumptions, decorator_dependencies = set(), set()
+
+    def callable_object_identity_decorator(owner, method):
+        classes = analyzer._definition_index.find(owner.module, owner.qualname, kind='class')
+        if len(classes) != 1:
             return False
-        alias = method.decorator_list[0].value.id
-        module = analyzer.imports.get(owner.module, {}).get(alias)
-        if (module not in ('matplotlib._docstring', 'matplotlib.docstring')
-                or not analyzer._stable_import_name(owner.module + '.' + alias)):
-            return False
-        prop_class = analyzer._definition_index.find(
-            module, '_ArtistPropertiesSubstitution', kind='class')
-        base_class = analyzer._definition_index.find(module, 'Substitution', kind='class')
-        if len(prop_class) != 1 or len(base_class) != 1:
-            return False
-        prop_owner, prop_node = prop_class[0]
-        _, base_node = base_class[0]
-        if (prop_node.decorator_list or base_node.decorator_list
-                or not any(isinstance(base, ast.Name) and base.id == 'Substitution'
-                           for base in prop_node.bases)):
-            return False
-        prop_call = [item for item in prop_node.body
-                     if isinstance(item, ast.FunctionDef) and item.name == '__call__']
-        base_call = [item for item in base_node.body
-                     if isinstance(item, ast.FunctionDef) and item.name == '__call__']
-        if len(prop_call) != 1 or len(base_call) != 1:
-            return False
-        module_bindings = [statement for _, body in analyzer.module_bodies.get(module, [])
-            for statement in body if isinstance(statement, ast.Assign)
-            and any(isinstance(target, ast.Name) and target.id == 'interpd'
-                    for target in statement.targets)]
-        if (len(module_bindings) != 1
-                or not isinstance(module_bindings[0].value, ast.Call)
-                or not isinstance(module_bindings[0].value.func, ast.Name)
-                or module_bindings[0].value.func.id != '_ArtistPropertiesSubstitution'):
-            return False
-        expected_prop = ast.parse('''
-def __call__(self, obj):
-    super().__call__(obj)
-    if isinstance(obj, type) and obj.__init__ != object.__init__:
-        self(obj.__init__)
-    return obj
-''').body[0]
-        expected_base = ast.parse('''
-def __call__(self, func):
-    if func.__doc__:
-        func.__doc__ = inspect.cleandoc(func.__doc__) % self.params
-    return func
-''').body[0]
-        actual_prop, actual_base = prop_call[0], base_call[0]
-        return (ast.dump(actual_prop, include_attributes=False)
-                == ast.dump(expected_prop, include_attributes=False)
-                and ast.dump(actual_base, include_attributes=False)
-                == ast.dump(expected_base, include_attributes=False)
-                and analyzer._builtin_name_status(prop_owner, actual_prop, 'isinstance')
-                    == 'confirmed_builtin'
-                and analyzer._builtin_name_status(prop_owner, actual_prop, 'type')
-                    == 'confirmed_builtin'
-                and analyzer._builtin_name_status(prop_owner, actual_prop, 'super')
-                    == 'confirmed_builtin'
-                and analyzer.imports.get(module, {}).get('inspect') == 'inspect'
-                and analyzer._stable_import_name(module + '.inspect'))
+        assumptions, dependencies = set(), set()
+        proven = _source_callable_object_identity(
+            analyzer, classes[0][0], method, dependencies, assumptions
+        ) == 'source_callable_object_identity_decorator'
+        if proven:
+            decorator_assumptions.update(assumptions)
+            decorator_dependencies.update(dependencies)
+        return proven
 
     def plain_class_constant(name):
         for owner, cls in hierarchy:
@@ -281,7 +233,7 @@ def __call__(self, func):
             matches = analyzer._definition_index.find(owner.module, owner.qualname + '.' + name)
             if (len(matches) != 1 or not isinstance(matches[0][1], ast.FunctionDef)
                     or matches[0][1].decorator_list
-                    and not docstring_identity_decorator(owner, matches[0][1])):
+                    and not callable_object_identity_decorator(owner, matches[0][1])):
                 raise _OpenReceiver()
             return matches[0]
         raise _OpenReceiver()
@@ -525,15 +477,19 @@ def __call__(self, func):
         return None if return_effects else []
     if lookup_name is not None and any(attribute == lookup_name for _, attribute, _, _ in writes):
         return None if return_effects else []
+    if any(path not in analyzer.hashes for path in decorator_dependencies):
+        return None if return_effects else []
     if return_effects:
         return {'status': 'source_bound',
             'writes': sorted({attribute for _, attribute, _, _ in writes}),
             'checked_methods': [asdict(owner) for owner, _ in checked.values()],
             'calls': sorted(calls),
+            'assumptions': sorted(set(binding['assumptions']) | decorator_assumptions),
             'source_hashes': {path: analyzer.hashes[path] for path in sorted(
                 {owner.file_path for owner, _ in checked.values()}
-                | set(binding['source_hashes']))}}
-    paths = {owner.file_path for owner, _ in checked.values()} | set(binding['source_hashes'])
+                | set(binding['source_hashes']) | decorator_dependencies)}}
+    paths = ({owner.file_path for owner, _ in checked.values()}
+             | set(binding['source_hashes']) | decorator_dependencies)
     capture = initializer.args.kwarg.arg if initializer.args.kwarg else None
     capture_uses = [node for node in ast.walk(initializer)
                     if isinstance(node, ast.Name) and node.id == capture]
@@ -558,5 +514,6 @@ def __call__(self, func):
             'store_evidence': asdict(SourceSpan.from_ast(ref.file_path, statement)),
             'checked_methods': [asdict(owner) for owner, _ in checked.values()],
             'source_hashes': {path: analyzer.hashes[path] for path in sorted(paths)},
-            'assumptions': list(binding['assumptions']) + ['no_external_frame_introspection']})
+            'assumptions': sorted(set(binding['assumptions']) | decorator_assumptions
+                                  | {'no_external_frame_introspection'})})
     return result

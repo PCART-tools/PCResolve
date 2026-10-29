@@ -11,6 +11,72 @@ def facts(tmp_path, source):
     return result, result.inputs['entry_binding'].get('retained_instance_attribute_stores', [])
 
 
+def test_retention_records_generic_decorator_source_and_assumptions(tmp_path, monkeypatch):
+    from pcresolve import _constructor_retention
+    original = _constructor_retention._source_callable_object_identity
+    def identity_with_extra_premise(analyzer, owner, method, dependencies, assumptions):
+        result = original(analyzer, owner, method, dependencies, assumptions)
+        if result:
+            assumptions.add('retention_test_decorator_premise')
+        return result
+    monkeypatch.setattr(_constructor_retention, '_source_callable_object_identity', identity_with_extra_premise)
+    helper = tmp_path / 'helpers.py'
+    helper.write_text('''import inspect
+class Wrapper:
+    params = {}
+    def __call__(self, value):
+        if value.__doc__:
+            value.__doc__ = inspect.cleandoc(value.__doc__) % self.params
+        return value
+decorator = Wrapper()
+''', encoding='utf-8')
+    result, stores = facts(tmp_path, '''import helpers
+class Entry:
+    def __init__(self, **kwargs):
+        self.value = kwargs.pop('legacy', 0)
+        self.reset()
+    @helpers.decorator
+    def reset(self):
+        self.other = 0
+''')
+    fact = next(item for item in stores if item['attribute'] == 'value')
+    assert str(helper) in fact['source_hashes']
+    assert 'source_callable_object_identity_decorator' in fact['assumptions']
+    assert 'retention_test_decorator_premise' in fact['assumptions']
+
+
+@pytest.mark.parametrize('variant', ['new_function', 'side_effect', 'rebound', 'missing'])
+def test_unproved_decorator_does_not_prove_retained_store(tmp_path, variant):
+    helper = tmp_path / 'helpers.py'
+    helper_source = '''import inspect
+class Wrapper:
+    params = {}
+    def __call__(self, value):
+        if value.__doc__:
+            value.__doc__ = inspect.cleandoc(value.__doc__) % self.params
+        return value
+decorator = Wrapper()
+'''
+    if variant == 'new_function':
+        helper_source = helper_source.replace('return value', 'return lambda *a, **k: value(*a, **k)')
+    elif variant == 'side_effect':
+        helper_source = helper_source.replace('return value', 'value.extra = 1\n        return value')
+    elif variant == 'rebound':
+        helper_source += '\ndecorator = unknown\n'
+    if variant != 'missing':
+        helper.write_text(helper_source, encoding='utf-8')
+    _, stores = facts(tmp_path, '''import helpers
+class Entry:
+    def __init__(self, **kwargs):
+        self.value = kwargs.pop('legacy', 0)
+        self.reset()
+    @helpers.decorator
+    def reset(self):
+        self.other = 0
+''')
+    assert not any(item['attribute'] == 'value' for item in stores)
+
+
 def test_plain_source_constructor_proves_a_retained_attribute_store(tmp_path):
     result, stores = facts(tmp_path, '''class Entry:
     def __init__(self, **kwargs):

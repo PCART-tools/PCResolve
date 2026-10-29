@@ -613,7 +613,9 @@ def _effect_prefix(summary, node, origin):
     enum_member_used = any(_source_enum_auto_member(summary.analyzer, summary.ref, child)
         for statement in statements for call in ast.walk(statement) if isinstance(call, ast.Call)
         for child in call.args[1:])
-    assumptions = ['standard_library_enum_member_protocol'] if enum_member_used else []
+    assumptions = list(effects.get('assumptions', ()))
+    if enum_member_used:
+        assumptions.append('standard_library_enum_member_protocol')
     return own, evidence, assumptions
 
 
@@ -736,7 +738,8 @@ def method_binding(summary, node, target, receiver):
                                       node.end_lineno, node.end_col_offset),
         'call_evidence': summary.evidence(node), 'prefix_evidence': prefix[1],
         'source_hashes': dict(sorted(analyzer.hashes.items())),
-        'assumptions': sorted(set(_ASSUMPTIONS + origin['allocation']['assumptions'])), 'issues': []}
+        'assumptions': sorted(set(_ASSUMPTIONS + origin['allocation']['assumptions']
+                                  + (prefix[2] if len(prefix) > 2 else []))), 'issues': []}
 
 
 ## Carry fresh receiver identity through an exact zero-argument super method call.
@@ -817,6 +820,8 @@ def super_method_binding(summary, node, target, receiver):
     call_id = '%s:%s:%s:%s:%s' % (summary.ref.file_path, node.lineno,
         node.col_offset, node.end_lineno, node.end_col_offset)
     assumptions = list(_ASSUMPTIONS + origin['allocation']['assumptions'])
+    if len(prefix) > 2:
+        assumptions.extend(prefix[2])
     if wrapper is not None:
         assumptions.extend(wrapper.get('assumptions', ()))
     return {'kind': 'fresh_source_super_method', 'status': 'source_bound',
