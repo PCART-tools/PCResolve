@@ -800,16 +800,13 @@ def super_method_binding(summary, node, target, receiver):
     if target[1].decorator_list:
         wrapper = factory_wrapper(analyzer, target)
         if wrapper is None:
-            # Patch.__init__ in Matplotlib is wrapped first by its keyword-only
-            # forwarding decorator and then by the identity-preserving docstring
-            # decorator.  Constructor entry analysis already proves this exact
-            # chain; reuse that source-bound premise when carrying a fresh
-            # receiver through the corresponding super call.
-            from ._class_definition import matplotlib_docstring_keyword_only_chain
+            # Reuse the constructor's source-bound identity-plus-forwarding proof.
+            # 复用构造器已有的源码身份保持及参数转发证明。
+            from ._class_definition import source_identity_factory_wrapper_chain
             target_owner = next((owner for owner, _ in hierarchy
                 if expected[0].qualname == owner.qualname + '.__init__'), None)
             if target_owner is not None:
-                wrapper = matplotlib_docstring_keyword_only_chain(
+                wrapper = source_identity_factory_wrapper_chain(
                     analyzer, target_owner, expected, dependencies=set(), assumptions=set())
         forwarding = wrapper.get('forwarding') if wrapper else None
         if (forwarding is None or forwarding.get('forwarded_function') != asdict(target[0])

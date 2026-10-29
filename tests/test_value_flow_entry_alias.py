@@ -56,6 +56,19 @@ def test_alias_budget_is_explicit(tmp_path):
         FlowAnalyzer(project_root=tmp_path).analyze(FunctionRef('cases', 'public'))
 
 
+def test_large_module_without_requested_alias_skips_alias_audit(tmp_path, monkeypatch):
+    from pcresolve import entry_alias
+    (tmp_path / 'cases.py').write_text('def original(**kwargs): return kwargs\n'
+                                     'public = original\n' + '0\n' * 100)
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    analyzer._index()
+    monkeypatch.setattr(entry_alias, '_MAX_ENTRY_ALIAS_MODULE_NODES', 10)
+
+    assert entry_alias.reference(analyzer, FunctionRef('cases', 'missing')) is None
+    with pytest.raises(ValueError, match='budget'):
+        entry_alias.reference(analyzer, FunctionRef('cases', 'public'))
+
+
 def test_located_alias_matches_assignment_not_deleted_definition():
     path = ROOT / 'cases.py'
     line = next(index for index, text in enumerate(path.read_text().splitlines(), 1)

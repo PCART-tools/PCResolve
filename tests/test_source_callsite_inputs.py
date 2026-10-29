@@ -169,3 +169,62 @@ array.api(ticks, legacy=None)
     assert result['target_status'] == 'receiver_expression_only'
     assert result['target_expression'] == "Attribute(value=Name(id='array', ctx=Load()), attr='api', ctx=Load())"
     assert result['arguments'][0]['status'] == 'source_protocol'
+
+
+def test_context_manager_binding_is_reported_for_module_callsite(tmp_path):
+    result = query(tmp_path, '''import library
+file_path = './data.json'
+with open(file_path, 'r', encoding='utf-8') as stream:
+    library.consume(stream, strict=None)
+''')
+
+    assert result['status'] == 'source_bound'
+    assert result['target'] == 'library.consume'
+    assert result['arguments'][0]['status'] == 'unproven'
+    assert result['arguments'][1]['value'] == {
+        'kind': 'scalar', 'type': 'NoneType', 'value': None}
+    context = result['context_managers'][0]
+    assert context['manager']['source_text'] == "open(file_path, 'r', encoding='utf-8')"
+    assert context['manager']['arguments'][0]['value'] == {
+        'kind': 'scalar', 'type': 'str', 'value': './data.json'}
+    assert context['binding']['name'] == 'stream'
+    assert result['context_argument_bindings'] == [{
+        'argument': {'position': 0}, 'name': 'stream', 'manager_index': 0,
+        'binding_evidence': context['binding']['evidence'],
+        'argument_evidence': result['arguments'][0]['evidence'][0],
+    }]
+    assert result['runtime_values_observed'] is False
+
+
+def test_context_manager_binding_is_generic_and_async_aware(tmp_path):
+    result = query(tmp_path, '''import library
+path = 'payload'
+async with library.open_resource(path) as resource:
+    library.consume(resource)
+''')
+
+    assert result['status'] == 'source_bound'
+    context = result['context_managers'][0]
+    assert context['kind'] == 'async_context_manager'
+    assert context['manager']['target'] == 'library.open_resource'
+    assert context['binding']['name'] == 'resource'
+    assert result['context_argument_bindings'][0]['name'] == 'resource'
+
+
+def test_conditional_or_extra_context_body_keeps_with_call_unconfirmed(tmp_path):
+    sources = (
+        '''import library
+with open('payload', 'r', encoding='utf-8') as stream:
+    if enabled:
+        library.consume(stream)
+''',
+        '''import library
+with open('payload', 'r', encoding='utf-8') as stream:
+    prepare()
+    library.consume(stream)
+''',
+    )
+    for source in sources:
+        result = query(tmp_path, source)
+        assert result['status'] == 'unconfirmed'
+        assert result['boundaries']

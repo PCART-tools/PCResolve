@@ -9,6 +9,9 @@ from dataclasses import asdict
 from .scope_facts import statement_scope_facts
 
 
+_MAX_ENTRY_ALIAS_MODULE_NODES = 20000
+
+
 class _AliasLimit(ValueError):
     pass
 
@@ -82,12 +85,18 @@ def reference(analyzer, requested):
         path, body = bodies[0]
     if requested.file_path and os.path.abspath(requested.file_path) != os.path.abspath(path):
         return None
+    # The supported alias must end in a direct name-to-name assignment. If
+    # there is no such candidate, the module-wide mutation audit is unnecessary.
+    if not any(isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Name)
+               and any(isinstance(target, ast.Name) and target.id == name
+                       for target in statement.targets) for statement in body):
+        return None
     nodes = 0
     for _, module_body in analyzer.module_bodies.get(requested.module, []):
         for statement in module_body:
             for child in ast.walk(statement):
                 nodes += 1
-                if nodes > 20000:
+                if nodes > _MAX_ENTRY_ALIAS_MODULE_NODES:
                     raise _AliasLimit('Source entry alias lookup budget exhausted')
                 if (isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
                         and child.id in ('globals', 'vars', 'eval', 'exec')):

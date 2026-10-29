@@ -91,7 +91,38 @@ def _module_call_assignment(node, origins, module_origins):
     return True
 
 
-## Read finite literals and bounded return protocols at an exact top-level call site.
+## Find a module-level call and its enclosing context-manager statements
+#  @param document Parsed caller source document.
+#  @param call Exact call node selected by its source span.
+#  @return Top-level owner, enclosing managers, and direct expression owner.
+def _call_scope(document, call):
+    parents = {}
+    for parent in ast.walk(document):
+        for child in ast.iter_child_nodes(parent):
+            parents[id(child)] = parent
+
+    direct = next((statement for statement in document.body
+                   if getattr(statement, 'value', None) is call), None)
+    if direct is not None:
+        return direct, (), direct
+
+    current, managers, expression = call, [], None
+    while True:
+        parent = parents.get(id(current))
+        if isinstance(parent, ast.Expr) and parent.value is current:
+            expression = parent
+            current = parent
+            continue
+        if isinstance(parent, (ast.With, ast.AsyncWith)) and current in parent.body:
+            managers.append(parent)
+            current = parent
+            continue
+        if isinstance(parent, ast.Module) and current in parent.body:
+            return current, tuple(reversed(managers)), expression
+        return None, None, None
+
+
+## Read finite literals and bounded return protocols at a module-level call site.
 #  @param callsite Full SourceSpan, never a line-only or terminal-name selection.
 #  @param store Optional source cache that rereads content for each query.
 #  @param max_nodes Finite source-walk bound.
@@ -132,15 +163,16 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
     if len(matches) != 1:
         return fail('caller_callsite_unconfirmed')
     call = matches[0]
-    owner = next((n for n in document.tree.body if getattr(n, 'value', None) is call), None)
-    if not isinstance(owner, (ast.Assign, ast.AnnAssign, ast.Expr)):
+    owner, with_path, expression_owner = _call_scope(document.tree, call)
+    if (not isinstance(owner, (ast.Assign, ast.AnnAssign, ast.Expr, ast.With, ast.AsyncWith))
+            or with_path is None):
         return fail('caller_callsite_not_module_expression')
     if any(_has_effectful_syntax(argument) for argument in call.args):
         return fail('caller_argument_evaluation_unconfirmed')
     if any(_has_effectful_syntax(keyword.value) for keyword in call.keywords):
         return fail('caller_argument_evaluation_unconfirmed')
     environment, origins, origin_evidence = {}, {}, {}
-    module_origins, remaining = set(), [max_items]
+    module_origins, module_bindings, remaining = set(), set(), [max_items]
     protocols, protocol_evidence = {}, {}
 
     def span(node):
@@ -163,6 +195,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                     else fact.python_binding if fact.kind == 'import'
                     else fact.module + '.' + fact.name)
                 origin_evidence[fact.python_binding] = [span(statement)]
+                module_bindings.add(fact.python_binding)
                 if fact.kind == 'import':
                     module_origins.add(fact.python_binding)
             continue
@@ -184,6 +217,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                 # protocol fact only when every overload in a bounded installed
                 # stub returns a declared iterable type.
                 for target in targets:
+                    module_bindings.add(target.id)
                     environment.pop(target.id, None)
                     origins.pop(target.id, None)
                     origin_evidence.pop(target.id, None)
@@ -210,6 +244,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
             if value is None and not isinstance(statement.value, (ast.Name, ast.Constant)):
                 return fail('caller_prefix_value_unconfirmed')
             for target in targets:
+                module_bindings.add(target.id)
                 environment.pop(target.id, None)
                 origins.pop(target.id, None)
                 origin_evidence.pop(target.id, None)
@@ -231,6 +266,68 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                 and isinstance(statement.value, ast.Constant)):
             continue
         return fail('caller_prefix_effect_unconfirmed')
+
+    context_managers, context_bindings = [], {}
+    for depth, manager_node in enumerate(with_path):
+        expected_body = (with_path[depth + 1] if depth + 1 < len(with_path)
+                         else expression_owner)
+        if len(manager_node.body) != 1 or manager_node.body[0] is not expected_body:
+            return fail('caller_context_body_unconfirmed')
+        for item_index, item in enumerate(manager_node.items):
+            expression = item.context_expr
+            manager = {
+                'source_text': ast.unparse(expression),
+                'call_syntax': ast.dump(expression, include_attributes=False),
+                'evidence': span(expression),
+                'target': (_target(expression.func, origins, module_origins)
+                           if isinstance(expression, ast.Call) else None),
+                'arguments': [],
+                'keywords': [],
+            }
+            if (isinstance(expression, ast.Call)
+                    and isinstance(expression.func, ast.Name)
+                    and expression.func.id == 'open'
+                    and expression.func.id not in module_bindings):
+                manager['target'] = 'builtins.open'
+            record = {
+                'kind': ('async_context_manager' if isinstance(manager_node, ast.AsyncWith)
+                         else 'context_manager'),
+                'with_evidence': span(manager_node),
+                'item_index': item_index,
+                'manager': manager,
+                'binding': None,
+                'call_evidence': span(call),
+                'runtime_value_observed': False,
+            }
+            if isinstance(expression, ast.Call):
+                manager_arguments = [({'position': index}, value)
+                                     for index, value in enumerate(expression.args)]
+                manager_arguments.extend(({'keyword': keyword.arg}, keyword.value)
+                                         for keyword in expression.keywords)
+                for slot, value in manager_arguments:
+                    evidence = [span(value)]
+                    literal = _literal(value, environment, remaining, evidence)
+                    argument = {
+                        'argument': slot,
+                        'evidence': evidence,
+                        'status': 'source_literal' if literal is not None else 'unproven',
+                    }
+                    if literal is not None:
+                        argument['value'] = literal
+                    if 'position' in slot:
+                        manager['arguments'].append(argument)
+                    else:
+                        manager['keywords'].append(argument)
+            if isinstance(item.optional_vars, ast.Name):
+                binding = {'name': item.optional_vars.id,
+                           'evidence': span(item.optional_vars)}
+                record['binding'] = binding
+                context_bindings[item.optional_vars.id] = {
+                    'manager_index': len(context_managers),
+                    'binding_evidence': binding['evidence'],
+                }
+            context_managers.append(record)
+
     qualified = _target(call.func, origins, module_origins)
     target_status = 'source_bound'
     if qualified is None:
@@ -279,6 +376,16 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                 'supporting_source_sha256': protocol['source_hashes'],
             }, evidence=evidence + protocol_evidence[argument.id])
         result['arguments'].append(record)
+    if context_managers:
+        result['context_managers'] = context_managers
+        result['context_argument_bindings'] = [
+            {'argument': slot, 'name': argument.id,
+             'manager_index': context_bindings[argument.id]['manager_index'],
+             'binding_evidence': context_bindings[argument.id]['binding_evidence'],
+             'argument_evidence': span(argument)}
+            for slot, argument in arguments
+            if isinstance(argument, ast.Name) and argument.id in context_bindings
+        ]
     if remaining[0] < 0:
         result['arguments'] = []
         return fail('caller_input_budget')

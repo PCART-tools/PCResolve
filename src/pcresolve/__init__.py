@@ -16,6 +16,7 @@ from .single_file import SingleFileAnalyzer, analyze_source
 from .cross_file import ProjectAnalyzer, analyze_project
 from .types import ApiCall, SymbolChain, FileAnalysis, ProjectAnalysis
 from .flow import FlowAnalyzer, FunctionRef, FlowAnalysis, FlowCall
+from .program_facts import SourceSpan
 from .analysis_limits import AnalysisLimits, AnalysisLimitExceeded
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "FunctionRef",
     "FlowAnalysis",
     "FlowCall",
+    "SourceSpan",
     "analyze_project",
     "analyze_source",
     "scan_directory",

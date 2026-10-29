@@ -2,6 +2,7 @@
 #  Fresh root-class namespace before a first bounded module-level call.
 
 import ast
+import copy
 from dataclasses import asdict
 
 from ._class_definition import namespace_issues, _namespace_syntax
@@ -31,6 +32,12 @@ def module_class_prefix(analyzer, target, call):
             or call.args or call.keywords or not isinstance(call.func, ast.Attribute)
             or not isinstance(call.func.value, ast.Name) or call.func.value.id != cls.name):
         return None
+    cache = getattr(analyzer, '_module_class_prefix_cache', None)
+    if cache is None:
+        cache = analyzer._module_class_prefix_cache = {}
+    key = (ref, call.lineno, call.col_offset, call.end_lineno, call.end_col_offset)
+    if key in cache:
+        return copy.deepcopy(cache[key])
     body = bodies[0][1]
     reached = [index for index, statement in enumerate(body)
                if isinstance(statement, ast.Expr) and statement.value is call]
@@ -123,7 +130,7 @@ def module_class_prefix(analyzer, target, call):
         'source_module_fresh_class_prefix', 'no_external_monkeypatch_or_import_hook',
         'standard_builtin_namespace_preserved', 'no_unmodeled_indirect_builtin_mutation'])
     hashes = {**analyzer.hashes, **analyzer._supporting_source_hashes}
-    return {'kind': 'source_module_fresh_class_prefix', 'status': 'source_bound',
+    result = {'kind': 'source_module_fresh_class_prefix', 'status': 'source_bound',
         'receiver_class': asdict(ref), 'phase': 'before_module_call',
         'class_evidence': _span(ref, cls), 'call_evidence': _span(ref, call),
         'intermediate_evidence': evidence, 'call_effects': 'unproved',
@@ -131,3 +138,5 @@ def module_class_prefix(analyzer, target, call):
         'deferred_bodies_executed': False, 'runtime_initialization_confirmed': False,
         'completion': 'normal_prefix_only', 'observation_guard': observation,
         'source_hashes': dict(sorted(hashes.items())), 'assumptions': sorted(assumptions)}
+    cache[key] = copy.deepcopy(result)
+    return result

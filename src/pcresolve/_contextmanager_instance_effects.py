@@ -340,6 +340,7 @@ def temporary_receiver_attributes(summary, expression, env):
         },
         'source_hashes': dict(sorted(summary.analyzer.hashes.items())),
         'restored_on_all_exits': True,
+        'body_exception_behavior': 'propagates_if_cleanup_completes',
         'runtime_protocol_confirmed': False,
         'assumptions': ['standard_library_contextmanager_protocol',
                         'source_snapshot_bindings_hold',
