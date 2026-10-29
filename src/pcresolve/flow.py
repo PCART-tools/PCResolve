@@ -41,6 +41,7 @@ from ._contextmanager_instance_effects import (
     temporary_receiver_attributes as bounded_temporary_receiver_attributes)
 from ._constructor_entry import source_member as constructor_source_member
 from ._constructor_entry import _definition_issues as constructor_definition_issues
+from ._class_definition import _source_callable_object_identity
 from .mapping_remainders import mapping_remainder, _ProofLimit
 from .class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 from ._class_name_binding import source_binding as source_class_name_binding
@@ -1582,6 +1583,39 @@ class FlowAnalyzer:
                 _DecoratorEffects(self, target, summary.evidence_at, _DECORATOR_EFFECT_NODE_LIMIT).fact(
                     expression, multiple=len(decorators) != 1)
                 for expression in decorators]
+            if (len(decorators) == 1 and isinstance(decorators[0], ast.Attribute)
+                    and isinstance(decorators[0].value, ast.Name)):
+                owner_name, _, method_name = ref.qualname.rpartition('.')
+                owners = (self._definition_index.find(ref.module, owner_name, kind='class')
+                          if owner_name else [(ref, node)])
+                if len(owners) == 1 and self._stable_import_name(ref.module + '.' + ref.qualname):
+                    assumptions, paths = set(), {ref.file_path}
+                    stable = True
+                    if owner_name:
+                        writes, truncated = self._class_binding_writes()
+                        stable = not truncated and not any(
+                            owner == owners[0][0] and name in (method_name, '*', '__class__', '__bases__')
+                            for owner, name, _, _, _ in writes)
+                    if (stable and _source_callable_object_identity(
+                            self, owners[0][0], node, paths, assumptions)
+                            == 'source_callable_object_identity_decorator'
+                            and all(path in self.hashes for path in paths)):
+                        module = self.imports.get(ref.module, {}).get(decorators[0].value.id)
+                        decorator_files = {path for path, _ in self.module_bodies.get(module, [])}
+                        paths.update(decorator_files)
+                        if not decorator_files or any(path not in self.hashes for path in paths):
+                            return copy.deepcopy(self._decoration_fact_cache[ref])
+                        assumptions.add('module_initialization_completed_before_query')
+                        self._decoration_fact_cache[ref][0]['callable_object_identity_proof'] = {
+                            'kind': 'source_callable_object_identity', 'status': 'source_bound',
+                            'basis': 'source_snapshot', 'completion': 'normal_return',
+                            'runtime_target_confirmed': False, 'function': asdict(ref),
+                            'expression': summary.evidence_at(ref, decorators[0]),
+                            'returned_object': 'original_function',
+                            'mutated_function_attributes': ['__doc__'],
+                            'decorator_source_files': sorted(decorator_files),
+                            'source_hashes': {path: self.hashes[path] for path in sorted(paths)},
+                            'assumptions': sorted(assumptions)}
         return copy.deepcopy(self._decoration_fact_cache[ref])
 
     def _fresh_decoration_facts(self, target):

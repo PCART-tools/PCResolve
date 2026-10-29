@@ -1093,6 +1093,15 @@ completion; it does not establish that the decorator completes or never raises.
 attribute behavior and absence of external monkeypatch/import hooks remain
 explicit assumptions, not observations about runtime state.
 
+A supported callable-object identity proof may also appear as
+`callable_object_identity_proof` on its decoration record. It identifies the
+original function and decorator expression, records that only `__doc__`
+metadata is changed, and lists the decorator source files, supporting source
+hashes and assumptions. The proof is conditional on normal decorator return and
+completed module initialization; it does not confirm the runtime target.
+Consumers must match the function and expression and validate every supporting
+hash before using the fact.
+
 `identity_status` is `preserved`, `replaced` or `unknown`.
 `body_binding_status` is separately `preserved`, `modified` or `unknown`.
 Returning the input after a `__code__`, `__defaults__`, `__kwdefaults__` or signature

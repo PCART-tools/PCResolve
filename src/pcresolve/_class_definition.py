@@ -208,13 +208,34 @@ def _source_callable_object_identity(analyzer, owner, member, dependencies, assu
     base_ref = (analyzer._definition_index.find(module, base_name, kind='class')
                 if base_name is not None else [])
     if (len(helper_ref) != 1 or base_name is not None and len(base_ref) != 1
+            or not analyzer._stable_import_name(module + '.' + class_name)
+            or not analyzer._stable_import_name(module + '.' + class_name + '.__call__')
+            or base_name is not None and (
+                not analyzer._stable_import_name(module + '.' + base_name)
+                or not analyzer._stable_import_name(module + '.' + base_name + '.__call__'))
             or analyzer.imports.get(module, {}).get(inspect_alias) != 'inspect'
             or not analyzer._stable_import_name(module + '.' + inspect_alias)
             or not unmodified(analyzer, 'inspect.cleandoc')
             or any(analyzer._builtin_name_status(helper_ref[0][0], child_call, name)
                    != 'confirmed_builtin' for name in ('super', 'isinstance', 'type', 'object'))):
         return None
+    owners = [helper_ref[0][0]] + [item[0] for item in base_ref]
+    writes, truncated = analyzer._class_binding_writes()
+    if truncated or any(owner in owners and attribute in {
+            '__call__', '__init__', '__new__', '__getattribute__', '__getattr__',
+            '__setattr__', 'params', '__class__', '__bases__', '*'}
+            for owner, attribute, _, _, _ in writes):
+        return None
     for cls in [decorator_class] + ([base_ref[0][1]] if base_ref else []):
+        if any(name in statement_scope_facts(cls.body).bound for name in (
+                '__new__', '__getattribute__', '__getattr__', '__setattr__')):
+            return None
+        init_bindings = [item for item in cls.body
+                         if '__init__' in statement_scope_facts([item]).bound]
+        if (init_bindings and (len(init_bindings) != 1
+                or not isinstance(init_bindings[0], ast.FunctionDef)
+                or init_bindings[0].name != '__init__')):
+            return None
         for statement in cls.body:
             if 'params' not in statement_scope_facts([statement]).bound:
                 continue
