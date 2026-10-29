@@ -280,7 +280,7 @@ def _literal_alias_decorator(analyzer, target, selected, late_parameter, factory
 
 
 def _source_metadata_instance_decorator(analyzer, target, expression):
-    """Prove a source singleton decorator that only changes object documentation."""
+    """Prove a source callable decorator that only changes object documentation."""
     ref, cls = target
     if not isinstance(expression, ast.Attribute) or not isinstance(expression.value, ast.Name):
         return None
@@ -312,39 +312,79 @@ def _source_metadata_instance_decorator(analyzer, target, expression):
                                                    allow_bounded_decorations=True)):
         return None
     class_ref = decorator_class
-    if (not isinstance(decorator_node, ast.ClassDef)
-            or len(decorator_node.bases) != 1
-            or not isinstance(decorator_node.bases[0], ast.Name)):
+    if not isinstance(decorator_node, ast.ClassDef):
         return None
-    base_target = analyzer._resolve_class(class_ref, decorator_node.bases[0].id)
-    if base_target is None:
+    hierarchy = analyzer._class_mro(class_ref.module, class_ref.qualname)
+    if not hierarchy or len(hierarchy) < 2:
         return None
-    base_ref, _ = base_target
     methods = [item for item in decorator_node.body
         if isinstance(item, ast.FunctionDef) and item.name == '__call__']
-    if len(methods) != 1:
+    if len(methods) != 1 or methods[0].decorator_list:
         return None
     call = methods[0]
     args = call.args.posonlyargs + call.args.args
     body = [item for item in call.body if not (
         isinstance(item, ast.Expr) and isinstance(item.value, ast.Constant)
         and isinstance(item.value.value, str))]
-    if (len(args) != 2 or [item.arg for item in args] != ['self', 'obj']
+    if (len(args) != 2 or len({item.arg for item in args}) != 2
             or call.args.defaults or call.args.kwonlyargs or call.args.vararg or call.args.kwarg
             or len(body) != 3 or not isinstance(body[0], ast.Expr)
             or not isinstance(body[0].value, ast.Call)
-            or ast.unparse(body[0].value) != 'super().__call__(obj)'
             or not isinstance(body[1], ast.If)
-            or not isinstance(body[1].test, ast.BoolOp)
-            or not isinstance(body[1].test.op, ast.And)
-            or ast.unparse(body[1].test) != 'isinstance(obj, type) and obj.__init__ != object.__init__'
             or len(body[1].body) != 1 or not isinstance(body[1].body[0], ast.Expr)
-            or ast.unparse(body[1].body[0].value) != 'self(obj.__init__)'
             or body[1].orelse or not isinstance(body[2], ast.Return)
-            or not isinstance(body[2].value, ast.Name) or body[2].value.id != 'obj'):
+            or not isinstance(body[2].value, ast.Name)):
         return None
-    base_matches = analyzer._definition_index.find(
-        base_ref.module, base_ref.qualname + '.__call__')
+    receiver_name, object_name = [item.arg for item in args]
+
+    class_call = body[0].value
+    if (not isinstance(class_call.func, ast.Attribute)
+            or class_call.func.attr != '__call__'
+            or not isinstance(class_call.func.value, ast.Call)
+            or not isinstance(class_call.func.value.func, ast.Name)
+            or class_call.func.value.func.id != 'super'
+            or class_call.func.value.args or class_call.func.value.keywords
+            or len(class_call.args) != 1 or class_call.keywords):
+        return None
+
+    def normalized(node, names):
+        renamed = copy.deepcopy(node)
+
+        class Rename(ast.NodeTransformer):
+            def visit_Name(self, item):
+                if item.id in names:
+                    item.id = names[item.id]
+                return item
+
+        return Rename().visit(renamed)
+
+    expected_super_call = ast.parse('super().__call__(obj)', mode='eval').body
+    if ast.dump(normalized(class_call, {object_name: 'obj'}), include_attributes=False) != \
+            ast.dump(expected_super_call, include_attributes=False):
+        return None
+    test = normalized(body[1].test, {object_name: 'obj'})
+    expected_test = ast.parse(
+        'isinstance(obj, type) and obj.__init__ != object.__init__', mode='eval').body
+    invoke = normalized(body[1].body[0].value,
+                        {receiver_name: 'self', object_name: 'obj'})
+    expected_invoke = ast.parse('self(obj.__init__)', mode='eval').body
+    returned = body[2].value.id == object_name
+    if (ast.dump(test, include_attributes=False)
+            != ast.dump(expected_test, include_attributes=False)
+            or ast.dump(invoke, include_attributes=False)
+            != ast.dump(expected_invoke, include_attributes=False)
+            or not returned):
+        return None
+
+    base_matches = []
+    for base_ref, base_node in hierarchy[1:]:
+        members = [item for item in base_node.body
+            if '__call__' in statement_scope_facts([item]).bound]
+        if members:
+            if len(members) != 1 or not isinstance(members[0], ast.FunctionDef):
+                return None
+            base_matches = [(base_ref, members[0])]
+            break
     if len(base_matches) != 1:
         return None
     base_call_ref, base_call = base_matches[0]
@@ -352,32 +392,56 @@ def _source_metadata_instance_decorator(analyzer, target, expression):
     base_body = [item for item in base_call.body if not (
         isinstance(item, ast.Expr) and isinstance(item.value, ast.Constant)
         and isinstance(item.value.value, str))]
-    if (len(base_args) != 2 or [item.arg for item in base_args] != ['self', 'func']
-            or base_call.args.defaults or base_call.args.kwonlyargs
+    if (len(base_args) != 2 or len({item.arg for item in base_args}) != 2
+            or base_call.decorator_list or base_call.args.defaults or base_call.args.kwonlyargs
             or base_call.args.vararg or base_call.args.kwarg or len(base_body) != 2
             or not isinstance(base_body[0], ast.If)
-            or ast.unparse(base_body[0].test) != 'func.__doc__'
             or len(base_body[0].body) != 1 or not isinstance(base_body[0].body[0], ast.Assign)
             or len(base_body[0].body[0].targets) != 1
-            or ast.unparse(base_body[0].body[0].targets[0]) != 'func.__doc__'
-            or ast.unparse(base_body[0].body[0].value)
-                != 'inspect.cleandoc(func.__doc__) % self.params'
             or not isinstance(base_body[1], ast.Return)
-            or not isinstance(base_body[1].value, ast.Name)
-            or base_body[1].value.id != 'func'):
+            or not isinstance(base_body[1].value, ast.Name)):
+        return None
+    base_receiver_name, function_name = [item.arg for item in base_args]
+    base_names = {base_receiver_name: 'self', function_name: 'func'}
+    imports = analyzer.imports.get(base_call_ref.module, {})
+    inspect_names = [name for name, target in imports.items() if target == 'inspect']
+    if (len(inspect_names) != 1 or not analyzer._stable_import_name(
+            base_call_ref.module + '.' + inspect_names[0])):
+        return None
+    base_names[inspect_names[0]] = 'inspect'
+    condition = normalized(base_body[0].test, base_names)
+    expected_condition = ast.parse('func.__doc__', mode='eval').body
+    assignment = base_body[0].body[0]
+    assignment_target = normalized(assignment.targets[0], base_names)
+    expected_target = ast.parse('func.__doc__ = None').body[0].targets[0]
+    value = assignment.value
+    value = normalized(value, base_names)
+    if (not isinstance(value, ast.BinOp) or not isinstance(value.right, ast.Attribute)
+            or not isinstance(value.right.value, ast.Name)
+            or value.right.value.id != 'self'):
+        return None
+    state_attribute = value.right.attr
+    expected_value = ast.parse(
+        'inspect.cleandoc(func.__doc__) % self.' + state_attribute, mode='eval').body
+    if (ast.dump(condition, include_attributes=False)
+            != ast.dump(expected_condition, include_attributes=False)
+            or ast.dump(assignment_target, include_attributes=False)
+            != ast.dump(expected_target, include_attributes=False)
+            or ast.dump(value, include_attributes=False)
+            != ast.dump(expected_value, include_attributes=False)
+            or base_body[1].value.id != function_name):
         return None
     if (analyzer._resolve_class(class_ref, 'type') is not None
             or analyzer._resolve_class(class_ref, 'object') is not None
             or analyzer._builtin_name_status(class_ref, call, 'isinstance') != 'confirmed_builtin'
             or analyzer._builtin_name_status(class_ref, call, 'type') != 'confirmed_builtin'
             or analyzer._builtin_name_status(class_ref, call, 'object') != 'confirmed_builtin'
-            or analyzer._builtin_name_status(class_ref, call, 'super') != 'confirmed_builtin'
-            or not analyzer._stable_import_name(base_call_ref.module + '.inspect')):
+            or analyzer._builtin_name_status(class_ref, call, 'super') != 'confirmed_builtin'):
         return None
     return {'kind': 'source_metadata_instance_class_decoration', 'status': 'source_bound',
         'basis': 'source_snapshot', 'receiver_class': asdict(ref),
         'decorator': asdict(class_ref), 'decorator_instance_class': asdict(decorator_class),
-        'base_call': asdict(base_call_ref), 'parameter': 'obj',
+        'base_call': asdict(base_call_ref), 'parameter': object_name,
         'identity_status': 'preserved', 'completion': 'normal_return_only',
         'preserved_scope': 'other_class_attributes', 'attributes': [],
         'metadata_attributes': ['__doc__'],

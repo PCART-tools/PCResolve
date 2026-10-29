@@ -8,8 +8,8 @@ from .effect_facts import contains_yield
 from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
 from ._class_definition import (namespace_issues, _source_function_decoration,
-                                _matplotlib_docstring_identity,
-                                matplotlib_docstring_keyword_only_chain)
+                                _source_callable_object_identity,
+                                source_identity_factory_wrapper_chain)
 from ._function_factory import factory_wrapper
 from ._constructor_retention import retained_stores
 from ._class_decoration import constructor_decorations
@@ -126,7 +126,7 @@ def binding(analyzer, class_target, target):
         if method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod':
             issue('constructor_new_descriptor_unconfirmed')
     elif phase == '__init__':
-        identity_preserved = _matplotlib_docstring_identity(
+        identity_preserved = _source_callable_object_identity(
             analyzer, class_ref, method, definition_paths, definition_assumptions)
         preserved = (not method.decorator_list or identity_preserved
             or _source_function_decoration(
@@ -145,7 +145,7 @@ def binding(analyzer, class_target, target):
                 definition_paths.update(wrapper.get('source_hashes', {}))
                 definition_assumptions.update(wrapper.get('assumptions', ()))
         elif not preserved and len(method.decorator_list) == 2:
-            wrapper = matplotlib_docstring_keyword_only_chain(
+            wrapper = source_identity_factory_wrapper_chain(
                 analyzer, class_ref, target, definition_paths, definition_assumptions)
             forwarding = wrapper.get('forwarding') if wrapper else None
             if (forwarding is not None

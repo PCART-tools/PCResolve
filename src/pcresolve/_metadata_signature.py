@@ -4,7 +4,9 @@
 import ast
 import copy
 import inspect
+import importlib.util
 from dataclasses import asdict
+from pathlib import Path
 
 from ._function_factory import _canonical, _signature_namespace
 from ._metadata_namespace import builtin_namespace
@@ -62,7 +64,46 @@ def _marker_default(analyzer, caller, expression):
         'source_hashes': dict(sorted(analyzer.hashes.items()))}
 
 
-def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
+def _module_literal_default(analyzer, caller, expression):
+    """Resolve one unchanged module-level literal used as a parameter default."""
+    ref, function = caller
+    if not isinstance(expression, ast.Name):
+        return None
+    name = expression.id
+    scope = analyzer._scope_facts(function)
+    if name in scope.bound | scope.nonlocals:
+        return None
+    tables = analyzer.import_binding_facts.get(ref.module, [])
+    bindings = tables[0].get(name, []) if len(tables) == 1 else []
+    if len(bindings) != 1 or not isinstance(bindings[0], ast.Assign):
+        return None
+    assignment = bindings[0]
+    bodies = analyzer.module_bodies.get(ref.module, [])
+    if (len(bodies) != 1 or assignment not in bodies[0][1]
+            or len(assignment.targets) != 1 or not isinstance(assignment.targets[0], ast.Name)
+            or assignment.targets[0].id != name or not unmodified(analyzer, ref.module + '.' + name)
+            or not isinstance(assignment.value, ast.Constant)):
+        return None
+    value = assignment.value.value
+    if (type(value) not in (str, int, float, bool, type(None))
+            or type(value) is str and len(value) > 2000
+            or type(value) is int and value.bit_length() > 64):
+        return None
+    owner_name = ref.qualname.rpartition('.')[0]
+    if owner_name:
+        owners = analyzer._definition_index.find(ref.module, owner_name, kind='class')
+        if len(owners) != 1 or assignment.lineno >= owners[0][1].lineno:
+            return None
+    elif assignment.lineno >= function.lineno:
+        return None
+    return {'kind': 'source_module_literal_default', 'binding_name': name,
+        'value': value, 'binding_evidence': _span(ref, assignment),
+        'source_hashes': dict(sorted(analyzer.hashes.items())),
+        'assumptions': ['source_snapshot_bindings_hold', 'no_external_monkeypatch_or_import_hook',
+                        'unchanged_module_literal_binding']}
+
+
+def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver_class=None):
     # Native kind enums are instances of a mutable Python enum class. Retaining
     # an alias and reflecting its class can change constructor comparisons.
     inspected = 0
@@ -93,6 +134,16 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
 
     signature_source_cache = {}
     parameter_cache = {}
+
+    relevant_setters = None
+    if receiver_class is not None:
+        hierarchy = analyzer._class_mro(receiver_class.module, receiver_class.qualname)
+        if not hierarchy:
+            return False
+        relevant_setters = {(owner.module, owner.file_path, member.lineno, member.name)
+            for owner, cls in hierarchy for member in cls.body
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and member.name.startswith('set_')}
 
     def source_signature_decorator(scope, scope_ref):
         """Prove that inspect.signature receives a fresh source function."""
@@ -129,7 +180,60 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
                 return False
             selected = analyzer._definition_index.resolve_qualified(
                 [resolved], analyzer.imports, qualified_guard=analyzer._stable_import_name)
-            return selected is not None and selected[0] == scope_ref
+            if selected is not None:
+                return selected[0] == scope_ref
+            return source_star_reexport(resolved, scope_ref)
+
+        def source_star_reexport(resolved, target_ref):
+            """Resolve one stable public name re-exported by a source package."""
+            package, separator, public_name = resolved.rpartition('.')
+            if not separator or not public_name or public_name.startswith('_'):
+                return False
+            exported = analyzer._definition_index.find_qualified(
+                [scope_ref.module + '.' + scope_ref.qualname], kind='function')
+            if len(exported) != 1 or exported[0][0] != target_ref:
+                return False
+            bodies = analyzer.module_bodies.get(package, ())
+            if len(bodies) != 1 or Path(bodies[0][0]).name != '__init__.py':
+                return False
+            module_path, body = bodies[0]
+            if not analyzer._stable_import_name(target_ref.module + '.' +
+                                                target_ref.qualname):
+                return False
+            if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name == '__getattr__' for node in body):
+                return False
+            bindings = analyzer.import_binding_facts.get(package, ())
+            if len(bindings) != 1 or '__all__' in bindings[0]:
+                return False
+            star_imports = []
+            for statement in body:
+                if not isinstance(statement, ast.ImportFrom):
+                    continue
+                if not any(alias.name == '*' for alias in statement.names):
+                    continue
+                try:
+                    module = importlib.util.resolve_name(
+                        '.' * statement.level + (statement.module or ''), package)
+                except (ImportError, ValueError):
+                    return False
+                if module == target_ref.module:
+                    star_imports.append(statement)
+            if len(star_imports) != 1:
+                return False
+            imported = False
+            for statement in body:
+                if statement is star_imports[0]:
+                    imported = True
+                    continue
+                if imported and public_name in statement_scope_facts([statement]).bound:
+                    return False
+            if any(isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id in ('exec', 'eval', 'globals')
+                    for node in ast.walk(ast.Module(body=body, type_ignores=[]))):
+                return False
+            return True
 
         def canonical_name(module_ref, lexical_scope, expression):
             return canonical(module_ref, lexical_scope, expression)
@@ -211,7 +315,7 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
             if not candidate_bodies:
                 continue
             module_ref = type(scope_ref)(candidate_module, '', candidate_bodies[0][0])
-            for _, body in candidate_bodies:
+            for module_path, body in candidate_bodies:
                 for current in ast.walk(ast.Module(body=body, type_ignores=[])):
                     if not isinstance(current, ast.Call):
                         continue
@@ -220,6 +324,10 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
                     decorated = next((definition for definition in body_nodes(body)
                         if isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef))
                         and current in definition.decorator_list), None)
+                    if relevant_setters is not None:
+                        if (decorated is None or (candidate_module, module_path,
+                                decorated.lineno, decorated.name) not in relevant_setters):
+                            continue
                     if decorated is None:
                         return False
                     if any(item.arg == 'func' for item in current.keywords):
@@ -230,7 +338,10 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
                         return False
                     calls.append((current, decorated, module_ref))
         if not calls:
-            return False
+            if relevant_setters is None:
+                return False
+            signature_source_cache[scope] = signature_name
+            return signature_name
         for _, decorated, _ in calls:
             # Defaults and annotations execute before decorator application.
             # Keep their signature metadata inputs to inert source expressions.
@@ -525,7 +636,7 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None):
 #  @param call Actual outer Signature invocation, never a target runtime value.
 #  @param native_lists Source-bound private query results keyed by internal names.
 #  @return Source-bound normal-return formation evidence or None for open inputs.
-def signature_creation(analyzer, caller, call, native_lists=None):
+def signature_creation(analyzer, caller, call, native_lists=None, receiver_class=None):
     ref, function = caller
     if (not isinstance(call, ast.Call)
             or _canonical(analyzer, ref, function, call.func) != 'inspect.Signature'):
@@ -539,7 +650,8 @@ def signature_creation(analyzer, caller, call, native_lists=None):
     if (len(call.args) != 1 or not isinstance(call.args[0], (ast.List, ast.Tuple))
             or any(item.arg != 'return_annotation' for item in call.keywords)
             or len(call.keywords) > 1 or not _signature_namespace(analyzer)
-            or not _kind_aliases_closed(analyzer, ref, decorator_evidence := [])
+            or not _kind_aliases_closed(analyzer, ref, decorator_evidence := [],
+                                        receiver_class=receiver_class)
             or not builtin_namespace(analyzer, ref)[0]):
         return None
 
@@ -720,12 +832,18 @@ def signature_creation(analyzer, caller, call, native_lists=None):
                     metadata[item.arg] = literal(item.value)
                 except ValueError:
                     marker = _marker_default(analyzer, caller, item.value) if item.arg == 'default' else None
-                    if marker is None:
+                    literal_default = (_module_literal_default(analyzer, caller, item.value)
+                                       if marker is None and item.arg == 'default' else None)
+                    if marker is None and literal_default is None:
                         return None
-                    defaults.append(marker)
-                    # Host placeholders validate structural signature rules;
-                    # they never represent or execute the target marker value.
-                    metadata[item.arg] = object()
+                    default_fact = marker or literal_default
+                    defaults.append(default_fact)
+                    if literal_default is not None:
+                        metadata[item.arg] = literal_default['value']
+                    else:
+                        # Host placeholders validate structural signature rules;
+                        # they never represent or execute the target marker value.
+                        metadata[item.arg] = object()
             parameters.append(inspect.Parameter(name_value, getattr(inspect.Parameter, kind.attr), **metadata))
             evidence.append(_span(ref, expression))
         # These host stdlib objects contain source literals only. No target
@@ -741,6 +859,9 @@ def signature_creation(analyzer, caller, call, native_lists=None):
     for decorator in decorator_evidence:
         assumptions.extend(decorator.get('assumptions', ()))
         hashes.update(decorator.get('source_hashes', {}))
+    for default in defaults:
+        assumptions.extend(default.get('assumptions', ()))
+        hashes.update(default.get('source_hashes', {}))
     for segment in dynamic:
         assumptions.extend(segment['input_query']['assumptions'])
         hashes.update(segment['input_query']['source_hashes'])
