@@ -212,6 +212,10 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                 if not _module_call_assignment(statement.value, origins, module_origins):
                     return fail('caller_prefix_effect_unconfirmed')
                 target = _target(statement.value.func, origins, module_origins)
+                result['boundaries'].append({
+                    'reason': 'caller_prefix_call_effect_unconfirmed',
+                    'evidence': span(statement), 'target': target,
+                })
                 protocol = iterable_return_fact(target, import_roots) if target else None
                 # Call results are never executed. A result receives a narrow
                 # protocol fact only when every overload in a bounded installed

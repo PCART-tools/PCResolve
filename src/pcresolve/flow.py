@@ -383,6 +383,270 @@ class FlowAnalyzer:
         fact = literal_inputs(callsite, store=self._source_store, import_roots=self.roots)
         return dict(fact, schema_version='caller-inputs-0.1')
 
+    ## Report whether one source class member has a stable class binding
+    #  @param module Source module containing the class.
+    #  @param qualname Fully qualified source class name.
+    #  @param member Class member whose binding is queried.
+    #  @param file_path Exact source file for this class identity.
+    #  @return Versioned binding fact, or None when identity or analysis is incomplete.
+    def source_class_member_binding(self, module, qualname, member, file_path):
+        if not all(isinstance(value, str) and value for value in
+                   (module, qualname, member, file_path)):
+            raise ValueError('Class identity and member must be non-empty strings')
+        probe = type(self)(source_files=set(self.files) | {os.path.abspath(file_path)},
+                           import_roots=self.roots,
+                           support_source_protocols=self.support_source_protocols)
+        probe._index(preserve_source_facts=True)
+        normalized = os.path.normcase(os.path.abspath(file_path))
+        classes = [(ref, node) for ref, node in probe._definition_index.find(
+            module, qualname, kind='class')
+            if os.path.normcase(os.path.abspath(ref.file_path)) == normalized]
+        if len(classes) != 1:
+            return None
+        class_ref, class_node = classes[0]
+        member_nodes = []
+        for statement in class_node.body:
+            if (isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                       ast.ClassDef))
+                    and statement.name == member):
+                member_nodes.append(statement)
+            elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                targets = (statement.targets if isinstance(statement, ast.Assign)
+                           else [statement.target])
+                if any(isinstance(target, ast.Name) and target.id == member
+                       for target in targets):
+                    member_nodes.append(statement)
+        if len(member_nodes) != 1:
+            return None
+        member_node = member_nodes[0]
+        member_value = (member_node.value if isinstance(member_node, (ast.Assign, ast.AnnAssign))
+                        else None)
+        writes, truncated = probe._class_binding_writes()
+        if truncated:
+            return None
+        changed = any(owner == class_ref and name in (member, '*')
+                      for owner, name, _, _, _ in writes)
+        path = os.path.abspath(class_ref.file_path)
+        digest = probe.hashes.get(path)
+        if not isinstance(digest, str):
+            return None
+        return {
+            'schema_version': 'source-class-member-binding-0.1',
+            'kind': 'source_class_member_binding',
+            'status': 'may_be_rebound' if changed else 'stable',
+            'basis': 'source_snapshot',
+            'class': {'module': class_ref.module, 'qualname': class_ref.qualname,
+                      'file_path': path, 'lineno': class_ref.lineno},
+            'member': member,
+            'member_kind': ('assignment' if isinstance(member_node, (ast.Assign, ast.AnnAssign))
+                            else 'definition'),
+            'member_expression': ast.unparse(member_value) if member_value is not None else None,
+            'member_span': {'lineno': member_nodes[0].lineno,
+                            'col_offset': member_nodes[0].col_offset,
+                            'end_lineno': member_nodes[0].end_lineno,
+                            'end_col_offset': member_nodes[0].end_col_offset},
+            'source_hashes': {path: digest},
+            'assumptions': ['source_snapshot_bindings_hold',
+                            'no_external_monkeypatch_or_import_hook'],
+        }
+
+    ## Prove a source method returns a fallback after a selected exception
+    #  @param module Source module containing the class.
+    #  @param qualname Fully qualified source class name.
+    #  @param member Method whose exception branch is queried.
+    #  @param file_path Exact source file for this class identity.
+    #  @param exception Exception name handled by the method.
+    #  @return Versioned source behavior fact, or None when the shape is unsupported.
+    def source_method_exception_fallback(self, module, qualname, member, file_path,
+                                        exception='RuntimeError'):
+        if not all(isinstance(value, str) and value for value in
+                   (module, qualname, member, file_path, exception)):
+            raise ValueError('Class, method, path and exception identities must be non-empty')
+        probe = type(self)(source_files=set(self.files) | {os.path.abspath(file_path)},
+                           import_roots=self.roots,
+                           support_source_protocols=self.support_source_protocols)
+        probe._index(preserve_source_facts=True)
+        normalized = os.path.normcase(os.path.abspath(file_path))
+        classes = [(ref, node) for ref, node in probe._definition_index.find(
+            module, qualname, kind='class')
+            if os.path.normcase(os.path.abspath(ref.file_path)) == normalized]
+        if len(classes) != 1:
+            return None
+        class_ref, class_node = classes[0]
+        methods = [node for node in class_node.body
+                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                   and node.name == member]
+        if len(methods) != 1 or methods[0].decorator_list:
+            return None
+        method = methods[0]
+        tries = [node for node in method.body if isinstance(node, ast.Try)]
+        if len(tries) != 1 or tries[0].orelse or tries[0].finalbody:
+            return None
+        instance_name = (method.args.posonlyargs + method.args.args)[1].arg \
+            if len(method.args.posonlyargs + method.args.args) > 1 else None
+        before_try = method.body[:method.body.index(tries[0])]
+
+        # Accept only early paths that return the descriptor or its class value.
+        def only_safe_returns(statements):
+            falls_through = True
+            for statement in statements:
+                if isinstance(statement, ast.Return):
+                    value = statement.value
+                    if (isinstance(value, ast.Name) and value.id == 'self'
+                            or isinstance(value, ast.Attribute)
+                            and isinstance(value.value, ast.Name)
+                            and value.value.id == 'self' and value.attr == 'class_value'):
+                        falls_through = False
+                        continue
+                    return False
+                if isinstance(statement, ast.If):
+                    if (not isinstance(statement.test, ast.Compare)
+                            or any(not isinstance(child, (ast.Name, ast.Attribute, ast.Constant,
+                                                          ast.Compare, ast.Load, ast.Is, ast.IsNot))
+                                   for child in ast.walk(statement.test))
+                            or not only_safe_returns(statement.body)
+                            or statement.orelse and not only_safe_returns(statement.orelse)):
+                        return False
+                    body_falls = _safe_return_block_falls_through(statement.body)
+                    else_falls = (_safe_return_block_falls_through(statement.orelse)
+                                  if statement.orelse else True)
+                    falls_through = body_falls or else_falls
+                    continue
+                return False
+            return bool(statements) and not falls_through
+
+        # Track whether a descriptor lookup branch can reach the protected call.
+        def _safe_return_block_falls_through(statements):
+            falls_through = True
+            for statement in statements:
+                if isinstance(statement, ast.Return):
+                    falls_through = False
+                elif isinstance(statement, ast.If):
+                    body_falls = _safe_return_block_falls_through(statement.body)
+                    else_falls = (_safe_return_block_falls_through(statement.orelse)
+                                  if statement.orelse else True)
+                    falls_through = body_falls or else_falls
+                else:
+                    return True
+            return falls_through
+
+        first_lookup = tries[0].body[0] if len(tries[0].body) == 1 else None
+        lookup_call = (first_lookup.value if isinstance(first_lookup, ast.Expr)
+                       else first_lookup.value if isinstance(first_lookup, ast.Assign)
+                       and len(first_lookup.targets) == 1
+                       and isinstance(first_lookup.targets[0], ast.Name) else None)
+        lookup_instance = (lookup_call.func.value if isinstance(lookup_call, ast.Call)
+                           and isinstance(lookup_call.func, ast.Attribute) else None)
+        if (instance_name is None or len(before_try) > 1
+                or before_try and not isinstance(before_try[0], ast.If)
+                or before_try and before_try[0].orelse
+                or before_try and not isinstance(before_try[0].test, ast.Compare)
+                or before_try and not isinstance(before_try[0].test.left, ast.Name)
+                or before_try and before_try[0].test.left.id != instance_name
+                or before_try and len(before_try[0].test.ops) != 1
+                or before_try and not isinstance(before_try[0].test.ops[0], ast.Is)
+                or before_try and len(before_try[0].test.comparators) != 1
+                or before_try and not isinstance(before_try[0].test.comparators[0], ast.Constant)
+                or before_try and before_try[0].test.comparators[0].value is not None
+                or before_try and not only_safe_returns(before_try[0].body)
+                or not isinstance(lookup_call, ast.Call)
+                or not isinstance(lookup_instance, ast.Name)
+                or lookup_instance.id != instance_name):
+            return None
+        handler_matches = [handler for handler in tries[0].handlers
+                           if isinstance(handler.type, ast.Name)
+                           and handler.type.id == exception]
+        if (len(tries[0].handlers) != 1 or len(handler_matches) != 1
+                or len(handler_matches[0].body) not in (2, 4)
+                or not isinstance(handler_matches[0].body[0], ast.If)
+                or handler_matches[0].body[0].orelse
+                or not isinstance(handler_matches[0].body[0].test, ast.Compare)
+                or not isinstance(handler_matches[0].body[0].test.left, ast.Attribute)
+                or handler_matches[0].body[0].test.left.attr != 'fallback'
+                or not isinstance(handler_matches[0].body[0].test.left.value, ast.Name)
+                or handler_matches[0].body[0].test.left.value.id != 'self'
+                or len(handler_matches[0].body[0].test.ops) != 1
+                or not isinstance(handler_matches[0].body[0].test.ops[0], ast.Is)
+                or len(handler_matches[0].body[0].test.comparators) != 1
+                or not isinstance(handler_matches[0].body[0].test.comparators[0], ast.Constant)
+                or handler_matches[0].body[0].test.comparators[0].value is not None
+                or len(handler_matches[0].body[0].body) != 1
+                or not isinstance(handler_matches[0].body[0].body[0], ast.Raise)):
+            return None
+        handler = handler_matches[0]
+        returns = [node for node in handler.body if isinstance(node, ast.Return)]
+        fallback_mode = 'direct_call'
+        value = returns[0].value if len(returns) == 1 else None
+        direct = (isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute)
+                  and isinstance(value.func.value, ast.Name)
+                  and value.func.value.id == 'self' and value.func.attr == 'fallback'
+                  and len(value.args) == 1 and not value.keywords)
+        if not direct:
+            fallback_mode = 'bound_method'
+            if len(handler.body) != 4:
+                return None
+            assignment, attribute_branch, returned = handler.body[1:]
+            if (not isinstance(assignment, ast.Assign) or len(assignment.targets) != 1
+                    or not isinstance(assignment.targets[0], ast.Name)
+                    or not isinstance(assignment.value, ast.Call)
+                    or not isinstance(assignment.value.func, ast.Attribute)
+                    or assignment.value.func.attr != '__get__'
+                    or not isinstance(assignment.value.func.value, ast.Attribute)
+                    or assignment.value.func.value.attr != 'fallback'
+                    or not isinstance(assignment.value.func.value.value, ast.Name)
+                    or assignment.value.func.value.value.id != 'self'
+                    or len(assignment.value.args) != 2
+                    or not isinstance(assignment.value.args[0], ast.Name)
+                    or assignment.value.args[0].id != instance_name
+                    or not isinstance(assignment.value.args[1], ast.Name)
+                    or assignment.value.args[1].id != 'owner'
+                    or assignment.value.keywords
+                    or not isinstance(attribute_branch, ast.If)
+                    or not isinstance(attribute_branch.test, ast.Attribute)
+                    or attribute_branch.test.attr != 'is_attr'
+                    or not isinstance(attribute_branch.test.value, ast.Name)
+                    or attribute_branch.test.value.id != 'self'
+                    or len(attribute_branch.body) != 1
+                    or not isinstance(attribute_branch.body[0], ast.Return)
+                    or not isinstance(attribute_branch.body[0].value, ast.Call)
+                    or not isinstance(attribute_branch.body[0].value.func, ast.Name)
+                    or attribute_branch.body[0].value.func.id != assignment.targets[0].id
+                    or attribute_branch.body[0].value.args or attribute_branch.orelse
+                    or not isinstance(returned, ast.Return)
+                    or not isinstance(returned.value, ast.Name)
+                    or returned.value.id != assignment.targets[0].id):
+                return None
+            value = assignment.value
+            returns = [attribute_branch.body[0], returned]
+        path = os.path.abspath(class_ref.file_path)
+        digest = probe.hashes.get(path)
+        if not isinstance(digest, str):
+            return None
+        return {
+            'schema_version': 'source-method-exception-fallback-0.1',
+            'kind': 'source_method_exception_fallback',
+            'status': 'source_bound', 'basis': 'source_snapshot',
+            'class': {'module': class_ref.module, 'qualname': class_ref.qualname,
+                      'file_path': path, 'lineno': class_ref.lineno},
+            'member': member, 'exception': exception,
+            'receiver_parameter': instance_name,
+            'protected_call': ast.dump(lookup_call, include_attributes=False),
+            'protected_span': {'lineno': lookup_call.lineno,
+                               'col_offset': lookup_call.col_offset,
+                               'end_lineno': lookup_call.end_lineno,
+                               'end_col_offset': lookup_call.end_col_offset},
+            'lookup_member': lookup_call.func.attr,
+            'fallback_expression': ast.dump(value, include_attributes=False),
+            'fallback_mode': fallback_mode,
+            'source_span': {'lineno': returns[0].lineno,
+                            'col_offset': returns[0].col_offset,
+                            'end_lineno': returns[0].end_lineno,
+                            'end_col_offset': returns[0].end_col_offset},
+            'source_hashes': {path: digest},
+            'assumptions': ['source_snapshot_bindings_hold',
+                            'no_external_monkeypatch_or_import_hook'],
+        }
+
     ## Resolve a supported source protocol used by one exact function call
     #  @param caller Function containing the call.
     #  @param callsite Exact source span of the call expression.

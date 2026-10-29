@@ -228,3 +228,15 @@ with open('payload', 'r', encoding='utf-8') as stream:
         result = query(tmp_path, source)
         assert result['status'] == 'unconfirmed'
         assert result['boundaries']
+
+
+def test_imported_prefix_call_is_reported_as_unmodeled_effect(tmp_path):
+    result = query(tmp_path, '''import factory
+from library import target
+value = factory.bind()
+target(value)
+''')
+    boundary = next(item for item in result['boundaries']
+                    if item['reason'] == 'caller_prefix_call_effect_unconfirmed')
+    assert boundary['target'] == 'factory.bind'
+    assert boundary['evidence']['lineno'] == 3
