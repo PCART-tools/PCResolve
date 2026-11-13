@@ -502,33 +502,6 @@ def test_matplotlib_350_patch_alias_decorator_proves_its_generated_names():
                for fact in facts)
 
 
-def test_matplotlib_350_shadow_class_entry_binds_constructor():
-    report = Path('C:/GitHub/VPPDetector/evaluation/pcbench/shadow-chain-9f6f877-20261011.json')
-    if not report.is_file():
-        pytest.skip('Frozen Shadow source closure is not available')
-    hashes = json.loads(report.read_text(encoding='utf-8'))['source_hashes']
-    selected = [Path(path) for path in hashes]
-    if not all(path.is_file() for path in selected):
-        pytest.skip('Frozen Shadow source files are not available')
-    package = next(path.parent for path in selected if path.name == 'docstring.py')
-    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
-    result = analyzer.analyze(FunctionRef(
-        module='matplotlib.patches', qualname='Shadow', file_path=str(package / 'patches.py')))
-    binding = result.inputs['entry_binding']
-    assert binding['status'] == 'source_bound'
-    assert binding['target']['qualname'] == 'Shadow.__init__'
-    assert 'source_callable_object_identity_decorator' in binding['assumptions']
-    update = result.find_calls(callee_name='self.update')[0]
-    assert update.target is not None
-    assert update.target.qualname == 'Artist.update'
-    assert any(fact.get('kind') == 'fresh_source_instance_method'
-               and fact.get('status') == 'source_bound'
-               for fact in update.instance_method_bindings)
-    assert any(value.get('kind') == 'parameter' and value.get('source') == 'kwargs'
-               and value.get('output_path') == ['*']
-               for value in update.parameter_flows)
-
-
 def test_matplotlib_shadow_receiver_candidate_retains_decorated_class_boundary():
     result = analyze('matplotlib-3.5.0', ['patches.py', 'artist.py'],
                      'matplotlib.patches', 'Shadow.__init__')

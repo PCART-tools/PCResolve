@@ -641,6 +641,8 @@ class ProjectMethodOwnershipMixin:
     def _call_result_method_owner_candidates(
             self, module, source, method, tracers, seen,
             receiver_class_filter, context):
+        if isinstance(source.result_source, UnknownSource):
+            return ['unknown']
         shape = self._returned_python_shape(module, source, tracers, context)
         if shape is not None:
             return self._argument_method_owner_candidates(

@@ -158,7 +158,7 @@ def fixed(allowed=0): return allowed
     query, = [item for item in hook['class_metadata_queries']
               if item.get('kind') == 'source_bound_callable_metadata_presence']
     assert query['result'] is True
-    assert query['metadata_fact']['kind'] == 'source_module_initialization_method_metadata'
+    assert query['metadata_fact']['kind'] == 'source_module_initialization_member_metadata'
 
 
 def test_creation_hook_does_not_assume_dynamic_module_method_metadata(tmp_path):

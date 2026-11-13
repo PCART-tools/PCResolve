@@ -190,6 +190,12 @@ class CallResultResolutionMixin:
                     call_lineno, call_col_offset)
             rs = normalize_source(rs)
             if isinstance(rs, CallResult):
+                # A callable's owner is not necessarily its result's owner.
+                # Preserve explicit result evidence before following the callee.
+                explicit = self._explicit_call_result_source(
+                    cur_module, rs, display, tracers, _seen)
+                if explicit is not None:
+                    return explicit
                 next_chain = self.trace_symbol(
                     cur_module, rs.callee, tracers, set())
                 cur_symbol = rs.callee
@@ -232,6 +238,10 @@ class CallResultResolutionMixin:
                     module, symbol, source, display, tracers,
                     call_lineno, call_col_offset)
             if isinstance(source, CallResult):
+                explicit = self._explicit_call_result_source(
+                    module, source, display, tracers, _seen)
+                if explicit is not None:
+                    return explicit
                 return (display, module, source.callee)
         return None
 

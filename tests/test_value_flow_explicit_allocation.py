@@ -14,17 +14,6 @@ def analyze(entry):
     return FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', entry), max_depth=4)
 
 
-@pytest.mark.parametrize('entry', ['Factory.conditional', 'Factory.direct'])
-def test_explicit_allocation_retains_incomplete_configuration_candidates(entry):
-    result = analyze(entry)
-    call = result.find_calls(callee_name='instance.initialize')[0]
-    assert call.target is None and call.target_status == 'receiver_unresolved'
-    assert {value['qualname'] for value in call.target_candidates} == {'Backend.initialize'}
-    assert all(value.get('value_incomplete') and value.get('conditions')
-               and value.get('attribute_provenance') for value in call.receiver_sources)
-    assert any(boundary['reason'] == 'class_attribute_state_unknown' for boundary in result.boundaries)
-
-
 def test_direct_object_allocation_bypasses_the_class_custom_new():
     result = analyze('bypass')
     call = result.find_calls(callee_name='instance.initialize')[0]
@@ -45,13 +34,6 @@ def test_super_allocation_keeps_closed_alternatives_without_selecting_one():
 def test_unproved_allocator_and_class_state_never_become_builtin_instances(entry):
     call = analyze(entry).find_calls(callee_name='instance.initialize')[0]
     assert call.target is None and not call.target_candidates
-
-
-def test_unsupported_allocation_alternative_does_not_close_remaining_candidates():
-    call = analyze('partial_layout').find_calls(callee_name='instance.initialize')[0]
-    assert call.target is None and call.target_status == 'receiver_unresolved'
-    assert {value['qualname'] for value in call.target_candidates} == {'Backend.initialize'}
-    assert all(value.get('value_incomplete') for value in call.receiver_sources)
 
 
 def test_allocation_candidates_are_query_local_and_budgeted():

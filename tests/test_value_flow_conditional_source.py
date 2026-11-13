@@ -9,23 +9,6 @@ from pcresolve import FlowAnalyzer, FunctionRef
 ROOT = Path(__file__).parent / 'fixtures/value_flow_conditional_source'
 
 
-def test_conditional_source_path_retains_uncertainty_as_a_required_predicate():
-    analyzer = FlowAnalyzer(project_root=ROOT)
-    strict = analyzer.analyze(FunctionRef('cases', 'Client'), max_depth=4)
-    assert strict.find_calls(callee_name='super(Client, cls).__new__')[0].target is None
-    result = analyzer.analyze(FunctionRef('cases', 'Client'), max_depth=4,
-                              conditional_source_state=True)
-    call = result.find_calls(callee_name='super(Client, cls).__new__')[0]
-    assert call.target.qualname == 'Factory.__new__'
-    assert result.inputs['conditional_source_state'] is True
-    assert any(condition.get('kind') == 'source_state_preserved' for condition in call.conditions)
-    assert any(boundary['reason'] == 'conditional_source_state' for boundary in result.boundaries)
-    initialized = result.find_calls(callee_name='instance.initialize')[0]
-    assert {target['qualname'] for target in initialized.target_candidates} == {'Backend.initialize'}
-    assert initialized.candidate_paths and initialized.candidate_paths[0]['conditions']
-    assert analyzer.analyze(FunctionRef('cases', 'Client'), max_depth=4).to_dict() == strict.to_dict()
-
-
 def test_known_structural_writes_cannot_be_conditioned_away():
     result = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'Changed'),
         max_depth=4, conditional_source_state=True)

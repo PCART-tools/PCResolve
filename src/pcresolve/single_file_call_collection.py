@@ -650,6 +650,13 @@ class SingleFileCallCollectionMixin:
     #  @param node The Call AST node.
     #  @return Base symbol, structured tuple, or None.
     def _resolve_call_base_for_api(self, node):
+        # Calling the value returned by another call uses the value's owner,
+        # not the inner callable's owner. Preserve an explicit unknown result.
+        if isinstance(node.func, ast.Call):
+            inner = normalize_source(self.trace_source(node.func))
+            if (isinstance(inner, CallResult)
+                    and isinstance(inner.result_source, UnknownSource)):
+                return inner.result_source
         # P0 (1.0.5): bare getattr() builtin calls must be classified as
         # python, not traced through the argument's provenance.  Only
         # trace through obj.getattr("name") style calls where getattr is

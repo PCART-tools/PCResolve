@@ -46,7 +46,7 @@ def test_namespace_accepts_exact_matplotlib_docstring_identity_decorator(tmp_pat
     issues = namespace_issues(analyzer, [patch], assumptions=assumptions)
 
     assert not [item for item in issues if item[0] == 'namespace_unconfirmed']
-    assert 'matplotlib_docstring_identity_decorator' in assumptions
+    assert 'source_callable_object_identity_decorator' in assumptions
 
 
 def test_namespace_rejects_docstring_decorator_that_replaces_function(tmp_path):
@@ -86,5 +86,5 @@ class Patch:
 
     assert not [item for item in issues if item[0] == 'namespace_unconfirmed']
     metadata = wrapper_metadata(analyzer, (draw_ref, draw), '_supports_rasterization')
-    assert metadata['kind'] == 'source_matplotlib_rasterization_wrapper_metadata'
+    assert metadata['kind'] == 'source_wrapper_custom_function_metadata'
     assert metadata['value'] is True

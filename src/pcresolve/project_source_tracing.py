@@ -262,6 +262,15 @@ class ProjectSourceTracingMixin:
                         if top and top not in ("local", "unknown", ""):
                             tops.append(top)
                     elif isinstance(src_norm, CallResult) and isinstance(src_norm.callee, str):
+                        if src_norm.result_source is not None:
+                            result = normalize_source(src_norm.result_source)
+                            if isinstance(result, PythonShape):
+                                tops.append('python')
+                            elif isinstance(result, str) and result not in ('', 'local', 'unknown'):
+                                tops.append(result)
+                            else:
+                                return 'unknown'
+                            continue
                         top = self._top_name(src_norm.callee)
                         if top and top not in ("local", "unknown", ""):
                             tops.append(top)
@@ -274,6 +283,13 @@ class ProjectSourceTracingMixin:
                 if top and top not in ("local", "unknown", ""):
                     return top
             elif isinstance(returns_norm, CallResult):
+                if returns_norm.result_source is not None:
+                    result = normalize_source(returns_norm.result_source)
+                    if isinstance(result, PythonShape):
+                        return 'python'
+                    if isinstance(result, str) and result not in ('', 'local'):
+                        return result
+                    return 'unknown'
                 if isinstance(returns_norm.callee, str):
                     top = self._top_name(returns_norm.callee)
                     if top and top not in ("local", "unknown", ""):

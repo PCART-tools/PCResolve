@@ -32,7 +32,7 @@ _BUILTIN_PYTHON_OWNED_RESULT = frozenset({
     "FileNotFoundError", "StopAsyncIteration",
 })
 
-_BUILTIN_ARBITRARY_RESULT = frozenset({"eval", "exec"})
+_BUILTIN_ARBITRARY_RESULT = frozenset({"eval", "exec", "getattr"})
 _BUILTIN_ELEMENT_DERIVED = frozenset({"next", "min", "max"})
 _BUILTIN_PROTOCOL_DERIVED = frozenset({"abs"})
 
@@ -112,6 +112,7 @@ def _resolve_builtin_result(name, call_node, trace_fn):
         return None
     if name in _BUILTIN_PYTHON_OWNED_RESULT:
         return "python"
+    # Dynamic builtins can produce arbitrary values, so retain uncertainty.
     if name in _BUILTIN_ARBITRARY_RESULT:
         return UnknownSource(name)
     if name in _BUILTIN_ELEMENT_DERIVED and call_node and call_node.args:
@@ -398,6 +399,20 @@ class SingleFileSourceResolutionMixin:
         elif _has_python_result(local_returns):
             result_source = UnknownSource("mixed local return")
         func_top, func_name = self._resolve_func_top(node.func)
+        if func_top == "builtins" and func_name == "getattr":
+            root = (node.func if isinstance(node.func, ast.Name)
+                    else node.func.value if isinstance(node.func, ast.Attribute)
+                    else None)
+            if isinstance(root, ast.Name):
+                binding = self.current_scope().lookup(
+                    root.id, skip_parent_classes=True)
+                if binding is not None and binding.binding_kind == "import":
+                    qualified = self._import_binding_sources.get(
+                        self._binding_key(binding))
+                    expected = ("builtins.getattr" if isinstance(node.func, ast.Name)
+                                else "builtins")
+                    if qualified == expected:
+                        return UnknownSource("getattr")
         mapped_owner = _match_result_owner(func_top, func_name)
         if mapped_owner is not None:
             result_source = (

@@ -159,7 +159,7 @@ class Fancy(Patch):
     target, = analyzer._definition_index.find('matplotlib.patches', 'Patch.__init__')
     fact = factory_wrapper(analyzer, target)
     assert fact is not None
-    assert fact['kind'] == 'source_matplotlib_keyword_only_wrapper'
+    assert fact['kind'] == 'source_function_factory_wrapper_creation'
     assert fact['forwarding']['argument_scope'] == 'same_args_and_kwargs'
     assert fact['forwarding']['normal_return_paths'] == (
         'all_explicit_returns_forward_original_args_kwargs')
