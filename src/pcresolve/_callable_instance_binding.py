@@ -1,5 +1,6 @@
 ## @package pcresolve._callable_instance_binding
 #  Narrow snapshot bindings for direct module-level, data-only constructions.
+#  为模块级直接构造的纯数据实例建立受限的快照绑定。
 import ast
 import copy
 import hashlib
@@ -13,10 +14,21 @@ NODE_LIMIT = 1000000
 STATE_LIMIT = 2000
 
 
+## Hash the canonical mapping of source paths to snapshot hashes.
+## 对源码路径到快照哈希的规范映射计算摘要。
+#
+#  @param hashes Source paths and their content hashes.
+#  @return Hexadecimal SHA-256 digest of the serialized mapping.
 def snapshot_digest(hashes):
     return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode('utf-8')).hexdigest()
 
 
+## Evaluate a supported finite literal or previously captured name.
+## 求值受支持的有限字面量或先前记录的名称。
+#
+#  @param node Expression to evaluate without executing source code.
+#  @param values Previously captured finite values by name.
+#  @return Structured value, or None when the expression is unsupported.
 def finite(node, values):
     if isinstance(node, ast.Constant) and type(node.value) in (
             str, int, float, bool, type(None)):
@@ -40,6 +52,8 @@ def finite(node, values):
 
 
 ## Explain a saved source candidate without promoting runtime dispatch.
+## 解释保存的源码候选，不将其提升为已确认的运行时分派。
+#
 #  @param summary Current value-flow summary and its source snapshot.
 #  @param facts Direct module constructor provenance.
 #  @param target Exact source __call__ definition.
@@ -57,6 +71,13 @@ def source_binding(summary, facts, target):
     values, state = {}, {}
     parameters = method.args.posonlyargs + method.args.args
 
+    ## Record a distinct uncertainty, optionally with source evidence.
+    ## 记录不重复的不确定性及可选的源码证据。
+    #
+    #  @param reason Boundary or uncertainty identifier.
+    #  @param owner Definition containing the evidence, when known.
+    #  @param node AST node providing evidence, when available.
+    #  @return None.
     def issue(reason, owner=None, node=None):
         item = {'reason': reason}
         if node is not None:
@@ -64,10 +85,18 @@ def source_binding(summary, facts, target):
         if item not in issues:
             issues.append(item)
 
+    ## Mark a supported statement and its nodes as accounted for.
+    ## 将受支持的语句及其节点标记为已处理。
+    #
+    #  @param owner Definition containing the statement.
+    #  @param statement Supported source statement.
+    #  @return None.
     def permit(owner, statement):
         evidence.append(summary.evidence_at(owner, statement))
         approved.update(id(node) for node in ast.walk(statement))
 
+    # Require an ordinary, uniquely resolved class and constructor before binding.
+    # 绑定前要求类和构造函数可唯一解析，且不涉及自定义协议。
     matches = analyzer._definition_index.find(class_ref.module, class_ref.qualname, kind='class')
     cls = matches[0][1] if len(matches) == 1 else None
     if cls is None or cls.bases or cls.decorator_list or cls.keywords:
@@ -83,6 +112,8 @@ def source_binding(summary, facts, target):
     if init is None or init[1].decorator_list:
         issue('callable_instance_constructor_unconfirmed')
 
+    # Reconstruct only bounded literal state preceding the construction.
+    # 仅重建构造之前可确定且有界的字面量状态。
     argument_names = {record['node'].id for record in facts['arguments']
                       if isinstance(record.get('node'), ast.Name)}
     watched = {facts['qualified_name']} | {module_ref.module + '.' + name for name in argument_names}
@@ -177,6 +208,8 @@ def source_binding(summary, facts, target):
                                     and isinstance(child.ctx, ast.Load) and not isinstance(node, ast.Attribute)):
                                 issue('callable_instance_receiver_escape', class_ref, node)
 
+    # Any unmodeled write or escape invalidates the proposed static binding.
+    # 任何未建模的写入或逃逸都会使拟议的静态绑定失去确认依据。
     writes, truncated = analyzer._class_binding_writes(include_escapes=True)
     if truncated:
         issue('callable_instance_binding_budget')

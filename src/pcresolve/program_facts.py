@@ -1,12 +1,14 @@
 ## @package pcresolve.program_facts
 #  Internal syntax facts and pure binding operations shared by analysis policies.
 #  This layer neither resolves owners nor computes value-flow summaries.
+#  保存共享语法事实并提供纯绑定操作，不解析归属或计算数据流摘要。
 
 import ast
 from dataclasses import dataclass
 
 
 ## Exact source location of a syntactic call within a source snapshot.
+## 源码快照内语法调用的精确位置。
 @dataclass(frozen=True)
 class SourceSpan:
     file_path: str
@@ -16,6 +18,8 @@ class SourceSpan:
     end_col_offset: int
 
     ## Read a span without changing the caller's file-path representation.
+    ## 读取源码位置，保留调用方使用的文件路径形式。
+    #
     #  @param file_path Source file path, already chosen by the analysis session.
     #  @param node AST node with source positions.
     #  @return Span; unavailable end positions remain None.
@@ -25,12 +29,16 @@ class SourceSpan:
                    getattr(node, 'end_lineno', None), getattr(node, 'end_col_offset', None))
 
     ## Source coordinates independent of the file path.
+    ## 与文件路径无关的源码坐标。
+    #
     #  @return Four-element start/end coordinate tuple.
     @property
     def coordinates(self):
         return (self.lineno, self.col_offset, self.end_lineno, self.end_col_offset)
 
     ## Opaque identity of a call in one source snapshot, preserving flow-0.2 IDs.
+    ## 源码快照内调用的不透明标识，保留 flow-0.2 标识格式。
+    #
     #  @return File path and complete source coordinates.
     @property
     def key(self):
@@ -38,6 +46,7 @@ class SourceSpan:
 
 
 ## Parameter kinds and declaration-time defaults without an analysis payload type.
+## 不依赖分析数据类型的参数类别和声明时默认值。
 #  Default values can be AST nodes or already collected source facts. They remain
 #  in their defining scope; this class never evaluates or traces them.
 @dataclass(frozen=True)
@@ -50,18 +59,24 @@ class FunctionSignature:
     defaults: tuple = ()
 
     ## Positional parameter order after any receiver binding performed by the adapter.
+    ## 适配器完成接收者绑定后的位置参数顺序。
+    #
     #  @return Ordered parameter names.
     @property
     def positional(self):
         return self.positional_only + self.positional_or_keyword
 
     ## Names accepting explicit keywords under Python signature rules.
+    ## 根据 Python 签名规则接受显式关键字的参数名。
+    #
     #  @return Set of positional-or-keyword and keyword-only names.
     @property
     def keyword_names(self):
         return set(self.positional_or_keyword + self.keyword_only)
 
     ## Construct a signature while preserving default-to-parameter identity.
+    ## 构建签名并保留默认值与参数的对应关系。
+    #
     #  @param args Function or lambda ast.arguments.
     #  @param positional Optional positional nodes after receiver binding.
     #  @return Signature with declaration-time AST defaults.
@@ -82,8 +97,10 @@ class FunctionSignature:
 
 
 ## Pure syntax binding for the value-flow adapter, including explicit uncertainty.
+## 为数据流适配器执行纯语法绑定，并显式保留不确定性。
 #  Records also expose complete statically decidable callability facts. Dynamic
 #  expansion prevents a missing/duplicate claim when it could supply the slot.
+#
 #  @param node ast.Call; its expressions are retained as opaque payloads.
 #  @param signature Callee signature after receiver binding.
 #  @return (Binding records, ordered boundary reasons), without session mutation.
@@ -96,6 +113,11 @@ def bind_ast_call(node, signature):
     uncertain_keywords = False
     bound = {}
 
+    ## Classify a binding destination using the selected signature.
+    ## 根据所选签名分类绑定目标。
+    #
+    #  @param parameter Formal parameter name or None.
+    #  @return Destination category.
     def destination_kind(parameter):
         if parameter == signature.vararg:
             return 'var_positional'
@@ -103,6 +125,11 @@ def bind_ast_call(node, signature):
             return 'var_keyword'
         return 'parameter' if parameter else 'unresolved'
 
+    ## Add a binding record and mark any provable duplicate.
+    ## 添加绑定记录并标记能够证明的重复绑定。
+    #
+    #  @param record Mutable binding record.
+    #  @return None
     def add_record(record):
         parameter = record['parameter']
         record['destination_kind'] = destination_kind(parameter)
@@ -122,6 +149,13 @@ def bind_ast_call(node, signature):
         if parameter and record['status'] == 'exact':
             bound[duplicate_key if parameter == signature.kwarg else parameter] = record
 
+    ## Bind one positional argument while preserving expansion uncertainty.
+    ## 绑定一个位置实参，并保留展开带来的不确定性。
+    #
+    #  @param argument Argument expression.
+    #  @param slot Source position metadata.
+    #  @param expanded Whether this item came from a literal starred pack.
+    #  @return None
     def positional_record(argument, slot, expanded=False):
         nonlocal position
         parameter = None
@@ -154,6 +188,8 @@ def bind_ast_call(node, signature):
             continue
         positional_record(argument, {'position': position})
 
+    # Expand only literal string-key dictionaries with unique keys.
+    # 仅展开键唯一且均为字符串字面量的字典。
     keyword_arguments = []
     for keyword in node.keywords:
         if (keyword.arg is None and isinstance(keyword.value, ast.Dict)
@@ -180,6 +216,8 @@ def bind_ast_call(node, signature):
             'binding_kind': ('dynamic_keyword' if key is None else
                              'expanded_keyword' if expanded else 'explicit')})
 
+    # Dynamic packs may fill required slots; do not claim those slots are missing.
+    # 动态展开可能填充必需参数，不能将这些参数断言为缺失。
     required = [name for name in positional + signature.keyword_only if name not in defaults]
     for parameter in required:
         could_be_positional = parameter in positional and uncertain_position
@@ -202,6 +240,7 @@ def bind_ast_call(node, signature):
 
 
 ## Existing ownership projection choices, separate from signature syntax facts.
+## 现有归属分析的投影选项，与签名语法事实分离。
 @dataclass(frozen=True)
 class SourceBindingPolicy:
     collect_packs: bool
@@ -213,6 +252,8 @@ OWNERSHIP_BINDING = SourceBindingPolicy(True, True)
 
 
 ## Select a positional item only when one known-start starred pack can supply it.
+## 仅当一个起点已知的星号展开包可提供该位置时选择其元素。
+#
 #  @param stars Mapping of expansion start offsets to opaque source payloads.
 #  @param index Target positional offset.
 #  @param project Pure callback producing a selected item source.
@@ -228,8 +269,10 @@ def starred_item_source(stars, index, project):
 
 
 ## Project opaque call-edge sources onto a parameter under the consumer's policy.
+## 根据使用方策略将不透明调用边来源投影到参数。
 #  Ownership keeps its existing explicit-keyword priority, even for legacy
 #  summaries without parameter-kind metadata. No library/value decisions occur here.
+#
 #  @param signature Callee signature with collected default source payloads.
 #  @param parameter Target parameter name.
 #  @param positional Explicit sources keyed by positional offset.
@@ -243,6 +286,9 @@ def bind_parameter_sources(signature, parameter, positional, keywords, stars,
                            star_keywords, project, policy):
     if parameter in keywords:
         return [keywords[parameter]]
+
+    # Pack collection and ambiguous keyword fallback belong to the adapter policy.
+    # 参数包收集和关键字歧义回退由适配器策略决定。
     names = signature.positional
     if parameter == signature.vararg or parameter == signature.kwarg:
         if not policy.collect_packs:

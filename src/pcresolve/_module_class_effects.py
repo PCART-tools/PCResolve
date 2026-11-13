@@ -1,5 +1,6 @@
 ## @package pcresolve._module_class_effects
 #  Bounded effects of the first explicit source classmethod module call.
+#  模块中首次显式源码类方法调用的有界效果。
 
 import ast
 from importlib import import_module
@@ -11,6 +12,8 @@ from .class_attribute_effects import _ClassEffectLimit
 
 
 ## Analyze a module class call under its independently established fresh prefix.
+## 在独立证明的初始模块前缀下分析类方法调用。
+#
 #  @param analyzer Fixed source generation and existing effect budgets.
 #  @param target Exact source root-class declaration.
 #  @param call Actual standalone module-level classmethod call.
@@ -28,6 +31,9 @@ def module_class_effects(analyzer, target, call):
     if (len(selected) != 1 or selected[0][1] is not members[0]
             or analyzer._descriptor_kind(selected[0]) != 'classmethod'):
         return None
+
+    # The proof is limited to this call and its established module prefix.
+    # 证明仅限于本次调用及其已确认的模块前缀。
     try:
         creation_calls = import_module(__package__ + '._class_creation_calls').creation_calls
         proof = creation_calls(analyzer, target, selected[0], ancestor_hooks=[], module_prefix=prefix)
@@ -35,6 +41,9 @@ def module_class_effects(analyzer, target, call):
         return None
     if proof is None:
         return None
+
+    # Merge supporting premises without claiming the later module namespace.
+    # 合并支持前提，不断言模块后续命名空间状态。
     attributes, evidence, calls, queries, metadata, signatures, class_queries = proof
     assumptions = set(prefix['assumptions'])
     assumptions.add('source_module_classmethod_effects')

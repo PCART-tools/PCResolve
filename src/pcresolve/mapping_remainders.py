@@ -1,15 +1,19 @@
 ## @package pcresolve.mapping_remainders
 #  Bounded source proofs for the unchanged part of an unescaped builtin dict.
+#  为未逃逸的内建字典中保持不变的部分提供有界源码证明。
 
 import ast
 from dataclasses import dataclass
 
 
+## Signal that a mapping remainder proof exceeded its finite work limit.
+## 表示映射剩余项证明已超过有限工作上限。
 class _ProofLimit(RuntimeError):
     pass
 
 
 ## An unchanged-key projection and one consistent normal-return alias route.
+## 表示未变更键的投影及一条一致的正常返回别名路径。
 @dataclass(frozen=True)
 class MappingRemainder:
     ## Keys possibly written or removed; other input entries remain unchanged.
@@ -23,8 +27,12 @@ class MappingRemainder:
 
 
 ## Prove a finite-key remainder, without claiming complete values for those keys.
+## 证明有限键集合的剩余项，但不声称这些键的完整值已知。
 #  The caller must establish a fresh, unescaped builtin dict and distinct inputs.
 #  Unsupported accesses, reflection, escaping calls and arbitrary iteration fail.
+#  调用方必须先证明字典是新建且未逃逸的内建字典，并且输入彼此不同。
+#  不支持的访问、反射、逃逸调用和任意迭代都会使证明失败。
+#
 #  @param node Undecorated synchronous source function.
 #  @param parameter Protected ordinary dict parameter.
 #  @param sequences Finite literal string sequences supplied at this call.
@@ -50,6 +58,13 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
     touched, evidence, returns = set(), [], []
     states = 0
 
+    ## Resolve finite string keys from the current sequence and key environments.
+    ## 根据当前序列和键环境解析有限字符串键集合。
+    #
+    #  @param value Candidate key expression.
+    #  @param seq Known finite string sequences by local name.
+    #  @param keys Known finite key sets by loop variable.
+    #  @return Finite key set, or None when the expression is not bounded.
     def finite(value, seq, keys):
         if isinstance(value, ast.Name):
             return keys.get(value.id)
@@ -57,6 +72,12 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
             return frozenset((value.value,))
         return None
 
+    ## Resolve a literal or previously bounded sequence of strings.
+    ## 解析字面量或此前已限定的字符串序列。
+    #
+    #  @param value Candidate sequence expression.
+    #  @param seq Known finite sequences by local name.
+    #  @return Finite string set, or None for dynamic sequences.
     def sequence(value, seq):
         if isinstance(value, ast.Name):
             return seq.get(value.id)
@@ -65,9 +86,23 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
             return frozenset(x.value for x in value.elts)
         return None
 
+    ## Check whether a subtree refers to any protected mapping alias.
+    ## 检查语法子树是否引用受保护的映射别名。
+    #
+    #  @param value Expression subtree to inspect.
+    #  @param aliases Local names referring to the protected mapping.
+    #  @return True when the subtree contains a protected alias reference.
     def references(value, aliases):
         return any(isinstance(n, ast.Name) and n.id in aliases for n in ast.walk(value))
 
+    ## Validate one expression and record supported mapping reads or removals.
+    ## 验证单个表达式，并记录受支持的映射读取或移除。
+    #
+    #  @param value Expression to inspect.
+    #  @param aliases Local names bound to the protected dictionary.
+    #  @param seq Known finite string sequences.
+    #  @param keys Known finite key sets for active loop variables.
+    #  @return True when all effects are within the supported subset.
     def expression(value, aliases, seq, keys):
         if value is None:
             return True
@@ -88,7 +123,9 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
                 return True
             if references(value, aliases):
                 return False
+
             # An unknown call may mutate a finite sequence supplied to it.
+            # 未知调用可能修改传入的有限序列，因此使相应序列事实失效。
             names = {n.id for n in ast.walk(value) if isinstance(n, ast.Name)}
             for name in names & seq.keys():
                 seq.pop(name, None)
@@ -105,6 +142,14 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
             return finite(value.left, seq, keys) is not None
         return all(expression(child, aliases, seq, keys) for child in ast.iter_child_nodes(value))
 
+    ## Interpret a statement block while tracking aliases, keys, and returns.
+    ## 解释语句块并跟踪别名、键集合和返回路径。
+    #
+    #  @param body Statements to inspect in source order.
+    #  @param aliases Mutable local names referring to the protected dictionary.
+    #  @param seq Mutable finite string sequence environment.
+    #  @param keys Finite key sets available to active loop variables.
+    #  @return False when control terminates, True when it may fall through, or None if unsupported.
     def block(body, aliases, seq, keys):
         nonlocal states
         for statement in body:
@@ -140,6 +185,9 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
                 left_s, right_s = dict(seq), dict(seq)
                 left = block(statement.body, left_a, left_s, dict(keys))
                 right = block(statement.orelse, right_a, right_s, dict(keys))
+
+                # Merge branch facts only when continuing paths agree on aliases.
+                # 仅当仍可继续的路径在别名状态上兼容时才合并分支事实。
                 if left is None or right is None or left and right and left_a != right_a:
                     return None
                 if not left and not right:
@@ -173,6 +221,9 @@ def mapping_remainder(node, parameter, sequences, builtin, max_nodes=2000):
                         or any(isinstance(n, ast.Return) for s in statement.body for n in ast.walk(s))
                         or any(isinstance(n, (ast.Break, ast.Continue)) for n in ast.walk(statement))):
                     return None
+
+                # Iterate only over finite keys and reject loops that alter alias identity.
+                # 仅允许遍历有限键集合，并拒绝会改变别名身份的循环。
                 old_aliases = set(aliases)
                 status = block(statement.body, aliases, dict(seq), dict(keys, **{key_name: bound}))
                 if status is None or aliases != old_aliases:

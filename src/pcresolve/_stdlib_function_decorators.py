@@ -1,11 +1,17 @@
 ## @package pcresolve._stdlib_function_decorators
 #  Conditional source models for standard decorators that return plain functions.
+#  为返回普通函数的标准装饰器提供条件式来源模型。
 
 import ast
 
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Check whether imported coroutine names remain stable throughout the snapshot.
+## 检查快照中的协程导入名称是否始终保持稳定。
+#
+#  @param analyzer Analyzer containing the fixed modules and import bindings.
+#  @return Stability flag and inspected source paths.
 def _coroutine_imports_stable(analyzer):
     cached = getattr(analyzer, "_coroutine_namespace_premises", None)
     if cached is not None:
@@ -36,6 +42,9 @@ def _coroutine_imports_stable(analyzer):
             for statement in body:
                 for node in ast.walk(statement):
                     inspected += 1
+
+                    # Bound the whole snapshot walk so hostile inputs cannot monopolize analysis.
+                    # 限制对整个快照的遍历规模，避免超大输入长期占用分析资源。
                     if inspected > 100000:
                         raise _ClassEffectLimit()
                     nodes.append(node)
@@ -91,11 +100,16 @@ def _coroutine_imports_stable(analyzer):
                     ):
                         stable = False
     cached = stable, tuple(sorted(paths))
+
+    # Reuse the snapshot-wide result for later decorator checks.
+    # 后续装饰器检查复用本次快照级结果。
     analyzer._coroutine_namespace_premises = cached
     return cached
 
 
 ## Recognize only an imported standard coroutine decorator on a non-entry member.
+## 仅识别应用于非入口成员的已导入标准协程装饰器。
+#
 #  @param analyzer Fixed source/import snapshot, with no local asyncio replacement.
 #  @param owner Exact source class identity.
 #  @param member Function definition whose defaults/annotations are checked separately.

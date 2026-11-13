@@ -1,5 +1,6 @@
 ## @package pcresolve._fresh_receiver
 #  Partial method lookup on the unexposed prefix of a fresh source receiver.
+#  使用保守的源码证据分析新鲜接收者的方法查找。
 
 import ast
 import copy
@@ -24,10 +25,23 @@ _ASSUMPTIONS = ['source_snapshot_bindings_hold', 'builtin_type_call_and_new_bind
     'python_method_lookup_precedes_argument_evaluation']
 
 
+## Confirm that no visible custom hooks affect the source class hierarchy.
+## 确认类层级和绑定涉及的模块中没有可见自定义钩子。
+#
+#  @param analyzer Input analyzer used by this analysis step.
+#  @param hierarchy Input hierarchy used by this analysis step.
+#  @param target Input target used by this analysis step.
+#  @param binding Input binding used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _hooks_absent(analyzer, hierarchy, target, binding):
     modules = {owner.module for owner, _ in hierarchy}
     modules.add(target[0].module)
 
+    ## Resolve include modules using bounded source evidence.
+    ## 从证据树递归收集证明所涉及的模块名。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def include_modules(value):
         if isinstance(value, dict):
             module = value.get('module')
@@ -47,9 +61,13 @@ def _hooks_absent(analyzer, hierarchy, target, binding):
     cache_key = (selected, tuple(sorted(analyzer.hashes.items())))
     cache = getattr(analyzer, '_fresh_receiver_hook_premises', {})
     analyzer._fresh_receiver_metadata_guard = None
+
+    # Reuse only premises computed for the same module snapshot and source hashes.
     if cache_key in cache:
         return cache[cache_key]
     guard = nonobserving_source(analyzer, modules=selected)
+
+    # Any unproved observation premise closes this precision path conservatively.
     if guard is None:
         cache[cache_key] = False
         analyzer._fresh_receiver_hook_premises = cache
@@ -61,6 +79,13 @@ def _hooks_absent(analyzer, hierarchy, target, binding):
     return True
 
 
+## Check that the source class layout is closed against relevant mutations.
+## 检查源码类布局封闭性及目标属性是否可能被改写。
+#
+#  @param analyzer Input analyzer used by this analysis step.
+#  @param hierarchy Input hierarchy used by this analysis step.
+#  @param attribute Input attribute used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _closed_layout(analyzer, hierarchy, attribute=None):
     for owner, cls in hierarchy:
         if (_CUSTOM & statement_scope_facts(cls.body).bound
@@ -87,6 +112,8 @@ def _closed_layout(analyzer, hierarchy, attribute=None):
 
 
 ## Describe an empty receiver at the entry of an ordinary source class call.
+## 描述普通源码类调用进入初始化方法时的新鲜空接收者。
+#
 #  @param analyzer Fixed source snapshot and bounded class binding machinery.
 #  @param hierarchy Already checked source MRO.
 #  @param target Selected initializer source definition.
@@ -97,6 +124,8 @@ def allocation_origin(analyzer, hierarchy, target, binding):
             or binding.get('query_kind') != 'source_class_call'
             or not hierarchy or not _closed_layout(analyzer, hierarchy)):
         return None
+
+    # A fresh allocation origin applies only when builtin allocation and lookup remain stable.
     try:
         if not _hooks_absent(analyzer, hierarchy, target, binding):
             return None
@@ -130,10 +159,22 @@ def allocation_origin(analyzer, hierarchy, target, binding):
             'own_attributes': [], 'path': []}
 
 
+## Check whether an expression is a side-effect-free name or constant.
+## 判断表达式是否为无副作用的名称或常量。
+#
+#  @param node Input node used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _pure_argument(node):
     return isinstance(node, (ast.Name, ast.Constant))
 
 
+## Collect receiver attributes directly initialized from parameters before the call.
+## 收集调用前由形参直接写入接收者的属性。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param receiver Input receiver used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _input_attributes_before(summary, node, receiver):
     found, statements = _truncate_before(summary.node.body, node)
     if not found:
@@ -158,11 +199,25 @@ def _input_attributes_before(summary, node, receiver):
     return attributes
 
 
+## Check whether an expression reads a known receiver input attribute.
+## 判断表达式是否读取已知的接收者输入属性。
+#
+#  @param node Input node used by this analysis step.
+#  @param receiver Input receiver used by this analysis step.
+#  @param input_attributes Input input attributes used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _input_access(node, receiver, input_attributes):
     return (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
             and node.value.id == receiver and node.attr in input_attributes)
 
 
+## Recursively check whether an expression exposes the receiver itself.
+## 递归判断表达式是否泄漏接收者本身。
+#
+#  @param node Input node used by this analysis step.
+#  @param receiver Input receiver used by this analysis step.
+#  @param input_attributes Input input attributes used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _receiver_argument_escapes(node, receiver, input_attributes):
     if isinstance(node, ast.Name):
         return node.id == receiver
@@ -172,8 +227,19 @@ def _receiver_argument_escapes(node, receiver, input_attributes):
                for child in ast.iter_child_nodes(node))
 
 
+## Resolve  lookup argument safe using bounded source evidence.
+## 确认有限实参表达式不含不透明调用或接收者逃逸。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param receiver Input receiver used by this analysis step.
+#  @param input_attributes Input input attributes used by this analysis step.
+#  @param depth Input depth used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
     """Allow finite argument expressions without opaque calls or receiver escapes."""
+
+    # Bound recursive expression checks so deeply nested input cannot exhaust analysis.
     if depth > 24:
         return False
     if _pure_argument(node):
@@ -208,6 +274,8 @@ def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
         return (_lookup_argument_safe(summary, node.left, receiver, input_attributes, depth + 1)
                 and _lookup_argument_safe(summary, node.right, receiver, input_attributes, depth + 1))
     if isinstance(node, ast.Call):
+
+        # Calls are safe only when their dispatch target is statically confirmed builtin.
         if node.keywords and any(keyword.arg is None for keyword in node.keywords):
             return False
         if isinstance(node.func, ast.Name):
@@ -234,6 +302,13 @@ def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
     return False
 
 
+## Resolve an Enum.auto member when its value follows from source.
+## 解析可由源码确定的 Enum.auto 成员。
+#
+#  @param analyzer Input analyzer used by this analysis step.
+#  @param owner Input owner used by this analysis step.
+#  @param expression Input expression used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _source_enum_auto_member(analyzer, owner, expression):
     """Prove an imported source enum member declared with stdlib ``auto()``."""
     if not isinstance(expression, ast.Attribute) or not isinstance(expression.value, ast.Name):
@@ -307,6 +382,12 @@ def _source_enum_auto_member(analyzer, owner, expression):
         for written, attribute, _, _, _ in writes)
 
 
+## Track values captured by setdefault along a bounded source path.
+## 在有界源码路径中跟踪 setdefault 捕获值。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _bounded_capture_setdefault(summary, node):
     """Accept an exact builtin dict.setdefault on the current **kwargs map."""
     capture = summary.node.args.kwarg
@@ -383,6 +464,12 @@ def _bounded_capture_setdefault(summary, node):
         and exact_evidence)
 
 
+## Truncate sibling statements at the target statement.
+## 截取目标语句之前的同级语句前缀。
+#
+#  @param statements Input statements used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _truncate_before(statements, node):
     prefix = []
     for statement in statements:
@@ -408,6 +495,12 @@ def _truncate_before(statements, node):
     return False, []
 
 
+## Prune branches with known conditions while preserving reachable statements.
+## 按已知条件缩减分支并保留可能执行的语句。
+#
+#  @param statements Input statements used by this analysis step.
+#  @param summary Input summary used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _prune_known_if(statements, summary):
     parameters = summary.node.args.posonlyargs + summary.node.args.args
     environment = {}
@@ -467,6 +560,13 @@ def _prune_known_if(statements, summary):
     return result
 
 
+## Compute statements that can affect the receiver before method lookup.
+## 计算目标方法查找前可能影响接收者的语句前缀。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param origin Input origin used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _effect_prefix(summary, node, origin):
     found, statements = _truncate_before(summary.node.body, node)
     if not found:
@@ -619,6 +719,13 @@ def _effect_prefix(summary, node, origin):
     return own, evidence, assumptions
 
 
+## Extract a statement prefix without complex control-flow reasoning.
+## 提取无需复杂控制流推理的语句前缀。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param origin Input origin used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _simple_prefix(summary, node, origin):
     receiver = origin['parameter']
     own = set(origin['own_attributes'])
@@ -669,19 +776,28 @@ def _simple_prefix(summary, node, origin):
     return None
 
 
+## Build and validate the bounded prefix before method lookup.
+## 构建并校验方法查找前的有界语句前缀。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param origin Input origin used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def _prefix(summary, node, origin):
     simple = _simple_prefix(summary, node, origin)
     return simple if simple is not None else _effect_prefix(summary, node, origin)
 
 
 ## Bound one plain source instance method before the receiver can escape.
+## 在接收者逃逸前解析普通源码实例方法绑定。
+#  Attribute lookup occurs before argument evaluation, so argument expressions
+#  cannot change the already-bound source method; this does not prove their effects.
+#
 #  @param summary Current source summary, with an explicit allocation origin.
 #  @param node Attribute call reached in that summary.
 #  @param target Selected source candidate; nominal types alone cannot authorize it.
 #  @param receiver Direct receiver provenance at this call.
 #  @return Lookup-prefix binding fact or None; callee/returned state is not proved.
-#  Attribute lookup occurs before argument evaluation, so argument expressions
-#  cannot change the already-bound source method; this does not prove their effects.
 def method_binding(summary, node, target, receiver):
     if (target is None or not isinstance(node.func, ast.Attribute)
             or not isinstance(node.func.value, ast.Name) or node.func.attr.startswith('__')
@@ -743,6 +859,8 @@ def method_binding(summary, node, target, receiver):
 
 
 ## Carry fresh receiver identity through an exact zero-argument super method call.
+## 通过精确的零参数 super 调用传递新鲜接收者身份。
+#
 #  @param summary Current source summary with a fresh allocation origin.
 #  @param node Exact super method call.
 #  @param target PCResolve's selected next-MRO implementation.
@@ -836,6 +954,12 @@ def super_method_binding(summary, node, target, receiver):
         'assumptions': sorted(set(assumptions)), 'issues': []}
 
 
+## Resolve the fresh receiver origin carried by an incoming binding.
+## 解析传入绑定携带的新鲜接收者来源。
+#
+#  @param binding Input binding used by this analysis step.
+#  @param parameter Input parameter used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def incoming_origin(binding, parameter):
     origin = copy.deepcopy(binding['origin'])
     origin['current_function'] = copy.deepcopy(binding['target'])
@@ -845,6 +969,13 @@ def incoming_origin(binding, parameter):
     return origin
 
 
+## Recover the receiver from bounded method-lookup evidence.
+## 从有界查找事实中恢复接收者来源。
+#
+#  @param summary Input summary used by this analysis step.
+#  @param node Input node used by this analysis step.
+#  @param values Input values used by this analysis step.
+#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
 def recover_lookup_receiver(summary, node, values):
     if not values or not any(value.get('value_incomplete') for value in values):
         return values

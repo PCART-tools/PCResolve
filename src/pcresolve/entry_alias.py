@@ -1,5 +1,6 @@
 ## @package pcresolve.entry_alias
 #  Bounded lexical references for API selection, separate from runtime binding.
+#  为 API 选择提供有界词法引用，并与运行时绑定区分开。
 
 import ast
 import copy
@@ -12,10 +13,17 @@ from .scope_facts import statement_scope_facts
 _MAX_ENTRY_ALIAS_MODULE_NODES = 20000
 
 
+## Signal that bounded source alias lookup exhausted its analysis budget.
+## 表示有界源码别名查找已耗尽分析预算。
 class _AliasLimit(ValueError):
     pass
 
 
+## Check whether evaluating a definition can execute a call.
+## 检查求值定义时是否可能执行调用。
+#
+#  @param node Syntax node whose definition-time expressions are inspected.
+#  @return True when a call may execute while creating the definition.
 def _definition_calls(node):
     if isinstance(node, ast.Call):
         return True
@@ -37,6 +45,8 @@ def _definition_calls(node):
 
 
 ## Locate a captured plain source function in one module or plain class namespace.
+## 在单个模块或普通类命名空间中定位已捕获的源码函数。
+#
 #  @param analyzer Fixed source index and class-write facts.
 #  @param requested FunctionRef selecting an alias rather than its old definition name.
 #  @return Definition pair and source-reference evidence, or None outside the bounded subset.
@@ -52,6 +62,7 @@ def reference(analyzer, requested):
         if not analyzer._stable_import_name(requested.module + '.' + owner):
             # A conditional definition may be selected under its recorded
             # activation condition. A competing write is not such a condition.
+            # 条件定义可依据记录的激活条件选择；竞争写入不构成这类条件。
             sources = analyzer.import_binding_facts.get(requested.module, [])
             sites = sources[0].get(owner, []) if len(sources) == 1 else []
             if ('.' in owner or not analyzer.definition_conditions.get(class_ref)
@@ -87,11 +98,15 @@ def reference(analyzer, requested):
         return None
     # The supported alias must end in a direct name-to-name assignment. If
     # there is no such candidate, the module-wide mutation audit is unnecessary.
+    # 支持的别名必须以直接名称赋值结束；没有此类候选时无需审计整个模块的变更。
     if not any(isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Name)
                and any(isinstance(target, ast.Name) and target.id == name
                        for target in statement.targets) for statement in body):
         return None
     nodes = 0
+
+    # Reject reflective namespace access before trusting lexical assignments.
+    # 在信任词法赋值前，先排除反射式命名空间访问。
     for _, module_body in analyzer.module_bodies.get(requested.module, []):
         for statement in module_body:
             for child in ast.walk(statement):
@@ -102,6 +117,9 @@ def reference(analyzer, requested):
                         and child.id in ('globals', 'vars', 'eval', 'exec')):
                     return None
     values = {}
+
+    # Replay statements in order so later rebinding invalidates earlier aliases.
+    # 按语句顺序重放，使后续重绑定能够使之前建立的别名失效。
     for count, statement in enumerate(body):
         if count >= 2000:
             raise _AliasLimit('Source entry alias statement budget exhausted')
@@ -137,8 +155,10 @@ def reference(analyzer, requested):
             continue
         if _definition_calls(statement):
             values.clear()
+
         # Attribute writes through any retained function alias invalidate all
         # references to that same function object, including earlier aliases.
+        # 通过保留函数别名执行属性写入时，同一函数对象的全部引用（包括旧别名）均失效。
         for child in ast.walk(statement):
             if (isinstance(child, ast.Attribute) and isinstance(child.ctx, (ast.Store, ast.Del))
                     and isinstance(child.value, ast.Name) and child.value.id in values):

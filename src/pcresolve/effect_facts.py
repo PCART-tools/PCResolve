@@ -1,11 +1,14 @@
 ## @package pcresolve.effect_facts
 #  Owner-neutral builtin-container and straight-line function effect facts.
+#  与归属无关的内置容器和顺序执行函数的效果事实。
 
 import ast
 from dataclasses import dataclass
 
 
 ## Walk immediate evaluation, including declaration inputs but not deferred bodies.
+## 遍历立即求值部分，包括声明输入但不包括延迟执行的函数体。
+#
 #  @param root Source execution scope to inspect.
 #  @return Iterator of AST nodes evaluated within this scope.
 def execution_nodes(root):
@@ -13,6 +16,8 @@ def execution_nodes(root):
     while pending:
         node = pending.pop()
         yield node
+        # Defaults, annotations and decorators execute without invoking the body.
+        # 默认值、注解和装饰器无需调用函数体即可求值。
         if node is not root and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             children = list(getattr(node, 'decorator_list', [])) + list(node.args.defaults)
             children.extend(value for value in node.args.kw_defaults if value is not None)
@@ -27,6 +32,8 @@ def execution_nodes(root):
 
 
 ## Describe syntactic evaluation prerequisites without claiming reachability.
+## 描述语法求值前提，不据此断言代码可达。
+#
 #  @param root Source tree or expression; no source is executed.
 #  @return Iterator of (node, prerequisite tuple) pairs. Each prerequisite pairs
 #          a phase kind with its source declaration/generator node. Empty means
@@ -54,6 +61,8 @@ def evaluation_contexts(root):
             children = [(item, requirements) for item in inputs]
             children.extend((item, body_requirements) for item in body)
         elif isinstance(node, ast.GeneratorExp):
+            # The first iterable is evaluated immediately; the remaining work is deferred.
+            # 首个可迭代表达式立即求值，其余工作延迟到生成器恢复执行。
             deferred = requirements + (('generator_resumption', node),)
             children = [(node.elt, deferred)]
             for index, generator in enumerate(node.generators):
@@ -66,6 +75,8 @@ def evaluation_contexts(root):
 
 
 ## Match syntax for a finite builtin exception handler that only raises again.
+## 匹配只重新抛出有限内置异常的处理器语法。
+#
 #  @param handler ExceptHandler source node; no source is executed.
 #  @return Syntactic translation shape, or None; builtin bindings and data effects
 #          still require a caller-specific proof.
@@ -98,6 +109,7 @@ def builtin_exception_translation(handler):
 
 
 ## Exact supported behavior of one builtin container method call.
+## 一个内置容器方法调用受支持的精确行为。
 @dataclass(frozen=True)
 class ContainerMethodEffect:
     ## Canonical operation name.
@@ -107,11 +119,16 @@ class ContainerMethodEffect:
     ## Whether the operation changes the receiver.
     mutates_receiver: bool
 
+    ## Freeze the formal parameter names used by this effect.
+    ## 将此效果使用的形参名固定为元组。
+    #
+    #  @return None
     def __post_init__(self):
         object.__setattr__(self, 'parameters', tuple(self.parameters))
 
 
 ## One exact write in a complete straight-line function summary.
+## 完整顺序函数摘要中的一个精确写入效果。
 @dataclass(frozen=True)
 class FunctionEffect:
     ## Canonical effect kind.
@@ -135,7 +152,9 @@ class FunctionEffect:
 
 
 ## Match a builtin container method by receiver shapes and positional arity.
+## 根据接收者形态和位置实参数量匹配内置容器方法。
 #  Keyword and expansion uncertainty remains an adapter policy.
+#
 #  @param method Attribute method name.
 #  @param receiver_shapes Iterable of proven builtin container kinds.
 #  @param positional_count Number of syntactic positional arguments.
@@ -179,11 +198,18 @@ def container_method_effect(method, receiver_shapes, positional_count):
 
 
 ## Determine whether a body yields without entering nested definitions.
+## 判断当前函数体是否 yield，不进入嵌套定义。
+#
 #  @param node Root function, lambda, or expression AST.
 #  @return True when the root execution contains Yield or YieldFrom.
 def contains_yield(node):
     found = False
 
+    ## Search this execution body until a yield is found.
+    ## 在当前执行体中搜索 yield，找到后停止。
+    #
+    #  @param item AST node to inspect.
+    #  @return None
     def visit(item):
         nonlocal found
         if found:
@@ -203,11 +229,13 @@ def contains_yield(node):
 
 
 ## Extract all effects from a supported straight-line function body.
+## 从受支持的顺序函数体中提取全部效果。
 #  A partial summary is never returned: unsupported statements and generators
 #  produce None so callers do not apply an incomplete set of writes.
 #  Ordinary-parameter aliases and constant-string-key pop/delete facts retain
 #  receiver shape prerequisites, not an inferred type for generic parameters.
 #  Effects describe normal completion; required-key removals may raise KeyError.
+#
 #  @param node Candidate function definition.
 #  @param call_effects Optional adapter proving complete effects of source helper calls.
 #  @return FunctionEffect tuple, or None when the whole body is unsupported.
@@ -226,6 +254,12 @@ def function_effects(node, call_effects=None):
     ordinary = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
     aliases = {argument.arg: argument.arg for argument in ordinary}
 
+    ## Recognize a constant-key mapping pop and its possible exception.
+    ## 识别常量键映射 pop 及其可能抛出的异常。
+    #
+    #  @param value Candidate call expression.
+    #  @param statement Statement supplying evidence.
+    #  @return FunctionEffect or None for an unsupported shape.
     def mapping_pop(value, statement):
         if (not isinstance(value, ast.Call)
                 or not isinstance(value.func, ast.Attribute)
@@ -242,6 +276,8 @@ def function_effects(node, call_effects=None):
                               statement, 'dict', (value.args[0].value,),
                               'KeyError' if len(value.args) == 1 else None)
 
+    # Reject the entire summary on an unsupported statement, never a partial write set.
+    # 遇到不支持的语句时拒绝整个摘要，避免输出不完整的写入集合。
     effects = []
     for statement in body:
         if isinstance(statement, (ast.Nonlocal, ast.Pass)):
@@ -337,8 +373,10 @@ def function_effects(node, call_effects=None):
 
 
 ## Extract guarded deletion sites without claiming a complete effect summary.
+## 提取受条件保护的删除位置，不声称得到完整效果摘要。
 #  Additional statements may throw, mutate or escape; these facts describe
 #  conditional source operations only, never normal-return postconditions.
+#
 #  @param node Source function with ordinary mapping and sequence parameters.
 #  @return Symbolic sites; None of them authorizes a strong update by itself.
 def finite_key_delete_sites(node):
@@ -358,6 +396,9 @@ def finite_key_delete_sites(node):
                 or not isinstance(statement.target, ast.Name) or statement.target.id in aliases
                 or len(statement.body) != 1 or not isinstance(statement.body[0], ast.If)):
             break
+
+        # These sites are conditional evidence, not proof of a normal-return update.
+        # 这些位置仅是条件性证据，不能证明正常返回后的更新。
         branch = statement.body[0]
         test = branch.test
         if (branch.orelse or not isinstance(test, ast.Compare) or len(test.ops) != 1

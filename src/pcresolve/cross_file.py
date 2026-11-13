@@ -1,5 +1,6 @@
 ## @package pcresolve.cross_file
 #  Provide cross-file project-level API call chain analysis.
+#  提供跨文件的项目级 API 调用链分析。
 #
 #  The ProjectAnalyzer class orchestrates scanning a project, parsing every
 #  .py file, building per-file symbol tables, resolving symbols across files,
@@ -35,6 +36,8 @@ from .types import ProjectAnalysis, FileAnalysis, ApiCall
 
 ## Remove consecutive duplicate items from a list while preserving order.
 #  @param chain Input list.
+## 保留顺序并移除列表中的连续重复项。
+#
 #  @return List with no consecutive duplicates.
 def _dedup_consecutive(chain):
     result = []
@@ -48,6 +51,8 @@ def _dedup_consecutive(chain):
 #  @param tracer Single-file analyzer.
 #  @param symbol Candidate external origin.
 #  @return True if symbol matches an import source or its top-level package.
+## 检查符号是否具有当前分析器中的外部导入来源证据。
+#
 def _is_import_origin(tracer, symbol):
     if tracer is None or not isinstance(symbol, str):
         return False
@@ -79,6 +84,11 @@ def _is_import_origin(tracer, symbol):
             return False
         return (value == symbol
                 or value.startswith(symbol + ".")
+    ## Compare one known import source with the candidate origin spelling.
+    ## 将已知导入来源与候选归属拼写进行比较。
+    #
+    #  @param value Known imported source spelling.
+    #  @return True when either spelling is a dotted prefix of the other.
                 or symbol.startswith(value + "."))
     for value in tracer.symbols.direct.values():
         if isinstance(value, SourceSet):
@@ -107,6 +117,8 @@ def _make_api_call(c, deco_by):
         top_library=c['top'],
         base_symbol=source_display(c.get('base', '')),
         chain=c.get('chain', []),
+## 根据 get_calls() 记录字典构造 ApiCall。
+#
         file_path=c.get('file_path', ''),
         lineno=c.get('lineno', 0),
         col_offset=c.get('col_offset', 0),
@@ -138,6 +150,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                       ProjectCallClassificationMixin,
                       ProjectCallContextMixin, ProjectLocalClassesMixin,
                       ProjectMethodOwnershipMixin, ProjectResultBindingMixin,
+## 跨文件项目分析器，负责追踪所有 API 调用的来源。
                       ProjectSourceTracingMixin):
     # ── pipeline ───────────────────────────────────────────────────────
 
@@ -154,11 +167,14 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.project_root = (self.module_mapper.project_root
                              if os.path.isfile(project_root) else project_root)
         self._source_store = SourceStore()
+    ## 为项目目录或单个 Python 源文件初始化分析器。
+    #
         self._ownership_run = None
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
         self._python_shape_in_progress = set()
+    #  @return None; project state and the cross-file resolution pipeline are initialized.
         self._callable_field_in_progress = set()
         self._edge_target_in_progress = set()
         self._ownership_proof_budget = OwnershipProofBudget()
@@ -191,6 +207,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         if budget is not None:
             budget.checkpoint(force=True)
         self.module_mapper.scan_project()
+    ## 检查符号是否有导入支撑的归属证据。
+    #
         all_modules = tuple(self.module_mapper.get_all_modules())
         paths = [self.module_mapper.get_file_path(module) for module in all_modules]
         source_paths = [path for path in paths if path and os.path.exists(path)]
@@ -200,6 +218,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         run.ast_facts.budget = budget
         self._ownership_run = run
         # Compatibility aliases remain while resolver methods migrate to the
+    ## 执行完整分析流程：扫描、解析、解析跨文件符号并收集结果。
+    #
         # explicit run model in later behavior-preserving slices.
         self._source_snapshot = run.snapshot.sources
         self.project_cg = run.program.call_graph
@@ -209,6 +229,9 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.symbol_chains = run.symbol_chains
         self.all_calls = run.all_calls
         self._python_shape_in_progress = run.python_shape_in_progress
+
+        # Capture the file set once so every subsequent phase sees one project snapshot.
+        # 一次性固定文件集合，使后续所有阶段都使用同一个项目快照。
         self._callable_field_in_progress = run.callable_field_in_progress
         self._edge_target_in_progress = run.edge_target_in_progress
         self._ownership_proof_budget = run.proof_budget
@@ -221,9 +244,11 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             file_path = self.module_mapper.get_file_path(module)
             document = self._source_snapshot.documents.get(file_path)
             if document is None:
+
                 continue
             e = document.error
             if isinstance(e, UnicodeDecodeError):
+        # 在解析方法逐步迁移到显式 run 模型期间，暂时保留兼容别名。
                 diagnostics.append(Diagnostic(
                     code=ENCODING_ERROR,
                     message="Cannot decode file: %s" % e,
@@ -279,6 +304,9 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self._bind_proven_result_method_results(module_tracers)
         for tracer in module_tracers.values():
             tracer._ownership_import_unstable = False
+
+            # Reuse detached visitor facts only when both snapshot identity and module context match.
+            # 仅当快照对象和模块上下文均匹配时，才复用分离保存的访问器事实。
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
@@ -298,6 +326,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             budget.checkpoint(force=True)
 
         return ProjectAnalysis(
+        # Temporarily guard imports while bounded local call results are propagated.
+        # 传播有界本地调用结果时，暂时启用导入稳定性保护。
             project_root=self.project_root,
             files=files,
             all_api_calls=all_api_calls,
@@ -311,6 +341,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
 
     ## Check whether a top name is backed by any import evidence across tracers.
     def _is_prov_import_backed(self, name, tracers):
+        # Construct provenance before decorator and library-usage views consume it.
+        # 先构造来源链，再供装饰器和库使用视图消费。
         if not isinstance(name, str) or '.' in name:
             return bool('.' in name) if isinstance(name, str) else False
         for tr in tracers.values():
@@ -341,6 +373,13 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                 chains=self.symbol_chains.get(module, {}),
                 symbol_provenance=list(by_file.get(file_path, ())),
                 api_calls=[_make_api_call(c, deco_by)
+    ## 检查顶层名称是否在任一分析器中有导入证据。
+    ## Check the provenance fallback's top-level owner against all module imports.
+    ## 对所有模块的导入证据检查来源回退使用的顶层所有者。
+    #
+    #  @param name Candidate top-level owner spelling.
+    #  @param tracers Per-module analyzers with import and alias facts.
+    #  @return True when import evidence supports the candidate owner.
                            for c in self.all_calls.get(module, [])],
             ))
         return files
@@ -361,6 +400,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
 
     ## Build SymbolProvenance records from each tracer's symbol_refs.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    ## 构造逐文件分析结果。
+    #
     #  @return List of SymbolProvenance records.
     def _build_symbol_provenance(self, module_tracers):
         result = []
@@ -386,6 +427,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                         ## 1.0.5 P2: explicit result_source confirms library
                         #  identity even without import statement evidence.
                         rs = getattr(ref.source, 'result_source', None)
+    ## 构造扁平的项目级 API 调用列表。
+    #
                         if (isinstance(ref.source, CallResult)
                                 and isinstance(rs, str)
                                 and rs not in ("local", "python", "unknown", "")
@@ -396,6 +439,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                 tops = [top] if top else []
                 cr = self.classify_source(
                     ref.source, top, module, tracer, module_tracers,
+    ## 根据来源记录构造装饰器证据索引。
+    #
                     expand_origins=False, symbol=ref.symbol, kind=ref.kind)
                 prov = SymbolProvenance(
                     symbol=ref.symbol,
@@ -404,6 +449,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                     top_library=tops[0] if tops else "unknown",
                     chain=chain,
                     scope_name=ref.scope_name,
+    ## 根据各分析器的 symbol_refs 构造 SymbolProvenance 记录。
+    #
                     file_path=file_path or "",
                     lineno=ref.lineno,
                     col_offset=ref.col_offset,
@@ -424,6 +471,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     #  @return Dict of library_name -> LibraryUsage.
     def _build_library_usage(self, all_api_calls, all_provenance):
         return build_library_usage(
+                    # Preserve the direct source when recursive provenance exceeds Python's stack.
+                    # 递归来源追踪耗尽 Python 调用栈时，保留直接来源作为保守结果。
             self.project_root, all_api_calls, all_provenance)
 
     ## Check whether a module name belongs to the current project.
@@ -444,3 +493,9 @@ def analyze_project(project_root, analysis_limits=None, reuse_source_facts=False
     analyzer = ProjectAnalyzer(project_root, analysis_limits=analysis_limits,
                                reuse_source_facts=reuse_source_facts)
     return analyzer.analyze()
+#
+## 分析项目目录或单个 Python 源文件，并返回结构化结果。
+    ## 检查模块名是否属于当前项目。
+    #
+    #
+    ## 根据调用和来源记录构造库使用索引。

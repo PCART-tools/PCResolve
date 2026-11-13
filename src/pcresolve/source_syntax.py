@@ -1,5 +1,6 @@
 ## @package pcresolve.source_syntax
 #  Read-only AST parsing for modern and archived Python source.
+#  为现代和历史 Python 源码提供只读语法树解析。
 
 import ast
 import io
@@ -7,6 +8,8 @@ import tokenize
 
 
 ## Parse source, retaining historical async/await attribute names and spans.
+## 解析源码并保留历史 async/await 属性名称及源码位置。
+#
 #  @param text Original decoded source, never executed or modified on disk.
 #  @param filename Diagnostic filename.
 #  @return AST; unrelated syntax failures retain the original SyntaxError.
@@ -14,6 +17,8 @@ def parse_python_source(text, filename='<unknown>'):
     try:
         return ast.parse(text, filename=filename)
     except SyntaxError as original:
+        # Rewrite only keyword attribute tokens, keeping their length and positions.
+        # 只临时改写关键字属性 token，保持长度和位置不变。
         lines = text.splitlines(keepends=True)
         replacements = {}
         previous = None
@@ -33,12 +38,18 @@ def parse_python_source(text, filename='<unknown>'):
                     previous = token
         except (tokenize.TokenError, IndentationError):
             raise original from None
+
+        # Any unrelated failure must remain the original parser diagnostic.
+        # 对无关语法错误保留原始解析诊断。
         if not replacements:
             raise original
         try:
             tree = ast.parse(''.join(lines), filename=filename)
         except SyntaxError:
             raise original from None
+
+        # Restore the original attribute spelling using UTF-8 AST offsets.
+        # 根据 AST 的 UTF-8 偏移恢复原始属性名。
         for node in ast.walk(tree):
             if isinstance(node, ast.Attribute):
                 name = replacements.get((node.end_lineno, node.end_col_offset))

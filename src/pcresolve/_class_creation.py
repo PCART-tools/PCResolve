@@ -1,5 +1,6 @@
 ## @package pcresolve._class_creation
 #  Bounded __init_subclass__ effects before source class decoration.
+#  对源码类装饰前的 __init_subclass__ 影响进行有界分析。
 
 import ast
 import copy
@@ -19,11 +20,24 @@ _ASSUMPTIONS = ['source_snapshot_bindings_hold', 'builtin_type_class_creation_pr
     'no_external_frame_introspection']
 
 
+## Describe a source node's location for class-creation evidence.
+## 描述类创建证据中源码节点的位置。
+#
+#  @param ref Definition reference carrying the source path.
+#  @param node AST node carrying start and end coordinates.
+#  @return Mapping of path and source coordinates.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
             'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
 
+## Check whether visible class escapes are deferred or bounded doc reads.
+## 判断可见的类逃逸是否延后执行或属于有界文档读取。
+#
+#  @param analyzer Analyzer with the source snapshot and definition index.
+#  @param owners Class identities relevant to this creation phase.
+#  @param visible Visible class writes and escape records.
+#  @return True only when every relevant record is an allowed escape.
 def _deferred_class_escapes(analyzer, owners, visible):
     """Reject executable class escapes, allowing bounded source method-doc reads."""
     contexts = {}
@@ -32,6 +46,13 @@ def _deferred_class_escapes(analyzer, owners, visible):
             for node, requirements in evaluation_contexts(ast.Module(
                     body=body, type_ignores=[])):
                 contexts[node] = requirements
+    ## Recognize a stable, uniquely defined undecorated source method doc read.
+    ## 识别稳定且唯一确定的未装饰源码方法文档读取。
+    #
+    #  @param owner Class identity whose method documentation is read.
+    #  @param source Source reference containing the read.
+    #  @param node Candidate attribute read or documentation assignment.
+    #  @return True when the read meets the bounded source conditions.
     def source_method_doc_read(owner, source, node):
         source_module = getattr(source, 'module', None)
         if not isinstance(source_module, str) or not source_module:
@@ -82,6 +103,8 @@ def _deferred_class_escapes(analyzer, owners, visible):
 
 
 ## Bound selected source hooks at class creation, including ancestor creation phases.
+## 对类创建阶段选中的源码钩子及祖先创建阶段进行有界分析。
+#
 #  @param analyzer Fixed source snapshot and query-local class-effect budget.
 #  @param target Exact new source class identity and declaration.
 #  @return Hook effect records, an empty list for absence, or None for open effects.
@@ -90,6 +113,8 @@ def creation_effects(analyzer, target):
     cache = analyzer._class_creation_cache
     if ref in cache:
         return copy.deepcopy(cache[ref])
+    # Seed the cache with an open result to stop recursive class hierarchies.
+    # 先缓存未确认结果，防止类层次递归时无限展开。
     cache[ref] = None
     sources = analyzer._class_mro(ref.module, ref.qualname)
     if not sources or len(sources) > 64:
@@ -116,6 +141,8 @@ def creation_effects(analyzer, target):
             or not analyzer._stable_import_name(owner.module + '.' + owner.qualname)
             for owner, base in sources)):
         return None
+    # Accumulate ancestor creation effects before selecting this class's hook.
+    # 选择当前类的钩子前，先按创建顺序汇总祖先影响。
     records = []
     for parent in reversed(sources[1:]):
         effects = creation_effects(analyzer, parent)
@@ -152,6 +179,9 @@ def creation_effects(analyzer, target):
     if parameter in statement_scope_facts(hook.body).bound or any(
             isinstance(node, ast.Name) and node.id in ('super', '__class__') for node in ast.walk(hook)):
         return None
+    # Namespace and hook analysis share a finite fact budget; exhaustion
+    # leaves the effects open rather than asserting that no effect occurred.
+    # 命名空间和钩子分析共用有限事实预算；耗尽时保留未确认结果。
     try:
         count = 0
         for _, base in sources:
@@ -222,6 +252,8 @@ def creation_effects(analyzer, target):
 
 
 ## Collect possible class slots changed by already bounded creation phases.
+## 收集已完成有界分析的创建阶段可能改变的类属性。
+#
 #  @param records Complete source creation-hook records for this class hierarchy.
 #  @return Set of possible attribute spellings; presence and values remain unmodeled.
 def written_attributes(records):

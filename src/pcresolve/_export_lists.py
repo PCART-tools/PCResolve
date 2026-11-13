@@ -1,5 +1,6 @@
 ## @package pcresolve._export_lists
 #  Finite export-list construction facts, not final module namespace bindings.
+#  分析有限的导出列表构造事实，不推断最终模块命名空间绑定。
 
 import ast
 import copy
@@ -13,9 +14,19 @@ from .effect_facts import execution_nodes
 
 
 class _OpenExports(ValueError):
+## Signal that an export-list proof is incomplete or exceeds its limits.
+## 表示导出列表证明不完整或超出分析限制。
     def __init__(self, reason, module='', node=None):
         super().__init__(reason)
         self.details = {'reason': reason, 'module': module,
+    ## Preserve a machine-readable boundary reason and source location.
+    ## 保存可供程序读取的边界原因和源码位置。
+    #
+    #  @param self Boundary exception instance.
+    #  @param reason Stable boundary identifier.
+    #  @param module Module being analyzed.
+    #  @param node Optional AST node identifying the boundary.
+    #  @return None.
                         'lineno': getattr(node, 'lineno', None)}
 
 
@@ -30,6 +41,12 @@ def _import_execution_nodes(documents, charge):
                 functions.setdefault((module, name), []).append(statement)
                 collect(module, statement.body, name)
             elif isinstance(statement, ast.ClassDef):
+## Find source nodes that may execute while captured modules initialize.
+## 查找已捕获模块初始化期间可能执行的源码节点。
+#
+#  @param documents Module-name to source-document mapping.
+#  @param charge Callback charging each inspected execution node.
+#  @return Set of AST nodes reachable during module initialization.
                 name = '.'.join(part for part in (prefix, statement.name) if part)
                 classes[(module, name)] = statement
                 collect(module, statement.body, name)
@@ -39,6 +56,13 @@ def _import_execution_nodes(documents, charge):
                         collect(module, [child], prefix)
 
     for module, document in documents.items():
+    ## Index nested source definitions by qualified name for call resolution.
+    ## 按限定名称索引嵌套源码定义以供调用解析。
+    #
+    #  @param module Module owning the source definitions.
+    #  @param body Ordered statements to scan.
+    #  @param prefix Enclosing qualified-name prefix.
+    #  @return None; updates the enclosing definition indexes.
         collect(module, document.tree.body)
 
     def scope_imports(module, root):
@@ -64,6 +88,12 @@ def _import_execution_nodes(documents, charge):
             parts.append(expression.attr)
             expression = expression.value
         if not isinstance(expression, ast.Name):
+    ## Collect import aliases visible to one execution root.
+    ## 收集一个执行根节点中可见的导入别名。
+    #
+    #  @param module Module containing the execution root.
+    #  @param root AST root whose executable statements are scanned.
+    #  @return Alias mapping and resolved wildcard-import modules.
             return ()
         imported = aliases.get(expression.id)
         names = ({'.'.join((base, *reversed(parts))) for base in imported}
@@ -86,6 +116,13 @@ def _import_execution_nodes(documents, charge):
                         for (target_module, target_name), nodes in functions.items()
                         if target_module == owner and target_name == qualname + '.' + method
                         for node in nodes)
+    ## Resolve possible source function or class targets for an expression.
+    ## 为表达式解析可能的源码函数或类目标。
+    #
+    #  @param module Module containing the expression.
+    #  @param root Scope root used for import bindings.
+    #  @param expression Callable expression to resolve.
+    #  @return Source definition pairs reachable from the expression.
         return tuple(result)
 
     pending = [(module, document.tree) for module, document in documents.items()]
@@ -146,6 +183,8 @@ class ExportListResolver:
         self.max_depth, self.max_names, self.budget = max_depth, max_names, budget
         self.store = SourceStore()
         self.last_boundary = None
+## Store one bounded export value and whether it borrows an existing object.
+## 保存一个有界导出值及其是否借用既有对象的信息。
 
     def charge(self):
         self.remaining -= 1
@@ -156,8 +195,15 @@ class ExportListResolver:
 
     def source(self, module):
         if module in self.documents:
+## 识别加载后可能绑定到父模块属性的直接子模块。
             return self.documents[module]
         if len(self.documents) >= self.max_modules:
+#  该语法事实不证明最终模块属性绑定能够保留。
+#
+#  @param owner Importing module name.
+#  @param is_package Whether the owner source is a package initializer.
+#  @param fact Parsed import fact.
+#  @return Child module name, or None when the import is not an implicit child.
             raise _OpenExports('export_module_budget')
         if not module or not all(part.isidentifier() for part in module.split('.')):
             raise _OpenExports('invalid_export_module')
@@ -172,11 +218,15 @@ class ExportListResolver:
             raise _OpenExports('export_source_missing_or_ambiguous')
         path = str(next(iter(paths)))
         document = self.store.snapshot([path], FLOW_SOURCE, self.budget).documents[path]
+## 从显式文件系统导入根读取字面量导出列表计算。
         if document.tree is None:
             raise _OpenExports('export_source_unavailable')
+#  每次 resolve() 都捕获新的源码版本，且不会导入目标代码。
         self.documents[module] = document
         for _ in ast.walk(document.tree):
             self.charge()
+    ## 配置源码查找方式和有限构造预算。
+    #
         return document
 
     def qualify(self, node, aliases, bindings, globals_written, owner):
@@ -185,6 +235,7 @@ class ExportListResolver:
             if len(parts) >= self.max_depth:
                 raise _OpenExports('export_attribute_depth')
             parts.append(node.attr)
+    #  @return None.
             node = node.value
         if (not isinstance(node, ast.Name) or node.id in globals_written
                 or len(bindings.get(node.id, ())) != 1 or node.id not in aliases):
@@ -197,6 +248,11 @@ class ExportListResolver:
                 'lineno': statement.lineno, 'col_offset': statement.col_offset,
                 'end_lineno': statement.end_lineno, 'end_col_offset': statement.end_col_offset}})
         return qualified
+    ## Consume one source-analysis node from the export budget.
+    ## 消耗一单位导出列表源码分析预算。
+    #
+    #  @param self Resolver state holding the current node budget.
+    #  @return None; raises _OpenExports when the budget is exhausted.
 
     def bounded(self, kind, values, borrowed=False):
         if len(values) > self.max_names or any(type(name) is not str or not name.isidentifier()
@@ -209,6 +265,12 @@ class ExportListResolver:
             return self.results[module]
         if module in self.active or len(self.active) >= self.max_depth:
             raise _OpenExports('export_dependency_cycle_or_depth')
+    ## Capture and cache one unique module source snapshot.
+    ## 捕获并缓存唯一模块源码快照。
+    #
+    #  @param self Resolver with import roots and module limits.
+    #  @param module Dotted module name to locate.
+    #  @return Source document, or raises _OpenExports when lookup is ambiguous.
         self.active.add(module)
         document = self.source(module)
         aliases, bindings, globals_written, implicit = {}, {}, set(), {}
@@ -240,6 +302,16 @@ class ExportListResolver:
 
         def extension_helper(function):
             if (not isinstance(function, ast.FunctionDef) or function.decorator_list
+    ## Resolve an imported expression while recording its binding evidence.
+    ## 解析导入表达式并记录其绑定证据。
+    #
+    #  @param self Resolver with source documents and evidence collection.
+    #  @param node Name or attribute expression to qualify.
+    #  @param aliases Import alias to qualified-name mapping.
+    #  @param bindings Module-level binding statements by local name.
+    #  @param globals_written Names mutated through a global declaration.
+    #  @param owner Module owning the expression.
+    #  @return Qualified imported name, or raises _OpenExports if unproven.
                     or function.returns is not None or function.args.posonlyargs
                     or len(function.args.args) != 1 or function.args.defaults
                     or function.args.kwonlyargs or function.args.vararg or function.args.kwarg
@@ -269,6 +341,14 @@ exports = getattr(module_arg, '__all__')
 for name in exports:
     if name not in existing:
         __all__.append(name)
+    ## Validate and package a bounded set of export names.
+    ## 校验并封装有界导出名称集合。
+    #
+    #  @param self Resolver with intermediate-name limits.
+    #  @param kind Abstract value shape.
+    #  @param values Candidate export names.
+    #  @param borrowed Whether values alias a source object.
+    #  @return Immutable bounded export value.
 """)
             if ast.dump(actual, include_attributes=False) != ast.dump(expected, include_attributes=False):
                 return False
@@ -283,6 +363,12 @@ for name in exports:
                     if not (isinstance(call, ast.Call) and call.func is node
                             and isinstance(statement, ast.Expr) and statement in document.tree.body):
                         return False
+    ## Interpret the module's supported __all__ construction and imports.
+    ## 解释模块受支持的 __all__ 构造及导入语句。
+    #
+    #  @param self Resolver with module, depth, and name budgets.
+    #  @param module Module whose export values are requested.
+    #  @return Export fact mapping, or raises _OpenExports when proof is open.
             return True
 
         helpers = {statement.name: statement for statement in document.tree.body
@@ -323,6 +409,11 @@ for name in exports:
                     raise _OpenExports('export_sequence_type_mismatch')
                 current, selected = self.bounded(current.kind, current.names + added.names), True
             elif (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+        ## Recognize a helper that extends one module export list safely.
+        ## 识别可安全扩展模块导出列表的辅助函数。
+        #
+        #  @param function Candidate source helper function.
+        #  @return True only for the supported finite extension pattern.
                   and isinstance(statement.value.func, ast.Name)
                   and statement.value.func.id in helpers):
                 call = statement.value
@@ -349,9 +440,17 @@ for name in exports:
             elif (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
                   and isinstance(statement.value.func, ast.Attribute)
                   and isinstance(statement.value.func.value, ast.Name)
+            ## Normalize local names before comparing helper syntax trees.
+            ## 比较辅助函数语法树前统一局部名称。
                   and statement.value.func.value.id == '__all__'):
                 call = statement.value
                 if (current is None or current.kind != 'list' or current.borrowed
+                ## Rename one AST identifier through the expected-shape mapping.
+                ## 根据预期形状映射重命名一个 AST 标识符。
+                #
+                #  @param self Name-normalizing visitor.
+                #  @param node AST name node to rewrite.
+                #  @return Rewritten name node.
                         or call.keywords or len(call.args) != 1):
                     raise _OpenExports('export_list_method_unproven')
                 name, argument = call.func.attr, call.args[0]
@@ -386,6 +485,11 @@ for name in exports:
                 head = node.value
                 while isinstance(head, ast.Attribute):
                     head = head.value
+        ## Evaluate one export expression without importing its referenced code.
+        ## 计算一个导出表达式，但不导入其引用代码。
+        #
+        #  @param node Export expression AST node.
+        #  @return Bounded _Values result, or raises _OpenExports.
                 imported_exports = (not isinstance(node.ctx, ast.Load)
                                     or isinstance(head, ast.Name) and head.id in aliases)
             if (isinstance(node, ast.Name) and node.id == '__all__'
@@ -500,6 +604,14 @@ for name in exports:
         imported = facts[0]
         target = requirement['target_module']
         if imported.kind == 'import' and '.' not in imported.name:
+    ## Prove a wildcard import binds a fresh child module on its parent.
+    ## 证明通配符导入会在父模块上绑定新加载的子模块。
+    #
+    #  @param self Resolver with captured package sources and import facts.
+    #  @param owner Package module receiving the child binding.
+    #  @param statement Import statement that may create the binding.
+    #  @param imported Parsed wildcard import fact.
+    #  @return Child module name, or raises _OpenExports when shadowing is possible.
             expected = imported.name
         elif imported.kind == 'from' and imported.wildcard:
             expected = self.implicit_input(owner, statement, imported)
@@ -555,6 +667,11 @@ for name in exports:
                 for fact in import_facts(prior):
                     if not fact.wildcard:
                         continue
+                ## Resolve imported names referenced by executable namespace code.
+                ## 解析可执行命名空间代码所引用的导入名称。
+                #
+                #  @param node Name or attribute expression to resolve.
+                #  @return Canonical imported paths referenced by the expression.
                     module = resolve_relative_module(owner, True, fact.module, fact.level)
                     exported = self.exports(module)
                     if imported.name in exported.names or '__getattr__' in exported.names:
@@ -597,6 +714,12 @@ for name in exports:
                         'update', 'clear', 'pop', 'setdefault', '__setitem__', '__delitem__')
                     or isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
                     and (node.func.id if isinstance(node.func, ast.Name) else node.func.attr)
+    ## Validate that an export import resolves to its expected module object.
+    ## 校验导出导入是否解析为预期的模块对象。
+    #
+    #  @param self Resolver with captured source snapshots and budgets.
+    #  @param requirement Recorded import-binding requirement.
+    #  @return Source-bound module input proof, or raises _OpenExports.
                     in ('setattr', 'delattr', '__setattr__', '__delattr__')
                     and any(isinstance(arg, ast.Constant) and arg.value == '__class__'
                             for arg in node.args)):
@@ -645,6 +768,11 @@ for name in exports:
             'status': 'construction_proven', 'scope': 'finite_source_export_list_construction',
             'completion': 'normal_construction_only', 'container_kind': value.kind,
             'values': list(value.names), 'borrowed_list': value.borrowed,
+            ## Resolve canonical imports used by the package namespace prefix.
+            ## 解析包命名空间前缀所使用的规范导入名称。
+            #
+            #  @param node Name or attribute expression.
+            #  @return Canonical imported paths for the expression.
             'namespace_binding_proven': False, 'runtime_exports_confirmed': False,
             'required_module_bindings': list(self.module_bindings),
             'module_inputs_proven': bool(validate_module_inputs),
@@ -653,3 +781,15 @@ for name in exports:
             'source_hashes': {document.file_path: document.sha256
                               for document in self.documents.values()},
             'assumptions': sorted(assumptions)}
+    ## 捕获有限导出列表构造及其依赖的源码版本。
+    #
+        ## Match access to sys.modules through supported syntax forms.
+        ## 匹配受支持语法形式中的 sys.modules 访问。
+        #
+        #  @param node AST expression to inspect.
+        #  @return True when node denotes the module registry.
+        ## Match an expression that names the standard sys module.
+        ## 匹配指向标准 sys 模块的表达式。
+        #
+        #  @param node AST expression to inspect.
+        #  @return True when node refers to the imported or builtin sys module.

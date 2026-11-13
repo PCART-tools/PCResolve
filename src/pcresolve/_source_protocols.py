@@ -1,5 +1,6 @@
 ## @package pcresolve._source_protocols
 #  Source-proven protocol helpers, independent of library/API spellings.
+#  提供与库或 API 名称无关、由源码证据支持的协议分析辅助逻辑。
 
 import ast
 
@@ -11,14 +12,18 @@ from .import_facts import import_facts, resolve_relative_module
 
 
 ## Read finite source helper protocols from explicitly supplied dependency roots.
+## 从显式提供的依赖根目录读取有限源码辅助协议。
 class SourceProtocolResolver:
     ## Configure independent dependency lookup; analyzed code is never executed.
+    ## 配置独立依赖查找；分析过程中不会执行目标代码。
+    #
     #  @param import_roots Explicit dependency roots, separate from primary sources.
     #  @param budget Optional shared cooperative analysis budget.
     #  @param analyzer_factory Injected adapter factory; absence supplies no execution proof.
     #  @param ambient_documents Explicit (module, captured source document) pairs to audit.
     #  @param max_ambient_modules Separate finite limit on the supplied primary context.
     #  @param limits Finite SourceBindingResolver construction limits.
+    #  @return None; resolver state and finite analysis limits are initialized.
     def __init__(self, import_roots, budget=None, analyzer_factory=None,
                  ambient_documents=(), max_ambient_modules=256, **limits):
         if type(max_ambient_modules) is not int or max_ambient_modules < 0:
@@ -31,11 +36,20 @@ class SourceProtocolResolver:
         self.analyzer_factory = analyzer_factory
         self.last_boundary = None
 
+    ## Resolve and capture one helper definition under the source binding rules.
+    ## 按源码绑定规则解析并捕获一个辅助函数定义。
+    #
+    #  @param module Module exposing the requested helper.
+    #  @param name Public helper name to resolve.
+    #  @return Binding fact and matching function AST node.
     def _bind(self, module, name):
         options = {**self.limits, 'max_nodes': max(1, self.remaining)}
         reader = SourceBindingResolver(self.roots, budget=self.budget, **options)
         fact = reader.resolve(module, name)
         self.remaining -= options['max_nodes'] - reader.remaining
+
+        # Merge captured documents only when repeated paths retain the same snapshot hash.
+        # 仅当重复路径的快照哈希一致时，才合并捕获的文档。
         for captured_module, document in reader.documents.items():
             prior = self.documents.get(document.file_path)
             if prior is not None and prior.sha256 != document.sha256:
@@ -55,6 +69,10 @@ class SourceProtocolResolver:
             raise ValueError('source_protocol_function_unavailable')
         return fact, candidates[0]
 
+    ## Audit callable aliases, rebinding, and escapes in captured source documents.
+    ## 审计捕获源码文档中的可调用对象别名、重绑定和逃逸。
+    #
+    #  @return None; raises ValueError when a callable boundary is unproven.
     def _function_namespace(self):
         qualified = set()
         for reference in self.references:
@@ -66,6 +84,11 @@ class SourceProtocolResolver:
                                  for item in path['imports'])
         protected = {'.'.join(name.split('.')[:index]) for name in qualified
                      for index in range(1, len(name.split('.')) + 1)}
+
+        ## Charge one syntax visit against the finite resolver budget.
+        ## 将一次语法节点访问计入有限解析预算。
+        #
+        #  @return None; raises ValueError when the shared budget is exhausted.
         def charge():
             self.remaining -= 1
             if self.budget is not None:
@@ -87,6 +110,9 @@ class SourceProtocolResolver:
                     references.append(node)
                 for child in ast.iter_child_nodes(node):
                     parents[child] = node
+
+            # Build import aliases before propagating local name-to-name assignments.
+            # 先建立导入别名，再传播本地名称到名称的赋值关系。
             modules = self.module_names[document.file_path]
             for node in imports:
                 for fact in import_facts(node):
@@ -104,6 +130,11 @@ class SourceProtocolResolver:
                     if name.rpartition('.')[0] == module:
                         aliases.setdefault(name.rpartition('.')[2], set()).add(name)
 
+            ## Expand a name or attribute through the currently known aliases.
+            ## 根据当前已知别名展开名称或属性。
+            #
+            #  @param node Expression to qualify through captured imports.
+            #  @return Set of possible qualified spellings.
             def names(node):
                 parts = []
                 while isinstance(node, ast.Attribute):
@@ -128,6 +159,9 @@ class SourceProtocolResolver:
                     break
             else:
                 raise ValueError('source_protocol_alias_depth')
+
+            # Reject every callable use that could rebind, expose, or mutate the proven function.
+            # 拒绝所有可能重绑定、暴露或变更已证明函数对象的用法。
             for node in references:
                 matched = names(node) & protected
                 if not matched:
@@ -155,6 +189,8 @@ class SourceProtocolResolver:
                 raise ValueError('source_protocol_function_object_escape')
 
     ## Prove a try-iter/except-TypeError Boolean predicate for native class inputs.
+    ## 为原生类输入证明 try-iter/except-TypeError 布尔谓词。
+    #
     #  @param module Public source module containing the helper binding.
     #  @param name Public source helper name; matching is structural, never by name.
     #  @return Conditional protocol fact or None; input type remains a consumer obligation.
@@ -163,6 +199,9 @@ class SourceProtocolResolver:
         self.remaining = self.limits.get('max_nodes', 1000000)
         self.last_boundary = None
         try:
+
+            # Match the helper's exact signature and control-flow shape before analyzing dependencies.
+            # 分析依赖前，先匹配辅助函数的精确签名和控制流结构。
             binding, function = self._bind(module, name)
             args = function.args
             parameters = args.posonlyargs + args.args
@@ -208,6 +247,9 @@ class SourceProtocolResolver:
                     raise ValueError('source_protocol_snapshot_changed')
                 self.documents[document.file_path] = document
                 self.module_names.setdefault(document.file_path, set()).add(ambient_module)
+
+            # Ensure all captured callable paths are closed before constructing an analyzer.
+            # 构造分析器前，确保所有捕获的可调用路径均已封闭。
             self._function_namespace()
             if self.analyzer_factory is None:
                 raise ValueError('source_protocol_analysis_provider_unavailable')

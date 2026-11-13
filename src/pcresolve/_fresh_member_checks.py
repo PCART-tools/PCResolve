@@ -1,5 +1,6 @@
 ## @package pcresolve._fresh_member_checks
 #  Source obligations for first-item validation on a bounded fresh receiver.
+#  为有界新鲜接收者的首项校验建立源码义务。
 
 import ast
 import copy
@@ -14,6 +15,11 @@ from ._class_creation import written_attributes
 
 
 def _plain_prefix(statements):
+## Accept only literal assignments and inert statements before a dynamic boundary.
+## 动态边界之前仅允许字面量赋值与无执行效果的语句。
+#
+#  @param statements Ordered statements preceding the boundary.
+#  @return True when every statement has a supported inert shape.
     """Reject executable work before the dynamic loop/lookup boundary."""
     for statement in statements:
         if isinstance(statement, ast.Pass) or (isinstance(statement, ast.Expr)
@@ -36,6 +42,11 @@ def _pure_branch_test(node):
         return True
     if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
         return all(_pure_branch_test(item) for item in node.elts)
+## Check whether a branch condition uses only side-effect-free syntax.
+## 检查分支条件是否仅使用无副作用语法。
+#
+#  @param node AST expression used as a branch condition.
+#  @return True when the expression contains no calls or dynamic operations.
     if isinstance(node, ast.UnaryOp):
         return isinstance(node.op, (ast.Not, ast.UAdd, ast.USub)) and _pure_branch_test(node.operand)
     if isinstance(node, ast.BoolOp):
@@ -59,6 +70,12 @@ def _lookup_prefix_safe(loop, lookup):
                 if not _pure_branch_test(statement.test) or not _plain_prefix(statements[:index]):
                     return False
                 in_body = any(child is lookup for item in statement.body
+## Prove that only inert statements precede the selected lookup in a loop.
+## 证明循环中目标查找之前仅有无副作用语句。
+#
+#  @param loop Mapping iteration loop containing the lookup.
+#  @param lookup Exact lookup assignment to locate.
+#  @return True when its path prefix is safe.
                               for child in ast.walk(item))
                 in_else = any(child is lookup for item in statement.orelse
                               for child in ast.walk(item))
@@ -66,6 +83,11 @@ def _lookup_prefix_safe(loop, lookup):
                     return False
                 branch = statement.body if in_body else statement.orelse
                 return locate(branch)
+    ## Locate the lookup in a straight-line suite or a pure conditional branch.
+    ## 在直线语句块或纯条件分支中定位目标查找。
+    #
+    #  @param statements Ordered statements in the current suite.
+    #  @return True when the lookup has a safe prefix, otherwise False.
             if any(child is lookup for child in ast.walk(statement)):
                 return False
         return False
@@ -93,6 +115,12 @@ def _loop_prefix_safe(summary, loop):
                         return None
                     record = matches[0]
                     def record_shape(item):
+## Validate statements before a nested mapping loop and supported context managers.
+## 校验嵌套映射循环之前的语句及受支持的上下文管理器。
+#
+#  @param summary Source checker summary with context-manager facts.
+#  @param loop Nested mapping loop whose prefix is checked.
+#  @return Ordered temporary effects, or None when a prefix is unsupported.
                         return (
                             item.get('enter', {}).get('return_status'),
                             item.get('enter', {}).get('effects_status'),
@@ -123,6 +151,11 @@ def _loop_prefix_safe(summary, loop):
     return locate(summary.node.body)
 
 
+                    ## Compare only effect fields relevant to the with-item proof.
+                    ## 仅比较 with 项证明所依赖的效果字段。
+                    #
+                    #  @param item Context-manager record to normalize.
+                    #  @return Tuple of entry, exit, and bounded-effect statuses.
 def _safe_error_expression(node, summary, receiver):
     """Accept only literal error text, the lookup key, and type(self).__name__."""
     if isinstance(node, (ast.Constant, ast.Name)):
@@ -159,6 +192,13 @@ def _namespace(hierarchy):
         owner = cls.name.lstrip('_')
         for name in statement_scope_facts(cls.body).bound:
             if owner and name.startswith('__') and not name.endswith('__'):
+## Restrict error construction to literals, local names, and receiver type names.
+## 将错误文本构造限制为字面量、局部名称和接收者类型名称。
+#
+#  @param node AST expression used to build the raised error.
+#  @param summary Source summary used to confirm builtin identity.
+#  @param receiver Receiver parameter identifier.
+#  @return True when the expression uses only supported components.
                 name = '_' + owner + name
             names.add(name)
     return names
@@ -189,6 +229,11 @@ def _value_store(summary, target, namespace, own):
             'evidence': summary.evidence_at(ref, statement), 'completion': 'normal_return'}
 
 
+## Return a function body with its inert docstring removed.
+## 返回移除无执行效果文档字符串后的函数体。
+#
+#  @param node Function-like AST node.
+#  @return Body statements excluding a leading string expression.
 ## Describe a finite first-iteration member validation under a fresh source origin.
 #  @param summary Source checker summary with explicit incoming allocation evidence.
 #  @return Neutral static lookup obligations; actual mapping/key remains a consumer input.
@@ -200,6 +245,11 @@ def fresh_checks(summary):
     if len(obligations) != 1:
         return []
     obligation = obligations[0]
+## Collect bound names across a class hierarchy with private-name mangling.
+## 汇总类继承层次中的绑定名称并应用私有名称改写。
+#
+#  @param hierarchy Ordered class hierarchy entries.
+#  @return Set of names that occupy the effective class namespace.
     if len({obligation[name] for name in ('mapping_parameter', 'receiver_parameter',
             'key_variable', 'value_variable', 'lookup_variable')}) != 5:
         return []
@@ -216,6 +266,14 @@ def fresh_checks(summary):
     guard_matches = [item for item in ast.walk(node) if isinstance(item, ast.If)
                      and any(item.test is test for test in guard_tests)]
     if len(loop_matches) != 1 or len(lookup_matches) != 1 or len(guard_matches) != 1:
+## Recognize a simple method that stores one argument on a fresh receiver.
+## 识别将单个参数写入新鲜接收者属性的简单方法。
+#
+#  @param summary Active checker summary with source evidence access.
+#  @param target Exact method reference and AST node.
+#  @param namespace Class namespace names that shadow instance writes.
+#  @param own Receiver attributes already known to be present.
+#  @return Structured value-store fact, or None when unsupported.
         return []
     loop, lookup, guard = loop_matches[0], lookup_matches[0], guard_matches[0]
     loop_effects = _loop_prefix_safe(summary, loop)
@@ -250,6 +308,8 @@ def fresh_checks(summary):
                         or selected_call.func.id != obligation['lookup_variable']
                         or len(selected_call.args) != 1 or selected_call.keywords
                         or not isinstance(selected_call.args[0], ast.Name)
+## 描述新鲜源码来源下有限的首轮成员校验。
+#
                         or selected_call.args[0].id != obligation['value_variable']):
                     continue
                 invocation = candidate
@@ -265,6 +325,12 @@ def fresh_checks(summary):
                         continue
                     key_conditions.append({'operator': type(test.ops[0]).__name__,
                         'value': test.comparators[0].value,
+    ## Match an AST node to a recorded source span.
+    ## 将 AST 节点与记录的源码范围匹配。
+    #
+    #  @param item AST node candidate.
+    #  @param span Recorded evidence coordinates.
+    #  @return True when every supported source coordinate matches.
                         'branch': field,
                         'evidence': summary.evidence_at(summary.ref, test)})
                 suites.append((parent, field))
@@ -292,6 +358,7 @@ def fresh_checks(summary):
             or any(value.get('instance_type') != origins[0]['allocation']['receiver_class']
                    for value in facts)):
         return []
+    # 查找、报错守卫与调用必须位于同一顺序语句块；允许外层结果收集调用。
     origin = origins[0]
     identity = origin['allocation']['receiver_class']
     if origin['current_function'] != asdict(summary.ref) or origin['parameter'] != receiver:
@@ -357,3 +424,4 @@ def fresh_checks(summary):
             'standard_builtin_namespace_preserved', 'builtin_dictionary_items_order',
             'no_unmodeled_indirect_builtin_mutation'] + sorted(set().union(*(
                 set(effect.get('assumptions', ())) for effect in loop_effects)))}]
+    # 导入期类写入会改变查找命名空间，因此必须通过闭合布局和源码前缀证明排除。

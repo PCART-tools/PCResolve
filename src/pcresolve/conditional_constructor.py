@@ -1,5 +1,6 @@
 ## @package pcresolve.conditional_constructor
 #  Signature references under explicit lookup requirements, never body bindings.
+#  在显式查找前提下引用构造器签名，不推断函数体绑定。
 
 import ast
 import copy
@@ -14,6 +15,8 @@ _SCALARS = {'str', 'bytes', 'int', 'float', 'bool', 'object'}
 
 
 ## Whether a plain source entry has a bounded constructor type-check query shape.
+## 判断普通源码入口是否包含有界的构造器类型检查查询结构。
+#
 #  @param node Source entry AST; generic parameter-driven class queries are excluded.
 #  @return True for a plain function containing a named isinstance class argument.
 def supports_entry(node):
@@ -26,14 +29,31 @@ def supports_entry(node):
         and isinstance(item.args[1], ast.Name) and not item.keywords for item in nodes)
 
 
+## Check whether a source class namespace contains only supported declarations.
+## 检查源码类命名空间是否只包含受支持的声明。
+#
+#  @param summary Current source caller and query facts.
+#  @param owner Source identity of the class being inspected.
+#  @param cls Class AST whose namespace declarations are checked.
+#  @return True when bindings, annotations, defaults, and decorators are bounded.
 def _namespace(summary, owner, cls):
     analyzer = summary.analyzer
     shadowed, properties = set(), set()
 
+    ## Confirm that a referenced name resolves to the expected builtin.
+    ## 确认名称解析为预期的内建符号。
+    #
+    #  @param name Builtin identifier to check.
+    #  @return True when the name is unshadowed and confirmed builtin.
     def builtin(name):
         return (name not in shadowed and analyzer._builtin_name_status(
             owner, cls, name) == 'confirmed_builtin')
 
+    ## Check an annotation name against a narrow stable typing import set.
+    ## 按有限且稳定的 typing 导入集合检查注解名称。
+    #
+    #  @param node Candidate annotation expression.
+    #  @return True when the expression resolves to an allowed typing symbol.
     def typing_name(node):
         if not isinstance(node, (ast.Name, ast.Attribute)):
             return False
@@ -45,6 +65,11 @@ def _namespace(summary, owner, cls):
                 and 'typing' not in analyzer.module_bodies
                 and analyzer._stable_import_name(owner.module + '.' + head))
 
+    ## Validate one annotation without evaluating the referenced expression.
+    ## 验证单个注解，但不执行其中引用的表达式。
+    #
+    #  @param node Annotation AST node to inspect recursively.
+    #  @return True for literals, supported builtins, and stable typing forms.
     def annotation(node):
         if isinstance(node, ast.Constant):
             return type(node.value) in (str, type(None)) or node.value is Ellipsis
@@ -67,9 +92,15 @@ def _namespace(summary, owner, cls):
             imported = analyzer.imports.get(owner.module, {}).get(root.id)
             # An imported reference can still execute module attribute hooks.
             # The emitted lookup predicate retains that uncertainty.
+            # 导入引用仍可能触发模块属性钩子；输出的查找谓词会保留这一不确定性。
             return bool(imported and analyzer._stable_import_name(owner.module + '.' + root.id))
         return False
 
+    ## Check whether an expression can be evaluated as a literal at declaration time.
+    ## 检查表达式能否在声明阶段作为字面量求值。
+    #
+    #  @param node Candidate default or class attribute expression.
+    #  @return True when ast.literal_eval accepts the expression.
     def literal(node):
         try:
             ast.literal_eval(node)
@@ -122,6 +153,8 @@ def _namespace(summary, owner, cls):
 
 
 ## Describe a bounded conditional reference to a source initializer signature.
+## 描述对源码初始化器签名的有界条件引用。
+#
 #  @param summary Current source caller and prior call facts.
 #  @param node Constructor AST call with evaluated arguments.
 #  @param fact Ordinary constructor binding, whose unconfirmed status is retained.
@@ -149,12 +182,18 @@ def signature_reference(summary, node, fact, call_id):
         return None
     if not _namespace(summary, owner, cls):
         return None
+
+    # Reject class mutations before using preceding isinstance checks as lookup predicates.
+    # 将此前的 isinstance 检查用作查找谓词前，先排除类结构变更。
     writes, truncated = analyzer._class_binding_writes()
     if truncated or any(written == owner and attribute in (
             '__init__', '__new__', '__class__', '__bases__', '*')
             for written, attribute, _, _, _ in writes):
         return None
     probes = []
+
+    # Tie every relevant prior check to the exact constructor class and builtin call.
+    # 将每个相关的前置检查关联到精确的构造类和内建调用。
     ast_calls = {(value.lineno, value.col_offset): value for value in ast.walk(summary.node)
                  if isinstance(value, ast.Call)}
     for prior in summary.calls:

@@ -1,5 +1,6 @@
 ## @package pcresolve.project_source_tracing
 #  Cross-file receiver, return, attribute, and final-source tracing.
+#  跨文件追踪接收者、返回值、属性和最终来源。
 
 from .builtin_ownership import _is_builtin
 from .sources import (
@@ -11,8 +12,10 @@ _NO_TRACE_CHAIN = object()
 
 
 ## Project source-tracing behavior mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目源码追踪行为。
 class ProjectSourceTracingMixin:
     ## Unify receiver object ownership lookup through a single entry point.
+    ## 通过统一入口解析接收者对象的归属。
     #
     #  Checks the receiver's provenance in symbols.direct and traces
     #  the callee / import alias to determine the owning library.
@@ -56,6 +59,7 @@ class ProjectSourceTracingMixin:
         return None
 
     ## Resolve a receiver name through cross-file return_sources.
+    ## 通过跨文件 return_sources 追踪接收者名称。
     #
     #  1.0.5 P1: supports app.test_client() → flask when app traces
     #  to a CallResult (local or imported factory function) whose
@@ -132,12 +136,15 @@ class ProjectSourceTracingMixin:
         return None
 
     ## Try to resolve a local class method to an external source.
+    ## 尝试将本地类方法解析到外部来源。
     #
     #  Checks whether the method's return_sources trace to a constructor
     #  parameter that has external provenance via call-site arguments.
+    #
     #  @param module The current module.
     #  @param class_name The local class name.
     #  @param method_name The method being called.
+    #  @param receiver Receiver variable whose constructor call sites are checked.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @return External library name, or None.
@@ -195,6 +202,8 @@ class ProjectSourceTracingMixin:
         return None
 
     ## Get the constructor call-site position for a receiver instance.
+    ## 获取接收者实例对应构造调用的位置。
+    #
     #  @param receiver The variable name bound to a class instance.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @return Tuple of (lineno, col_offset) or (0, 0) if unknown.
@@ -208,16 +217,19 @@ class ProjectSourceTracingMixin:
         return (0, 0)
 
     ## Resolve a parameter name to its call-site argument for a specific callee.
+    ## 为指定被调用函数解析形参对应的调用实参。
     #
     #  Unlike _trace_parameter_source, this only searches the given callee's
     #  call-sites, preventing false positives from same-named parameters in
     #  other functions.
     ## Look up the return source of a local function via call-graph facts.
+    ## 通过调用图事实查询本地函数的返回来源。
     #
     #  Searches the current module's ModuleCallGraph first, then falls back
     #  to all modules (for cross-file imported local functions).  Returns a
     #  single source only when unambiguous; SourceSet with multiple
     #  import-backed sources is left for the classifier (7B-full PR2).
+    #
     #  @param cur_module The module where the call occurs.
     #  @param callee Bare function name or qualname (e.g. "make_array").
     #  @return A non-local source string, or None.
@@ -301,11 +313,13 @@ class ProjectSourceTracingMixin:
     # SymbolProvenance, not ApiCall.top_library.
 
     ## Look up import-backed constructor attr used by a specific method (7B-full PR3).
+    ## 查询指定方法使用的、具有导入来源的构造属性。
     #
     #  Searches ProjectCallGraph for edges where the method (identified by
     #  class_name + method_name) calls through a self.attr whose constructor
     #  source is import-backed.  Only attrs actually used by the method are
     #  considered — a class's unrelated import-backed attrs do not leak.
+    #
     #  @param cur_module The module where the class is defined.
     #  @param class_name The local class name.
     #  @param method_name The method being called (e.g. "fit").
@@ -376,6 +390,8 @@ class ProjectSourceTracingMixin:
         return None
 
     ## Check whether a CallEdge receiver matches a ClassSummary attr source.
+    ## 检查 CallEdge 接收者是否匹配 ClassSummary 中的属性来源。
+    #
     #  @param rcvr_norm Normalized receiver source from the edge.
     #  @param cs The ClassSummary.
     #  @param attr_name The attr name to check (e.g. "self.gp").
@@ -391,10 +407,15 @@ class ProjectSourceTracingMixin:
             return rcvr_norm == attr_norm
         return rcvr_norm == attr_norm
 
+    ## Resolve a function parameter to the matching call-site argument source.
+    ## 将函数参数解析为对应调用点实参的来源。
+    #
     #  @param module The module where the call occurs.
     #  @param callee The function name whose parameter is being resolved.
     #  @param param_name The parameter name to resolve.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param call_lineno Optional call-site line used to select one invocation.
+    #  @param call_col_offset Optional call-site column used with the line selector.
     #  @return A source value from the call-site argument, or None.
     def _resolve_param_to_arg(self, module, callee, param_name, tracers,
                                call_lineno=0, call_col_offset=0):
@@ -418,6 +439,15 @@ class ProjectSourceTracingMixin:
         return best
 
     ## Recursively trace a symbol through cross-file imports to its origin.
+    ## 沿跨文件导入递归追踪符号直至其来源。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Module where the symbol is referenced.
+    #  @param symbol Symbol name or structured source to trace.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited module/symbol pairs for cycle detection.
+    #  @param _direct_source Optional direct-source override for this step.
+    #  @return Ordered source chain from the symbol toward its origin.
     #
     #  Follows direct sources across module boundaries, handling
     #  structured sources (container items, instance methods, container iters,
@@ -428,7 +458,6 @@ class ProjectSourceTracingMixin:
     #  @param visited Set of already-visited (module, symbol) pairs.
     #  @return Ordered chain list from symbol to origin.
     # ── trace engine ─────────────────────────────────────────────────────
-
     def trace_symbol(self, module, symbol, tracers, visited,
                      _direct_source=None):
         if (module, symbol) in visited:
@@ -460,6 +489,15 @@ class ProjectSourceTracingMixin:
             module, symbol, direct_source, tracer, tracers, visited)
 
     ## Trace an unresolved name through prefixes and wildcard imports.
+    ## 通过名称前缀和通配符导入追踪未解析名称。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Current module.
+    #  @param symbol Unresolved symbol name.
+    #  @param tracer Analyzer for the current module.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited pairs for cycle detection.
+    #  @return Source chain or unresolved-symbol fallback.
     def _trace_unbound_symbol(self, module, symbol, tracer,
                               tracers, visited):
         if isinstance(symbol, str) and "." in symbol:
@@ -489,6 +527,13 @@ class ProjectSourceTracingMixin:
         return [symbol]
 
     ## Trace one unresolved name through wildcard-import candidates.
+    ## 通过通配符导入候选追踪一个未解析名称。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param symbol Unresolved symbol name.
+    #  @param tracer Analyzer containing wildcard imports.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited pairs for cycle detection.
     #  @return Chain or the module sentinel when no wildcard applies.
     def _trace_wildcard_symbol(self, symbol, tracer, tracers, visited):
         if not tracer.wildcard_modules:
@@ -520,6 +565,12 @@ class ProjectSourceTracingMixin:
         return _NO_TRACE_CHAIN
 
     ## Resolve a wildcard import name to a known project module when possible.
+    ## 尽可能将通配符导入名称解析为已知项目模块。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param wildcard_module Wildcard import module spelling.
+    #  @param tracers Per-module source analyzers.
+    #  @return Resolved project module or original spelling.
     def _resolved_wildcard_module(self, wildcard_module, tracers):
         if wildcard_module in tracers:
             return wildcard_module
@@ -530,6 +581,15 @@ class ProjectSourceTracingMixin:
         return wildcard_module
 
     ## Trace parameter evidence attached to one direct binding.
+    ## 追踪附着于直接绑定的形参证据。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Current module.
+    #  @param symbol Symbol being traced.
+    #  @param direct_source Direct source recorded for the symbol.
+    #  @param tracer Analyzer for the current module.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited pairs for cycle detection.
     #  @return A chain, or None when parameter evidence does not apply.
     def _trace_direct_parameter_chain(
             self, module, symbol, direct_source, tracer, tracers, visited):
@@ -546,6 +606,16 @@ class ProjectSourceTracingMixin:
         return None
 
     ## Continue a chain from a normalized structured source.
+    ## 从规范化的结构化来源继续追踪来源链。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Current module.
+    #  @param symbol Symbol being traced.
+    #  @param direct_source Original direct source value.
+    #  @param structured Normalized display/module/symbol triple.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited pairs for cycle detection.
+    #  @return Source chain continuing from the structured source.
     def _trace_structured_chain(self, module, symbol, direct_source,
                                 structured, tracers, visited):
         display_name, src_module, src_symbol = structured
@@ -581,6 +651,16 @@ class ProjectSourceTracingMixin:
         return [symbol, display_name, src_module]
 
     ## Trace an ordinary string or opaque direct source.
+    ## 追踪普通字符串来源或不透明直接来源。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Current module.
+    #  @param symbol Symbol being traced.
+    #  @param direct_source Direct source value.
+    #  @param tracer Analyzer for the current module.
+    #  @param tracers Per-module source analyzers.
+    #  @param visited Visited pairs for cycle detection.
+    #  @return Source chain for the direct source.
     def _trace_plain_source(self, module, symbol, direct_source, tracer,
                             tracers, visited):
         if isinstance(direct_source, str):
@@ -604,6 +684,8 @@ class ProjectSourceTracingMixin:
         return [symbol, full_source]
 
     ## Extract the top-level name from a dotted name string.
+    ## 从点分名称中提取顶层名称。
+    #
     #  @param name Possibly dotted name.
     #  @return The first component before a dot.
     def _top_name(self, name):
@@ -612,12 +694,15 @@ class ProjectSourceTracingMixin:
         return name
 
     ## Resolve a symbol to its top-level source library.
+    ## 将符号解析为其顶层来源库。
     #
     #  Traces through the chain and returns the top-level name, or "python"
     #  for builtins.
+    #
     #  @param src_module The module where the symbol is referenced.
     #  @param symbol The symbol to resolve.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param _seen Previously explored source references for cycle detection.
     #  @return Top-level library name (e.g. "requests", "python").
     def _top_source(self, src_module, symbol, tracers, _seen=None):
         if not symbol:
@@ -666,9 +751,11 @@ class ProjectSourceTracingMixin:
         return "unknown"
 
     ## Extract the ultimate source from a resolution chain.
+    ## 从解析链中提取最终来源。
     #
     #  Walks the chain in reverse; the first non-local, non-builtin element
     #  is the top-level library.
+    #
     #  @param chain The resolution chain list.
     #  @return Final source string.
     def extract_final_source(self, chain):

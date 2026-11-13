@@ -4,6 +4,7 @@
 #  The SymbolTable class records direct symbol-to-source mappings and
 #  recursively traces each symbol through aliases, assignments, and imports
 #  to determine its primary owner.
+#  跟踪符号定义到最终来源的链，并通过别名、赋值和导入解析主要归属。
 
 import builtins
 from .fact_versions import VersionedDict
@@ -12,6 +13,7 @@ from .sources import (CallResult, PythonShape, SourceSet, normalize_source,
 
 
 ## Tracks symbol definitions and resolves each to its top-level source.
+## 跟踪符号定义并将其解析到顶层来源。
 #
 #  Maintains three data structures:
 #  - direct: immediate source of each symbol (module name, "local", etc.)
@@ -19,15 +21,27 @@ from .sources import (CallResult, PythonShape, SourceSet, normalize_source,
 #  - top: cached top-level origin for each symbol
 class SymbolTable:
     ## Direct facts expose a mutation generation for source lookup indexes.
+    ## 直接来源事实提供修改版本，供来源查找索引使用。
+    #
+    #  @return Versioned mapping of symbols to their immediate sources.
     @property
     def direct(self):
         return self._direct
 
+    ## Replace direct facts with a version-tracked mapping.
+    ## 用带版本跟踪的映射替换直接来源事实。
+    #
+    #  @param values Symbol-to-source mappings to install.
+    #  @return None.
     @direct.setter
     def direct(self, values):
         self._direct = VersionedDict(values)
 
     ## Initialize an empty symbol table.
+    ## 初始化空符号表。
+    #
+    #  @param return_sources Optional function return-source mapping to consult.
+    #  @return None.
     def __init__(self, return_sources=None):
         self.direct = {}
         self.top = {}
@@ -35,8 +49,10 @@ class SymbolTable:
         self.return_sources = return_sources if return_sources is not None else {}
 
     ## Recursively trace a symbol to build its resolution chain.
+    ## 递归追踪符号并构建解析链。
     #
     #  Follows the direct-source mapping until a terminal symbol is reached.
+    #
     #  @param symbol The symbol to trace.
     #  @param visited Set of already-visited symbols to detect cycles.
     #  @return Ordered list forming the resolution chain.
@@ -44,6 +60,8 @@ class SymbolTable:
         if visited is None:
             visited = set()
         symbol = normalize_source(symbol)
+        # A result-specific source takes precedence over tracing its callee.
+        # 返回对象的专属来源优先于对被调用对象的追踪。
         if isinstance(symbol, CallResult):
             if symbol in visited:
                 return []
@@ -77,6 +95,8 @@ class SymbolTable:
                 if isinstance(rs, str):
                     return self.trace(rs, visited)
             return self.trace(callee, visited)
+        # Stop cyclic aliases before following the direct-source mapping.
+        # 在沿直接来源映射继续追踪前终止循环别名。
         if symbol in visited:
             return []
         visited.add(symbol)
@@ -128,8 +148,10 @@ class SymbolTable:
         return [symbol] + subchain
 
     ## Get the top-level origin for a symbol.
+    ## 获取符号的顶层来源。
     #
     #  Resolves through the chain and returns the last element.
+    #
     #  @param symbol The symbol to look up.
     #  @return Top-level source string, or None.
     def get_top(self, symbol):
@@ -142,16 +164,21 @@ class SymbolTable:
         return None
 
     ## Get the full resolution chain for a symbol.
+    ## 获取符号的完整解析链。
+    #
     #  @param symbol The symbol to look up.
     #  @return Resolution chain list, or empty list.
     def get_chain(self, symbol):
         return self.chains.get(symbol, [])
 
     ## Add a symbol-to-source mapping and update chains.
+    ## 添加符号到来源的映射并更新解析链。
     #
     #  Records the direct source, then recomputes the chain and top origin.
+    #
     #  @param symbol The symbol being defined.
     #  @param source The immediate source (module name, "local", etc.).
+    #  @return None.
     def add(self, symbol, source):
         if not symbol or not source:
             return
@@ -163,12 +190,17 @@ class SymbolTable:
             self.top[symbol] = last if isinstance(last, str) else str(last)
 
     ## Snapshot direct/chains/top for branch analysis rollback.
+    ## 为分支分析回滚保存 direct、chains 和 top 的快照。
+    #
     #  @return Tuple of (direct, chains, top) dict copies.
     def snapshot(self):
         return (dict(self.direct), dict(self.chains), dict(self.top))
 
     ## Restore direct/chains/top from a snapshot.
+    ## 从快照恢复 direct、chains 和 top。
+    #
     #  @param state Tuple of (direct, chains, top) dicts.
+    #  @return None.
     def restore(self, state):
         direct, chains, top = state
         self.direct = dict(direct)

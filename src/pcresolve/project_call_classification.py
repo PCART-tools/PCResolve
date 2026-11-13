@@ -1,5 +1,6 @@
 ## @package pcresolve.project_call_classification
 #  Project call-record classification and owner-candidate resolution.
+#  项目级调用分类与所有者候选来源解析。
 
 import ast
 
@@ -21,12 +22,15 @@ _NO_ORIGIN_CANDIDATES = object()
 
 
 ## Project call-classification behavior mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目级调用分类行为。
 class ProjectCallClassificationMixin:
     ## Downgrade an import-backed method owner after a visible monkey patch.
+    ## 可见猴子补丁使导入方法的所有者归属变得不确定时降级为 unknown。
     #
     #  A patch on one imported class does not prove that every receiver from
     #  that library has the patched class. When the receiver has already been
     #  reduced to the library owner, the only sound primary is unknown.
+    #
     #  @param call_detail Single-file call record.
     #  @param tracer Analyzer for the current module.
     #  @param top_source Resolved import-backed owner.
@@ -59,6 +63,7 @@ class ProjectCallClassificationMixin:
         return top_source
 
     ## Promote a chained local-call receiver to structured result evidence.
+    ## 将链式本地调用接收者提升为结构化的返回结果证据。
     #
     #  Single-file collection intentionally keeps ``make_value().method``
     #  conservative because the return object is resolved only after the
@@ -66,6 +71,7 @@ class ProjectCallClassificationMixin:
     #  represent the receiver as a CallResult so the existing return-summary
     #  resolver can follow it.  This is limited to an unambiguous project
     #  call edge and never infers an external library from the method name.
+    #
     #  @param module Current caller module.
     #  @param call_detail Raw single-file call record.
     #  @param module_tracers All module analyzers.
@@ -122,7 +128,11 @@ class ProjectCallClassificationMixin:
         return InstanceMethod(result, suffix.rsplit(".", 1)[-1])
 
     ## Collect all API calls across all modules and resolve their top-level origin.
+    ## 汇总所有模块的 API 调用，并解析每个调用的顶层来源。
+    #
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #
+    #  @return None. Populates all_calls with classified call records.
     def get_calls(self, module_tracers):
         self._call_searched_global = set()
         for module, tracer in module_tracers.items():
@@ -141,6 +151,14 @@ class ProjectCallClassificationMixin:
         self._call_searched_global = None
 
     ## Build one project-level call record without changing call order.
+    ## 构建单条项目级调用记录，同时保持原有调用顺序。
+    #
+    #  @param module Caller module name.
+    #  @param call_detail Raw single-file call record.
+    #  @param tracer Analyzer for the caller module.
+    #  @param module_tracers Analyzers indexed by module name.
+    #
+    #  @return Classified project-level call record.
     def _classified_call_record(
             self, module, call_detail, tracer, module_tracers):
         call_detail, base = self._prepared_call_base(
@@ -174,6 +192,13 @@ class ProjectCallClassificationMixin:
             call_detail, base, top_source, module, tracer, module_tracers)
 
     ## Apply chained-call promotion and comprehension tuple boundaries.
+    ## 应用链式调用提升，并处理推导式中的未知元组元素边界。
+    #
+    #  @param module Caller module name.
+    #  @param call_detail Raw single-file call record.
+    #  @param tracer Analyzer for the caller module.
+    #  @param module_tracers Analyzers indexed by module name.
+    #
     #  @return Possibly copied call detail and its effective base source.
     def _prepared_call_base(
             self, module, call_detail, tracer, module_tracers):
@@ -201,6 +226,11 @@ class ProjectCallClassificationMixin:
         return call_detail, base
 
     ## Preserve explicit builtin receiver evidence from the single-file pass.
+    ## 保留单文件分析阶段已经确认的内置接收者证据。
+    #
+    #  @param call_detail Raw single-file call record.
+    #  @param base Effective receiver or base source.
+    #
     #  @return "python" when preserved, otherwise None.
     def _preserved_python_call_owner(self, call_detail, base):
         call_kind = call_detail.get("receiver_container_kind")
@@ -216,6 +246,16 @@ class ProjectCallClassificationMixin:
         return None
 
     ## Attach one classification result to a copied call record.
+    ## 将分类结果写入调用记录副本。
+    #
+    #  @param call_detail Raw single-file call record.
+    #  @param base Effective receiver or base source.
+    #  @param top_source Resolved top-level owner.
+    #  @param module Caller module name.
+    #  @param tracer Analyzer for the caller module.
+    #  @param module_tracers Analyzers indexed by module name.
+    #
+    #  @return Copied call record with classification fields.
     def _record_with_classification(
             self, call_detail, base, top_source, module, tracer,
             module_tracers):
@@ -230,6 +270,8 @@ class ProjectCallClassificationMixin:
 
     ## Check whether a call result used in a comprehension is an unbound
     #  project-local tuple result.
+    ## 检查推导式使用的调用结果是否为元素位置无法确定的本地元组返回值。
+    #
     #  @param module Caller module.
     #  @param source CallResult used as the comprehension receiver.
     #  @param tracers Per-module analyzers.
@@ -248,6 +290,8 @@ class ProjectCallClassificationMixin:
             summary.returns)
 
     ## Resolve the top-level source of a base symbol, preferring call_assign_funcs.
+    ## 解析基符号的顶层来源，并优先使用调用点赋值快照。
+    #
     #  @param module The current module.
     #  @param base The base symbol string.
     #  @param tracer The SingleFileAnalyzer for the module.
@@ -332,6 +376,8 @@ class ProjectCallClassificationMixin:
         return self._top_source(module, base, module_tracers)
 
     ## Check whether a symbol is a known local definition in this tracer.
+    ## 检查符号是否在当前分析器中被确认为本地定义。
+    #
     #  @param tracer Single-file analyzer.
     #  @param symbol Candidate symbol name.
     #  @return True if the symbol is a local function/method/class/param.
@@ -356,6 +402,8 @@ class ProjectCallClassificationMixin:
         return False
 
     ## Check whether a string base represents a direct import.
+    ## 检查字符串形式的基对象是否直接来自导入绑定。
+    #
     #  @param tracer Single-file analyzer.
     #  @param base Candidate base name.
     #  @return True if base is an import alias or from-import symbol.
@@ -373,10 +421,12 @@ class ProjectCallClassificationMixin:
         return False
 
     ## Check whether a SymbolProvenance import is a direct external import.
+    ## 判断符号来源中的导入是否为直接外部导入。
     #
     #  True when the import source is a non-local module and the resolved
     #  top matches the source's top-level name.  Local re-exports
     #  (local_lib -> requests) are not direct external imports.
+    #
     #  @param base The import source value (e.g. "functools").
     #  @param top The resolved top library.
     #  @param module The module where the import occurs.
@@ -392,6 +442,8 @@ class ProjectCallClassificationMixin:
         return False
 
     ## Converge argument candidates under the receiver-preserving ufunc rule.
+    ## 按接收者保持型 ufunc 规则收敛各实参的所有者候选。
+    #
     #  @param candidate_groups One candidate-owner list per ufunc argument.
     #  @return Result owner or "unknown".
     def _receiver_preserving_ufunc_owner(self, candidate_groups):
@@ -414,6 +466,8 @@ class ProjectCallClassificationMixin:
         return "unknown"
 
     ## Converge exact operands for a local arithmetic return expression.
+    ## 根据本地算术返回表达式的各操作数收敛所有者候选。
+    #
     #  @param candidate_groups One candidate-owner list per expression operand.
     #  @return Result owner or "unknown".
     def _bounded_expression_owner(self, candidate_groups):
@@ -438,10 +492,14 @@ class ProjectCallClassificationMixin:
         return "unknown"
 
     ## Collect all origin candidates from a source value.
+    ## 从来源值递归收集所有者候选，并以环检测限制展开。
+    #
     #  @param module Current module name.
     #  @param source Source value to expand.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
     #  @param include_local Whether to include "local" in results.
+    #  @param _seen Sources already visited on the current expansion path.
+    #
     #  @return List of candidate top strings.
     @bounded_ownership_query(lambda: ['unknown'])
     def _origin_candidates(self, module, source, tracers, include_local=True,
@@ -505,6 +563,15 @@ class ProjectCallClassificationMixin:
         return ["unknown"]
 
     ## Resolve one derived source into owner candidates.
+    ## 将派生来源解析为所有者候选。
+    #
+    #  @param module Current module name.
+    #  @param source Derived source record.
+    #  @param tracers Analyzers indexed by module name.
+    #  @param include_local Whether to retain local candidates.
+    #  @param seen Sources already visited on the current expansion path.
+    #
+    #  @return Deduplicated candidate owners, or unknown at a boundary.
     def _derived_origin_candidates(
             self, module, source, tracers, include_local, seen):
         if source.kind == "iterator":
@@ -529,6 +596,14 @@ class ProjectCallClassificationMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve the verified owner contract of a derived method result.
+    ## 按已验证的方法返回契约解析派生结果的所有者。
+    #
+    #  @param module Current module name.
+    #  @param source Derived method-result source.
+    #  @param tracers Analyzers indexed by module name.
+    #  @param seen Sources already visited on the current expansion path.
+    #
+    #  @return A single owner candidate, or unknown when evidence is insufficient.
     def _method_result_origin_candidates(self, module, source, tracers, seen):
         if len(source.sources) != 1:
             return ["unknown"]
@@ -550,6 +625,13 @@ class ProjectCallClassificationMixin:
         return [result_owner or "unknown"]
 
     ## Converge owner evidence across one expression's operands.
+    ## 综合表达式各操作数的来源证据，收敛结果所有者。
+    #
+    #  @param module Current module name.
+    #  @param source Derived expression source.
+    #  @param tracers Analyzers indexed by module name.
+    #
+    #  @return A single owner candidate, or unknown at ambiguity boundaries.
     def _expression_origin_candidates(self, module, source, tracers):
         operand_candidates = []
         numeric_scalars = True
@@ -592,6 +674,15 @@ class ProjectCallClassificationMixin:
         return ["unknown"]
 
     ## Resolve a positional item selected from a local call result.
+    ## 解析从本地调用结果中按位置选取的容器元素。
+    #
+    #  @param module Current module name.
+    #  @param source Container item source.
+    #  @param tracers Analyzers indexed by module name.
+    #  @param include_local Whether to retain local candidates.
+    #  @param seen Sources already visited on the current expansion path.
+    #
+    #
     #  @return Candidates or the module sentinel when generic dispatch applies.
     def _container_item_origin_candidates(
             self, module, source, tracers, include_local, seen):
@@ -609,6 +700,15 @@ class ProjectCallClassificationMixin:
             _seen=set(seen))
 
     ## Resolve owner candidates for one call-result source.
+    ## 解析单个调用结果来源的所有者候选。
+    #
+    #  @param module Current module name.
+    #  @param source Call-result source record.
+    #  @param tracers Analyzers indexed by module name.
+    #  @param include_local Whether to retain local candidates.
+    #  @param seen Sources already visited on the current expansion path.
+    #
+    #  @return Deduplicated candidate owners, or unknown at unresolved boundaries.
     def _call_result_origin_candidates(
             self, module, source, tracers, include_local, seen):
         source_module = source.source_module or module
@@ -638,6 +738,17 @@ class ProjectCallClassificationMixin:
         return [top] if top else []
 
     ## Resolve a local return summary and its exact call-site parameter.
+    ## 解析本地函数返回摘要及其对应调用点形参的实参来源。
+    #
+    #  @param module Caller module name.
+    #  @param callee Local callee qualified name.
+    #  @param call_result Call-result record with the call-site location.
+    #  @param return_source Summary of the callee's returned source.
+    #  @param tracers Analyzers indexed by module name.
+    #  @param include_local Whether to retain local candidates.
+    #  @param seen Sources already visited on the current expansion path.
+    #
+    #  @return Candidate owners from the return summary and matching arguments.
     def _return_source_origin_candidates(
             self, module, callee, call_result, return_source, tracers,
             include_local, seen):
@@ -673,6 +784,8 @@ class ProjectCallClassificationMixin:
         return candidates
 
     ## Deduplicate a list preserving order.
+    ## 去重列表并保留候选项的首次出现顺序。
+    #
     #  @param items List of strings.
     #  @return Deduplicated list.
     @staticmethod
@@ -693,9 +806,11 @@ class ProjectCallClassificationMixin:
     # ── classification helpers ───────────────────────────────────────────
 
     ## Determine confidence for a classification result.
+    ## 根据分类原因和候选歧义计算置信度。
     #
     #  Delegates to the standalone classify_confidence() in
     #  classification.py so the confidence rules live in one place.
+    #
     #  @param reason Classification reason.
     #  @param alternatives List of alternative top libraries.
     #  @return Confidence score (0.0-1.0).
@@ -703,15 +818,21 @@ class ProjectCallClassificationMixin:
         return classify_confidence(reason, alternatives)
 
     ## Unified classification entry point for a resolved top library.
+    ## 对已解析的顶层库执行统一分类。
     #
     #  Delegates to ClassificationPipeline.classify() (Phase 8B).
     #  Kept as a thin wrapper so callers in get_calls() and
     #  _build_symbol_provenance() do not need to change.
+    #
     #  @param base The call's base symbol or source.
     #  @param top The resolved top-level library.
     #  @param module Current module name.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @param expand_origins Whether to expand symbol-origin evidence.
+    #  @param symbol Optional symbol name for the classification context.
+    #  @param kind Optional source kind, such as "import".
+    #
     #  @return ClassificationResult with library/reason/confidence/alternatives.
     def classify_source(self, base, top, module, tracer, module_tracers,
                         expand_origins=True, symbol=None, kind=""):
@@ -731,6 +852,8 @@ class ProjectCallClassificationMixin:
             expand_origins=expand_origins)
 
     ## Resolve the first segment of func_name to its fully qualified path.
+    ## 将 func_name 的首段解析为完整限定路径。
+    #
     #  @param call_dict Dict with 'func_name' and other call data.
     #  @param module The module where the call occurs.
     #  @param tracer The SingleFileAnalyzer for the module.
@@ -768,6 +891,13 @@ class ProjectCallClassificationMixin:
         return replacement + "." + ".".join(parts[1:])
 
     ## Resolve a super-method display name without claiming local decorators.
+    ## 解析 super 方法的展示名称，同时避免把本地装饰器误认作外部来源。
+    #
+    #  @param call_dict Call record with super-resolution metadata.
+    #  @param func_name Original function display name.
+    #  @param base Structured SuperMethod source.
+    #
+    #  @return Resolved method path when ownership is supported, otherwise original name.
     def _resolved_super_func_name(self, call_dict, func_name, base):
         base_path = call_dict.get("super_base_path")
         decorator_module = call_dict.get("super_decorator_module")
@@ -784,6 +914,15 @@ class ProjectCallClassificationMixin:
         return func_name
 
     ## Select an import, assignment, direct-symbol, or global replacement.
+    ## 从导入、赋值、直接符号或全局来源中选择函数名替代项。
+    #
+    #  @param call_dict Call record with call-site binding metadata.
+    #  @param module Caller module name.
+    #  @param tracer Analyzer for the caller module.
+    #  @param first First segment of the original function name.
+    #  @param visited Names already visited during recursive resolution.
+    #
+    #
     #  @return Replacement string, None, or the keep-name sentinel.
     def _func_name_replacement(
             self, call_dict, module, tracer, first, visited):
@@ -823,6 +962,13 @@ class ProjectCallClassificationMixin:
         return None
 
     ## Read the call-time assignment snapshot or exact factory call source.
+    ## 读取调用点赋值快照，或精确的工厂调用来源。
+    #
+    #  @param call_dict Call record with call-site binding metadata.
+    #  @param first First segment of the function name.
+    #  @param tracer Analyzer for the caller module.
+    #
+    #  @return Assigned callable name when available, otherwise the unresolved value.
     def _call_assignment_func(self, call_dict, first, tracer):
         if "call_assign_func" in call_dict:
             assigned = call_dict["call_assign_func"]
@@ -841,6 +987,12 @@ class ProjectCallClassificationMixin:
         return factory_callee
 
     ## Resolve an InstanceMethod receiver through an exact from-import.
+    ## 通过精确的 from-import 绑定解析 InstanceMethod 接收者。
+    #
+    #  @param call_dict Call record whose base may be an InstanceMethod.
+    #  @param tracer Analyzer for the caller module.
+    #
+    #  @return Fully qualified imported method name, or None when unresolved.
     def _precise_instance_method_func_name(self, call_dict, tracer):
         base = normalize_source(call_dict.get("base", ""))
         if not isinstance(base, InstanceMethod):

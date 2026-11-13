@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_argparse
 #  Track argparse Namespace fields and their conservative Python shapes.
+#  跟踪 argparse Namespace 字段及其保守的 Python 形状。
 
 import ast
 
@@ -8,8 +9,10 @@ from .sources import PythonShape
 
 
 ## Collect argparse-specific ownership facts using SingleFileAnalyzer state.
+## 使用 SingleFileAnalyzer 状态收集 argparse 专属归属事实。
 class SingleFileArgparseMixin:
     ## Return argparse destination fields tracked for a parser binding.
+    ## 返回为解析器绑定跟踪的 argparse 目标字段。
     #
     #  @param parser_name Parser variable name.
     #  @return Mutable destination-name set, or None.
@@ -24,6 +27,7 @@ class SingleFileArgparseMixin:
         return None
 
     ## Return Python shapes tracked for an argparse parser binding.
+    ## 返回为 argparse 解析器绑定跟踪的 Python 形状。
     #
     #  @param parser_name Parser variable name.
     #  @return Destination-to-PythonShape mapping, or None.
@@ -38,10 +42,14 @@ class SingleFileArgparseMixin:
         return None
 
     ## Record an argparse add_argument() destination with Python value shape.
+    ## 记录 argparse add_argument() 的目标字段及 Python 值形状。
     #
     #  Custom type/action callables are intentionally excluded because their
     #  return object may be project-local or import-backed.
+    #  有意排除自定义 type/action 可调用对象，因为其返回对象可能来自项目本地或导入库。
+    #
     #  @param node Candidate add_argument() call.
+    #  @return None; recognized destination names and shapes are stored in the current scope.
     def _collect_argparse_destination(self, node):
         if (not isinstance(node.func, ast.Attribute)
                 or node.func.attr != "add_argument"
@@ -68,6 +76,9 @@ class SingleFileArgparseMixin:
             return
 
         destination = None
+
+        # Prefer an explicit dest; otherwise derive it from a stable option spelling.
+        # 优先使用显式 dest；否则从稳定的选项拼写中推导字段名。
         dest_node = keywords.get("dest")
         if (isinstance(dest_node, ast.Constant)
                 and isinstance(dest_node.value, str)):
@@ -109,8 +120,10 @@ class SingleFileArgparseMixin:
                         shapes.pop(destination, None)
 
     ## Record ArgumentParser construction or parse_args Namespace attributes.
+    ## 记录 ArgumentParser 构造或 parse_args 产生的 Namespace 属性。
     #
     #  @param node Assignment being visited.
+    #  @return None; parser bindings or Namespace attributes are recorded in scope.
     def _collect_argparse_assignment(self, node):
         if (not isinstance(node.value, ast.Call)
                 or not isinstance(node.value.func, ast.Attribute)):
@@ -126,6 +139,8 @@ class SingleFileArgparseMixin:
         # owning ArgumentParser.  Preserve that destination set when a group
         # is assigned to a local name, so grouped options receive the same
         # Python value-shape evidence as parser-level options.
+        # ArgumentGroup.add_argument() 写入与其所属解析器相同的 Namespace。
+        # 将分组保存到局部名称时保留目标集合，使其选项沿用解析器级的 Python 值形状证据。
         if (node.value.func.attr == "add_argument_group"
                 and isinstance(node.value.func.value, ast.Name)):
             destinations = self._argparse_destinations(

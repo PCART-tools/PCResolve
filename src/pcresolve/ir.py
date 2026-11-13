@@ -1,5 +1,6 @@
 ## @package pcresolve.ir
 #  Internal analysis IR for call sites and trace results.
+#  调用点和追踪结果使用的内部分析中间表示。
 
 from dataclasses import dataclass, field
 from .program_facts import SourceSpan
@@ -17,10 +18,11 @@ REASON_UNRESOLVED = "UNRESOLVED"
 
 
 ## Unified classification result for a call or symbol.
+## 调用或符号的统一分类结果。
 #
 #  Bundles the library, reason, confidence, and alternatives into a single
 #  result so that callers do not recompute top/alternatives/confidence
-#  independently.  Phase 8B-0: extracted without changing behaviour.
+#  independently.
 @dataclass
 class ClassificationResult:
     ## Top-level library name, e.g. "requests", "local", "python", "unknown".
@@ -36,6 +38,7 @@ class ClassificationResult:
 
 
 ## Raw facts about a call expression collected from AST.
+## 从 AST 收集的调用表达式原始事实。
 @dataclass
 class CallSite:
     ## Full call expression.
@@ -64,6 +67,8 @@ class CallSite:
     arg_sources: list = field(default_factory=list)
 
     ## Shared internal identity without adding serialized fields to this adapter.
+    ## 共享内部标识，不为此适配器增加序列化字段。
+    #
     #  @return Complete source span of the call expression.
     @property
     def source_span(self):
@@ -72,10 +77,19 @@ class CallSite:
 
 
 ## A symbol definition or reference whose origin should be tracked.
+## 需要追踪来源的符号定义或引用。
 @dataclass
 class SymbolRef(FactStructure):
+    ## Notify fact consumers when the source or category changes.
+    ## 来源或类别变化时通知事实使用方。
+    #
+    #  @param name Attribute name being assigned.
+    #  @param value New attribute value.
+    #  @return None
     def __setattr__(self, name, value):
         object.__setattr__(self, name, value)
+        # Other metadata does not invalidate source-dependent facts.
+        # 其他元数据不会使依赖来源的事实失效。
         if name in ('source', 'kind'):
             self._notify()
 
@@ -99,6 +113,7 @@ class SymbolRef(FactStructure):
 
 
 ## Final provenance record for one symbol.
+## 单个符号的最终来源记录。
 @dataclass
 class SymbolProvenance:
     ## Display symbol name.
@@ -130,6 +145,7 @@ class SymbolProvenance:
 
 
 ## Result of tracing one symbol or call site.
+## 追踪单个符号或调用点的结果。
 @dataclass
 class TraceResult:
     ## Original source.

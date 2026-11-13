@@ -1,5 +1,6 @@
 ## @package pcresolve.project_method_ownership
 #  Cross-file method ownership and parameter-receiver resolution.
+#  执行跨文件方法归属与形参接收者来源解析。
 
 from .builtin_ownership import _has_builtin_shape_method
 from .container_resolution import _tuple_source_item
@@ -17,6 +18,10 @@ _NO_STRUCTURED_SOURCE = object()
 
 
 ## Remove consecutive duplicate items while preserving order.
+## 保留顺序并移除连续重复项。
+#
+#  @param chain Ordered source chain.
+#  @return Chain with adjacent duplicate items removed.
 def _dedup_consecutive(chain):
     result = []
     for item in chain:
@@ -26,12 +31,16 @@ def _dedup_consecutive(chain):
 
 
 ## Project method-ownership behavior mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目方法归属行为。
 class ProjectMethodOwnershipMixin:
     ## Resolve cross-file symbol references across all modules.
+    ## 跨所有模块解析符号引用。
     #
     #  For each symbol in each module, trace its source through imports
     #  and assignments to find the final origin.
+    #
     #  @param module_tracers Dict of module_name -> SingleFileAnalyzer.
+    #  @return None; resolved global symbols and source chains are stored in place.
     def resolve_cross_file_symbols(self, module_tracers):
         self._call_searched_global = set()
         for module, tracer in module_tracers.items():
@@ -47,9 +56,11 @@ class ProjectMethodOwnershipMixin:
 
 
     ## Resolve a method call through class inheritance and cross-file imports.
+    ## 沿类继承与跨文件导入解析方法调用。
     #
     #  Searches the class's method list, then recursively checks parent classes,
     #  following imports to other modules as needed.
+    #
     #  @param module The current module.
     #  @param class_symbol The class name.
     #  @param method_name The method being called.
@@ -120,6 +131,8 @@ class ProjectMethodOwnershipMixin:
         return None
 
     ## Trace a function or constructor parameter through collected call sites.
+    ## 通过收集到的调用点追踪函数或构造器形参。
+    #
     #  @param module Module containing the parameter.
     #  @param param_name Parameter name to resolve.
     #  @param display_symbol Symbol to use at the start of the returned chain.
@@ -150,7 +163,8 @@ class ProjectMethodOwnershipMixin:
                     return [display_symbol] + sub_chain
         return None
 
-    ## Resolve a structured (tuple) source to its concrete origin.
+    ## Resolve a structured source to its concrete origin.
+    ## 将结构化来源解析为具体来源。
     #
     #  Handles the four structured tuple kinds:
     #  - "container_item" for subscript access
@@ -163,15 +177,31 @@ class ProjectMethodOwnershipMixin:
     #  @return (display_name, src_module, src_symbol) tuple, or None.
 
     ## Resolve a SourceSet to a primary top library using origin-aware rules.
+    ## 根据来源感知规则将 SourceSet 解析为首选顶层库。
     #
     #  Delegates to SourceSetResolver.  See source_resolution.py for the
     #  origin-aware convergence rules (dict_lookup, return, default).
+    #
+    #  @param module Module containing the source set.
+    #  @param sourceset Candidate source alternatives and their origin.
+    #  @param tracers Per-module source analyzers.
+    #  @param _seen Previously explored source keys for cycle detection.
+    #  @return Unique primary owner, or None when candidates do not converge.
     def _resolve_sourceset_primary(self, module, sourceset, tracers, _seen=None):
         return self._source_resolver.resolve_primary(
             module, sourceset, tracers, _seen=_seen)
 
     # ── structured source resolution ─────────────────────────────────────
 
+    ## Dispatch structured source variants to their owner-resolution handlers.
+    ## 将不同结构化来源分派给对应的归属解析处理器。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Module containing the source.
+    #  @param direct_source Structured source value to resolve.
+    #  @param tracers Per-module source analyzers.
+    #  @param _seen Previously explored structured keys for cycle detection.
+    #  @return Display/source-module/source-symbol tuple, or None.
     def _resolve_structured_source(self, module, direct_source, tracers,
                                    _seen=None):
         if _seen is None:
@@ -212,6 +242,13 @@ class ProjectMethodOwnershipMixin:
         return None
 
     ## Resolve structured values that already carry direct owner evidence.
+    ## 解析已经携带直接归属证据的结构化值。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Module containing the value.
+    #  @param direct_source Structured source value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Current structured-source cycle guard.
     #  @return Resolution tuple or the module sentinel when dispatch continues.
     def _resolve_direct_structured_owner(
             self, module, direct_source, tracers, seen):
@@ -241,6 +278,14 @@ class ProjectMethodOwnershipMixin:
         return _NO_STRUCTURED_SOURCE
 
     ## Resolve a SourceSet without selecting an unproven runtime branch.
+    ## 解析 SourceSet 时不选择未经证明的运行时分支。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Module containing the source set.
+    #  @param source Structured source alternatives.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Current structured-source cycle guard.
+    #  @return Resolution tuple, or None when no owner is supported.
     def _resolve_structured_sourceset(self, module, source, tracers, seen):
         display = source_display(source)
         primary = self._resolve_sourceset_primary(
@@ -262,6 +307,11 @@ class ProjectMethodOwnershipMixin:
         return None
 
     ## Normalize one structured source into its dispatch components.
+    ## 将一个结构化来源规范化为分派所需的组成部分。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param source Structured source object or tuple.
+    #  @return Kind, operands, and optional display name; None when unsupported.
     def _structured_source_parts(self, source):
         if isinstance(source, ContainerItem):
             return ("container_item", source.container, source.index, None)
@@ -280,6 +330,15 @@ class ProjectMethodOwnershipMixin:
         return None
 
     ## Resolve super().method() through local and imported base classes.
+    ## 沿本地或导入的基类解析 super().method()。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param module Current module.
+    #  @param class_key Class whose base methods are searched.
+    #  @param method Method name invoked through super().
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Current source-resolution cycle guard.
+    #  @return Resolution tuple with a unique owner, unknown, or local.
     def _resolve_super_method_source(
             self, module, class_key, method, tracers, seen):
         tracer = tracers.get(module)
@@ -319,6 +378,7 @@ class ProjectMethodOwnershipMixin:
         return ("super()." + method, module, "local")
 
     ## Resolve a method receiver from all known parameter evidence.
+    ## 根据已知形参证据解析方法接收者来源。
     #
     #  A function parameter is not evidence of project-local ownership. A
     #  unique owner is returned only when call sites, static callbacks, or
@@ -397,10 +457,12 @@ class ProjectMethodOwnershipMixin:
         return "unknown"
 
     ## Check whether an expression is composed only of direct parameters.
+    ## 检查表达式是否仅由直接形参组成。
     #
     #  Subscript-derived parameters and local attributes are deliberately
     #  excluded. Their runtime element or attribute type is not established
     #  by the expression shape alone.
+    #
     #  @param source Source to inspect.
     #  @return True for a direct-parameter expression.
     def _is_direct_parameter_expression(self, source):
@@ -417,6 +479,8 @@ class ProjectMethodOwnershipMixin:
         return False
 
     ## Check whether every expression operand has bounded call-edge evidence.
+    ## 检查表达式的每个操作数是否都有有界调用边证据。
+    #
     #  @param source Source or expression source to inspect.
     #  @return True for direct parameters and deferred instance fields.
     def _is_bounded_expression_source(self, source):
@@ -435,6 +499,7 @@ class ProjectMethodOwnershipMixin:
         return False
 
     ## Resolve a method on an expression derived from one or more parameters.
+    ## 解析由一个或多个形参派生的表达式上的方法归属。
     #
     #  For example, ``combined = left + right`` followed by
     #  ``combined.reshape(...)`` carries two parameter sources.  Resolve each
@@ -457,6 +522,11 @@ class ProjectMethodOwnershipMixin:
         owners = []
         seen = set()
 
+        ## Collect candidate owners recursively from expression operands.
+        ## 递归收集表达式各操作数的归属候选。
+        #
+        #  @param value Operand source to inspect.
+        #  @return None; appends candidates to the enclosing owner list.
         def collect(value):
             value = normalize_source(value)
             if isinstance(value, DerivedResult):
@@ -509,6 +579,7 @@ class ProjectMethodOwnershipMixin:
         return "unknown"
 
     ## Resolve an expression receiver from converged import-backed operands.
+    ## 根据归属收敛的导入来源操作数解析表达式接收者。
     #
     #  This handles expressions that combine direct parameters with an
     #  independently resolved import-backed result.  The ordinary origin
@@ -516,6 +587,7 @@ class ProjectMethodOwnershipMixin:
     #  converge.  Python, local, unresolved, and conflicting candidates are
     #  deliberately rejected here because they do not prove one external
     #  receiver owner.
+    #
     #  @param module Module containing the expression.
     #  @param source DerivedResult describing the expression operands.
     #  @param tracers Dict of module name to analyzer.
@@ -535,11 +607,13 @@ class ProjectMethodOwnershipMixin:
         return "unknown"
 
     ## Check whether an expression retains independent owner evidence.
+    ## 检查表达式是否保留独立的归属证据。
     #
     #  When such evidence conflicts with parameter flow, the receiver must
     #  remain unknown instead of falling back to local.  Expressions made
     #  only from local and parameter sources retain the existing local
     #  identity contract.
+    #
     #  @param source Expression source to inspect.
     #  @return True when an operand carries non-local owner evidence.
     def _has_expression_owner_evidence(self, source):
@@ -557,10 +631,12 @@ class ProjectMethodOwnershipMixin:
         return False
 
     ## Resolve argument ownership for one concrete receiver method.
+    ## 为指定接收者方法解析实参归属。
     #
     #  PythonShape values must support the requested builtin protocol.
     #  Forwarded parameters are followed recursively; all other sources use
     #  ordinary owner resolution.
+    #
     #  @param module Module containing the argument expression.
     #  @param source Argument source.
     #  @param method Receiver method name.
@@ -637,6 +713,15 @@ class ProjectMethodOwnershipMixin:
             receiver_class_filter, _context)
 
     ## Resolve method ownership carried by one call result.
+    ## 解析调用结果携带的方法归属。
+    #
+    #  @param module Module where the result is observed.
+    #  @param source Call result carrying the returned object source.
+    #  @param method Method invoked on the returned object.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
     #  @return Candidates or the module sentinel when resolution falls through.
     def _call_result_method_owner_candidates(
             self, module, source, method, tracers, seen,
@@ -662,6 +747,15 @@ class ProjectMethodOwnershipMixin:
         return _NO_METHOD_CANDIDATES
 
     ## Resolve a parameter against an exact parent-linked call context.
+    ## 根据精确的父级调用上下文解析形参来源。
+    #
+    #  @param module Module containing the parameter source.
+    #  @param source Parameter-backed receiver source.
+    #  @param method Method requested on the parameter value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked call context to follow.
     #  @return Candidates or the module sentinel when no context matches.
     def _context_parameter_method_owner_candidates(
             self, module, source, method, tracers, seen,
@@ -706,6 +800,15 @@ class ProjectMethodOwnershipMixin:
         return _NO_METHOD_CANDIDATES
 
     ## Resolve the Python shape returned by an InstanceMethod source.
+    ## 解析 InstanceMethod 来源返回的 Python 结构类型。
+    #
+    #  @param module Module where the method result is observed.
+    #  @param source Instance method source whose return is inspected.
+    #  @param method Method requested on the returned value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
     #  @return Candidates or the module sentinel when no shape is proven.
     def _instance_method_result_candidates(
             self, module, source, method, tracers, seen,
@@ -726,6 +829,16 @@ class ProjectMethodOwnershipMixin:
         return _NO_METHOD_CANDIDATES
 
     ## Resolve a derived expression used as a method receiver.
+    ## 解析作为方法接收者的派生表达式。
+    #
+    #  @param module Module containing the expression.
+    #  @param source Derived expression and its operand sources.
+    #  @param method Method invoked on the expression result.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Candidate owner names, or unknown when evidence does not converge.
     def _derived_method_owner_candidates(
             self, module, source, method, tracers, seen,
             receiver_class_filter, context):
@@ -750,6 +863,16 @@ class ProjectMethodOwnershipMixin:
         return ["unknown"]
 
     ## Resolve an iterated value used as a method receiver.
+    ## 解析作为方法接收者的迭代值。
+    #
+    #  @param module Module containing the iterable source.
+    #  @param source Container iteration source.
+    #  @param method Method invoked on each yielded value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Candidate owner names for the yielded values.
     def _iter_method_owner_candidates(
             self, module, source, method, tracers, seen,
             receiver_class_filter, context):
@@ -777,6 +900,16 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve one selected container item used as a method receiver.
+    ## 解析作为方法接收者的指定容器元素。
+    #
+    #  @param module Module containing the container source.
+    #  @param source Selected container item source.
+    #  @param method Method invoked on the selected item.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Candidate owner names for the selected item.
     def _item_method_owner_candidates(
             self, module, source, method, tracers, seen,
             receiver_class_filter, context):
@@ -817,6 +950,17 @@ class ProjectMethodOwnershipMixin:
             _context=context)
 
     ## Resolve an item selected from a parameter or variadic pack.
+    ## 解析从形参或可变参数包中选取的元素。
+    #
+    #  @param module Module containing the parameter.
+    #  @param container Parameter source for the containing sequence.
+    #  @param index Selected item index.
+    #  @param method Method invoked on the selected item.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Candidate owner names, or unknown when arguments do not converge.
     def _parameter_item_method_owner_candidates(
             self, module, container, index, method, tracers, seen,
             receiver_class_filter, context):
@@ -867,6 +1011,15 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve method owners from an ordered argument-source collection.
+    ## 根据有序实参来源集合解析方法归属。
+    #
+    #  @param arguments Ordered module/source argument pairs.
+    #  @param method Method invoked on each argument value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Deduplicated candidate owners, or unknown for empty evidence.
     def _method_candidates_from_arguments(
             self, arguments, method, tracers, seen,
             receiver_class_filter, context):
@@ -881,6 +1034,16 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve a terminal parameter across incoming project call edges.
+    ## 沿传入的项目调用边解析末端形参来源。
+    #
+    #  @param module Module containing the parameter.
+    #  @param source Terminal parameter source.
+    #  @param method Method invoked on the parameter value.
+    #  @param tracers Per-module source analyzers.
+    #  @param seen Source-resolution recursion guard.
+    #  @param receiver_class_filter Optional project receiver-class constraint.
+    #  @param context Parent-linked local call context.
+    #  @return Candidate owner names, or unknown for uncalled/conflicting inputs.
     def _parameter_method_owner_candidates(
             self, module, source, method, tracers, seen,
             receiver_class_filter, context):
@@ -931,6 +1094,8 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates)
 
     ## Validate a local call result's method before projecting return owners.
+    ## 投影返回归属前先验证本地调用结果的方法。
+    #
     #  @param module Module containing the result-producing call.
     #  @param source CallResult with the exact call-site position.
     #  @param method Requested receiver method.
@@ -990,6 +1155,8 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve owner candidates for an argument, following parameter forwarding.
+    ## 跟踪形参转发并解析实参的归属候选。
+    #
     #  @param module Module containing the argument expression.
     #  @param source Argument source.
     #  @param tracers Dict of module name to analyzer.
@@ -1065,11 +1232,13 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates)
 
     ## Resolve a dotted parameter receiver through a local class attribute.
+    ## 通过本地类属性解析点分形参接收者来源。
     #
     #  Supports bounded paths such as holder.payload.method() when holder is
     #  constructed locally and self.payload is bound from a constructor
     #  argument. Every constructor value must converge before ownership is
     #  returned.
+    #
     #  @param module Module containing the root argument.
     #  @param source Root argument source.
     #  @param attributes Receiver attributes after the parameter name.
@@ -1111,6 +1280,7 @@ class ProjectMethodOwnershipMixin:
         return self._dedupe_list(candidates)
 
     ## Resolve a base-method field read through concrete subclass call edges.
+    ## 通过具体子类调用边解析基类方法中的字段读取来源。
     #
     #  A base class may read ``self.payload`` while a local subclass assigns
     #  that field from one of its method parameters. The lexical class alone
@@ -1118,6 +1288,7 @@ class ProjectMethodOwnershipMixin:
     #  that actually reach the containing method, follows their field
     #  bindings through project call edges, and accepts only one converged
     #  callable owner.
+    #
     #  @param module Module containing the field read.
     #  @param source Structured instance-attribute source.
     #  @param method Method called on the field value.

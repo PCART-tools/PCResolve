@@ -1,5 +1,6 @@
 ## @package pcresolve._native_class_protocol
 #  Versioned source-helper predicates for an independently proved native type input.
+#  为独立证明的原生类型输入提供版本化源码辅助谓词。
 
 import ast
 import copy
@@ -13,6 +14,13 @@ from .scope_facts import statement_scope_facts
 
 
 def _public_helper_export(reader, module, name):
+## Resolve a public helper re-export using bounded source import paths.
+## 使用有界源码导入路径解析公开辅助函数的重新导出。
+#
+#  @param reader Source resolver containing the import snapshot and documents.
+#  @param module Module that publicly exposes the helper.
+#  @param name Public helper name to resolve.
+#  @return Re-export evidence for a unique source binding, or None.
     """Resolve a re-export only when its source import paths are bounded."""
     binding_reader = SourceBindingResolver(reader.roots, budget=reader.budget)
     binding = binding_reader.resolve(module, name)
@@ -40,6 +48,9 @@ def _public_helper_export(reader, module, name):
                              if item.file_path == path), None)
             if document is None or document.tree is None:
                 continue
+
+        # Pair conditional import paths with a narrowly recognized fallback guard.
+        # 将条件导入路径与严格识别的回退保护条件配对。
             referenced_conditions = [
                 condition for condition in conditions
                 if condition.get('branch') == 'else'
@@ -99,6 +110,9 @@ def _public_helper_export(reader, module, name):
                 or any(not any(item.get('branch') == 'else' and item.get('evidence') == guard_span
                                for item in path.get('conditions', ())) for path in binding['paths'])):
             return None
+
+        # Preserve both sides of the guard as explicit binding evidence.
+        # 将保护条件的两个分支都保留为显式绑定证据。
         assumptions.add('no_external_module_global_injection')
     return {'kind': 'source_module_function_reexport', 'status': 'source_bound',
         'basis': 'source_snapshot', 'public_binding': module + '.' + name,
@@ -122,6 +136,8 @@ def iterability_query(analyzer, caller, expression):
     if key not in cache:
         cache[key] = None
         module, _, name = canonical.rpartition('.')
+## 解析可迭代性谓词，但不据此断言实际参数的类型。
+#
         # A dependency absent from the primary snapshot has its own source
         # binding and mutation audit below; the primary index cannot establish
         # that helper's freshness by itself.
@@ -135,6 +151,8 @@ def iterability_query(analyzer, caller, expression):
         export = None
         if not analyzer._definition_index.find(module, name):
             reader.documents, reader.module_names = {}, {}
+        # Mark the key before recursive source resolution to prevent re-entry.
+        # 在递归解析源码前标记该键，避免重复进入同一查询。
             reader.remaining = reader.limits.get('max_nodes', 1000000)
             export = _public_helper_export(reader, module, name)
         target_module, target_name = module, name

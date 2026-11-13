@@ -1,5 +1,6 @@
 ## @package pcresolve._class_creation_calls
 #  Finite source classmethod effects during one ordinary class creation phase.
+#  分析普通类创建阶段中有限的源码类方法影响。
 
 import ast
 import copy
@@ -23,11 +24,22 @@ from ._source_callable_metadata import wrapper_metadata
 _CLASS_CREATION_NODE_LIMIT = 2000
 
 
+## Capture a source location for a class-creation proof.
+## 记录类创建证明使用的源码位置。
+#
+#  @param ref Definition reference containing the source path.
+#  @param node AST node carrying source coordinates.
+#  @return Mapping of path and start/end coordinates.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
             'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
 
+## Check whether a node is a call-free literal expression.
+## 判断节点是否为不含调用的字面量表达式。
+#
+#  @param node Candidate expression, or None.
+#  @return True when literal evaluation succeeds.
 def _literal(node):
     if node is None or any(isinstance(value, ast.Call) for value in ast.walk(node)):
         return False
@@ -38,6 +50,14 @@ def _literal(node):
         return False
 
 
+## Prove a side-effect-free source helper returns one literal string.
+## 证明无副作用的源码辅助函数返回一个字符串字面量。
+#
+#  @param analyzer Analyzer holding source and stable binding facts.
+#  @param caller Caller reference and function definition.
+#  @param call Candidate helper call.
+#  @param argument Required forwarded argument name.
+#  @return Source proof and evidence, or None when conditions are not met.
 def _source_literal_helper_result(analyzer, caller, call, argument):
     """Prove a side-effect-free source helper returns one literal string."""
     if (not isinstance(call, ast.Call) or len(call.args) != 1 or call.keywords
@@ -76,6 +96,15 @@ def _source_literal_helper_result(analyzer, caller, call, argument):
                         'source_helper_normal_return_literal']}
 
 
+## Prove a literal or source-observed value for a member metadata write.
+## 证明成员元数据写入的值是字面量或具有源码观察证据。
+#
+#  @param analyzer Analyzer holding source and binding facts.
+#  @param owner Receiver class reference and definition.
+#  @param selected Selected updater reference and definition.
+#  @param statement Metadata assignment to inspect.
+#  @param module_prefix Optional proof of the module-call prefix.
+#  @return Metadata fact and evidence, or None for unsupported values.
 def _source_member_metadata_value(analyzer, owner, selected, statement, module_prefix):
     """Prove a literal or source-observed value for one member metadata write."""
     attribute = statement.targets[0].attr
@@ -104,6 +133,8 @@ def _source_member_metadata_value(analyzer, owner, selected, statement, module_p
     if attribute != '__signature__':
         return None
 
+    # Replace independently proved observer results only in the copied syntax.
+    # 仅在复制的语法中替换已独立证明的观察结果。
     signature_value = copy.deepcopy(value)
     native_lists = {}
     replacement_index = 0
@@ -140,6 +171,13 @@ def _source_member_metadata_value(analyzer, owner, selected, statement, module_p
             'fact': signature, 'write_evidence': _span(selected[0], statement)}
 
 
+## Prove a source classmethod installs member metadata at module load.
+## 证明源码类方法在模块加载时写入成员元数据。
+#
+#  @param analyzer Analyzer holding module and definition facts.
+#  @param selected Member reference and definition.
+#  @param attribute Metadata attribute whose write must be unique.
+#  @return Conditional initialization fact, or None if not proven.
 def _source_module_initialized_member_metadata(analyzer, selected, attribute):
     """Prove a source classmethod installs member metadata at module load."""
     ref, member = selected
@@ -171,6 +209,8 @@ def _source_module_initialized_member_metadata(analyzer, selected, attribute):
                         and len(candidates[0][1].decorator_list) == 1
                         and analyzer._descriptor_kind(candidates[0]) == 'classmethod'):
                     invocations.append((path, statements, statement, candidates[0]))
+    # Accept only a unique bounded updater with a closed initialization tail.
+    # 仅接受唯一的有界更新方法及封闭的后续初始化语句。
     matching = []
     for path, statements, call_statement, updater_selected in invocations:
         updater_ref, updater = updater_selected
@@ -239,6 +279,8 @@ def _source_module_initialized_member_metadata(analyzer, selected, attribute):
 
 
 ## Bound native writes across a finite graph of exact source classmethod calls.
+## 沿有限的精确源码类方法调用图对原生写入做有界分析。
+#
 #  @param analyzer Fixed source bindings and shared query-local effect budget.
 #  @param target New class before its own decorators, with ordinary type creation.
 #  @param hook Selected source __init_subclass__ definition.
@@ -260,6 +302,12 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
     native_lists = {}
     inspected = [0]
 
+    ## Recognize bounded expressions built from native metadata values.
+    ## 识别由原生元数据值构成的有界表达式。
+    #
+    #  @param node Candidate expression.
+    #  @param depth Current recursive expression depth.
+    #  @return True when all expression parts have supported native values.
     def native_data(node, depth=0):
         if depth > 32:
             return False
@@ -278,6 +326,13 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             return all(native_data(value, depth + 1) for value in node.values)
         return False
 
+    ## Bind a supported class member metadata write to its source member.
+    ## 将受支持的类成员元数据写入绑定到源码成员。
+    #
+    #  @param node Candidate metadata assignment.
+    #  @param parameter Name of the implicit class receiver.
+    #  @param ref Reference of the method containing the assignment.
+    #  @return Conditional write fact, or None when the binding is unproven.
     def method_documentation_write(node, parameter, ref):
         if (module_prefix is None or not isinstance(node, ast.Assign) or len(node.targets) != 1
                 or not isinstance(node.targets[0], ast.Attribute)
@@ -367,6 +422,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             and isinstance(hook.body[0].value, ast.Constant)
             and type(hook.body[0].value.value) is str) else hook.body
 
+        ## Recognize an assignment installing the requested lambda member.
+        ## 识别安装目标 lambda 成员的赋值语句。
+        #
+        #  @param statement Candidate hook statement.
+        #  @return True when it assigns a lambda to the receiver's member.
         def installs_member(statement):
             return (isinstance(statement, ast.Assign) and len(statement.targets) == 1
                 and isinstance(statement.targets[0], ast.Attribute)
@@ -479,6 +539,14 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             'assumptions': sorted(set(generation['assumptions'] + [
                 'native_source_function_metadata_write', 'no_external_monkeypatch_or_import_hook']))}
 
+    ## Bind metadata written after a generated lambda member is installed.
+    ## 绑定生成的 lambda 成员安装后的元数据写入。
+    #
+    #  @param node Candidate metadata assignment.
+    #  @param parameter Name of the implicit class receiver.
+    #  @param ref Reference of the containing source method.
+    #  @param function Containing function definition.
+    #  @return Conditional write fact, or None when the pattern is unsupported.
     def generated_member_metadata_write(node, parameter, ref, function):
         if (not isinstance(node, ast.Assign) or len(node.targets) != 1
                 or not isinstance(node.targets[0], ast.Attribute)
@@ -558,6 +626,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                 'function_metadata_write_does_not_rebind_class_member',
                 'no_external_monkeypatch_or_import_hook']}
 
+    ## Charge inspected nodes against local and shared effect budgets.
+    ## 从本地和共享影响分析预算中扣除已检查节点。
+    #
+    #  @param count Number of inspected nodes to charge.
+    #  @return None; raises _ClassEffectLimit when a budget is exhausted.
     def charge(count):
         analyzer._class_effect_fact_steps -= count
         inspected[0] += count
@@ -565,6 +638,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                 or analyzer._class_effect_fact_steps < 0):
             raise _ClassEffectLimit()
 
+    ## Select a uniquely defined source classmethod in hierarchy order.
+    ## 按类层次顺序选择唯一定义的源码类方法。
+    #
+    #  @param name Method name to resolve.
+    #  @return Definition reference and node, or None when unconfirmed.
     def select(name):
         if name.startswith('__') or name == 'mro':
             return None
@@ -582,6 +660,12 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             return matches[0]
         return None
 
+    ## Collect potential receiver writes through bounded classmethod calls.
+    ## 沿有界类方法调用收集可能的接收者写入。
+    #
+    #  @param selected Method reference and definition.
+    #  @param seen Methods already visited on this call path.
+    #  @return Attribute names; '*' represents an open or unknown write.
     def possible_class_writes(selected, seen=()):
         ref, function = selected
         if ref in seen or len(seen) >= 16:
@@ -618,6 +702,14 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
         module_prefix = copy.deepcopy(module_prefix)
         module_prefix['possible_class_writes'] = sorted(possible_class_writes(hook))
 
+    ## Bind a supported native query over the implicit class receiver.
+    ## 绑定针对隐式类接收者的受支持原生查询。
+    #
+    #  @param ref Reference of the function containing the call.
+    #  @param function Function definition containing the call.
+    #  @param parameter Name of the implicit class receiver.
+    #  @param call Candidate query call.
+    #  @return Query fact, or None when the required evidence is missing.
     def native_query(ref, function, parameter, call):
         if (not isinstance(call.func, (ast.Name, ast.Attribute)) or len(call.args) != 1
                 or call.keywords or not isinstance(call.args[0], ast.Name)
@@ -671,6 +763,14 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             'source_protocol': copy.deepcopy(proof)})
         return ast.copy_location(ast.Constant(value=proof['result']), call)
 
+    ## Resolve a supported hasattr query against source method metadata.
+    ## 解析针对源码方法元数据的受支持 hasattr 查询。
+    #
+    #  @param ref Reference of the function containing the call.
+    #  @param function Function definition containing the call.
+    #  @param parameter Name of the implicit class receiver.
+    #  @param call Candidate hasattr call.
+    #  @return Boolean constant AST with evidence, or None when unproven.
     def callable_hasattr(ref, function, parameter, call):
         if (not isinstance(call.func, ast.Name) or call.func.id != 'hasattr'
                 or analyzer._builtin_name_status(ref, function, 'hasattr') != 'confirmed_builtin'
@@ -891,6 +991,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
             return ast.copy_location(ast.Constant(value=result), call)
         return None
 
+    ## Prove the effects of a source classmethod and its bounded callees.
+    ## 证明源码类方法及其有界被调用方法的影响。
+    #
+    #  @param selected Method reference and definition.
+    #  @return True when effects are bounded; False on an open boundary.
     def visit(selected):
         ref, function = selected
         if ref in active:
@@ -978,10 +1083,21 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                     for item in ast.walk(node)):
                 return False
 
+        ## Replace proven native queries in a copy of the selected method.
+        ## 在所选方法的副本中替换已证明的原生查询。
         class NativeQueries(ast.NodeTransformer):
+            ## Initialize the guard that excludes nested function bodies.
+            ## 初始化用于排除嵌套函数体的标志。
+            #
+            #  @return None.
             def __init__(self):
                 self.entered = False
 
+            ## Visit the selected function up to an unconditional return.
+            ## 访问所选函数直到无条件返回。
+            #
+            #  @param node Function definition to transform.
+            #  @return Transformed function node.
             def visit_FunctionDef(self, node):
                 if self.entered:
                     return node
@@ -996,15 +1112,35 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                 node.body = body
                 return node
 
+            ## Leave deferred lambda bodies untouched.
+            ## 保持延后执行的 lambda 主体不变。
+            #
+            #  @param node Lambda expression.
+            #  @return Original lambda node.
             def visit_Lambda(self, node):
                 return node
 
+            ## Leave deferred asynchronous function bodies untouched.
+            ## 保持延后执行的异步函数体不变。
+            #
+            #  @param node Asynchronous function definition.
+            #  @return Original definition node.
             def visit_AsyncFunctionDef(self, node):
                 return node
 
+            ## Leave nested class definitions untouched.
+            ## 保持嵌套类定义不变。
+            #
+            #  @param node Nested class definition.
+            #  @return Original definition node.
             def visit_ClassDef(self, node):
                 return node
 
+            ## Replace a proven query with its bounded synthetic value.
+            ## 将已证明的查询替换为有界的合成值。
+            #
+            #  @param node Call expression to transform.
+            #  @return Replacement or recursively transformed call node.
             def visit_Call(self, node):
                 metadata_presence = callable_hasattr(ref, function, parameter, node)
                 if metadata_presence is not None:
@@ -1047,6 +1183,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                 metadata_results[name] = set(metadata['result_shapes'])
                 return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
 
+            ## Record proven metadata writes and remove them from later analysis.
+            ## 记录已证明的元数据写入，并从后续分析中移除。
+            #
+            #  @param node Assignment statement to transform.
+            #  @return Pass node for a proven write, otherwise the assignment.
             def visit_Assign(self, node):
                 node = self.generic_visit(node)
                 metadata_write = generated_member_metadata_write(
@@ -1060,6 +1201,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                 class_queries.append(documentation)
                 return ast.copy_location(ast.Pass(), node)
 
+            ## Fold a boolean negation after transforming its operand.
+            ## 转换操作数后折叠布尔取反。
+            #
+            #  @param node Unary expression to transform.
+            #  @return Boolean constant when known, otherwise the expression.
             def visit_UnaryOp(self, node):
                 node = self.generic_visit(node)
                 if (isinstance(node.op, ast.Not) and isinstance(node.operand, ast.Constant)
@@ -1067,6 +1213,11 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
                     return ast.copy_location(ast.Constant(value=not node.operand.value), node)
                 return node
 
+            ## Visit only a proven branch or retain an unresolved conditional.
+            ## 仅访问已证明的分支，或保留未解析的条件语句。
+            #
+            #  @param node Conditional statement to transform.
+            #  @return Reached statements or the transformed conditional.
             def visit_If(self, node):
                 node.test = self.visit(node.test)
                 if isinstance(node.test, ast.Constant) and type(node.test.value) is bool:
@@ -1114,7 +1265,14 @@ def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=N
         by_span = {(node.lineno, node.col_offset, node.end_lineno, node.end_col_offset): value
                    for node, value in replacements.items()}
 
+        ## Replace validated callee statements using their source coordinates.
+        ## 根据源码位置替换已验证的被调用语句。
         class ReplaceSpans(ast.NodeTransformer):
+            ## Replace an expression statement if its span was validated.
+            ## 已验证源码范围时替换表达式语句。
+            #
+            #  @param node Expression statement to inspect.
+            #  @return Recorded replacement or the original statement.
             def visit_Expr(self, node):
                 return by_span.get((node.lineno, node.col_offset,
                                     node.end_lineno, node.end_col_offset), node)

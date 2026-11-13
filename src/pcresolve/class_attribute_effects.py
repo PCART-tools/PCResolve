@@ -1,15 +1,19 @@
 ## @package pcresolve.class_attribute_effects
 #  Bounded attribute write sets for one explicitly bound source class object.
+#  为显式绑定的源码类对象计算有界属性写入集合。
 
 import ast
 from dataclasses import dataclass
 
 
+## Signal that bounded class-effect inspection exceeds its node budget.
+## 表示有界类效果检查超出节点预算。
 class _ClassEffectLimit(RuntimeError):
     pass
 
 
 ## A partial effect: only the attributes of the protected class are bounded.
+## 表示部分效果，仅对受保护类的属性进行有界建模。
 @dataclass(frozen=True)
 class ClassAttributeWrites:
     ## Possible written/deleted attribute names, with source private-name mangling.
@@ -25,6 +29,8 @@ class ClassAttributeWrites:
 
 
 ## Bound a class parameter's direct writes without asserting whole-function effects.
+## 对类参数的直接属性写入进行有界分析，不推断整个函数的效果。
+#
 #  @param node Synchronous source helper; descriptor binding is checked by the caller.
 #  @param parameter Exactly bound ordinary class parameter.
 #  @param builtin Predicate confirming an unshadowed builtin in this source scope.
@@ -53,6 +59,11 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         charge(len(nodes))
     inspected = len(nodes)
 
+    ## Charge nodes introduced by bounded literal-loop expansion.
+    ## 为有限字面量循环展开产生的节点计费。
+    #
+    #  @param statements Statements whose AST size is charged.
+    #  @return None; raises _ClassEffectLimit when expansion exceeds the budget.
     def expand(statements):
         nonlocal inspected
         count = sum(1 for statement in statements for _ in ast.walk(statement))
@@ -69,12 +80,23 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         return None
     attributes, evidence, metadata_evidence, read_evidence = [], [], [], []
 
+    ## Apply Python private-name mangling for the owning class.
+    ## 根据所属类应用 Python 私有名称改写。
+    #
+    #  @param name Source attribute name.
+    #  @return Effective attribute name used in the class namespace.
     def attribute_name(name):
         private_owner = owner.lstrip('_')
         if private_owner and name.startswith('__') and not name.endswith('__'):
             return '_' + private_owner + name
         return name
 
+    ## Resolve an entry-time class __name__ literal through known aliases.
+    ## 通过已知别名解析类入口处的 __name__ 字面量。
+    #
+    #  @param value Candidate attribute expression.
+    #  @param aliases Local names proven to refer to the class parameter.
+    #  @return Literal class name, or None when it is not proven.
     def metadata_literal(value, aliases):
         if (class_name is not None and isinstance(value, ast.Attribute)
                 and isinstance(value.ctx, ast.Load) and value.attr == '__name__'
@@ -86,6 +108,14 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 return name
         return None
 
+    ## Evaluate a bounded string name expression from literals and aliases.
+    ## 根据字面量和别名求值有界字符串名称表达式。
+    #
+    #  @param value Candidate source expression.
+    #  @param names Known local string values.
+    #  @param aliases Names bound to the protected class object.
+    #  @param depth Recursive expression depth.
+    #  @return String value within the size limit, or None.
     def literal_name(value, names, aliases, depth=0):
         if depth > 64:
             raise _ClassEffectLimit()
@@ -103,6 +133,12 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             result = None
         return result if result is not None and len(result) <= 2000 else None
 
+    ## Collect a literal payload's source witnesses without executing calls.
+    ## 不执行调用并收集字面量载荷的源码证据。
+    #
+    #  @param value Candidate literal expression.
+    #  @param payloads Known local payload evidence.
+    #  @return Evidence tuple, or None for unsupported expressions.
     def literal_payload(value, payloads):
         if isinstance(value, ast.Name):
             return payloads.get(value.id)
@@ -115,6 +151,14 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         except (ValueError, TypeError, RecursionError):
             return None
 
+    ## Update the set of locally proven plain attributes after a write.
+    ## 属性写入后更新本地已证明的普通属性集合。
+    #
+    #  @param name Effective attribute name.
+    #  @param value Assigned expression, if any.
+    #  @param plain Mutable set of plain attribute names.
+    #  @param payloads Known literal payload witnesses.
+    #  @return None; updates the proof sets in place.
     def plain_write(name, value, plain, payloads):
         plain.discard(name)
         proof = literal_payload(value, payloads)
@@ -124,6 +168,14 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 if source not in evidence:
                     evidence.append(source)
 
+    ## Recognize a safe hasattr probe for an already plain class attribute.
+    ## 识别针对已证明普通类属性的安全 hasattr 探测。
+    #
+    #  @param value Candidate probe expression.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param names Known local string values.
+    #  @param plain Proven ordinary class attribute names.
+    #  @return Probed attribute name, or None when the guard is unsupported.
     def guarded_probe(value, aliases, names, plain):
         if (not isinstance(value, ast.Call) or not isinstance(value.func, ast.Name)
                 or value.func.id != 'hasattr' or not builtin('hasattr') or value.keywords
@@ -137,6 +189,15 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             return name
         return None
 
+    ## Reject expressions that expose or perform unsupported class operations.
+    ## 拒绝暴露类对象或执行不受支持类操作的表达式。
+    #
+    #  @param value Expression to validate.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param names Known local string names.
+    #  @param plain Proven ordinary class attributes.
+    #  @param depth Recursive expression depth.
+    #  @return True only when the expression is within the supported grammar.
     def safe(value, aliases, names, plain, depth=0):
         if depth > 64:
             raise _ClassEffectLimit()
@@ -156,6 +217,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 return False
             # A closed sibling can delete or replace prior local reads. Only its
             # separately checked invariant survives, never the local presence set.
+            # 封闭兄弟方法可能删除或替换既有读取；这里只保留其独立验证的不变量。
             plain.clear()
             return True
         if isinstance(value, ast.Attribute):
@@ -189,6 +251,12 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         return all(safe(item, aliases, names, plain, depth + 1)
                    for item in ast.iter_child_nodes(value))
 
+    ## Record one supported write to the protected class object.
+    ## 记录一次对受保护类对象的受支持写入。
+    #
+    #  @param name Effective attribute name being written or deleted.
+    #  @param statement Source statement establishing the operation.
+    #  @return True when the attribute is within the modeled write set.
     def write(name, statement):
         if name == 'mro' or name.startswith('__') and name.endswith('__'):
             return False
@@ -198,6 +266,16 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
             evidence.append(statement)
         return True
 
+    ## Validate and record an attribute assignment target on the class alias.
+    ## 校验并记录类别名上的属性赋值目标。
+    #
+    #  @param value Candidate assignment target.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param statement Source statement containing the target.
+    #  @param plain Mutable set of plain attributes.
+    #  @param payloads Known literal payload evidence.
+    #  @param payload Assigned expression used for plainness checks.
+    #  @return True when the target is a supported class attribute.
     def target(value, aliases, statement, plain, payloads, payload=None):
         if (not isinstance(value, ast.Attribute) or not isinstance(value.value, ast.Name)
                 or value.value.id not in aliases):
@@ -208,6 +286,15 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
         plain_write(name, payload, plain, payloads)
         return True
 
+    ## Interpret supported class writes across assignments and bounded branches.
+    ## 在赋值与有界分支中解释受支持的类属性写入。
+    #
+    #  @param statements Ordered statements to inspect.
+    #  @param aliases Mutable aliases of the protected class object.
+    #  @param names Mutable known literal names.
+    #  @param plain Mutable proven plain-attribute names.
+    #  @param payloads Mutable source witnesses for literal payloads.
+    #  @return True when every statement is supported; otherwise False.
     def block(statements, aliases, names, plain, payloads):
         for statement in statements:
             if isinstance(statement, ast.Assign):
@@ -283,6 +370,7 @@ def class_attribute_writes(node, parameter, builtin, protected, owner='', max_no
                 # Only a fresh builtin literal sequence is exact here. Iterating
                 # a caller object, a local alias or a comprehension needs its own
                 # binding/mutation proof and must not acquire one by unrolling.
+                # 这里只展开新建的内建字面量序列；调用方对象等需要独立绑定和变更证明。
                 if (not isinstance(statement.target, ast.Name)
                         or not isinstance(statement.iter, (ast.List, ast.Tuple))
                         or len(statement.iter.elts) > 64

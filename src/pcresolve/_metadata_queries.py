@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_queries
 #  Conditional source effects for scalar queries of native callable metadata.
+#  分析原生可调用对象元数据标量查询产生的条件源码效果。
 
 import ast
 import copy
@@ -12,10 +13,14 @@ from .class_attribute_effects import _ClassEffectLimit
 from .scope_facts import statement_scope_facts
 
 
+## Signal that metadata-query analysis reached an unsupported or open operation.
+## 表示元数据查询分析遇到不支持或开放式操作。
 class _OpenQuery(ValueError):
     pass
 
 
+## Store a bounded abstract value used by scalar metadata analysis.
+## 保存标量元数据分析使用的有界抽象值。
 @dataclass(frozen=True)
 class _Value:
     kind: str
@@ -24,22 +29,49 @@ class _Value:
     known: bool = False
 
 
+## Construct an abstract scalar with optional known literal content.
+## 构造可选带有已知字面量内容的抽象标量。
+#
+#  @param shapes Possible scalar type names.
+#  @param literal Concrete literal value when known.
+#  @param known Whether literal contains a proven concrete value.
+#  @return Immutable scalar abstract value.
 def _scalar(shapes, literal=None, known=False):
     return _Value('scalar', frozenset(shapes), literal, known)
 
 
+## Capture source coordinates for metadata-query evidence.
+## 记录元数据查询证据的源码坐标。
+#
+#  @param ref Source definition reference.
+#  @param node AST node whose location is recorded.
+#  @return Mapping with file path and source coordinates.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
             'end_col_offset': node.end_col_offset}
 
 
+## Analyze a metadata query using restricted scalar and callable abstractions.
+## 使用受限的标量与可调用对象抽象分析元数据查询。
 class _Query:
+    ## Initialize query-local facts and conservative analysis budgets.
+    ## 初始化查询局部事实与保守分析预算。
+    #
+    #  @param self Query proof state.
+    #  @param analyzer Source analyzer providing definitions and budgets.
+    #  @param target Exact source definition under analysis.
+    #  @return None.
     def __init__(self, analyzer, target):
         self.analyzer, self.target = analyzer, target
         self.protocols, self.calls, self.inspect_names = set(), [], set()
         self.remaining, self.paths = 4000, 0
 
+    ## Consume query and shared class-effect budgets.
+    ## 消耗查询局部与共享类效果预算。
+    #
+    #  @param self Query proof state.
+    #  @return None; raises _OpenQuery when a budget is exhausted.
     def charge(self):
         self.remaining -= 1
         self.analyzer._class_effect_fact_steps -= 1
@@ -48,6 +80,13 @@ class _Query:
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
 
+    ## Interpret a supported expression without executing user callbacks.
+    ## 在不执行用户回调的前提下解释受支持的表达式。
+    #
+    #  @param self Query proof state collecting protocol evidence.
+    #  @param node Expression to interpret.
+    #  @param env Current abstract local environment.
+    #  @return Abstract scalar, signature, parameter collection, or callable value.
     def expression(self, node, env):
         self.charge()
         if node is None:
@@ -80,6 +119,8 @@ class _Query:
         if isinstance(node, ast.Call):
             ref, function = self.target
             canonical = _canonical(self.analyzer, ref, function, node.func)
+            # Only recognized inspect entry points over a proven callable qualify.
+            #  仅识别针对已证明可调用对象的 inspect 入口。
             if (canonical in ('inspect.getdoc', 'inspect.signature') and len(node.args) == 1
                     and not node.keywords and self.expression(node.args[0], env).kind == 'callable'):
                 name = canonical.rsplit('.', 1)[1]
@@ -104,6 +145,14 @@ class _Query:
                     return _scalar({'bool'})
         raise _OpenQuery()
 
+    ## Narrow a local scalar type along a supported None comparison branch.
+    ## 根据受支持的 None 比较分支收窄局部标量类型。
+    #
+    #  @param self Query proof state.
+    #  @param test Branch condition being refined.
+    #  @param env Incoming abstract local environment.
+    #  @param selected Whether the tested branch is selected.
+    #  @return Refined environment, or None when the branch is impossible.
     def refine(self, test, env, selected):
         local = dict(env)
         if (isinstance(test, ast.Compare) and len(test.ops) == 1
@@ -120,6 +169,14 @@ class _Query:
                 local[test.left.id] = _scalar(shapes, None, is_none)
         return local
 
+    ## Analyze a bounded block and collect its normal return values.
+    ## 分析有界语句块并收集其正常返回值。
+    #
+    #  @param self Query proof state tracking explored paths.
+    #  @param statements Ordered statements in the current block.
+    #  @param env Mutable abstract local environment.
+    #  @param depth Current nested-block depth.
+    #  @return Abstract values returned on normally completing paths.
     def block(self, statements, env, depth=0):
         if depth > 32:
             raise _OpenQuery()
@@ -140,6 +197,8 @@ class _Query:
                 test = self.expression(node.test, env)
                 if test.kind != 'scalar':
                     raise _OpenQuery()
+                # Unknown conditions retain both paths; budget each explored path.
+                # 条件未知时保留两条路径，并为每条路径计入预算。
                 choices = [bool(test.literal)] if test.known else [True, False]
                 result = []
                 for selected in choices:
@@ -156,9 +215,17 @@ class _Query:
 
 
 ## Summarize scalar source queries without granting arbitrary inputs native protocols.
+## 汇总标量源码查询，但不把原生协议能力赋予任意输入。
+#
 #  @param analyzer Fixed source snapshot and query-local resource budget.
 #  @param target Exact source definition; binding at an actual call is separate.
 #  @return Conditional effect template, or None for open effects or unsupported syntax.
+## Return a cached metadata-query summary for an exact source definition.
+## 返回指定源码定义的缓存元数据查询摘要。
+#
+#  @param analyzer Source analyzer with query cache and snapshots.
+#  @param target Exact source definition to summarize.
+#  @return Deep-copied query effect template, or None when unsupported.
 def metadata_query(analyzer, target):
     cache = analyzer._metadata_query_cache
     key = target[0], id(target[1])
@@ -168,6 +235,12 @@ def metadata_query(analyzer, target):
     return copy.deepcopy(cache[key])
 
 
+## Build a conservative metadata-query summary from supported source syntax.
+## 根据受支持的源码语法构建保守的元数据查询摘要。
+#
+#  @param analyzer Source analyzer providing namespace and definition facts.
+#  @param target Exact source definition to inspect.
+#  @return Conditional effect template, or None when proof is incomplete.
 def _metadata_query(analyzer, target):
     ref, function = target
     if not isinstance(function, ast.FunctionDef):
@@ -179,6 +252,7 @@ def _metadata_query(analyzer, target):
         return None
     # Most source functions are not metadata queries. Keep this optional summary
     # off their normal effect path and do not turn failed templates into boundaries.
+    # 大多数源码函数并非元数据查询；失败的可选摘要不应成为常规效果边界。
     candidate = False
     count = 0
     for node in ast.walk(function):

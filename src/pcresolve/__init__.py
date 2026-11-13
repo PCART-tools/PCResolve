@@ -1,6 +1,7 @@
 ## @package pcresolve
 #  Project-level Python static analysis for API ownership and library usage
 #  provenance.
+#  面向项目级 Python API 归属与库使用来源的静态分析。
 #
 #  Usage:
 #    import pcresolve

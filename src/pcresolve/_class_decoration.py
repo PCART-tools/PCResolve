@@ -1,5 +1,6 @@
 ## @package pcresolve._class_decoration
 #  Constructor-slot preservation for bounded, identity-returning class decorators.
+#  为有界且返回原类的类装饰器证明构造器槽位保持。
 
 import ast
 import copy
@@ -13,6 +14,12 @@ from .scope_facts import statement_scope_facts
 
 
 def _span(ref, node):
+## Build a source span record for one decorator or class write.
+## 为一次装饰器或类属性写入构造源码范围记录。
+#
+#  @param ref Source reference carrying the file path.
+#  @param node AST node carrying the source coordinates.
+#  @return Dictionary containing the node's start and end positions.
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
             'end_col_offset': node.end_col_offset}
@@ -25,6 +32,16 @@ def _literal_alias_decorator(analyzer, target, selected, late_parameter, factory
     owner, function = selected
     if (not isinstance(function, ast.FunctionDef) or function.name not in ('define_aliases', '_define_aliases')
             or late_parameter != 'cls' or not isinstance(factory_binding, dict)):
+## Summarize a literal source-bound getter/setter alias factory.
+## 汇总字面量且由源码绑定的 getter/setter 别名工厂。
+#
+#  @param analyzer Analyzer providing source identities and builtin bindings.
+#  @param target Decorated class and its source identity.
+#  @param selected Selected alias-factory definition.
+#  @param late_parameter Class parameter bound when the decorator runs.
+#  @param factory_binding Evidence for partial/factory argument binding.
+#  @param prior_decorations Earlier inner-decorator facts affecting class attributes.
+#  @return Alias-decoration fact, or None when the source shape differs.
         return None
     arguments = factory_binding.get('arguments', ())
     if (len(arguments) != 1 or arguments[0].get('parameter') != 'alias_d'
@@ -196,6 +213,7 @@ def _literal_alias_decorator(analyzer, target, selected, late_parameter, factory
         return None
     if not full_alias_map and (not body[2].targets
             or not isinstance(body[2].targets[0], ast.Attribute)
+    # 此模板只包含预期的类写入：生成的别名描述符和字面量别名映射；其他调用或写入会使证明不适用。
             or not isinstance(body[2].targets[0].value, ast.Name)
             or body[2].targets[0].value.id != late_parameter
             or body[2].targets[0].attr != '_alias_map'
@@ -296,6 +314,13 @@ def _source_metadata_instance_decorator(analyzer, target, expression):
         return None
     assignment = statements[0]
     value = assignment.value
+## Prove a source callable decorator that changes only object documentation.
+## 证明源码可调用对象装饰器仅修改对象文档。
+#
+#  @param analyzer Analyzer providing source classes, imports, and builtin facts.
+#  @param target Decorated source class and its identity.
+#  @param expression Decorator expression selecting the imported callable class.
+#  @return Identity-preserving metadata fact, or None when extra effects are possible.
     targets = (assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target])
     names = [item.id for item in targets if isinstance(item, ast.Name)]
     if (attribute not in names or len(names) != len(targets)
@@ -370,6 +395,12 @@ def _source_metadata_instance_decorator(analyzer, target, expression):
     expected_invoke = ast.parse('self(obj.__init__)', mode='eval').body
     returned = body[2].value.id == object_name
     if (ast.dump(test, include_attributes=False)
+    ## Normalize selected local names before structural AST comparison.
+    ## 结构化比较 AST 前统一选定的局部名称。
+    #
+    #  @param node Expression or statement subtree to copy and normalize.
+    #  @param names Mapping from source-local names to canonical names.
+    #  @return Deep-copied AST node with matching names renamed.
             != ast.dump(expected_test, include_attributes=False)
             or ast.dump(invoke, include_attributes=False)
             != ast.dump(expected_invoke, include_attributes=False)
@@ -379,9 +410,16 @@ def _source_metadata_instance_decorator(analyzer, target, expression):
     base_matches = []
     for base_ref, base_node in hierarchy[1:]:
         members = [item for item in base_node.body
+        ## Rename Name nodes according to the supplied canonical mapping.
+        ## 根据给定的规范名称映射重命名 Name 节点。
             if '__call__' in statement_scope_facts([item]).bound]
         if members:
             if len(members) != 1 or not isinstance(members[0], ast.FunctionDef):
+            ## Replace one identifier while preserving its AST context.
+            ## 替换单个标识符并保留其 AST 上下文。
+            #
+            #  @param item Name node visited by the transformer.
+            #  @return Renamed Name node, or the original node when unmatched.
                 return None
             base_matches = [(base_ref, members[0])]
             break
@@ -498,6 +536,8 @@ def constructor_decorations(analyzer, target):
         selected = analyzer._decorator_definition((ref, probe))
         factory_binding, string_literals, late_parameter = None, {}, None
         if selected is None:
+## 有界地记录与普通实例查找相关的类装饰器写入。
+#
             metadata_fact = _source_metadata_instance_decorator(analyzer, target, expression)
             if metadata_fact is not None:
                 records.append(metadata_fact)
@@ -515,6 +555,8 @@ def constructor_decorations(analyzer, target):
             records.append(alias_fact)
             continue
         loop_expansion = None
+## 有界地记录类装饰器的直接写入，但不证明装饰已完成。
+#
         if factory_binding is not None:
             specialized = literal_class_loops(analyzer, selected, factory_binding)
             if specialized is not None:
@@ -532,6 +574,7 @@ def constructor_decorations(analyzer, target):
                 return None
             nodes.append(item)
         parameter = late_parameter or parameters[0].arg
+    # 每层装饰器仅在内层已证明返回原类后才接收同一个类对象；源码写入按并集累计，不假定槽位恢复。
         immediate = list(execution_nodes(function))
         if (not function.body or not isinstance(function.body[-1], ast.Return)
                 or not isinstance(function.body[-1].value, ast.Name)
@@ -588,5 +631,11 @@ def constructor_decorations(analyzer, target):
             records[-1]['deferred_functions'] = deferred
             records[-1]['source_hashes'].update(deferred['source_hashes'])
             records[-1]['assumptions'].extend(deferred['assumptions'])
+        ## Charge class-attribute traversal to the shared effect budget.
+        ## 将类属性遍历工作量计入共享效果预算。
+        #
+        #  @param count Number of visited syntax nodes.
+        #  @return None; the shared remaining budget is reduced in place.
     analyzer._class_decoration_cache[ref] = records
     return copy.deepcopy(records)
+        # 仅允许返回的类对象发生逃逸；其余函数体使用与普通类效果相同的别名和反射写入规则。

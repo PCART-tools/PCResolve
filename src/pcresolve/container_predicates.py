@@ -1,10 +1,16 @@
 ## @package pcresolve.container_predicates
 #  Source obligations for observed builtin-container predicate evaluation.
+#  对内置容器谓词求值进行观察所需的源码证据条件。
 
 import ast
 from dataclasses import asdict
 
 
+## Iterate the root syntax without entering nested named or lambda scopes.
+## 遍历根节点语法，不进入嵌套具名作用域或 lambda。
+#
+#  @param root AST root to traverse.
+#  @return Iterator of nodes in depth-first order.
 def _nodes(root):
     pending = [root]
     while pending:
@@ -16,6 +22,12 @@ def _nodes(root):
         pending.extend(reversed(list(ast.iter_child_nodes(node))))
 
 
+## Capture a node's source coordinates for an indexed function.
+## 获取索引函数中节点的源码坐标。
+#
+#  @param ref Source function identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
@@ -23,6 +35,8 @@ def _span(ref, node):
 
 
 ## Describe predicates that require independent execution and container-type evidence.
+## 描述需要独立执行证据和容器类型证据的谓词。
+#
 #  @param analyzer Fixed source analyzer providing hashes and lexical builtin facts.
 #  @param ref Source function identity.
 #  @param node Source function AST.
@@ -38,6 +52,8 @@ def checks(analyzer, ref, node):
         if not isinstance(branch, ast.If):
             continue
         predicate = branch.test
+        # Only the first Boolean operand is necessarily evaluated on entry.
+        # 进入布尔表达式时，只有第一个操作数一定会被求值。
         while isinstance(predicate, ast.BoolOp):
             predicate = predicate.values[0]
         selected = predicate
@@ -76,6 +92,9 @@ def checks(analyzer, ref, node):
                           constant=predicate.comparators[0].value)
         else:
             continue
+
+        # A syntactic match does not prove execution or the runtime receiver type.
+        # 语法匹配不能证明实际执行或运行时接收者类型。
         result.append({'kind': 'container_predicate', 'status': 'requires_observation',
                        'function': asdict(ref), 'parameter': parameter, 'operation': operation,
                        'negated': negated, 'detail': detail,

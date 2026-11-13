@@ -1,5 +1,6 @@
 ## @package pcresolve.ownership_model
 #  Explicit internal state for one ownership analysis run.
+#  单次归属分析运行使用的显式内部状态。
 
 from dataclasses import dataclass, field
 from functools import wraps
@@ -10,6 +11,7 @@ from .ast_facts import AstFactIndex
 
 
 ## Work budget shared by mutually recursive ownership proof queries.
+## 相互递归的归属证明查询共享的工作预算。
 @dataclass
 class OwnershipProofBudget:
     ## Maximum query entries in one independent proof.
@@ -25,10 +27,23 @@ class OwnershipProofBudget:
 
 
 ## Bound cross-resolver work and discard proofs with incomplete candidates.
+## 限制跨解析器工作量，并丢弃候选不完整的证明。
+#
 #  @param fallback Factory producing the query's conservative unknown result.
 #  @return Decorator sharing one budget across nested ownership queries.
 def bounded_ownership_query(fallback):
+    ## Wrap a query with the shared proof budget.
+    ## 使用共享证明预算包装查询。
+    #
+    #  @param query Ownership query to wrap.
+    #  @return Budget-aware query.
     def decorate(query):
+        ## Enforce budget limits across nested calls to the query.
+        ## 在嵌套查询中执行共享预算限制。
+        #
+        #  @param args Positional arguments forwarded to the query.
+        #  @param kwargs Keyword arguments forwarded to the query.
+        #  @return Query result or conservative fallback after exhaustion.
         @wraps(query)
         def bounded(self, *args, **kwargs):
             resources = getattr(self, '_analysis_budget', None)
@@ -48,6 +63,7 @@ def bounded_ownership_query(fallback):
                 result = query(self, *args, **kwargs)
                 # A cutoff in a nested candidate must invalidate the outer
                 # proof too; a surviving subset cannot establish convergence.
+                # 嵌套候选触及限制时，剩余子集无法证明整体收敛。
                 return fallback() if budget.exhausted else result
             finally:
                 budget.depth -= 1
@@ -56,6 +72,7 @@ def bounded_ownership_query(fallback):
 
 
 ## Immutable project inputs observed by one ownership analysis run.
+## 单次归属分析运行观察到的不可变项目输入。
 @dataclass(frozen=True)
 class ProjectSnapshot:
     ## Ordered module names selected by the ownership adapter.
@@ -65,6 +82,7 @@ class ProjectSnapshot:
 
 
 ## Mutable program facts assembled during one ownership analysis run.
+## 单次归属分析运行中组装的可变程序事实。
 @dataclass
 class ProgramIndex:
     ## Per-module single-file analyzers, preserving discovery order.
@@ -73,6 +91,8 @@ class ProgramIndex:
     call_graph: ProjectCallGraph = field(default_factory=ProjectCallGraph)
 
     ## Register one completed single-file analysis and its call-graph facts.
+    ## 注册一个已完成的单文件分析及其调用关系事实。
+    #
     #  @param module Dotted module name.
     #  @param tracer Completed SingleFileAnalyzer for the module.
     #  @return None.
@@ -85,6 +105,7 @@ class ProgramIndex:
 
 
 ## Mutable orchestration state owned by one ProjectAnalyzer.analyze() call.
+## 单次 ProjectAnalyzer.analyze() 调用拥有的可变编排状态。
 @dataclass
 class OwnershipRun:
     ## Read-only AST lookup facts owned by this source generation.

@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_returns
 #  Collect return ownership and call-graph summaries during single-file analysis.
+#  在单文件分析中收集返回值归属和调用图摘要。
 
 import ast
 
@@ -11,8 +12,10 @@ from .sources import (
 
 
 ## Collect return summaries using SingleFileAnalyzer visitor state.
+## 使用 SingleFileAnalyzer 的访问状态收集返回值摘要。
 class SingleFileReturnMixin:
     ## Build a positional source summary for a tuple return expression.
+    ## 为元组返回表达式构建按位置排列的来源摘要。
     #
     #  @param value Tuple AST node.
     #  @return DerivedResult with one source per tuple element, or None.
@@ -28,6 +31,7 @@ class SingleFileReturnMixin:
         return DerivedResult("tuple", tuple(elements))
 
     ## Check whether a statement sequence definitely cannot fall through.
+    ## 判断语句序列是否能够确定不会继续向下执行。
     #
     #  @param statements Function or branch statements.
     #  @return True for a proven return/raise on every path.
@@ -42,6 +46,7 @@ class SingleFileReturnMixin:
         return False
 
     ## Preserve arithmetic return operands at their evaluation point.
+    ## 保留算术返回表达式各操作数在求值位置的来源。
     #
     #  @param node Return expression or one of its operands.
     #  @return Structured value source, including unsupported operands.
@@ -62,6 +67,8 @@ class SingleFileReturnMixin:
                 node.id, skip_parent_classes=True)
             if binding is None:
                 return UnknownSource("unbound return operand")
+        # Keep unknown operands explicit instead of assigning a guessed owner.
+        # 显式保留未知操作数，避免猜测其归属。
         shape = self._expression_python_shape(node)
         if shape is not None:
             if shape.kind == "NoneType":
@@ -73,8 +80,10 @@ class SingleFileReturnMixin:
                 or UnknownSource("unresolved return operand"))
 
     ## Visit a Return node and record return-value flow for the function.
+    ## 访问 Return 节点并记录函数返回值的传播信息。
     #
     #  @param node The Return AST node.
+    #  @return None.
     def visit_Return(self, node):
         if node.value is not None:
             self._mapping_facts.escape(node.value)
@@ -84,6 +93,10 @@ class SingleFileReturnMixin:
         self.generic_visit(node)
 
     ## Record iterable element alternatives for one return statement.
+    ## 记录一条返回语句的可迭代元素来源候选。
+    #
+    #  @param node Return AST node being analyzed.
+    #  @return None.
     def _record_return_element_sources(self, node):
         if not self._caller_stack:
             return
@@ -106,6 +119,10 @@ class SingleFileReturnMixin:
             elements)
 
     ## Record the legacy ownership return summary and symbol provenance.
+    ## 记录原有的归属返回摘要及符号来源。
+    #
+    #  @param node Return AST node being analyzed.
+    #  @return Call-graph source, or None when no source can be recorded.
     def _record_legacy_return_source(self, node):
         if not self._func_stack or node.value is None:
             return None
@@ -124,6 +141,10 @@ class SingleFileReturnMixin:
         return call_graph_source
 
     ## Resolve the source expression used by the ownership return summary.
+    ## 解析归属返回摘要使用的表达式来源。
+    #
+    #  @param node Return AST node with a value expression.
+    #  @return Pair of selected source and optional positional tuple source.
     def _legacy_return_expression_source(self, node):
         source = None
         if isinstance(node.value, (ast.BinOp, ast.UnaryOp)):
@@ -132,6 +153,9 @@ class SingleFileReturnMixin:
               and isinstance(node.value.func, ast.Attribute)):
             source = self._parameter_dependency_source(
                 node.value, expression_context=True)
+        # Tuple elements retain their individual sources; other containers use
+        # the Python owner in the legacy summary.
+        # 元组保留各元素来源，其他容器在原有摘要中使用 Python 归属。
         tuple_source = self._tuple_return_source(node.value)
         result_kind = _container_kind(node.value)
         if tuple_source is not None:
@@ -148,6 +172,12 @@ class SingleFileReturnMixin:
         return source, tuple_source
 
     ## Dereference a local binding while preserving parameter passthrough.
+    ## 解析局部绑定，同时保留参数直接传递的关系。
+    #
+    #  @param source Initially traced return source.
+    #  @param value Returned expression AST node.
+    #  @param func_name Current function name used to look up parameters.
+    #  @return Bound source or parameter name when passthrough is recognized.
     def _resolved_return_binding_source(self, source, value, func_name):
         if isinstance(source, str) and source in self.symbols.direct:
             bound_source = self.symbols.direct[source]
@@ -160,12 +190,22 @@ class SingleFileReturnMixin:
         return resolved
 
     ## Build the class-qualified key used by return summaries.
+    ## 构造返回摘要使用的类限定键。
+    #
+    #  @param func_name Current function name.
+    #  @return Class-qualified name inside a class, otherwise the function name.
     def _return_summary_key(self, func_name):
         if self._class_stack:
             return self._class_stack[-1] + "." + func_name
         return func_name
 
     ## Merge one resolved source into tuple-aware legacy summary maps.
+    ## 将解析后的来源合并到区分元组的原有摘要映射中。
+    #
+    #  @param return_key Function key for the summary.
+    #  @param source Resolved return source to merge.
+    #  @param is_tuple_source Whether the source retains positional tuple elements.
+    #  @return None.
     def _merge_legacy_return_source(
             self, return_key, source, is_tuple_source):
         if is_tuple_source:
@@ -184,6 +224,11 @@ class SingleFileReturnMixin:
                 [old_call_graph, source], origin="return")
 
     ## Record the protocol-oriented return value used by the call graph.
+    ## 记录调用图使用的面向协议的返回值。
+    #
+    #  @param node Return AST node being analyzed.
+    #  @param legacy_source Previously resolved ownership source, if any.
+    #  @return None.
     def _record_call_graph_return_value(self, node, legacy_source):
         if not self._caller_stack:
             return
@@ -195,6 +240,11 @@ class SingleFileReturnMixin:
             origin="return")
 
     ## Resolve one protocol-oriented return branch source.
+    ## 解析一个面向协议的返回分支来源。
+    #
+    #  @param node Return AST node being analyzed.
+    #  @param legacy_source Previously resolved ownership source, if any.
+    #  @return Protocol source or an explicit unknown source.
     def _call_graph_return_value_source(self, node, legacy_source):
         if node.value is None:
             return PythonShape("NoneType")

@@ -1,5 +1,6 @@
 ## @package pcresolve.diagnostics
 #  Structured diagnostics emitted during analysis.
+#  分析过程中产生的结构化诊断。
 
 from dataclasses import dataclass
 
@@ -19,6 +20,7 @@ TRACE_CYCLE = "TRACE_CYCLE"
 
 
 ## A structured diagnostic produced while scanning, parsing, or tracing.
+## 扫描、解析或追踪时产生的结构化诊断。
 @dataclass
 class Diagnostic:
     ## Stable diagnostic code.

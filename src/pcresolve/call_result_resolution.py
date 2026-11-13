@@ -4,6 +4,7 @@
 #  This mixin keeps the call-result state machine separate from project
 #  orchestration while delegating project indexes and recursive resolution
 #  to ProjectAnalyzer.
+#  该混入类将调用结果解析状态与项目编排分开，并委托 ProjectAnalyzer 查询索引和递归解析。
 
 from .sources import (
     CallResult, ContainerItem, DerivedResult, InstanceMethod, PythonShape,
@@ -12,8 +13,10 @@ from .sources import (
 
 
 ## Resolve CallResult ownership through project-level provenance facts.
+## 使用项目级来源事实解析 CallResult 的归属。
 class CallResultResolutionMixin:
     ## Resolve ownership for the result of one call expression.
+    ## 解析一次调用表达式结果的归属。
     #
     #  @param module Module containing the call expression.
     #  @param direct_source Full CallResult source and result metadata.
@@ -65,6 +68,14 @@ class CallResultResolutionMixin:
             display, tracers, _seen, cr_lineno, cr_col)
 
     ## Resolve a structured container item used as the called object.
+    ## 解析作为被调用对象的结构化容器元素。
+    #
+    #  @param module Module containing the call expression.
+    #  @param callee Structured container item serving as the callee.
+    #  @param callee_display Preferred display spelling for the callee.
+    #  @param tracers Module-to-analyzer mapping for project lookup.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Resolved display, module and owner tuple, or None.
     def _container_item_call_result(
             self, module, callee, callee_display, tracers, _seen):
         resolved = self._resolve_structured_source(
@@ -82,6 +93,14 @@ class CallResultResolutionMixin:
             callee_top)
 
     ## Resolve an explicit result_source carried by a CallResult.
+    ## 解析 CallResult 携带的显式 result_source。
+    #
+    #  @param module Module used for unresolved or local results.
+    #  @param direct_source CallResult carrying the explicit result source.
+    #  @param display Display spelling for the call result.
+    #  @param tracers Module-to-analyzer mapping for recursive source lookup.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Resolved display, module and owner tuple, or None if implicit.
     def _explicit_call_result_source(
             self, module, direct_source, display, tracers, _seen):
         explicit = direct_source.result_source
@@ -91,6 +110,8 @@ class CallResultResolutionMixin:
             return (display, module, "unknown")
         if isinstance(explicit, PythonShape) or explicit == "python":
             return (display, module, "python")
+        # Merge structured derived evidence only when it converges; otherwise
+        # leave the result unknown instead of inheriting the callable's owner.
         if isinstance(explicit, DerivedResult):
             if explicit.kind == "iterator":
                 return (display, module, "unknown")
@@ -116,6 +137,13 @@ class CallResultResolutionMixin:
         return None
 
     ## Locate the initial project module and symbol for return lookup.
+    ## 定位查找返回摘要所需的初始项目模块和符号。
+    #
+    #  @param module Module where the call was observed.
+    #  @param callee Callee source spelling or structured source.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param _seen Active recursion guard for symbol tracing.
+    #  @return Initial module and symbol pair for summary lookup.
     def _initial_call_result_target(
             self, module, callee, tracers, _seen):
         gs = getattr(self, '_call_searched_global', None)
@@ -149,6 +177,19 @@ class CallResultResolutionMixin:
         return cur_module, cur_symbol
 
     ## Follow local return summaries until ownership is resolved or cycles.
+    ## 沿局部返回摘要追踪，直到归属解析完成或检测到循环。
+    #
+    #  @param module Module where the call result was observed.
+    #  @param cur_module Module currently supplying a return summary.
+    #  @param cur_symbol Symbol currently supplying a return summary.
+    #  @param callee Original callee source.
+    #  @param callee_display Preferred display spelling for the callee.
+    #  @param display Display spelling for the result.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param _seen Active structured-source recursion guard.
+    #  @param call_lineno Call source line for argument substitution.
+    #  @param call_col_offset Call source column for argument substitution.
+    #  @return Resolved display, module and owner tuple.
     def _resolve_call_result_summary_chain(
             self, module, cur_module, cur_symbol, callee, callee_display,
             display, tracers, _seen, call_lineno, call_col_offset):
@@ -179,6 +220,8 @@ class CallResultResolutionMixin:
                     _seen, call_lineno, call_col_offset)
                 if resolved is not None:
                     return resolved
+            # Stop at the current symbol when summaries provide no next link.
+            # 没有后续摘要链接时，保留当前符号作为解析边界。
             if rs is None:
                 cg_ret = self._lookup_cg_return_source(cur_module, cur_symbol)
                 if cg_ret is not None:
@@ -211,6 +254,17 @@ class CallResultResolutionMixin:
         return (display, cur_module, cur_symbol)
 
     ## Resolve one SourceSet return summary when its branches converge.
+    ## 解析分支归属收敛的 SourceSet 返回摘要。
+    #
+    #  @param module Module containing the summarized symbol.
+    #  @param symbol Symbol whose return summary is being resolved.
+    #  @param source_set Candidate return sources.
+    #  @param display Display spelling for the call result.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param _seen Active structured-source recursion guard.
+    #  @param call_lineno Call source line for argument substitution.
+    #  @param call_col_offset Call source column for argument substitution.
+    #  @return Resolved result tuple, or None when branches remain ambiguous.
     def _call_result_sourceset_source(
             self, module, symbol, source_set, display, tracers,
             _seen, call_lineno, call_col_offset):
@@ -246,6 +300,16 @@ class CallResultResolutionMixin:
         return None
 
     ## Resolve a string return source through exact call-edge arguments.
+    ## 通过精确调用边实参解析字符串返回来源。
+    #
+    #  @param module Module containing the summarized symbol.
+    #  @param symbol Function or method symbol with a return summary.
+    #  @param source String source recorded in the summary.
+    #  @param display Display spelling for the call result.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param call_lineno Call source line for argument substitution.
+    #  @param call_col_offset Call source column for argument substitution.
+    #  @return Resolved display, module and owner tuple.
     def _call_result_string_source(
             self, module, symbol, source, display, tracers,
             call_lineno, call_col_offset):

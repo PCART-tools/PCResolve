@@ -1,5 +1,6 @@
 ## @package pcresolve._function_metadata
 #  Default standard wraps on a fresh wrapper and proved plain-function metadata.
+#  为新建包装函数和已证明的普通函数验证标准 wraps 元数据复制。
 
 import ast
 
@@ -9,6 +10,8 @@ from .class_attribute_effects import _ClassEffectLimit
 
 
 ## Bound default wraps metadata copying, separately from class attribute lookup.
+## 有界验证默认 wraps 元数据复制，与类属性查找证明分离。
+#
 #  @param analyzer Fixed import/source snapshot; target modules are never imported.
 #  @param ref Source decorator's identity and containing module.
 #  @param scopes Enclosing execution scopes, including the private source factory.
@@ -29,6 +32,9 @@ def fresh_function_wraps(analyzer, ref, scopes, expression, fresh, class_read=No
             return None
     elif class_read is None or (lookup := class_read(wrapped)) is None:
         return None
+
+    # Require the exact unshadowed standard binding and stable module namespace.
+    # 要求精确且未遮蔽的标准绑定，以及稳定的模块命名空间。
     head, dot, rest = ast.unparse(expression.func).partition('.')
     canonical = analyzer.imports.get(ref.module, {}).get(head, '') + (dot + rest if dot else '')
     if (canonical != 'functools.wraps' or any(head in analyzer._scope_facts(scope).bound
@@ -44,6 +50,9 @@ def fresh_function_wraps(analyzer, ref, scopes, expression, fresh, class_read=No
         return None
     if not stable:
         return None
+
+    # The premise describes metadata formation only, not later method effects.
+    # 该前提仅描述元数据形成，不证明后续方法效果。
     fact = {'kind': 'standard_fresh_function_metadata_wrapper', 'status': 'source_bound',
         'wrapped_kind': 'source_plain_class_function' if lookup else 'fresh_source_function',
         'wrapper_kind': 'fresh_source_function',

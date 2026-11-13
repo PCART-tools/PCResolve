@@ -1,5 +1,6 @@
 ## @package pcresolve.project_call_context
 #  Exact project call targets, bounded contexts, and parameter binding.
+#  精确解析项目调用目标、有界调用上下文和参数绑定。
 
 from .call_graph import FunctionId, ProjectCallGraph
 from .call_resolution import CallContext, DefinitionRecord, DefinitionIndex
@@ -19,10 +20,13 @@ _NO_BOUNDED_CANDIDATES = object()
 
 
 ## Project call-context and argument-binding behavior mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目调用上下文和参数绑定逻辑。
 class ProjectCallContextMixin:
     ## Adapt this generation's ownership summaries to the shared name index.
+    ## 将当前代归属摘要适配到共享名称索引。
     #  Logical keys and mutable source payloads retain their ownership meaning.
     #  A normal analysis collects a new ProjectCallGraph before resolution.
+    #
     #  @return Internal candidate index; not a public call-graph result.
     def _get_definition_index(self):
         generation = (id(self.project_cg), self.project_cg.version)
@@ -48,6 +52,8 @@ class ProjectCallContextMixin:
         return self._definition_index
 
     ## Collect callable spellings that the existing target matcher accepts.
+    ## 收集现有目标匹配器接受的可调用对象名称形式。
+    #
     #  @param edge Call edge with syntactic and explicit callable sources.
     #  @return Set of terminal names; these are candidates, not target proofs.
     def _edge_callable_names(self, edge):
@@ -64,7 +70,10 @@ class ProjectCallContextMixin:
         return names
 
     ## Select possible definitions without inspecting unrelated receivers.
+    ## 选择可能的定义，不检查无关接收者。
+    #
     #  @param edge Call edge to resolve.
+    #  @param caller_module Optional module used to narrow method candidates.
     #  @return Definitions in their original collection order.
     def _edge_target_candidates(self, edge, caller_module=None):
         index = self._get_definition_index()
@@ -76,10 +85,16 @@ class ProjectCallContextMixin:
         return tuple(index.records[ordinal] for ordinal in sorted(ordinals))
 
     ## Discard callable facts after edge or module-binding changes.
+    ## 调用边或模块绑定变化后丢弃可调用对象事实。
+    #
+    #  @return None.
     def _invalidate_callable_lookup(self):
         self._callable_lookup_graph = None
 
     ## Initialize static callable facts for this binding generation.
+    ## 为当前绑定版本初始化静态可调用对象事实。
+    #
+    #  @return None.
     def _ensure_callable_lookup(self):
         generation = (id(self.project_cg), self.project_cg.version)
         if (getattr(self, '_callable_lookup_graph', None) is not self.project_cg
@@ -91,8 +106,18 @@ class ProjectCallContextMixin:
             self._callable_reverse_lookup = None
 
     ## Reuse only callable classes independent of recursive parameter proofs.
+    ## 仅复用不依赖递归参数证明的可调用类候选。
+    #
+    #  @param edge Project call edge whose callee is inspected.
+    #  @param module Caller module used for source lookup.
+    #  @param tracers Module-to-analyzer mapping.
     #  @return Class identities, or None when parameter evidence is required.
     def _static_callable_classes(self, edge, module, tracers):
+        ## Detect receiver sources that require query-specific parameter evidence.
+        ## 检查接收者来源是否需要查询专属的参数证据。
+        #
+        #  @param source Candidate receiver source.
+        #  @return True when source depends on a receiver parameter.
         def dynamic(source):
             source = normalize_source(source)
             if isinstance(source, SourceSet):
@@ -116,7 +141,11 @@ class ProjectCallContextMixin:
         return cached[3]
 
     ## Select callable-instance methods using source facts, not bounded proofs.
+    ## 使用源码事实选择可调用实例方法，不把候选当作有界证明。
     #  Unknown parameter sources and inherited classes retain every candidate.
+    #
+    #  @param edge Project call edge to inspect.
+    #  @param module Caller module, if known.
     #  @return Definition ordinals requiring the existing exact target check.
     def _callable_method_candidates(self, edge, module):
         self._get_definition_index()
@@ -140,6 +169,8 @@ class ProjectCallContextMixin:
                      in identities)
 
     ## Index possible incoming callable-instance edges in original order.
+    ## 按原始顺序索引可能指向可调用实例的调用边。
+    #
     #  @return Target identity to edge ordinals; exact matching stays query-local.
     def _get_callable_reverse_lookup(self):
         edges, _, _, _ = self._get_edge_lookup()
@@ -157,6 +188,8 @@ class ProjectCallContextMixin:
         return self._callable_reverse_lookup
 
     ## Update syntactic edge indexes after a callable-source rewrite.
+    ## 可调用来源改写后更新语法调用边索引。
+    #
     #  @param edge Rewritten edge, or None to discard all indexed facts.
     #  @return None; resolution results themselves are never cached here.
     def _invalidate_edge_lookup(self, edge=None):
@@ -184,6 +217,8 @@ class ProjectCallContextMixin:
         self._edge_lookup_names[ordinal] = current
 
     ## Index call spellings and source locations for the current edge facts.
+    ## 为当前调用边事实建立名称及源码位置索引。
+    #
     #  @return Ordered edges, name buckets, mapping edges, and location buckets.
     def _get_edge_lookup(self):
         graph = self.project_cg
@@ -219,6 +254,8 @@ class ProjectCallContextMixin:
         return self._edge_lookup
 
     ## Return one lexical caller's edges in original collection order.
+    ## 按原始收集顺序返回一个词法调用者的调用边。
+    #
     #  @param module Caller module.
     #  @param scope Caller qualified name.
     #  @return Ordered edge tuple, retaining every spelling and candidate.
@@ -227,6 +264,8 @@ class ProjectCallContextMixin:
         return tuple(self._edge_scope_lookup.get((module, scope), ()))
 
     ## Select candidate callback-contract edges by accepted callable spellings.
+    ## 根据回调契约接受的名称筛选候选调用边。
+    #
     #  @param names Terminal callable spellings accepted by the contract.
     #  @return Ordered caller-module and edge pairs, requiring contract checks.
     def _call_edges_named(self, *names):
@@ -237,6 +276,8 @@ class ProjectCallContextMixin:
         return tuple(edges[ordinal] for ordinal in sorted(ordinals))
 
     ## Select possible callers of one definition, retaining exact dispatch checks.
+    ## 筛选某个定义的潜在调用者，并保留精确分派检查。
+    #
     #  @param module Target module.
     #  @param scope_name Target lexical qualified name.
     #  @return Ordered caller-module and edge pairs.
@@ -254,10 +295,12 @@ class ProjectCallContextMixin:
         return tuple(edges[ordinal] for ordinal in sorted(ordinals))
 
     ## Find all project-local functions reached by one call edge.
+    ## 查找一条调用边可达的所有项目内函数。
     #
     #  @param edge Call edge to resolve.
     #  @param caller_module Module containing the edge.
     #  @param tracers Dict of module name to analyzer.
+    #  @return Deduplicated project-local targets in stable candidate order.
     #  @return List of matching FunctionId values.
     def _local_edge_targets(self, edge, caller_module, tracers):
         if getattr(edge, "mapping_targets", None) is not None:
@@ -295,10 +338,12 @@ class ProjectCallContextMixin:
         return unique
 
     ## Remove ancestor methods hidden by a more-derived local implementation.
+    ## 移除被派生类本地实现遮蔽的祖先方法。
     #
     #  Multiple-inheritance siblings remain separate candidates because this
     #  bounded resolver does not claim a complete Python MRO. A linear local
     #  inheritance chain, however, has one unambiguous nearest implementation.
+    #
     #  @param targets Candidate inherited FunctionId values.
     #  @param tracers Dict of module name to analyzer.
     #  @return Candidate list with shadowed ancestor methods removed.
@@ -330,10 +375,12 @@ class ProjectCallContextMixin:
         return nearest
 
     ## Resolve every branch of an explicit local callable SourceSet.
+    ## 解析显式局部可调用来源集合中的每个分支。
     #
     #  This deliberately rejects inferred method-name candidates. Multiple
     #  targets are safe to converge only when the call edge itself retains
     #  each exact project-local callable selected by source control flow.
+    #
     #  @param edge Call edge containing callable provenance.
     #  @param caller_module Module containing the edge.
     #  @return List of exact FunctionId values, or an empty list.
@@ -362,9 +409,11 @@ class ProjectCallContextMixin:
         return targets
 
     ## Build all project-local contexts from one exact call-site position.
+    ## 根据一个精确调用点位置构建所有项目内调用上下文。
     #
     #  Multiple contexts are retained for a statically enumerated callable
     #  branch. Their result owners are converged by the caller.
+    #
     #  @param caller_module Module containing the call.
     #  @param call_lineno Call line number.
     #  @param call_col_offset Call column offset.
@@ -403,6 +452,7 @@ class ProjectCallContextMixin:
         ]
 
     ## Build one exact bounded context from a call-site position.
+    ## 根据调用点位置构建唯一的有界调用上下文。
     #
     #  @param caller_module Module containing the call.
     #  @param call_lineno Call line number.
@@ -420,6 +470,7 @@ class ProjectCallContextMixin:
         return contexts[0]
 
     ## Read the argument supplied to one parameter in a bounded context.
+    ## 读取有界调用上下文中传给指定形参的实参来源。
     #
     #  @param context Exact local call context.
     #  @param parameter Target parameter name.
@@ -440,6 +491,8 @@ class ProjectCallContextMixin:
         return first_bound_value(bindings, 'parameter', parameter)
 
     ## Resolve one positional parameter from a starred call argument.
+    ## 从星号实参中解析一个位置形参对应的元素。
+    #
     #  @param edge Call graph edge.
     #  @param summary Callee signature summary.
     #  @param index Zero-based positional parameter index.
@@ -448,7 +501,9 @@ class ProjectCallContextMixin:
         return starred_item_source(getattr(edge, 'star_arg_sources', {}), index, ContainerItem)
 
     ## Resolve one selected item from a local variadic parameter under a
+    ## 在有界调用上下文中解析局部可变参数的一个选定元素。
     #  bounded call context.
+    #
     #  @param context Current exact call context.
     #  @param pack_source ParameterSource naming *args or **kwargs.
     #  @param index Integer position or keyword name.
@@ -499,6 +554,7 @@ class ProjectCallContextMixin:
         return None
 
     ## Resolve a constructor parameter referenced by a method return summary.
+    ## 解析方法返回摘要所引用的构造函数参数。
     #
     #  For Holder.expose() returning the value stored by Holder.__init__,
     #  use the exact receiver constructor edge. No class-name or library-name
@@ -507,6 +563,7 @@ class ProjectCallContextMixin:
     #  @param context Current method-call context.
     #  @param source Constructor ParameterSource.
     #  @param tracers Dict of module name to analyzer.
+    #  @param _seen Active bounded-source recursion keys.
     #  @return Candidate owner strings or None when not applicable.
     def _constructor_parameter_candidates(self, context, source, tracers,
                                           _seen):
@@ -543,6 +600,7 @@ class ProjectCallContextMixin:
             tracers, _seen)
 
     ## Evaluate a source under one exact local call context.
+    ## 在一个精确的局部调用上下文中求值来源。
     #
     #  Parameter substitution is bounded by exact call positions. Nested local
     #  calls carry the current context as their parent, which supports simple
@@ -572,6 +630,9 @@ class ProjectCallContextMixin:
         seen = set(_seen)
         seen.add(key)
 
+        # Resolve aggregate and parameter evidence before falling back to the
+        # context-independent ownership candidates.
+        # 先解析聚合和参数证据，再回退到与上下文无关的归属候选。
         candidates = self._bounded_aggregate_candidates(
             source_module, source, context, tracers, seen)
         if candidates is not _NO_BOUNDED_CANDIDATES:
@@ -591,6 +652,13 @@ class ProjectCallContextMixin:
             source_module, source, tracers, _seen=seen)
 
     ## Resolve SourceSet, DerivedResult, and container aggregates.
+    ## 解析 SourceSet、DerivedResult 和容器聚合来源。
+    #
+    #  @param source_module Module where the source was recorded.
+    #  @param source Structured source to resolve.
+    #  @param context Current bounded call context.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param seen Active bounded-source recursion keys.
     #  @return Candidate owners, or the module sentinel when not applicable.
     def _bounded_aggregate_candidates(self, source_module, source, context,
                                       tracers, seen):
@@ -626,6 +694,13 @@ class ProjectCallContextMixin:
         return _NO_BOUNDED_CANDIDATES
 
     ## Resolve a structured container selection in a bounded context.
+    ## 在有界上下文中解析结构化容器选取。
+    #
+    #  @param source_module Module where the selection was recorded.
+    #  @param source Container item source.
+    #  @param context Current bounded call context.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param seen Active bounded-source recursion keys.
     #  @return Candidate owners, or the module sentinel when not applicable.
     def _bounded_container_item_candidates(self, source_module, source,
                                            context, tracers, seen):
@@ -650,6 +725,13 @@ class ProjectCallContextMixin:
             selected_module, selected_source, next_context, tracers, seen)
 
     ## Substitute an explicit ParameterSource through its bounded call chain.
+    ## 沿有界调用链替换显式 ParameterSource。
+    #
+    #  @param source_module Module where the parameter source was recorded.
+    #  @param source Explicit parameter source.
+    #  @param context Current bounded call context, if available.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param seen Active bounded-source recursion keys.
     #  @return Candidate owners, or the module sentinel when not applicable.
     def _bounded_parameter_candidates(self, source_module, source, context,
                                       tracers, seen):
@@ -676,6 +758,12 @@ class ProjectCallContextMixin:
         return candidates or ["unknown"]
 
     ## Substitute a legacy string parameter through its bounded call chain.
+    ## 沿有界调用链替换旧格式的字符串参数来源。
+    #
+    #  @param source Legacy parameter name.
+    #  @param context Current bounded call context, if available.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param seen Active bounded-source recursion keys.
     #  @return Candidate owners, or the module sentinel when not applicable.
     def _bounded_named_parameter_candidates(self, source, context,
                                             tracers, seen):
@@ -698,6 +786,13 @@ class ProjectCallContextMixin:
         return _NO_BOUNDED_CANDIDATES
 
     ## Resolve one CallResult under an exact bounded context.
+    ## 在精确的有界上下文中解析一个 CallResult。
+    #
+    #  @param source_module Module where the call result was recorded.
+    #  @param source Call result to resolve.
+    #  @param context Current bounded call context, if available.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param seen Active bounded-source recursion keys.
     #  @return Candidate owner strings.
     def _bounded_call_source_candidates(self, source_module, source, context,
                                         tracers, seen):
@@ -721,6 +816,7 @@ class ProjectCallContextMixin:
         return ["unknown"]
 
     ## Resolve one local call result with exact call-site substitutions.
+    ## 使用精确调用点替换解析局部调用结果。
     #
     #  @param caller_module Module containing the call.
     #  @param source CallResult to resolve.
@@ -796,6 +892,7 @@ class ProjectCallContextMixin:
         return self._dedupe_list(candidates) or ["unknown"]
 
     ## Resolve one positional item from an exact local tuple-return call.
+    ## 从精确的局部元组返回调用中解析一个位置元素。
     #
     #  @param caller_module Module containing the call.
     #  @param source CallResult for the tuple-producing local call.
@@ -836,6 +933,7 @@ class ProjectCallContextMixin:
             context.target.module, selected, context, tracers, seen)
 
     ## Converge bounded candidates without guessing across owners.
+    ## 汇总有界候选，避免跨归属猜测。
     #
     #  @param candidates Candidate owner strings.
     #  @return One owner or "unknown".
@@ -849,6 +947,7 @@ class ProjectCallContextMixin:
         return unique[0]
 
     ## Find a module containing import evidence for a bounded owner.
+    ## 查找包含有界归属导入证据的模块。
     #
     #  The owner itself remains the public result. This module is used only
     #  so the existing trace engine can validate that result against the
@@ -870,6 +969,7 @@ class ProjectCallContextMixin:
         return default_module
 
     ## Collect arguments supplied to one local function parameter.
+    ## 收集传递给一个局部函数形参的所有实参来源。
     #
     #  Combines the legacy same-file call-site table with project CallEdge
     #  facts. The latter preserves forward references and cross-file calls.
@@ -913,6 +1013,14 @@ class ProjectCallContextMixin:
         return found
 
     ## Add one argument while preserving the original cross-source identity.
+    ## 在保留跨来源身份的同时添加一个实参来源。
+    #
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set of already recorded physical call keys.
+    #  @param key Stable identity key for this argument occurrence.
+    #  @param caller_module Module containing the call site.
+    #  @param source Argument source to append.
+    #  @return None.
     def _append_parameter_argument(self, found, seen, key,
                                    caller_module, source):
         if key in seen:
@@ -921,6 +1029,15 @@ class ProjectCallContextMixin:
         found.append((caller_module, source))
 
     ## Collect explicit single-file parameterization facts.
+    ## 收集单文件分析显式记录的参数化事实。
+    #
+    #  @param module Module containing the parameterized call.
+    #  @param scope_name Qualified function or method name.
+    #  @param parameter Target parameter name.
+    #  @param tracer Analyzer for the defining module.
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set deduplicating call sites.
+    #  @return None.
     def _collect_parameterized_arguments(self, module, scope_name, parameter,
                                          tracer, found, seen):
         sources = tracer.parameter_sources.get((scope_name, parameter), [])
@@ -932,6 +1049,19 @@ class ProjectCallContextMixin:
                 found, seen, key, module, source)
 
     ## Collect legacy single-file call-site argument facts.
+    ## 收集旧式单文件调用点参数事实。
+    #
+    #  @param module Target function's defining module.
+    #  @param scope_name Target function's qualified name.
+    #  @param param_index Target parameter's positional index.
+    #  @param tracer Analyzer for the defining module.
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set deduplicating call sites.
+    #  @param prefer_protocol_shape Select protocol-specific argument evidence.
+    #  @param prefer_iterable_elements Select iterable element evidence.
+    #  @param receiver_class_filter Optional required local receiver class.
+    #  @return None.
+    ## 收集旧式单文件调用点参数事实。
     def _collect_recorded_call_arguments(
             self, module, scope_name, param_index, tracer, found, seen,
             prefer_protocol_shape, prefer_iterable_elements,
@@ -965,6 +1095,13 @@ class ProjectCallContextMixin:
                 found, seen, key, caller_module, arg_source)
 
     ## Collect the supported multiprocessing.Pool.map callback argument.
+    ## 收集受支持的 multiprocessing.Pool.map 回调实参。
+    #
+    #  @param scope_name Qualified callback function name.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set deduplicating call sites.
+    #  @return None.
     def _collect_pool_map_arguments(self, scope_name, tracers, found, seen):
         target_name = scope_name.rsplit(".", 1)[-1]
         for caller_module, edge in self._call_edges_named('map'):
@@ -992,6 +1129,15 @@ class ProjectCallContextMixin:
                 found, seen, key, caller_module, element_source)
 
     ## Collect the supported multiprocessing.Process callback arguments.
+    ## 收集受支持的 multiprocessing.Process 回调实参。
+    #
+    #  @param module Callback function's defining module.
+    #  @param scope_name Qualified callback function name.
+    #  @param param_index Callback parameter's positional index.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set deduplicating call sites.
+    #  @return None.
     def _collect_process_callback_arguments(
             self, module, scope_name, param_index, tracers, found, seen):
         target_name = scope_name.rsplit(".", 1)[-1]
@@ -1019,6 +1165,19 @@ class ProjectCallContextMixin:
                     found, seen, key, caller_module, arg_source)
 
     ## Collect arguments from exact project call-graph targets.
+    ## 从精确的项目调用图目标收集实参来源。
+    #
+    #  @param module Target function's defining module.
+    #  @param scope_name Target qualified function name.
+    #  @param parameter Target parameter name.
+    #  @param param_index Positional index of the target parameter.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param found Mutable list collecting argument pairs.
+    #  @param seen Mutable set deduplicating call sites.
+    #  @param prefer_protocol_shape Select protocol-specific argument evidence.
+    #  @param prefer_iterable_elements Select element sources for iterable inputs.
+    #  @param receiver_class_filter Optional required local receiver class.
+    #  @return None.
     def _collect_project_edge_arguments(
             self, module, scope_name, parameter, param_index, tracers,
             found, seen, prefer_protocol_shape, prefer_iterable_elements,
@@ -1063,7 +1222,10 @@ class ProjectCallContextMixin:
                     found, seen, key, caller_module, arg_source)
 
     ## Check the narrow standard-library callback contract supported above.
+    ## 检查上述支持的受限标准库回调契约。
+    #
     #  @param edge Candidate call edge.
+    #  @param tracer Caller-module analyzer, used to resolve receiver imports.
     #  @return True only for multiprocessing.Pool.map(...).
     def _is_multiprocessing_map_edge(self, edge, tracer=None):
         if (not isinstance(getattr(edge, "callee_name", None), str)
@@ -1081,6 +1243,8 @@ class ProjectCallContextMixin:
             tracer.symbols.direct.get(root)) == "multiprocessing"
 
     ## Check the narrow standard-library Process callback contract.
+    ## 检查受支持的受限标准库 Process 回调契约。
+    #
     #  @param edge Candidate call edge.
     #  @param tracer Caller-module analyzer, used for direct imports.
     #  @return True only for multiprocessing.Process.
@@ -1094,6 +1258,8 @@ class ProjectCallContextMixin:
                 == "multiprocessing.Process")
 
     ## Select sources supplied to one parameter from a resolved call edge.
+    ## 从已解析的调用边中选择传给指定形参的来源。
+    #
     #  @param edge Call graph edge.
     #  @param summary Callee function signature summary.
     #  @param parameter Target parameter name.
@@ -1123,7 +1289,9 @@ class ProjectCallContextMixin:
             getattr(edge, 'star_kwarg_sources', []), ContainerItem, OWNERSHIP_BINDING)
 
     ## Collect the selected item of a variadic parameter from each exact
+    ## 从每条精确调用边收集可变参数中的选定元素。
     #  project-local call edge.
+    #
     #  @param module Defining module of the variadic parameter.
     #  @param pack_source ParameterSource naming *args or **kwargs.
     #  @param index Integer position or keyword name.
@@ -1165,6 +1333,8 @@ class ProjectCallContextMixin:
         return found
 
     ## Select one item from a variadic parameter on one call edge.
+    ## 从一条调用边的可变参数中选择一个元素。
+    #
     #  @param edge Call graph edge.
     #  @param summary Callee signature summary.
     #  @param parameter Variadic parameter name.
@@ -1200,6 +1370,7 @@ class ProjectCallContextMixin:
         return None
 
     ## Return whether a CallEdge targets one specific local callable.
+    ## 判断调用边是否指向指定的局部可调用对象。
     #
     #  Handles module functions, class constructors, local methods, and
     #  statically enumerated callback-table values. Ambiguous local method
@@ -1236,6 +1407,8 @@ class ProjectCallContextMixin:
             self._edge_target_in_progress.remove(key)
 
     ## Match a call target while the receiver-resolution guard is held.
+    ## 在接收者解析保护生效时匹配调用目标。
+    #
     #  @param edge Project call-graph edge.
     #  @param caller_module Module containing the call.
     #  @param target_module Defining module.
@@ -1282,6 +1455,10 @@ class ProjectCallContextMixin:
             is_constructor, caller_tracer, tracers)
 
     ## Describe one local function, constructor, or method target.
+    ## 描述一个局部函数、构造函数或方法目标。
+    #
+    #  @param target_module Target definition's module.
+    #  @param scope_name Qualified function or method name.
     #  @return Target metadata tuple, or None when its module is unavailable.
     def _local_target_metadata(self, target_module, scope_name):
         cg = getattr(self, "project_cg", None)
@@ -1302,6 +1479,13 @@ class ProjectCallContextMixin:
                 is_constructor, is_method)
 
     ## Match an exact callable source retained on the edge.
+    ## 匹配调用边上保留的精确可调用来源。
+    #
+    #  @param edge Project call-graph edge.
+    #  @param callable_name Expected terminal callable name.
+    #  @param class_name Local class name for constructor matching.
+    #  @param is_constructor Whether the target is a constructor.
+    #  @return True when an explicit callee source matches the target.
     def _explicit_callable_source_matches(
             self, edge, callable_name, class_name, is_constructor):
         callback_sources = normalize_source(
@@ -1322,6 +1506,15 @@ class ProjectCallContextMixin:
         return False
 
     ## Match a local callable instance to its __call__ implementation.
+    ## 将局部可调用实例匹配到其 __call__ 实现。
+    #
+    #  @param edge Call edge carrying the callable instance.
+    #  @param caller_module Module containing the call edge.
+    #  @param target_module Module defining the candidate class.
+    #  @param class_name Candidate local callable class.
+    #  @param caller_tracer Analyzer for the caller module.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @return True when a candidate class matches or derives from the target.
     def _callable_instance_targets_method(
             self, edge, caller_module, target_module, class_name,
             caller_tracer, tracers):
@@ -1342,6 +1535,16 @@ class ProjectCallContextMixin:
         )
 
     ## Match one edge to a local method target.
+    ## 将一条调用边匹配到局部方法目标。
+    #
+    #  @param edge Project call-graph edge.
+    #  @param caller_module Module containing the call.
+    #  @param target_module Module defining the method.
+    #  @param class_name Target class name.
+    #  @param target_cg Target module call graph.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param allow_inherited_dispatch Whether inherited targets are included.
+    #  @return True when receiver and method evidence match the target.
     def _method_edge_targets_local_function(
             self, edge, caller_module, target_module, class_name,
             target_cg, tracers, allow_inherited_dispatch):
@@ -1395,6 +1598,15 @@ class ProjectCallContextMixin:
         return self._dedupe_list(receiver_candidates) == ["local"]
 
     ## Match a self receiver against its enclosing local class.
+    ## 将 self 接收者与其所在的局部类匹配。
+    #
+    #  @param edge Project call-graph edge.
+    #  @param caller_module Module containing the caller.
+    #  @param target_module Module defining the candidate method.
+    #  @param class_name Candidate target class.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @param allow_inherited_dispatch Whether derived classes may dispatch here.
+    #  @return True when the enclosing class reaches the target method.
     def _self_receiver_targets_method(
             self, edge, caller_module, target_module, class_name,
             tracers, allow_inherited_dispatch):
@@ -1410,6 +1622,16 @@ class ProjectCallContextMixin:
         return caller_module == target_module and caller_class == class_name
 
     ## Match one edge to a local function or constructor target.
+    ## 将一条调用边匹配到局部函数或构造函数目标。
+    #
+    #  @param edge Project call-graph edge.
+    #  @param caller_module Module containing the call.
+    #  @param target_module Module defining the target.
+    #  @param callable_name Target function or class name.
+    #  @param is_constructor Whether the target is a constructor.
+    #  @param caller_tracer Analyzer for import and symbol evidence.
+    #  @param tracers Module-to-analyzer mapping.
+    #  @return True when available source and receiver facts match the target.
     def _plain_edge_targets_local_function(
             self, edge, caller_module, target_module, callable_name,
             is_constructor, caller_tracer, tracers):

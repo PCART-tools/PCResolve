@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_creation
 #  Native descriptor/data formation used by source metadata observers.
+#  为源码元数据观察器提供原生描述符和数据对象的构造模型。
 
 import ast
 import re
@@ -10,6 +11,12 @@ from ._metadata_namespace import namespace, builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Build a source span record for one definition or expression.
+## 为一个定义或表达式构造源码范围记录。
+#
+#  @param ref Source reference carrying the file path.
+#  @param node AST node carrying the source coordinates.
+#  @return Dictionary containing the node's start and end positions.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
@@ -17,6 +24,8 @@ def _span(ref, node):
 
 
 ## Bound literal native string-set formation without asserting its later binding.
+## 有界地建模字面量原生字符串集合的创建，但不推断其后续绑定。
+#
 #  @param analyzer Fixed source generation.
 #  @param owner Exact lexical class containing the assignment.
 #  @param expression Source initializer; no target expression is executed.
@@ -35,6 +44,8 @@ def string_set(analyzer, owner, expression):
 
 
 ## Bound fresh staticmethod/cache construction without interpreting future calls.
+## 有界地建模新鲜 staticmethod/cache 的创建，不解释后续调用。
+#
 #  @param analyzer Fixed source/import snapshot.
 #  @param owner Lexical class containing the fresh function.
 #  @param member Undecorated source definition plus its actual decorator syntax.
@@ -61,6 +72,9 @@ def static_cache(analyzer, owner, member, shadowed):
             or len({item.arg for item in call.keywords}) != len(call.keywords)):
         return None
     values = {item.arg: item.value.value for item in call.keywords}
+
+    # Accept only literal cache options, preserving the standard defaults.
+    # 仅接受字面量缓存选项，并保留标准默认值。
     maximum, typed = values.get('maxsize', 128), values.get('typed', False)
     if (maximum is not None and type(maximum) is not int or type(typed) is not bool):
         return None
@@ -70,6 +84,9 @@ def static_cache(analyzer, owner, member, shadowed):
         return None
     if not stable:
         return None
+
+    # Require both the local builtin descriptor premises and imported cache namespace.
+    # 同时要求本地内建描述符前提和导入缓存命名空间都已得到证明。
     paths = namespace(analyzer, 'functools', ('lru_cache',))
     if paths is None:
         return None
@@ -88,6 +105,8 @@ def static_cache(analyzer, owner, member, shadowed):
 
 
 ## Bound a literal regex-pattern creation as native non-descriptor class data.
+## 将字面量正则模式创建限定为原生、非描述符类数据。
+#
 #  @param analyzer Fixed source/import snapshot.
 #  @param owner Lexical class containing the creation expression.
 #  @param expression Actual source initializer.
@@ -122,6 +141,8 @@ def regex_pattern(analyzer, owner, expression, shadowed):
     # Host stdlib validation uses literal data only. This never imports a target
     # package or evaluates a source expression. Target semantics stay an explicit
     # standard-regex premise and only normal construction returns are modeled.
+    # 宿主标准库验证只使用字面量数据，不导入目标包或执行源码表达式。
+    # 目标语义仍是显式的标准正则前提，且仅建模正常构造返回。
     try:
         re.compile(expression.args[0].value, flags)
     except (re.error, ValueError, OverflowError, RecursionError):

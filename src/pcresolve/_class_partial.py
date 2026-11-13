@@ -1,5 +1,6 @@
 ## @package pcresolve._class_partial
 #  Literal partial-application bindings used by source class decorators.
+#  源码类装饰器使用的字面量偏函数绑定。
 
 import ast
 import copy
@@ -13,11 +14,22 @@ from .effect_facts import contains_yield
 from .syntax_facts import SyntaxLimit
 
 
+## Capture source coordinates for a partial-decorator premise.
+## 捕获偏函数装饰器前提的源码坐标。
+#
+#  @param ref Source identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
             'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
 
+## Decode a bounded literal without executing project code.
+## 不执行项目代码，解码有界字面量。
+#
+#  @param node Literal expression AST.
+#  @return Encoded literal fact or None for unsupported values.
 def _literal(node):
     if sum(1 for _ in ast.walk(node)) > 128 or any(isinstance(item, ast.Call) for item in ast.walk(node)):
         return None
@@ -26,6 +38,12 @@ def _literal(node):
     except (ValueError, TypeError, RecursionError):
         return None
 
+    ## Encode supported literal values under a nesting limit.
+    ## 在嵌套深度限制内编码受支持的字面量值。
+    #
+    #  @param item Literal value.
+    #  @param depth Current nesting depth.
+    #  @return Encoded value; unsupported values raise ValueError.
     def encode(item, depth=0):
         if depth > 8:
             raise ValueError()
@@ -45,6 +63,15 @@ def _literal(node):
         return None
 
 
+## Check a protected reference used only in an unshadowed isinstance test.
+## 检查受保护引用是否仅用于未被遮蔽的 isinstance 测试。
+#
+#  @param analyzer Fixed source analysis state.
+#  @param module Current module name.
+#  @param value Protected reference expression.
+#  @param use Parent call expression.
+#  @param parents Node-to-parent mapping.
+#  @return True only for a confirmed stable builtin test.
 def _readonly_type_test(analyzer, module, value, use, parents):
     if (not isinstance(use, ast.Call) or not isinstance(use.func, ast.Name)
             or use.func.id != 'isinstance' or len(use.args) != 2 or use.keywords
@@ -70,6 +97,12 @@ def _readonly_type_test(analyzer, module, value, use, parents):
     return stable
 
 
+## Check whether selected functools names remain stable across indexed source.
+## 检查指定 functools 名称在已索引源码中是否保持稳定。
+#
+#  @param analyzer Fixed source analysis state.
+#  @param protected Names requiring stability.
+#  @return True only when the bounded scan establishes stability.
 def _namespace(analyzer, protected=('partial',)):
     key = tuple(sorted(protected))
     protected_names = {'functools.' + name for name in protected}
@@ -145,6 +178,8 @@ def _namespace(analyzer, protected=('partial',)):
 
 
 ## Bind a literal factory returning a standard partial of its own source function.
+## 绑定返回自身源码函数标准偏函数的字面量工厂。
+#
 #  @param analyzer Fixed source definitions and import bindings; nothing is imported.
 #  @param target Decorated source class reference and AST.
 #  @param expression Source decorator invocation with literal factory inputs.
@@ -203,6 +238,9 @@ def bind_partial(analyzer, target, expression):
     if (canonical != 'functools.partial' or head in analyzer._scope_facts(function).bound
             or not analyzer._stable_import_name(owner.module + '.' + head) or not _namespace(analyzer)):
         return None
+
+    # Specialize only after the standard partial binding and every literal are proven.
+    # 仅在标准 partial 绑定和所有字面量得到证明后进行特化。
     literals = [_literal(value) for value in expression.args]
     if any(value is None for value in literals):
         return None

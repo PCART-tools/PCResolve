@@ -1,5 +1,6 @@
 ## @package pcresolve._constructor_binding
 #  Source-only implicit receiver binding for one constructor invocation phase.
+#  仅基于源码为单个构造阶段推导隐式接收者绑定。
 
 import ast
 import copy
@@ -14,6 +15,8 @@ from ._class_creation import creation_effects
 
 
 ## Explain one selected constructor phase without claiming initialized instance state.
+## 解释选定的构造阶段，但不声称实例状态已经初始化。
+#
 #  @param summary Current caller summary and source snapshot.
 #  @param node Explicit source class call; its arguments have been evaluated.
 #  @param class_ref Source class object selected before argument evaluation.
@@ -29,6 +32,13 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
     scope = 'init_invocation_only' if initializer else 'new_invocation_only'
     issues = []
 
+    ## Add a unique proof issue and attach source evidence when available.
+    ## 添加唯一的证明问题，并在可用时附加源码证据。
+    #
+    #  @param reason Machine-readable reason for the failed premise.
+    #  @param owner Optional source class owning the evidence location.
+    #  @param source Optional syntax node identifying the evidence location.
+    #  @return None; the issue is appended only once.
     def issue(reason, owner=None, source=None):
         item = {'reason': reason}
         if source is not None:
@@ -44,6 +54,9 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
                 'projection', 'output_path', 'value_incomplete', 'import_modified',
                 'import_incomplete', 'attribute_provenance')) for value in values)):
         issue('constructor_class_origin_unconfirmed')
+
+    # The first positional parameter is the implicit receiver in either phase.
+    # 两个构造阶段的第一个位置参数都作为隐式接收者。
     parameters = method.args.posonlyargs + method.args.args
     if not parameters:
         issue('implicit_receiver_parameter_missing', ref, method)
@@ -63,6 +76,9 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
                     and type(key.value) is not str for key in value.keys)):
             issue('constructor_expansion_unconfirmed', summary.ref, value)
     hierarchy = analyzer._class_mro(class_ref.module, class_ref.qualname)
+
+    # Bound hierarchy expansion so malformed inheritance cannot grow the proof indefinitely.
+    # 限制继承层级展开，避免异常继承结构让证明无限增长。
     if not hierarchy or len(hierarchy) > 64:
         issue('constructor_mro_unconfirmed')
     checked = (hierarchy or [])[:64]
@@ -86,6 +102,9 @@ def source_binding(summary, node, class_ref, target, values, invalidated):
             definition_assumptions.update(fact['assumptions'])
         members = [member for member in cls.body
                    if phase in statement_scope_facts([member]).bound]
+
+        # MRO order determines the first class that binds this constructor phase.
+        # MRO 顺序决定第一个绑定该构造阶段的类。
         if selected is None and members:
             selected = owner, source_member(analyzer, owner, cls, phase)
     hooks = creation_effects(analyzer, checked[0]) if checked else None

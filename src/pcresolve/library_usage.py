@@ -1,5 +1,6 @@
 ## @package pcresolve.library_usage
-#  Library usage index builder (Phase 9-lite PR1).
+#  Library usage index builder.
+#  根据调用和来源证据构建库使用索引。
 #
 #  Extracted from cross_file.ProjectAnalyzer so the usage
 #  aggregation logic can be maintained independently.
@@ -10,6 +11,8 @@ from .types import LibraryUsage
 
 
 ## Check whether a library name string is suitable for library_usage.
+## 检查字符串是否适合作为 library_usage 中的库名称。
+#
 #  @param name Candidate library name.
 #  @return True if not a dataclass repr or structured source display.
 def _is_legal_library_name(name):
@@ -33,6 +36,8 @@ def _is_legal_library_name(name):
 
 
 ## Normalize a file path to a relative POSIX path for library usage reporting.
+## 将文件路径规范化为库使用报告中的相对 POSIX 路径。
+#
 #  @param file_path Absolute file path.
 #  @param project_root Root directory to make relative.
 #  @return Relative POSIX path, or empty string.
@@ -50,6 +55,7 @@ def _normalize_path_for_usage(file_path, project_root):
 
 
 ## Build a library usage index from calls and provenance.
+## 根据调用和符号来源构建库使用索引。
 #
 #  This is a module-level function extracted from
 #  ProjectAnalyzer._build_library_usage().  It takes a
@@ -63,6 +69,13 @@ def _normalize_path_for_usage(file_path, project_root):
 def build_library_usage(project_root, all_api_calls, all_provenance):
     usage = {}
 
+    ## Create or update the shared evidence envelope for one library.
+    ## 创建或更新单个库的共享证据范围。
+    #
+    #  @param lib Import-backed top-level library name.
+    #  @param confidence Evidence confidence.
+    #  @param file_path File containing the evidence.
+    #  @return Mutable library usage entry.
     def _ensure_usage(lib, confidence, file_path):
         if lib not in usage:
             usage[lib] = LibraryUsage(library=lib)
@@ -86,6 +99,8 @@ def build_library_usage(project_root, all_api_calls, all_provenance):
             if reason:
                 u.reason_counts[reason] = u.reason_counts.get(reason, 0) + 1
 
+    # Count symbol evidence separately from call-site evidence.
+    # 分别统计符号证据和调用点证据。
     for prov in all_provenance:
         libs = _collect_usage_libs(
             prov.top_library,
@@ -111,6 +126,8 @@ def build_library_usage(project_root, all_api_calls, all_provenance):
 
 
 ## Check whether a name should be counted as a usage library.
+## 判断名称是否应计入库使用统计。
+#
 #  @param name Candidate library name.
 #  @return True if the name is a valid import-backed library owner.
 def _is_usage_library(name):
@@ -122,6 +139,8 @@ def _is_usage_library(name):
 
 
 ## Collect a library name and its alternatives for usage aggregation.
+## 收集主库名称及其候选项，供使用统计聚合。
+#
 #  @param primary Primary top library from evidence.
 #  @param alternatives List of alternative top libraries.
 #  @param top_libraries Optional list of top_libraries (provenance).

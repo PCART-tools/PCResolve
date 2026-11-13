@@ -1,3 +1,7 @@
+## @package pcresolve._stub_iterability
+#  Conservative iterable-return facts from bounded installed type stubs.
+#  根据有界的已安装类型存根保守推断可迭代返回事实。
+
 """Conservative iterable-return facts from bounded installed type stubs."""
 
 from __future__ import annotations
@@ -7,7 +11,16 @@ import hashlib
 from pathlib import Path
 
 
+## Resolve iterable return annotations within explicit file and node budgets.
+## 在显式文件和节点预算内解析可迭代返回注解。
 class _Resolver:
+    ## Initialize source roots, budgets and per-query document caches.
+    ## 初始化源码根目录、预算及本次查询的文档缓存。
+    #
+    #  @param roots Ordered import roots.
+    #  @param max_files Maximum source files to inspect.
+    #  @param max_nodes Maximum AST nodes across inspected files.
+    #  @return None
     def __init__(self, roots, *, max_files=256, max_nodes=100000):
         self.roots = tuple(Path(root).resolve() for root in roots)
         self.max_files = max_files
@@ -15,6 +28,11 @@ class _Resolver:
         self.documents = {}
         self.hashes = {}
 
+    ## Locate a module source or stub inside an allowed root.
+    ## 在允许的根目录中定位模块源码或存根。
+    #
+    #  @param module Dotted module name.
+    #  @return Resolved path or None when unavailable.
     def _path(self, module):
         parts = module.split('.') if module else []
         if not parts or any(not part.isidentifier() for part in parts):
@@ -32,6 +50,11 @@ class _Resolver:
                     return resolved
         return None
 
+    ## Read, parse and cache a module within the source budgets.
+    ## 在源码预算内读取、解析并缓存模块。
+    #
+    #  @param module Dotted module name.
+    #  @return Tree and path pair, or None on failure or exhaustion.
     def _document(self, module):
         path = self._path(module)
         if path is None:
@@ -46,6 +69,9 @@ class _Resolver:
             tree = ast.parse(text, filename=key)
         except (OSError, UnicodeError, SyntaxError):
             return None
+
+        # Do not publish a document whose nodes exceed the remaining budget.
+        # 节点数超过剩余预算时不发布该文档。
         self.remaining -= sum(1 for _ in ast.walk(tree))
         if self.remaining < 0:
             return None
@@ -54,6 +80,13 @@ class _Resolver:
         self.hashes[key] = digest
         return tree, path
 
+    ## Collect explicit module import aliases for annotation resolution.
+    ## 收集模块中的显式导入别名，供解析注解使用。
+    #
+    #  @param module Dotted module name.
+    #  @param tree Parsed module AST.
+    #  @param path Module source path.
+    #  @return Mapping of local names to module and optional symbol.
     def _module_imports(self, module, tree, path):
         aliases = {}
         is_package = path.name.startswith('__init__.')
@@ -79,6 +112,11 @@ class _Resolver:
                     aliases[alias.asname or alias.name] = (base, alias.name)
         return aliases
 
+    ## Extract the qualified head of a supported annotation expression.
+    ## 提取受支持注解表达式的限定名称头部。
+    #
+    #  @param expression Annotation AST.
+    #  @return Dotted name or None when unsupported.
     @staticmethod
     def _head(expression):
         while isinstance(expression, ast.Subscript):
@@ -97,6 +135,12 @@ class _Resolver:
                 return '.'.join([value.id] + list(reversed(names)))
         return None
 
+    ## Collect direct or conditional module assignments to a name.
+    ## 收集模块中对名称的直接或条件赋值。
+    #
+    #  @param body Statement sequence.
+    #  @param name Assigned name.
+    #  @return Assignment value expressions.
     @staticmethod
     def _module_assignments(body, name):
         values = []
@@ -112,6 +156,15 @@ class _Resolver:
                 values.extend(_Resolver._module_assignments(node.orelse, name))
         return values
 
+    ## Resolve a generic-alias factory's preserved origin when its shape is proven.
+    ## 在工厂形态得到证明时解析泛型别名所保留的来源。
+    #
+    #  @param module Dotted module name.
+    #  @param tree Parsed module AST.
+    #  @param path Module source path.
+    #  @param expression Candidate factory call.
+    #  @param seen Visited resolution keys.
+    #  @return True if iterable, otherwise None or an unproven result.
     def _generic_alias_origin(self, module, tree, path, expression, seen):
         if not isinstance(expression, ast.Call) or not expression.args:
             return None
@@ -147,6 +200,14 @@ class _Resolver:
             return None
         return self._expression_iterable(module, tree, path, expression.args[0], seen)
 
+    ## Resolve a supported name through module import syntax.
+    ## 通过模块导入语法解析受支持的名称。
+    #
+    #  @param module Dotted module name.
+    #  @param tree Parsed module AST.
+    #  @param path Module source path.
+    #  @param expression Candidate annotation expression.
+    #  @return Module and symbol pair, or None when unresolved.
     def _qualified(self, module, tree, path, expression):
         head = self._head(expression)
         if not head:
@@ -172,10 +233,21 @@ class _Resolver:
                 return None
         return result_module, result_name
 
+    ## Resolve a function or type through imports and declarations.
+    ## 通过导入和声明解析函数或类型。
+    #
+    #  @param module Dotted module name.
+    #  @param name Symbol name.
+    #  @param kind Function or type resolution mode.
+    #  @param seen Visited resolution keys.
+    #  @return True for proven iterable behavior, otherwise a false or unknown result.
     def _resolve_symbol(self, module, name, kind, seen):
         key = (module, name, kind)
         if key in seen or len(seen) > 16:
             return None
+
+        # Cycles and deep alias chains cannot establish a return protocol.
+        # 循环或过深的别名链不能证明返回协议。
         seen.add(key)
         document = self._document(module)
         if document is None:
@@ -194,6 +266,8 @@ class _Resolver:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
                     and node.name == name]
         if kind == 'function' and matching:
+            # Every collected overload must declare an iterable return.
+            # 所有收集到的重载都必须声明可迭代返回值。
             returns = [node.returns for node in matching
                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
             if not returns or any(item is None for item in returns):
@@ -221,6 +295,15 @@ class _Resolver:
             return True if all(outcome is True for outcome in outcomes) else None
         return None
 
+    ## Resolve whether an annotation expression denotes an iterable type.
+    ## 解析注解表达式是否表示可迭代类型。
+    #
+    #  @param module Dotted module name.
+    #  @param tree Parsed module AST.
+    #  @param path Module source path.
+    #  @param expression Return annotation AST.
+    #  @param seen Visited resolution keys.
+    #  @return True when proven; otherwise false or None.
     def _expression_iterable(self, module, tree, path, expression, seen):
         if isinstance(expression, ast.BinOp) and isinstance(expression.op, ast.BitOr):
             return (self._expression_iterable(module, tree, path, expression.left, set(seen))
@@ -240,6 +323,15 @@ class _Resolver:
             return True
         return self._resolve_symbol(target_module, target_name, 'type', set(seen))
 
+    ## Require iterable proof for every collected return annotation.
+    ## 要求每个收集到的返回注解均证明为可迭代。
+    #
+    #  @param module Dotted module name.
+    #  @param tree Parsed module AST.
+    #  @param path Module source path.
+    #  @param returns Return annotation expressions.
+    #  @param seen Visited resolution keys.
+    #  @return True when all are proven, otherwise None.
     def _all_iterable(self, module, tree, path, returns, seen):
         for expression in returns:
             outcome = self._expression_iterable(module, tree, path, expression, set(seen))
@@ -247,6 +339,11 @@ class _Resolver:
                 return None
         return True
 
+    ## Build a versioned iterable-return fact for a qualified function.
+    ## 为限定函数构建带源码版本的可迭代返回事实。
+    #
+    #  @param qualified_target Dotted function name.
+    #  @return Protocol evidence or None when unproven.
     def iterable_return(self, qualified_target):
         module, separator, name = qualified_target.rpartition('.')
         if not separator:
@@ -256,6 +353,12 @@ class _Resolver:
                  'basis': 'bounded_stub_return_protocol'} if outcome is True else None)
 
 
+## Prove iterable returns for all declarations of a qualified function.
+## 证明限定函数的所有声明均返回可迭代类型。
+#
+#  @param qualified_target Dotted function name.
+#  @param roots Ordered import roots.
+#  @return Versioned protocol fact or None on uncertainty or analysis failure.
 def iterable_return_fact(qualified_target, roots):
     """Prove every declared overload returns a type with an iteration method."""
     try:

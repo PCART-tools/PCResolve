@@ -1,5 +1,6 @@
 ## @package pcresolve._class_observer_input
 #  Class-metadata inputs at the current source class-creation phase.
+#  当前源码类创建阶段中的类元数据输入分析。
 
 import ast
 import copy
@@ -15,6 +16,15 @@ from .scope_facts import statement_scope_facts
 
 
 def _inherited_method_documentation(analyzer, hierarchy, owner, name, decorations):
+## Prove inherited inspect.getdoc lookup through a closed class MRO.
+## 通过封闭的类 MRO 证明继承方法的 inspect.getdoc 查找结果。
+#
+#  @param analyzer Analyzer holding indexed definitions and source hashes.
+#  @param hierarchy Closed class hierarchy in lookup order.
+#  @param owner Class whose method requests the documentation.
+#  @param name Method name whose documentation is queried.
+#  @param decorations Proven class decorations that may affect method identity.
+#  @return Source documentation evidence, or None when the lookup is open.
     """Prove inspect.getdoc's inherited method-doc lookup from a closed MRO."""
     positions = [index for index, (candidate, _) in enumerate(hierarchy)
                  if candidate == owner]
@@ -36,6 +46,9 @@ def _inherited_method_documentation(analyzer, hierarchy, owner, name, decoration
             continue
         node = members[0]
         if not isinstance(node, ast.FunctionDef) or node.decorator_list:
+
+    # Walk only bases after the requesting class, matching inherited lookup order.
+    # 仅按继承查找顺序检查请求类之后的基类。
             return None
         matches = analyzer._definition_index.find(
             base_ref.module, base_ref.qualname + '.' + name)
@@ -86,6 +99,8 @@ def bind_observer_call(analyzer, target, caller, parameter, call, ancestor_hooks
     if (not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute)
             or not isinstance(call.func.value, ast.Call)):
         return None
+## 在类自身装饰器运行前，将单个私有观察器绑定到源码类。
+#
     constructor = call.func.value
     if (len(constructor.args) != 1 or constructor.keywords
             or not isinstance(constructor.args[0], ast.Name)
@@ -120,6 +135,9 @@ def bind_observer_call(analyzer, target, caller, parameter, call, ancestor_hooks
                  if owner in analyzer._class_decoration_cache else None)
         if owner not in analyzer._class_decoration_cache:
             from ._class_decoration import constructor_decorations
+
+    # The class creation hierarchy must be closed and stable before observer reads are trusted.
+    # 只有类创建层级完整且稳定时，才信任观察器读取结果。
             facts = constructor_decorations(analyzer, (owner, cls))
         if facts is None:
             return None
@@ -160,6 +178,7 @@ def bind_observer_call(analyzer, target, caller, parameter, call, ancestor_hooks
     special = {'*', '__class__', '__bases__', '__dict__', '__mro__'}
     if special & prior or any(name.startswith(tuple(prefixes)) for name in prior):
         return None
+    # 原生 object 成员不属于源码函数形成证明的覆盖范围。
     generated = []
     for fact in decorations:
         if special & set(fact['attributes']):
@@ -169,11 +188,13 @@ def bind_observer_call(analyzer, target, caller, parameter, call, ancestor_hooks
                                  fact.get('generated_class_members', []))
         sites = deferred.get('class_write_sites', fact.get('class_write_sites', []))
         for name in fact['attributes']:
+
             if not name.startswith(tuple(prefixes)):
                 continue
             changed = [site for site in sites if site['attribute'] == name]
             direct_alias = (fact.get('kind') == 'source_class_alias_decoration'
                 and any(member.get('attribute') == name
+    # 当前创建证明不会反过来成为自身输入的前提，只使用已完成的祖先阶段快照。
                     and member.get('kind') == 'source_alias_method'
                     and member.get('evidence') for member in candidates))
             if not changed and direct_alias:
@@ -365,6 +386,8 @@ def bind_documentation_observer_call(analyzer, target, caller, parameter, call, 
     if selected is None:
         return None
     helper_ref, helper = selected
+## 绑定通过单个私有观察器读取类信息的源码文档辅助函数。
+#
     args = helper.args
     parameters = args.posonlyargs + args.args
     body = helper.body[1:] if (helper.body and isinstance(helper.body[0], ast.Expr)
@@ -420,6 +443,7 @@ def bind_documentation_observer_call(analyzer, target, caller, parameter, call, 
                 or query_call.keywords[0].arg != 'leadingspace'
                 or not isinstance(query_call.keywords[0].value, ast.Constant)
                 or type(query_call.keywords[0].value.value) is not int):
+        # 分支选择不影响字符串结果，但条件表达式不能观察或暴露传入辅助函数的类。
             return None
         if (any(isinstance(node, ast.Name) and node.id in (receiver_parameter, observer_name)
                 for node in ast.walk(branch) if node is not query_call.func.value)):

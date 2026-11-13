@@ -1,6 +1,7 @@
 ## @package pcresolve.classification
 #  Classification reason, confidence helpers, and the
 #  priority-ordered ClassificationPipeline.
+#  提供分类原因、置信度辅助函数和按优先级执行的 ClassificationPipeline。
 #
 #  Pure functions and the pipeline are extracted from
 #  cross_file.ProjectAnalyzer so that reason/confidence
@@ -16,6 +17,7 @@ from .sources import (InstanceMethod, SourceSet, CallResult, normalize_source)
 
 ## Determine confidence for a classification result.
 #
+## 根据分类结果确定置信度。
 #  @param reason       Classification reason constant.
 #  @param alternatives List of alternative top-library strings.
 #  @return Confidence score (0.0-1.0).
@@ -39,6 +41,7 @@ def classify_confidence(reason, alternatives=None):
 ## Priority-ordered classification pipeline (Phase 8B).
 #
 #  Wraps top-library determination and reason/confidence
+## 按优先级执行分类规则的流水线（Phase 8B）。
 #  assignment into a single priority-ordered rule chain.
 #  Callbacks are injected so this module does not import
 #  ProjectAnalyzer.
@@ -52,9 +55,14 @@ def classify_confidence(reason, alternatives=None):
 #   6. RETURN_PROPAGATION  — CallResult base
 #   7. PARAMETER_PROPAGATION / TRANSITIVE_IMPORT — default
 class ClassificationPipeline:
-    ## @param origin_candidates_cb fn(module, source, tracers, include_local)
-    ## @param is_direct_import_cb fn(tracer, base) -> bool
-    ## @param dedupe_cb fn(items) -> list
+    ## Configure callbacks used for ownership and origin resolution.
+    ## 配置归属判定和来源解析所需的回调。
+    #
+    #  @param origin_candidates_cb Callback returning origin candidates.
+    #  @param is_direct_import_cb Callback checking direct import ownership.
+    #  @param dedupe_cb Callback preserving unique candidate order.
+    #
+    #  @return None; the injected callbacks are stored for later classification.
     def __init__(self, origin_candidates_cb, is_direct_import_cb, dedupe_cb):
         self._origin_candidates = origin_candidates_cb
         self._is_direct_import = is_direct_import_cb
@@ -69,6 +77,7 @@ class ClassificationPipeline:
     #  @param tracers     Dict module_name -> SingleFileAnalyzer.
     #  @param expand_origins  Whether to extract alternatives.
     #  @return ClassificationResult.
+    ## 对已解析的 (base, top) 对进行分类。
     def classify(self, base, top, module, tracer, tracers,
                  expand_origins=True):
         # Rules 1-3: early-exit categories.
@@ -81,6 +90,7 @@ class ClassificationPipeline:
                 library="local",
                 reason=REASON_FLOW_MERGE if alternatives else REASON_LOCAL_DEFINITION,
                 confidence=0.5 if alternatives else 1.0,
+        # 规则 1-3：本地、内建和未知类别在此提前返回。
                 alternatives=alternatives,
                 is_usage_library=False)
 
@@ -111,6 +121,7 @@ class ClassificationPipeline:
             alternatives = []
 
         confidence = classify_confidence(reason, alternatives)
+        # 规则 4-7：对有导入依据的库所有者进一步判定原因和来源候选。
         is_lib = top not in ("", "local", "python", "unknown")
 
         return ClassificationResult(
@@ -130,6 +141,16 @@ class ClassificationPipeline:
         base_norm = normalize_source(base)
         if isinstance(base_norm, SourceSet):
             return REASON_FLOW_MERGE
+    ## Select the highest-priority reason supported by the resolved evidence.
+    ## 根据已解析证据选择优先级最高的分类原因。
+    #
+    #  @param base Call base symbol or normalized source.
+    #  @param top Resolved top-level owner label.
+    #  @param tracer Analyzer for the call's module.
+    #  @param module Module containing the call site.
+    #  @param tracers Analyzers for all indexed modules.
+    #  @param expand_origins Whether to inspect merged origin candidates.
+    #  @return Classification reason constant.
 
         # Rule 6: RETURN_PROPAGATION — CallResult base
         result_base = base_norm
@@ -160,16 +181,27 @@ class ClassificationPipeline:
         return _normalize_merged_labels(alts)
 
 
-## Split merged container labels like "[requests,numpy]" into
-#  individual library names for alternatives.
+## Split merged container labels such as "[requests,numpy]" into library names.
+## 将 "[requests,numpy]" 这样的合并容器标签拆分为独立库名。
+#
+#  @param alts Candidate labels, including possibly merged container spellings.
+#  @return Unique library labels with local and unknown sentinels removed.
 def _normalize_merged_labels(alts):
     out = []
     for a in alts:
+        # 规则 7：缺少更高优先级证据时回退到传递导入原因。
         if isinstance(a, str) and a.startswith("[") and a.endswith("]"):
             parts = [p.strip() for p in a[1:-1].split(",") if p.strip()]
             for p in parts:
                 if p and p not in ("local", "python", "unknown", "") and p not in out:
                     out.append(p)
+    ## Extract unique non-empty library alternatives from a source expression.
+    ## 从来源表达式中提取唯一且非空的库候选。
+    #
+    #  @param base Call base symbol or source record.
+    #  @param module Module containing the call site.
+    #  @param tracers Analyzers for all indexed modules.
+    #  @return Normalized alternative library labels.
         else:
             if a and a not in ("local", "python", "unknown", "") and a not in out:
                 out.append(a)

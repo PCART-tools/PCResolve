@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_signature
 #  Native inspect metadata formation from bounded, callback-free source data.
+#  根据有界且无回调的源码数据构造原生 inspect 元数据事实。
 
 import ast
 import copy
@@ -17,6 +18,12 @@ from .scope_facts import statement_scope_facts
 
 
 def _span(ref, node):
+## Capture source coordinates for metadata evidence.
+## 记录元数据证据对应的源码位置。
+#
+#  @param ref Source definition reference.
+#  @param node AST node providing the location.
+#  @return File path and source-coordinate mapping.
     return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
             'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
@@ -28,6 +35,13 @@ def _marker_default(analyzer, caller, expression):
     name = expression.id
     scope = analyzer._scope_facts(function)
     if name in scope.bound | scope.nonlocals or '.' in ref.qualname.rpartition('.')[0]:
+## Resolve one stable source marker used as a parameter default.
+## 解析一个稳定的源码标记参数默认值。
+#
+#  @param analyzer Source analyzer with bindings and snapshot facts.
+#  @param caller Caller source reference and function node.
+#  @param expression Default expression to resolve.
+#  @return Marker metadata fact, or None when the binding is not stable.
         return None
     tables = analyzer.import_binding_facts.get(ref.module, [])
     bindings = tables[0].get(name, []) if len(tables) == 1 else []
@@ -78,6 +92,13 @@ def _module_literal_default(analyzer, caller, expression):
     if len(bindings) != 1 or not isinstance(bindings[0], ast.Assign):
         return None
     assignment = bindings[0]
+## Resolve one unchanged module literal used as a parameter default.
+## 解析用作形参默认值且未改变的模块级字面量。
+#
+#  @param analyzer Source analyzer with import bindings and module bodies.
+#  @param caller Caller source reference and function node.
+#  @param expression Default expression to resolve.
+#  @return Literal binding fact, or None when the value is open or mutable.
     bodies = analyzer.module_bodies.get(ref.module, [])
     if (len(bodies) != 1 or assignment not in bodies[0][1]
             or len(assignment.targets) != 1 or not isinstance(assignment.targets[0], ast.Name)
@@ -123,6 +144,14 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
         imported = analyzer.imports.get(ref.module, {}).get(head, '')
         if head in bindings or not imported:
             return ''
+## Prove inspect kind aliases cannot escape or acquire callback-capable uses.
+## 证明 inspect kind 别名不会逃逸或获得可调用回调的用法。
+#
+#  @param analyzer Source analyzer with module and definition facts.
+#  @param caller_ref Source reference containing the signature construction.
+#  @param decorator_evidence Mutable destination for decorator proof facts.
+#  @param receiver_class Optional source receiver class constraint.
+#  @return True when every protected alias use is closed and stable.
         if imported in ('inspect', 'functools') or imported.startswith(('inspect.', 'functools.')):
             return imported + (dot + rest if dot else '')
         return ''
@@ -136,6 +165,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
     parameter_cache = {}
 
     relevant_setters = None
+    ## Resolve an inspect/functools name through imports and lexical bindings.
+    ## 通过导入与词法绑定解析 inspect/functools 名称。
+    #
+    #  @param ref Source reference containing the expression.
+    #  @param scope Lexical scope used to detect local shadowing.
+    #  @param node Name or attribute expression.
+    #  @return Canonical dotted name, or an empty string when unresolved.
     if receiver_class is not None:
         hierarchy = analyzer._class_mro(receiver_class.module, receiver_class.qualname)
         if not hierarchy:
@@ -162,6 +198,12 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                     and isinstance(statement.value, ast.Call)
                     and canonical(scope_ref, scope, statement.value.func)
                         == 'inspect.signature'
+    ## Check whether a node is used only in an identity comparison.
+    ## 检查节点是否仅用于身份比较。
+    #
+    #  @param node Candidate comparison operand.
+    #  @param parent Parent AST node.
+    #  @return True when the operand participates in an is/is not comparison.
                     and len(statement.value.args) == 1
                     and isinstance(statement.value.args[0], ast.Name)
                     and statement.value.args[0].id == 'func'
@@ -186,6 +228,12 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 
         def source_star_reexport(resolved, target_ref):
             """Resolve one stable public name re-exported by a source package."""
+    ## Prove inspect.signature receives a fresh source function in this helper.
+    ## 证明此辅助函数中的 inspect.signature 接收新建源码函数。
+    #
+    #  @param scope Candidate source function scope.
+    #  @param scope_ref Source reference identifying the scope.
+    #  @return True when one validated signature wrapper is constructed.
             package, separator, public_name = resolved.rpartition('.')
             if not separator or not public_name or public_name.startswith('_'):
                 return False
@@ -218,6 +266,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                 except (ImportError, ValueError):
                     return False
                 if module == target_ref.module:
+        ## Check whether a callable expression resolves to the helper function.
+        ## 检查可调用表达式是否解析为该辅助函数。
+        #
+        #  @param module_ref Source reference containing the expression.
+        #  @param lexical_scope Lexical scope of the expression.
+        #  @param expression Callable expression to resolve.
+        #  @return True when the expression identifies the exact helper.
                     star_imports.append(statement)
             if len(star_imports) != 1:
                 return False
@@ -237,6 +292,12 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 
         def canonical_name(module_ref, lexical_scope, expression):
             return canonical(module_ref, lexical_scope, expression)
+        ## Resolve a stable public name re-exported by a source package.
+        ## 解析源码包重新导出的稳定公开名称。
+        #
+        #  @param resolved Qualified public name to inspect.
+        #  @param target_ref Target source function reference.
+        #  @return True when one stable star re-export resolves to the target.
 
         partial_bindings = set()
         for statement in scope.body:
@@ -293,6 +354,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                     and item.value.args[1].value is None
                     for item in local_extractions))
                 kwargs_stores = [node for node in ast.walk(scope)
+        ## Normalize canonical-name lookup for this lexical helper analysis.
+        ## 规范化当前词法辅助函数分析中的名称查询。
+        #
+        #  @param module_ref Source reference containing the expression.
+        #  @param lexical_scope Lexical scope of the expression.
+        #  @param expression Name or attribute expression.
+        #  @return Canonical dotted name or an empty string.
                     if isinstance(node, ast.Name) and node.id == kwargs_name
                     and isinstance(node.ctx, (ast.Store, ast.Del))]
                 curried = (len(factory) == 1 and safe_extractions
@@ -416,6 +484,12 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                         if any(effect.get('target') == 'input_function'
                                 and effect.get('impact') not in ('documentation', 'module_metadata')
                                 for effect in fresh.get('effects', ())):
+            ## Check that a declaration value contains only inert syntax forms.
+            ## 检查声明值是否只包含无执行副作用的语法形式。
+            #
+            #  @param value AST value expression.
+            #  @param depth Recursive tuple nesting depth.
+            #  @return True when the value cannot execute arbitrary code.
                             return False
                         if decorator_evidence is not None:
                             key = (decorated_ref, inner.lineno, inner.col_offset,
@@ -497,6 +571,11 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
             return False
         other = (parent.comparators[0] if parent.left is node and len(parent.comparators) == 1
                  else parent.left if parent.comparators == [node] else None)
+    ## Yield every descendant node from a bounded set of function bodies.
+    ## 遍历给定函数体中的所有后代 AST 节点。
+    #
+    #  @param body Ordered source statements to traverse.
+    #  @return Descendant AST nodes in traversal order.
         scope_ref = scope_refs.get(scope)
         if other is None or scope_ref is None:
             return False
@@ -509,6 +588,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
     def native_kind_replacement(node, parent, scope):
         if not isinstance(parent, ast.keyword) or parent.arg != 'kind':
             return False
+    ## Prove a value is a native Parameter kind from a fresh signature.
+    ## 证明一个值来自新建签名中的原生 Parameter kind。
+    #
+    #  @param scope Function scope that constructs or inspects the signature.
+    #  @param scope_ref Source reference for the lexical scope.
+    #  @param value_name Candidate value expression.
+    #  @return True when the value is a supported native parameter kind.
         call = parents.get(parent)
         if (not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute)
                 or call.func.attr != 'replace' or not isinstance(call.func.value, ast.Name)):
@@ -574,6 +660,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                         return False
                     if any(not isinstance(target, ast.Name) for target in node.targets):
                         return False
+    ## Recognize comparisons against a proven native Parameter kind.
+    ## 识别与已证明的原生 Parameter kind 进行的比较。
+    #
+    #  @param node Candidate enum value reference.
+    #  @param parent Parent expression using the reference.
+    #  @param scope Lexical scope of the expression.
+    #  @return True when the comparison is an allowed identity/value check.
                     if scopes[node] is None:
                         if (len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name)
                                 or not unmodified(analyzer, module + '.' + node.targets[0].id)):
@@ -596,6 +689,13 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
             if native_kind_replacement(node, parent, scopes[node]):
                 parameter_kind_uses.add(node)
                 continue
+    ## Recognize replacement of a native Parameter kind in supported metadata.
+    ## 识别受支持元数据中原生 Parameter kind 的替换用法。
+    #
+    #  @param node Candidate enum value reference.
+    #  @param parent Parent expression using the reference.
+    #  @param scope Lexical scope of the expression.
+    #  @return True when the value is used in a supported replacement path.
             if getattr(analyzer, '_debug_kind_aliases', False):
                 scope = scopes[node]
                 scope_ref = scope_refs.get(scope)
@@ -630,7 +730,9 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
     return True
 
 
-## Bind native Signature/Parameter constructors using literal source metadata.
+## Bind native Signature and Parameter constructors using literal source metadata.
+## 使用源码字面量元数据绑定原生 Signature 和 Parameter 构造。
+#
 #  @param analyzer Fixed source/import snapshot and cooperative effect budget.
 #  @param caller Exact source definition containing the construction.
 #  @param call Actual outer Signature invocation, never a target runtime value.
@@ -734,6 +836,7 @@ def signature_creation(analyzer, caller, call, native_lists=None, receiver_class
                     matches[0][0], ast.Assign) else matches[0][0].target.id,
                 'source_class': asdict(owner[0][0]), 'receiver_class': receiver, 'phase': phase,
                 'required_preservation': 'complete_current_call',
+#  @param receiver_class Optional source class associated with the call context.
                 'binding_evidence': _span(owner[0][0], statement),
                 'source_hashes': dict(prefix.get('source_hashes', {})),
                 'assumptions': list(prefix.get('assumptions', ())) + [
@@ -755,6 +858,11 @@ def signature_creation(analyzer, caller, call, native_lists=None, receiver_class
         for expression in call.args[0].elts:
             generator = None
             input_query = None
+    ## Convert one supported syntax expression to a bounded native literal.
+    ## 将一个受支持的语法表达式转换为有界原生字面量。
+    #
+    #  @param node Candidate literal expression.
+    #  @return Native literal value, or raises ValueError for open signature data.
             filters = []
             if isinstance(expression, ast.Starred) and isinstance(expression.value, ast.ListComp):
                 comprehension = expression.value
@@ -772,6 +880,12 @@ def signature_creation(analyzer, caller, call, native_lists=None, receiver_class
                             or not isinstance(condition.ops[0], ast.NotIn)
                             or not isinstance(condition.left, ast.Name)
                             or condition.left.id != generator.target.id
+    ## Resolve an excluded name sequence only under a proven class-creation prefix.
+    ## 仅在类创建前缀已证明时解析名称排除序列。
+    #
+    #  @param node Candidate sequence or class attribute expression.
+    #  @param input_query Source-bound query result providing prefix evidence.
+    #  @return Name sequence and binding evidence, or None when unproven.
                             or len(condition.comparators) != 1
                             ):
                         return None

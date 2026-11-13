@@ -1,5 +1,6 @@
 ## @package pcresolve._constructor_entry
 #  Source class query bindings, separate from actual call-site evidence.
+#  描述源码类查询绑定，并与真实调用点证据分离。
 
 import ast
 from dataclasses import asdict
@@ -17,6 +18,14 @@ from ._class_creation import creation_effects
 from ._fresh_receiver import allocation_origin
 
 
+## Recognize a narrow imported typing.overload declaration.
+## 识别有限形式的已导入 typing.overload 声明。
+#
+#  @param analyzer Analyzer containing import and source binding facts.
+#  @param owner Class reference containing the declaration.
+#  @param cls Class AST whose preceding bindings are inspected.
+#  @param member Candidate overload declaration.
+#  @return True only when the overload marker and declaration remain unambiguous.
 def _overload_declaration(analyzer, owner, cls, member):
     if (not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
             or len(member.decorator_list) != 1
@@ -43,6 +52,14 @@ def _overload_declaration(analyzer, owner, cls, member):
             and all(isinstance(value, ast.Constant) for value in defaults))
 
 
+## Collect class-definition issues across the selected constructor hierarchy.
+## 收集选定构造器继承层级中的类定义问题。
+#
+#  @param analyzer Analyzer providing namespace and declaration checks.
+#  @param hierarchy Ordered class references and definitions to inspect.
+#  @param dependencies Optional set collecting supporting source paths.
+#  @param assumptions Optional set collecting discharged source premises.
+#  @return Namespace issues as source-located records.
 def _definition_issues(analyzer, hierarchy, dependencies=None, assumptions=None):
     return namespace_issues(analyzer, hierarchy,
         declaration=lambda owner, cls, member: _overload_declaration(analyzer, owner, cls, member),
@@ -50,6 +67,8 @@ def _definition_issues(analyzer, hierarchy, dependencies=None, assumptions=None)
 
 
 ## Select a direct member or one final implementation after proven typing stubs.
+## 在已证明的 typing 存根之后选择直接成员或唯一最终实现。
+#
 #  @param analyzer Source generation and import bindings.
 #  @param owner Class reference owning the member.
 #  @param cls Class definition whose direct statements determine binding order.
@@ -68,6 +87,8 @@ def source_member(analyzer, owner, cls, name):
 
 
 ## Describe the first supported invocation of a queried source class.
+## 描述被查询源码类的首个受支持调用。
+#
 #  @param analyzer Fixed source generation and bounded lookup machinery.
 #  @param class_target Exact source class reference and definition.
 #  @param target Selected allocator or ordinary initializer definition.
@@ -78,6 +99,13 @@ def binding(analyzer, class_target, target):
     phase = method.name
     issues = []
 
+    ## Record a unique constructor-entry issue with optional source evidence.
+    ## 记录构造入口中的唯一问题，并可附带源码证据。
+    #
+    #  @param reason Machine-readable reason the entry premise failed.
+    #  @param owner Optional class owning the evidence node.
+    #  @param source Optional AST node supporting the issue.
+    #  @return None; the issue is appended only once.
     def issue(reason, owner=None, source=None):
         item = {'reason': reason}
         if source is not None:
@@ -93,6 +121,9 @@ def binding(analyzer, class_target, target):
     checked = (hierarchy or [])[:64]
     definition_paths = set()
     definition_assumptions = set()
+
+    # Check class declarations and bounded MRO before interpreting constructor binding.
+    # 解释构造器绑定前，先检查类声明和有界 MRO。
     try:
         for reason, owner, source in _definition_issues(
                 analyzer, checked, definition_paths, definition_assumptions):
@@ -122,6 +153,9 @@ def binding(analyzer, class_target, target):
     if not isinstance(method, ast.FunctionDef) or contains_yield(method):
         issue('constructor_entry_deferred')
     constructor_wrapper_forwarding = None
+
+    # Establish descriptor and identity preservation for the selected phase.
+    # 为选定构造阶段建立描述符与身份保持证明。
     if phase == '__new__':
         if method.decorator_list and analyzer._descriptor_kind(target) != 'staticmethod':
             issue('constructor_new_descriptor_unconfirmed')
@@ -175,6 +209,8 @@ def binding(analyzer, class_target, target):
     assumptions.extend(sorted(definition_assumptions))
     if len(analyzer._definition_index.find(ref.module, ref.qualname)) > 1:
         assumptions.append('stdlib_typing_overload_binding')
+    # Keep runtime target selection and initialized instance state explicitly unconfirmed.
+    # 明确保留运行时目标选择和实例初始化状态为未确认。
     result = {'query_kind': 'source_class_call',
         'status': 'unconfirmed' if issues else 'source_bound', 'basis': 'source_snapshot',
         'receiver_class': asdict(class_ref), 'target': asdict(ref), 'phase': phase,

@@ -1,11 +1,13 @@
 ## @package pcresolve.call_resolution
 #  Internal candidate lookup and call-context facts over opaque adapter payloads.
+#  对适配器不透明数据进行内部候选查找并保存调用上下文事实。
 
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
 
 ## One collected definition; repeated logical names remain separate records.
+## 单个已收集定义；重复的逻辑名称保留为独立记录。
 @dataclass(frozen=True)
 class DefinitionRecord:
     ## Module identity chosen by the source adapter.
@@ -20,6 +22,8 @@ class DefinitionRecord:
     source_span: object = None
 
     ## Join the module and lexical name for import-backed lookup.
+    ## 拼接模块名和词法名称，供基于导入的查找使用。
+    #
     #  @return Qualified name; not proof of a unique or importable API.
     @property
     def qualified_name(self):
@@ -27,6 +31,7 @@ class DefinitionRecord:
 
 
 ## Immutable lookup structure for one adapter's collected definition generation.
+## 某次适配器定义收集结果的不可变查找结构。
 #  Candidate ordering follows collection order. Payloads remain owned by the
 #  adapter; their return summaries can be refined without rebuilding names.
 @dataclass(frozen=True)
@@ -39,6 +44,10 @@ class DefinitionIndex:
     _names: object = field(init=False, repr=False, compare=False)
     _scopes: object = field(init=False, repr=False, compare=False)
 
+    ## Build immutable indexes while retaining duplicate definition records.
+    ## 构建不可变索引，同时保留重复定义记录。
+    #
+    #  @return None
     def __post_init__(self):
         object.__setattr__(self, 'records', tuple(self.records))
         scoped, qualified, kinds, names, scopes = {}, {}, {}, {}, {}
@@ -48,6 +57,7 @@ class DefinitionIndex:
             kinds.setdefault(record.kind, []).append(ordinal)
             names.setdefault((record.kind, record.qualname), []).append(ordinal)
             scopes.setdefault((record.kind, record.module), set()).add(record.qualname)
+
         for attribute, lookup in (('_scoped', scoped), ('_qualified', qualified),
                                   ('_kinds', kinds), ('_names', names)):
             object.__setattr__(self, attribute, MappingProxyType(
@@ -56,6 +66,8 @@ class DefinitionIndex:
             {key: frozenset(values) for key, values in scopes.items()}))
 
     ## Look up an exact logical name without choosing between duplicates.
+    ## 按精确逻辑名称查找，不在重复项之间擅自选择。
+    #
     #  @param module Adapter's module name.
     #  @param qualname Lexical name within the module.
     #  @param kind Definition category.
@@ -65,6 +77,8 @@ class DefinitionIndex:
                      for i in self._scoped.get((kind, module, qualname), ()))
 
     ## Union qualified and optional module-local candidates without duplication.
+    ## 合并限定名称和可选模块内候选项，并去除重复记录。
+    #
     #  @param names Iterable of fully qualified names.
     #  @param kind Definition category.
     #  @param local_module Optional module for unqualified alternatives.
@@ -80,12 +94,16 @@ class DefinitionIndex:
         return tuple(self.records[i].payload for i in sorted(ordinals))
 
     ## Enumerate candidates for adapter-specific dispatch checks.
+    ## 枚举候选定义，供适配器执行各自的分派检查。
+    #
     #  @param kind Definition category.
     #  @return Tuple of definition records in collection order.
     def records_for(self, kind='function'):
         return tuple(self.records[i] for i in self._kinds.get(kind, ()))
 
     ## Find lexical definition scopes in a module.
+    ## 查找模块内已收集定义的词法名称。
+    #
     #  @param module Adapter's module name.
     #  @param kind Definition category.
     #  @return Immutable set of collected lexical names.
@@ -93,6 +111,8 @@ class DefinitionIndex:
         return self._scopes.get((kind, module), frozenset())
 
     ## Find modules containing an exact lexical name.
+    ## 查找包含精确词法名称的模块。
+    #
     #  @param qualname Lexical name, not a last-component method-name guess.
     #  @param kind Definition category.
     #  @return Ordered unique module names.
@@ -101,9 +121,11 @@ class DefinitionIndex:
                                    for i in self._names.get((kind, qualname), ())))
 
     ## Resolve a function name using nearest function scopes and import aliases.
+    ## 结合最近函数作用域和导入别名解析函数名称。
     #  This is the flow adapter's existing name policy. Receiver dispatch and
     #  dynamic binding checks remain the caller's responsibility; ownership
     #  uses candidate lookup with its own source/receiver policy instead.
+    #
     #  @param module Calling module.
     #  @param scope Calling function's lexical qualified name.
     #  @param name Syntactic callable name.
@@ -121,6 +143,9 @@ class DefinitionIndex:
                 if matches:
                     return matches[0] if len(matches) == 1 else None
             current = current.rpartition('.')[0]
+
+        # An established import binding replaces local qualified candidates.
+        # 已知导入绑定会替换本地限定名称候选项。
         names = [module + '.' + name]
         parent = scope.rpartition('.')[0]
         if parent:
@@ -132,6 +157,8 @@ class DefinitionIndex:
         return self.resolve_qualified(names, imports, max_alias_hops, kind)
 
     ## Continue import-backed lookup from qualified names without lexical fallback.
+    ## 从限定名称继续基于导入查找，不回退到词法查找。
+    #
     #  @param names Fully qualified names from established import bindings.
     #  @param imports Module-to-alias lookup supplied by the adapter.
     #  @param max_alias_hops Maximum qualified candidate rounds.
@@ -144,6 +171,8 @@ class DefinitionIndex:
         seen = set()
         for _ in range(max_alias_hops):
             state = tuple(names)
+            # Cycles, unstable bindings, ambiguity and the hop budget stay unresolved.
+            # 遇到循环、不稳定绑定、歧义或跳数上限时保持未解析。
             if state in seen or (qualified_guard is not None and any(
                     not qualified_guard(name) for name in names)):
                 return None
@@ -166,6 +195,7 @@ class DefinitionIndex:
 
 
 ## One internal call occurrence and its enclosing forwarding/expansion context.
+## 单个内部调用及其外层转发或展开上下文。
 #  Target and edge are adapter-owned facts, not a public call-graph contract.
 @dataclass(frozen=True)
 class CallContext:
@@ -179,6 +209,8 @@ class CallContext:
     parent: object = None
 
     ## Iterate enclosing contexts starting at this call.
+    ## 从当前调用开始迭代外层上下文。
+    #
     #  @return Iterator from current context to entry.
     def chain(self):
         current = self
@@ -187,6 +219,8 @@ class CallContext:
             current = current.parent
 
     ## Read ancestor targets in traversal order, excluding this target.
+    ## 按从入口到直接父级的顺序读取祖先目标，不包含当前目标。
+    #
     #  @return Tuple from entry to immediate parent, retaining repeated targets.
     @property
     def ancestors(self):
@@ -195,6 +229,8 @@ class CallContext:
         return tuple(reversed([context.target for context in self.parent.chain()]))
 
     ## Obtain the shared source-span identity without interpreting edge payloads.
+    ## 获取共享源码位置标识，不解释调用边的数据。
+    #
     #  @return Snapshot-local call ID, or None for an entry/unlocated edge.
     @property
     def call_id(self):

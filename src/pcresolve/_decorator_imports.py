@@ -1,5 +1,6 @@
 ## @package pcresolve._decorator_imports
 #  Conditional cached source imports reached while decorating a fresh function.
+#  建模新鲜函数装饰期间触达的条件式缓存源码导入。
 
 import ast
 from dataclasses import asdict, replace
@@ -13,12 +14,25 @@ from ._module_getattr import missing as module_getattr_missing
 _DECORATOR_IMPORT_NODE_LIMIT = 100000
 
 
+## Build a source span record for one import or lookup operation.
+## 为一次导入或查找操作构造源码范围记录。
+#
+#  @param ref Source reference carrying the file path.
+#  @param node AST node carrying the source coordinates.
+#  @return Dictionary containing the node's start and end positions.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
             'end_col_offset': node.end_col_offset}
 
 
+## Resolve the module named by one parsed import fact.
+## 解析一个导入事实所指向的模块。
+#
+#  @param ref Source module reference providing package context.
+#  @param statement Import statement containing the fact.
+#  @param fact Parsed import fact.
+#  @return Absolute imported module name.
 def _imported_module(ref, statement, fact):
     if fact.kind == 'import':
         return fact.name
@@ -26,6 +40,15 @@ def _imported_module(ref, statement, fact):
                                    fact.module, fact.level)
 
 
+## Validate a narrowly read-only globals().get lookup.
+## 验证有限形式的只读 globals().get 查找。
+#
+#  @param analyzer Analyzer providing builtin binding facts.
+#  @param ref Source reference used to locate the enclosing scope.
+#  @param node Candidate globals name expression.
+#  @param parents AST parent map for the captured source tree.
+#  @param protected Keys that cannot be read through this fallback.
+#  @return True when the expression is a stable, unprotected globals lookup.
 def _readonly_globals(analyzer, ref, node, parents, protected):
     call = parents.get(node)
     if not (isinstance(call, ast.Call) and call.func is node and not call.args and not call.keywords):
@@ -53,6 +76,13 @@ def _readonly_globals(analyzer, ref, node, parents, protected):
         definition_scope=scope is None) == 'confirmed_builtin'
 
 
+## Check whether the cached-import namespace remains closed and unmodified.
+## 检查缓存导入涉及的命名空间是否封闭且未被修改。
+#
+#  @param analyzer Analyzer containing all relevant source modules.
+#  @param refs Source references whose namespaces participate in the lookup.
+#  @param module Target module whose export bindings must remain stable.
+#  @return True only when imports, aliases, and namespace uses stay bounded.
 def _namespace_stable(analyzer, refs, module):
     cache = getattr(analyzer, '_decorator_import_namespace_cache', None)
     if cache is None:
@@ -60,6 +90,9 @@ def _namespace_stable(analyzer, refs, module):
     key = (tuple(sorted(ref.module for ref in refs)), module)
     if key in cache:
         return cache[key]
+
+    # Seed a conservative result to prevent recursive namespace checks.
+    # 先写入保守占位结果，避免命名空间检查递归重入。
     cache[key] = False
     count = 0
     for ref in refs:
@@ -70,6 +103,9 @@ def _namespace_stable(analyzer, refs, module):
         for statement in bodies[0][1]:
             for node in ast.walk(statement):
                 count += 1
+
+                # Bound the source-wide namespace audit and honor cancellation budgets.
+                # 限制源码命名空间审计规模，并遵守协作式取消预算。
                 if count > _DECORATOR_IMPORT_NODE_LIMIT:
                     return False
                 if analyzer._analysis_budget is not None:
@@ -143,7 +179,9 @@ def _namespace_stable(analyzer, refs, module):
                         qualified += '.' + parent.attr
                         current = parent
                         relevant = module == qualified or module.startswith(qualified + '.')
+
                         # Assigning/deleting a direct export changes lookup.
+                        # 对直接导出项赋值或删除会改变模块查找结果。
                         if qualified.startswith(module + '.') and qualified.count('.') == module.count('.') + 1:
                             if isinstance(parent.ctx, (ast.Store, ast.Del)):
                                 return False
@@ -158,6 +196,8 @@ def _namespace_stable(analyzer, refs, module):
 
 
 ## Bind a local from-import under the decorated entry's prior initialization.
+## 在被装饰入口此前的初始化条件下绑定局部 from-import。
+#
 #  @param proof Bounded decorator analysis; no analyzed module is executed.
 #  @param ref Callback source identity containing the local import.
 #  @param node Reached ast.ImportFrom statement.
@@ -206,6 +246,9 @@ def cached_import(proof, ref, node):
                 initialized.append(statement)
     if not initialized:
         return None
+
+    # Reject target exports and package ancestors whose namespace hooks can redirect lookup.
+    # 排除可能通过命名空间钩子重定向查找的目标导出和包祖先。
     path, body = target_bodies[0]
     if statement_scope_facts(body).bound & {'__getattr__', '__class__', '*'}:
         return None
@@ -232,6 +275,9 @@ def cached_import(proof, ref, node):
         return None
     if not stable:
         return None
+
+    # Return conditional cache-binding evidence without claiming that import execution occurred.
+    # 返回条件式缓存绑定证据，但不声称导入语句已实际执行。
     paths = set(dependencies) | {item.file_path for item in refs.values()}
     for lookup in package_lookups:
         paths.update(lookup['source_hashes'])

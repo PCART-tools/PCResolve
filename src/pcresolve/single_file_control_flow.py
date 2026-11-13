@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_control_flow
 #  Loop, branch, comprehension, and generator visitors for ownership analysis.
+#  为归属分析处理循环、分支、推导式和生成器访问。
 
 import ast
 from dataclasses import replace
@@ -16,15 +17,19 @@ from .sources import (
 
 
 ## Control-flow fact collection mixed into SingleFileAnalyzer.
+## 混入 SingleFileAnalyzer 的控制流事实收集器。
 class SingleFileControlFlowMixin:
     ## Seed Python shapes that can flow from one loop iteration to the next.
+    ## 为可能跨循环迭代传播的 Python 形状建立初始绑定。
     #
     #  This is a bounded lexical fixed-point for builtin value shapes only.
     #  Every assignment to a candidate name inside the loop must independently
     #  prove the same PythonShape, and any conflicting preheader binding blocks
     #  the seed. Import-backed owners and unresolved values are never inferred.
+    #
     #  @param statements Statements in one loop body.
     #  @param excluded_names Loop-target names that are rebound by iteration.
+    #  @return None; only unanimously observed shapes are bound.
     def _seed_loop_carried_python_shapes(self, statements,
                                          excluded_names=None):
         evidence = {}
@@ -53,11 +58,14 @@ class SingleFileControlFlowMixin:
                 container_item_kind=first_shape.item_kind)
 
     ## Collect same-loop assignment shapes without revisiting call nodes.
+    ## 收集同一循环内的赋值形状，不重复访问调用节点。
     #
     #  Nested lexical scopes are excluded. Control-flow bodies remain part of
     #  the loop backedge, but one unknown assignment invalidates convergence.
+    #
     #  @param statements Statements to scan.
     #  @param evidence Mutable name -> [(PythonShape or None, node)] mapping.
+    #  @return None.
     def _collect_loop_shape_assignments(self, statements, evidence):
         for statement in statements:
             if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
@@ -159,8 +167,10 @@ class SingleFileControlFlowMixin:
                 self._collect_loop_shape_assignments(child_block, evidence)
 
     ## Return lexical names bound by an assignment target.
+    ## 返回赋值目标绑定的词法名称。
     #  Attribute and subscript writes mutate objects but do not rebind their
     #  receiver names. Tuple, list, and starred targets are traversed.
+    #
     #  @param target Assignment-target AST node.
     #  @return Set of rebound lexical names.
     def _assignment_target_names(self, target):
@@ -176,13 +186,16 @@ class SingleFileControlFlowMixin:
         return set()
 
     ## Record assignment expressions as unknown loop-local rebindings.
+    ## 将赋值表达式记录为未知的循环局部重绑定。
     #  Named expressions may occur inside tests, call arguments, or container
     #  expressions. Their value shape is deliberately not inferred here.
     #  Nested lexical scopes do not share ordinary target bindings with the
     #  surrounding loop. Comprehension targets are ignored automatically, but
     #  assignment expressions inside comprehensions still bind outside them.
+    #
     #  @param node AST subtree to inspect.
     #  @param evidence Mutable loop-shape evidence mapping.
+    #  @return None.
     def _collect_loop_named_expr_bindings(self, node, evidence):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                              ast.ClassDef, ast.Lambda)):
@@ -194,7 +207,10 @@ class SingleFileControlFlowMixin:
             self._collect_loop_named_expr_bindings(child, evidence)
 
     ## Visit a For node and bind the loop variable to the iterator source.
+    ## 访问 For 节点并将循环变量绑定到迭代器元素来源。
+    #
     #  @param node The For AST node.
+    #  @return None.
     def visit_For(self, node):
         target_names = self._assignment_target_names(node.target)
         self._seed_loop_carried_python_shapes(node.body, target_names)
@@ -203,6 +219,7 @@ class SingleFileControlFlowMixin:
             binding = self.current_scope().lookup(
                 node.iter.id, skip_parent_classes=True)
             # Deferred bodies cannot snapshot an enclosing mutable mapping.
+            # 延后分析的函数体不能安全快照外层可变映射。
             if binding is not None and binding.container_kind == "dict":
                 key_kind = (self._mapping_facts.key_kind(node.iter)
                             if self.current_scope().bindings.get(
@@ -243,12 +260,22 @@ class SingleFileControlFlowMixin:
         self.generic_visit(node)
 
     ## Visit a While node with bounded loop-carried Python shape evidence.
+    ## 使用有界循环携带形状证据访问 While 节点。
+    #
+    #  @param node While AST node.
+    #  @return None.
+    #
     #  @param node The While AST node.
     def visit_While(self, node):
         self._seed_loop_carried_python_shapes(node.body)
         self.generic_visit(node)
 
     ## Record a generator-loop fact for bounded cross-file propagation.
+    ## 记录用于有界跨文件传播的生成器循环事实。
+    #
+    #  @param node Loop AST node with an iterator target.
+    #  @return None.
+    #
     #  @param node For-loop AST node.
     def _record_iteration_binding(self, node):
         if (not isinstance(node.iter, ast.Call)
@@ -266,6 +293,12 @@ class SingleFileControlFlowMixin:
         ))
 
     ## Resolve per-element ownership for one loop iterator expression.
+    ## 解析循环迭代器表达式中每个元素的归属。
+    #
+    #  @param iter_node Iterator expression.
+    #  @param target Loop target receiving each yielded item.
+    #  @return Yield bindings, or None when no bounded rule applies.
+    #
     #  @param iter_node Iterator AST node.
     #  @param target Loop target AST node.
     #  @return Per-target source tuples, or None for the general fallback.
@@ -293,6 +326,12 @@ class SingleFileControlFlowMixin:
         return self._builtin_iterator_yields(iter_node, target, func_name)
 
     ## Resolve tuple fields yielded by a named or attribute container.
+    ## 解析命名容器或属性容器迭代时产生的元组字段。
+    #
+    #  @param iter_node Iterator expression.
+    #  @param target Loop target receiving yielded fields.
+    #  @return Positional yield bindings, or None when unsupported.
+    #
     #  @param iter_node Non-call iterator expression.
     #  @param target Loop target AST node.
     #  @return Positional source tuples or None.
@@ -310,6 +349,13 @@ class SingleFileControlFlowMixin:
         return list(zip(target.elts, field_sources))
 
     ## Resolve the fixed tuple contracts of os.walk and os.fwalk.
+    ## 解析 os.walk 和 os.fwalk 的固定元组契约。
+    #
+    #  @param iter_node Iterator call expression.
+    #  @param target Loop target receiving the tuple.
+    #  @param func_name Resolved called function name.
+    #  @return Tuple-field bindings, or None when the call does not match.
+    #
     #  @param iter_node Iterator Call AST node.
     #  @param target Loop target AST node.
     #  @param func_name Bare callee name when available.
@@ -343,6 +389,12 @@ class SingleFileControlFlowMixin:
         return result
 
     ## Resolve explicit iterator contracts and iterator result evidence.
+    ## 解析显式迭代器契约和迭代器结果证据。
+    #
+    #  @param iter_node Iterator expression.
+    #  @param target Loop target receiving yielded values.
+    #  @return Yield bindings, or None without a matching contract.
+    #
     #  @param iter_node Iterator Call AST node.
     #  @param target Name loop target.
     #  @return One target source tuple or None.
@@ -374,6 +426,13 @@ class SingleFileControlFlowMixin:
         return None
 
     ## Resolve builtin enumerate and zip positional yield behavior.
+    ## 解析内置 enumerate 和 zip 的位置产出行为。
+    #
+    #  @param iter_node Iterator call expression.
+    #  @param target Loop target receiving the yielded tuple.
+    #  @param func_name Resolved builtin function name.
+    #  @return Positional yield bindings, or None when inapplicable.
+    #
     #  @param iter_node Iterator Call AST node.
     #  @param target Loop target AST node.
     #  @param func_name Bare builtin name.
@@ -409,9 +468,14 @@ class SingleFileControlFlowMixin:
             return result
         return None
     ## Return the container identity for iterator yield resolution.
+    ## 返回用于解析迭代产出的容器身份。
+    #
+    #  @param node Container or iterator expression.
+    #  @return Container identity, or None when it cannot be determined.
     #
     #  Preserves AST Name identity for container_items lookup;
     #  falls back to trace_source for complex expressions.
+    #
     #  @param node The container AST node.
     #  @return Name string or traced source.
     def _iterator_container_source(self, node):
@@ -420,6 +484,11 @@ class SingleFileControlFlowMixin:
         return self.trace_source(node)
 
     ## Visit an AsyncFor node and bind the loop variable to the iterator source.
+    ## 访问 AsyncFor 节点并将循环变量绑定到迭代器元素来源。
+    #
+    #  @param node AsyncFor AST node.
+    #  @return None.
+    #
     #  @param node The AsyncFor AST node.
     def visit_AsyncFor(self, node):
         target_names = self._assignment_target_names(node.target)
@@ -429,6 +498,11 @@ class SingleFileControlFlowMixin:
         self.generic_visit(node)
 
     ## Record one value yielded by the current generator function.
+    ## 记录当前生成器函数产出的一个值。
+    #
+    #  @param node Yield AST node.
+    #  @return None.
+    #
     #  @param node Yield AST node.
     def visit_Yield(self, node):
         if self._func_stack and self._caller_stack:
@@ -445,6 +519,11 @@ class SingleFileControlFlowMixin:
         self.generic_visit(node)
 
     ## Record values forwarded by a yield-from expression.
+    ## 记录 yield-from 表达式转发的值。
+    #
+    #  @param node YieldFrom AST node.
+    #  @return None.
+    #
     #  @param node YieldFrom AST node.
     def visit_YieldFrom(self, node):
         if self._func_stack and self._caller_stack:
@@ -468,12 +547,17 @@ class SingleFileControlFlowMixin:
         self.generic_visit(node)
 
     ## Visit an If node with lexical branch merging.
+    ## 访问 If 节点并合并词法分支事实。
+    #
+    #  @param node If AST node.
+    #  @return None.
     #
     #  Snapshots the current scope before the if, visits each branch
     #  independently, then merges the resulting bindings. Module scope
     #  merges every changed binding. Function scope merges only names
     #  assigned directly by this branch; nested branches merge themselves.
     #  TYPE_CHECKING guards are skipped at all levels.
+    #
     #  @param node The If AST node.
     def visit_If(self, node):
         self.visit(node.test)
@@ -518,10 +602,16 @@ class SingleFileControlFlowMixin:
                 self.symbols.add(name, binding.source)
 
     ## Visit a function-level if while merging only direct RHS evidence.
+    ## 访问函数级 If，并仅合并直接右值证据。
+    #
+    #  @param node If AST node inside a function.
+    #  @param receiver_guard Optional receiver narrowing from the condition.
+    #  @return None.
     #
     #  Calls inside each branch retain the established sequential visitor
     #  behavior. After both branches are visited, incompatible direct
     #  assignments are replaced by a function_branch SourceSet.
+    #
     #  @param node The function-level If node.
     #  @param receiver_guard Optional receiver narrowing evidence.
     def _visit_function_if(self, node, receiver_guard):
@@ -591,14 +681,22 @@ class SingleFileControlFlowMixin:
                 ] = merged_source
 
     ## Collect direct assignment RHS sources from branch statements.
+    ## 收集分支语句中直接赋值右值的来源。
     #
     #  Nested control-flow nodes are intentionally excluded because their
     #  own visitors merge their assignments.
+    #
     #  @param statements Statements belonging to the current branch.
     #  @return Mapping of assigned local name to RHS source.
     def _direct_branch_assignment_sources(self, statements):
         sources = {}
 
+        ## Record one supported target spelling and its RHS source.
+        ## 记录受支持的赋值目标名称及其右值来源。
+        #
+        #  @param target Assignment target to inspect recursively.
+        #  @param source Source associated with the right-hand side.
+        #  @return None.
         def add_target(target, source):
             if isinstance(target, ast.Name):
                 sources[target.id] = source
@@ -651,10 +749,12 @@ class SingleFileControlFlowMixin:
         return sources
 
     ## Decide whether two branch bindings prove different owner identities.
+    ## 判断两个分支绑定是否证明了不同的归属身份。
     #
     #  Local function results deliberately share one coarse identity because
     #  their return ownership requires inter-procedural analysis. Explicit
     #  local constructors remain distinct from that coarse bucket.
+    #
     #  @param left_binding Binding produced by the true branch.
     #  @param right_binding Binding produced by the false branch.
     #  @param allow_local_callable Whether exact local callable alternatives
@@ -702,6 +802,11 @@ class SingleFileControlFlowMixin:
         return False
 
     ## Return a coarse, evidence-backed identity for branch comparison.
+    ## 返回用于分支比较的粗粒度、有证据支持的身份。
+    #
+    #  @param source Source value being compared.
+    #  @return Stable identity token, or None when evidence is insufficient.
+    #
     #  @param source Source value from a branch binding.
     #  @return Hashable identity tuple.
     def _branch_source_identity(self, source):
@@ -739,6 +844,11 @@ class SingleFileControlFlowMixin:
         return (type(source).__name__, source_display(source))
 
     ## Resolve a single-file import name to its top-level library.
+    ## 将单文件导入名称解析为顶层库。
+    #
+    #  @param name Imported name or alias.
+    #  @return Top-level library name, or None when unresolved.
+    #
     #  @param name Root symbol used by a branch source.
     #  @return Top-level import name or an empty string.
     def _imported_top_for_branch(self, name):
@@ -753,6 +863,10 @@ class SingleFileControlFlowMixin:
         return ""
 
     ## Visit a conditional expression with true-branch receiver narrowing.
+    ## 访问条件表达式并应用真分支接收者收窄。
+    #
+    #  @param node IfExp AST node.
+    #  @return None.
     #
     #  @param node The IfExp AST node.
     def visit_IfExp(self, node):
@@ -762,6 +876,11 @@ class SingleFileControlFlowMixin:
         self.visit(node.orelse)
 
     ## Check whether an If node guards on TYPE_CHECKING.
+    ## 判断 If 节点是否以 TYPE_CHECKING 为条件。
+    #
+    #  @param node If AST node.
+    #  @return True when its test is a recognized TYPE_CHECKING guard.
+    #
     #  @param node The If AST node.
     #  @return True if the test is a bare TYPE_CHECKING reference.
     def _is_type_checking_guard(self, node):
@@ -773,10 +892,15 @@ class SingleFileControlFlowMixin:
         return False
 
     ## Visit a Try node with conservative lexical branch merging.
+    ## 访问 Try 节点并保守地合并词法分支。
+    #
+    #  @param node Try AST node.
+    #  @return None.
     #
     #  At module level, each except handler and the else clause are treated
     #  as independent branches merged conservatively.  At function level,
     #  falls back to generic_visit (deferred to Phase 6 CFG).
+    #
     #  @param node The Try AST node.
     def visit_Try(self, node):
         if self.current_scope().kind != SCOPE_MODULE:
@@ -829,6 +953,11 @@ class SingleFileControlFlowMixin:
             self.visit(stmt)
 
     ## Common handler for all comprehension node types.
+    ## 处理所有类型推导式的公共访问逻辑。
+    #
+    #  @param node Comprehension AST node.
+    #  @return None.
+    #
     #  @param node A ListComp, SetComp, DictComp, or GeneratorExp AST node.
     def _visit_comprehension(self, node):
         self.push_scope(SCOPE_COMPREHENSION, "<comprehension>")
@@ -844,26 +973,51 @@ class SingleFileControlFlowMixin:
         self.pop_scope()
 
     ## Visit a ListComp node and bind loop variables to the iterator source.
+    ## 访问 ListComp 并将循环变量绑定到迭代器来源。
+    #
+    #  @param node List comprehension AST node.
+    #  @return None.
+    #
     #  @param node The ListComp AST node.
     def visit_ListComp(self, node):
         self._visit_comprehension(node)
 
     ## Visit a DictComp node and bind loop variables to the iterator source.
+    ## 访问 DictComp 并将循环变量绑定到迭代器来源。
+    #
+    #  @param node Dictionary comprehension AST node.
+    #  @return None.
+    #
     #  @param node The DictComp AST node.
     def visit_DictComp(self, node):
         self._visit_comprehension(node)
 
     ## Visit a SetComp node and bind loop variables to the iterator source.
+    ## 访问 SetComp 并将循环变量绑定到迭代器来源。
+    #
+    #  @param node Set comprehension AST node.
+    #  @return None.
+    #
     #  @param node The SetComp AST node.
     def visit_SetComp(self, node):
         self._visit_comprehension(node)
 
     ## Visit a GeneratorExp node and bind loop variables to the iterator source.
+    ## 访问 GeneratorExp 并将循环变量绑定到迭代器来源。
+    #
+    #  @param node Generator expression AST node.
+    #  @return None.
+    #
     #  @param node The GeneratorExp AST node.
     def visit_GeneratorExp(self, node):
         self._visit_comprehension(node)
 
     ## Visit a Global node and mark names for module-scope routing.
+    ## 访问 Global 节点并标记需要路由到模块作用域的名称。
+    #
+    #  @param node Global declaration AST node.
+    #  @return None.
+    #
     #  @param node The Global AST node.
     def visit_Global(self, node):
         for name in node.names:
@@ -871,6 +1025,11 @@ class SingleFileControlFlowMixin:
         self.generic_visit(node)
 
     ## Visit a Nonlocal node. First edition: no-crash only.
+    ## 访问 Nonlocal 节点；当前仅保证分析不中断。
+    #
+    #  @param node Nonlocal declaration AST node.
+    #  @return None.
+    #
     #  @param node The Nonlocal AST node.
     def visit_Nonlocal(self, node):
         self.generic_visit(node)

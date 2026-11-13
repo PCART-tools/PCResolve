@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_observer
 #  Bounded effects of a private source receiver observing one native class.
+#  分析私有源码接收者观察原生类时产生的有界效果。
 
 import ast
 import copy
@@ -16,6 +17,8 @@ from .program_facts import FunctionSignature, bind_ast_call
 from .scope_facts import statement_scope_facts
 
 
+## Store scalar observations together with their source provenance.
+## 保存标量观察结果及其源码来源信息。
 @dataclass(frozen=True)
 class _Observed(_Value):
     origin: str = ''
@@ -24,6 +27,8 @@ class _Observed(_Value):
     name_evidence: tuple = ()
 
 
+## Hold one path's abstract locals, fields, heap, and control result.
+## 保存单条路径的抽象局部值、字段、堆和控制结果。
 @dataclass
 class _Frame:
     env: dict = field(default_factory=dict)
@@ -33,21 +38,46 @@ class _Frame:
     result: object = None
 
 
+## Construct an abstract string observation with optional name provenance.
+## 构造可带名称来源信息的抽象字符串观察值。
+#
+#  @param origin Provenance category for the string value.
+#  @param prefixes Prefix facts preserved by the observation.
+#  @param name_evidence Source steps supporting the observed name.
+#  @return Abstract observed string.
 def _string(origin='', prefixes=(), name_evidence=()):
     return _Observed('scalar', frozenset({'str'}), origin=origin, prefixes=tuple(prefixes),
                      name_evidence=tuple(name_evidence))
 
 
+## Check whether an abstract value is safe to store in a tracked container.
+## 检查抽象值是否可安全存入跟踪容器。
+#
+#  @param value Abstract value to classify.
+#  @return True for scalar and supported literal-container values.
 def _data(value):
     return value.kind in ('scalar', 'list', 'dict', 'set', 'tuple')
 
 
+## Bound the size and type of a concrete metadata literal.
+## 限制元数据字面量的类型与大小。
+#
+#  @param value Concrete value to check.
+#  @return True when the value is within the supported literal budget.
 def _literal(value):
     return (value is None or type(value) is bool
             or type(value) is int and value.bit_length() <= 64
             or type(value) is str and len(value) <= 2000)
 
 
+## Bind exact source-call arguments while validating declaration defaults.
+## 绑定准确的源码调用参数，并校验声明默认值。
+#
+#  @param selected Resolved owner and function pair.
+#  @param call Call expression being analyzed.
+#  @param values Abstract argument values in call order.
+#  @param receiver Whether the first parameter is the receiver.
+#  @return Parameter-name to abstract-value mapping.
 def _arguments(selected, call, values, receiver=False):
     function = selected[1]
     args = function.args
@@ -64,6 +94,7 @@ def _arguments(selected, call, values, receiver=False):
     incoming = {}
     # Defaults execute when the source function is created, even if a caller
     # supplies that parameter. Never hide an unsupported declaration input.
+    # 默认值在函数创建时执行；即使调用方传入该参数，也必须验证其声明输入。
     for name, default in signature.defaults:
         if not isinstance(default, ast.Constant) or not _literal(default.value):
             raise _OpenQuery()
@@ -72,7 +103,16 @@ def _arguments(selected, call, values, receiver=False):
     return incoming
 
 
+## Track supported observations of one class using bounded abstract state.
+## 使用有界抽象状态跟踪对单个类的受支持观察行为。
 class _Observer(_Query):
+    ## Initialize observer state and its class-specific analysis limit.
+    ## 初始化观察器状态及类级分析预算。
+    #
+    #  @param self Observer state.
+    #  @param analyzer Source analyzer providing class and namespace facts.
+    #  @param owner Source class reference and AST node pair.
+    #  @return None.
     def __init__(self, analyzer, owner):
         self.owner, self.cls = owner
         super().__init__(analyzer, owner)
@@ -87,6 +127,14 @@ class _Observer(_Query):
         self.next_heap = 0
         self.names = statement_scope_facts(self.cls.body).bound
 
+    ## Allocate an abstract heap container for supported observed values.
+    ## 为受支持的观察值分配抽象堆容器。
+    #
+    #  @param self Observer state tracking heap identities.
+    #  @param frame Current abstract execution frame.
+    #  @param kind Container shape to allocate.
+    #  @param values Abstract elements stored in the container.
+    #  @return Abstract container reference.
     def container(self, frame, kind, values=()):
         if any(not _data(value) for value in values):
             raise _OpenQuery()
@@ -94,6 +142,13 @@ class _Observer(_Query):
         frame.heap[self.next_heap] = {'kind': kind, 'values': list(values)}
         return _Observed(kind, heap=self.next_heap)
 
+    ## Select elements from an abstract list, set, or MRO sequence.
+    ## 从抽象列表、集合或 MRO 序列中选择元素。
+    #
+    #  @param self Observer state.
+    #  @param frame Current abstract execution frame.
+    #  @param value Abstract iterable value.
+    #  @return Abstract selected elements.
     def element(self, frame, value):
         if value.kind == 'mro_sequence':
             return _Observed('ancestor_class')
@@ -102,6 +157,14 @@ class _Observer(_Query):
         values = frame.heap[value.heap]['values']
         return self.elements(frame, values)
 
+    ## Join observed elements while preserving only common provenance facts.
+    ## 合并观察到的元素，并仅保留共同的来源事实。
+    #
+    #  @param self Observer state with node-budget accounting.
+    #  @param frame Current abstract execution frame.
+    #  @param values Abstract values gathered from one container position.
+    #  @param depth Recursive aggregate depth.
+    #  @return Joined abstract value, or raises _OpenQuery for unsupported shapes.
     def elements(self, frame, values, depth=0):
         self.charge()
         if depth > 16:
@@ -116,6 +179,8 @@ class _Observer(_Query):
                 [self.elements(frame, [row[index] for row in rows], depth + 1)
                  for index in range(len(rows[0]))])
         if all(item.kind == 'scalar' and item.shapes == {'str'} for item in values):
+            # Preserve a name origin only when every alternative agrees.
+            #  仅当所有备选值的名称来源一致时才保留该来源。
             origins = {getattr(item, 'origin', '') for item in values}
             prefixes = set.intersection(*(set(getattr(item, 'prefixes', ())) for item in values))
             origin = next(iter(origins)) if len(origins) == 1 else ''
@@ -132,6 +197,15 @@ class _Observer(_Query):
             return _scalar(set().union(*(item.shapes for item in values)))
         raise _OpenQuery()
 
+    ## Bind an abstract value to a supported name or tuple target.
+    ## 将抽象值绑定到受支持的名称或元组目标。
+    #
+    #  @param self Observer state with recursion and node limits.
+    #  @param target Assignment target AST node.
+    #  @param value Abstract value to bind.
+    #  @param frame Current abstract execution frame.
+    #  @param depth Recursive target depth.
+    #  @return None; updates the frame environment in place.
     def bind_target(self, target, value, frame, depth=0):
         self.charge()
         if depth > 16:
@@ -147,15 +221,37 @@ class _Observer(_Query):
         else:
             raise _OpenQuery()
 
+    ## Record one source-backed name transformation step.
+    ## 记录一个有源码依据的名称转换步骤。
+    #
+    #  @param self Observer state with the current source target.
+    #  @param operation Provenance operation identifier.
+    #  @param node AST node supporting the operation.
+    #  @param details Additional structured evidence fields.
+    #  @return Provenance step mapping with source coordinates.
     def name_step(self, operation, node, **details):
         return {'operation': operation, 'evidence': _span(self.target[0], node), **details}
 
+    ## Restore an input class name only when the prefix proof matches.
+    ## 仅当前缀证明匹配时还原输入类名称。
+    #
+    #  @param self Observer state collecting name evidence.
+    #  @param prefix Proven prefix used to form the suffix.
+    #  @param suffix Abstract suffix value to validate.
+    #  @param node AST operation that restores the name.
+    #  @return Restored name observation or an unknown string observation.
     def restored_name(self, prefix, suffix, node):
         if prefix and getattr(suffix, 'origin', '') == 'input_class_suffix:' + prefix:
             evidence = suffix.name_evidence + (self.name_step('restore_prefix', node, prefix=prefix),)
             return _string('input_class_names', (prefix,), evidence)
         return _string()
 
+    ## Resolve one class member only when it is a proven native string set or pattern.
+    ## 仅当类成员已证明为原生字符串集合或模式时才解析该成员。
+    #
+    #  @param self Observer state with class and namespace facts.
+    #  @param name Class member name to resolve.
+    #  @return Abstract native set or pattern value.
     def data_member(self, name):
         if name not in self.native_data_members:
             shadowed = set()
@@ -182,12 +278,21 @@ class _Observer(_Query):
         kind = self.native_data_members[name]['creation']['result_kind']
         return _Value('native_string_set' if kind == 'native_string_set' else 'pattern')
 
+    ## Evaluate one supported single-generator comprehension.
+    ## 计算一个受支持的单生成器推导式。
+    #
+    #  @param self Observer state and expression interpreter.
+    #  @param node Comprehension AST node.
+    #  @param frame Current abstract execution frame.
+    #  @return Abstract comprehension result, or raises _OpenQuery.
     def comprehension(self, node, frame):
         if len(node.generators) != 1 or node.generators[0].is_async:
             raise _OpenQuery()
         generator = node.generators[0]
         local = copy.deepcopy(frame)
         iterator = generator.iter
+        # zip() is expanded only when builtin identity and both sequence shapes are known.
+        # 仅在确认内建 zip 身份及两个序列形状后展开 zip()。
         if (isinstance(iterator, ast.Call) and isinstance(iterator.func, ast.Name)
                 and iterator.func.id == 'zip' and not iterator.keywords and len(iterator.args) == 2
                 and self.analyzer._builtin_name_status(self.target[0], self.target[1], 'zip')
@@ -225,6 +330,13 @@ class _Observer(_Query):
         frame.heap.update((key, value) for key, value in local.heap.items() if key not in frame.heap)
         return self.container(frame, 'list', [] if empty else [value])
 
+    ## Interpret supported metadata-observer expressions without invoking user code.
+    ## 在不调用用户代码的前提下解释受支持的元数据观察表达式。
+    #
+    #  @param self Observer with budgets and collected protocol evidence.
+    #  @param node Expression AST node to interpret.
+    #  @param frame Current abstract execution frame.
+    #  @return Abstract value, or raises _OpenQuery for unsupported behavior.
     def expression(self, node, frame):
         self.charge()
         if isinstance(node, ast.Attribute):
@@ -249,6 +361,8 @@ class _Observer(_Query):
                 return _scalar({'str', 'NoneType'}) if node.attr == '__doc__' else _string()
             if base.kind == 'code' and node.attr == 'co_varnames':
                 return _Value('varnames')
+            # Unknown attributes can invoke descriptors or expose dynamic state.
+            # 未知属性可能触发描述符或暴露动态状态。
             raise _OpenQuery()
         if isinstance(node, ast.JoinedStr):
             values = []
@@ -353,8 +467,16 @@ class _Observer(_Query):
                 return value
         # Scalar metadata operations share the same primitive implementation.
         # Its recursive calls are routed through the current private frame.
+        # 标量元数据操作复用基础实现，其递归表达式仍通过当前私有帧求值。
         return self.scalar_expression(node, frame)
 
+    ## Evaluate scalar metadata syntax through the shared primitive query logic.
+    ## 通过共享的基础查询逻辑计算标量元数据语法。
+    #
+    #  @param self Observer state supplying recursive expression dispatch.
+    #  @param node Expression AST node.
+    #  @param frame Current abstract execution frame.
+    #  @return Abstract scalar value, or raises _OpenQuery.
     def scalar_expression(self, node, frame):
         if node is None:
             return _scalar({'NoneType'}, None, True)
@@ -383,6 +505,12 @@ class _Observer(_Query):
                 return _scalar({'bool'})
         raise _OpenQuery()
 
+    ## Convert observer-specific values to supported truth-test results.
+    ## 将观察器专用抽象值转换为受支持的真值测试结果。
+    #
+    #  @param self Observer state.
+    #  @param value Abstract value to test.
+    #  @return Abstract truth value.
     def truth(self, value):
         if value.kind in ('match', 'optional_callable'):
             return _scalar({'bool'})
@@ -390,6 +518,14 @@ class _Observer(_Query):
             return _scalar({'bool'}, True, True)
         return value
 
+    ## Refine local abstract values along a supported selected branch.
+    ## 根据选中的受支持分支收窄局部抽象值。
+    #
+    #  @param self Observer state with shared query refinement.
+    #  @param test Branch test expression.
+    #  @param env Incoming abstract local environment.
+    #  @param selected Whether the tested branch is selected.
+    #  @return Refined environment, or raises _OpenQuery when unsupported.
     def refined(self, test, env, selected):
         if isinstance(test, ast.Name) and env.get(test.id, _Value('unknown')).kind == 'optional_callable':
             env = dict(env)
@@ -423,6 +559,13 @@ class _Observer(_Query):
             raise _OpenQuery()
         return result
 
+    ## Resolve supported native and source-method calls in the observer body.
+    ## 解析观察器方法体中的受支持原生调用与源码方法调用。
+    #
+    #  @param self Observer state collecting calls and protocol requirements.
+    #  @param node Call expression AST node.
+    #  @param frame Current abstract execution frame.
+    #  @return Abstract result, or raises _OpenQuery for unsupported calls.
     def call(self, node, frame):
         ref, function = self.target
         if (any(keyword.arg is None for keyword in node.keywords)
@@ -610,6 +753,13 @@ class _Observer(_Query):
                     return values[1]
         raise _OpenQuery()
 
+    ## Resolve an isinstance test only when its native class operands are proven.
+    ## 仅在内建类操作数得到证明时解析 isinstance 测试。
+    #
+    #  @param self Observer state collecting type-test evidence.
+    #  @param node Candidate isinstance call expression.
+    #  @param frame Current abstract execution frame.
+    #  @return Known boolean value, None when unrelated, or raises _OpenQuery.
     def type_test(self, node, frame):
         if (not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name)
                 or node.func.id != 'isinstance' or len(node.args) != 2 or node.keywords):
@@ -631,6 +781,15 @@ class _Observer(_Query):
                                 'result': result})
         return _scalar({'bool'}, result, True)
 
+    ## Analyze one selected observer method and merge its normal-return effects.
+    ## 分析一个选中的观察器方法并合并其正常返回效果。
+    #
+    #  @param self Observer state with source lookup and effect caches.
+    #  @param name Selected method name.
+    #  @param values Abstract positional argument values.
+    #  @param frame Caller abstract execution frame.
+    #  @param call Call expression providing evidence coordinates.
+    #  @return Abstract method result, or raises _OpenQuery.
     def method(self, name, values, frame, call):
         matches = self.analyzer._definition_index.find(self.owner.module, self.owner.qualname + '.' + name)
         if len(matches) != 1:
@@ -669,6 +828,14 @@ class _Observer(_Query):
             return _scalar(set().union(*(value.shapes for value in returns)))
         raise _OpenQuery()
 
+    ## Interpret a statement block across bounded normal and control-flow paths.
+    ## 在有界的正常与控制流路径上解释语句块。
+    #
+    #  @param self Observer state collecting protocol and effect facts.
+    #  @param body Ordered statements to interpret.
+    #  @param frames Incoming abstract execution frames.
+    #  @param depth Current nested-block depth.
+    #  @return Frames remaining after the block.
     def block(self, body, frames, depth=0):
         if depth > 48 or len(frames) > 64:
             raise _OpenQuery()
@@ -708,6 +875,8 @@ class _Observer(_Query):
                     test = self.truth(test)
                     if not _data(test):
                         raise _OpenQuery()
+                    # Keep both branches for unknown tests and preserve each path's effects.
+                    # 条件未知时保留两个分支，并分别保留各路径效果。
                     choices = [bool(test.literal)] if test.known else [True, False]
                     for chosen in choices:
                         local = copy.deepcopy(frame)
@@ -734,6 +903,7 @@ class _Observer(_Query):
                     # Exhaustion executes else; break exits this loop only.
                     # Keep both zero and symbolic iteration paths, including
                     # all effects from the body before selecting its exit.
+                    # 正常耗尽时执行 else，break 只退出当前循环；零次和一次抽象迭代都要保留。
                     exhausted = [zero]
                     for branch in branches:
                         if branch.control == 'break':
@@ -752,6 +922,14 @@ class _Observer(_Query):
             frames = pending
         return frames
 
+    ## Run one selected source method on a copied abstract frame.
+    ## 在复制的抽象帧上分析一个选中的源码方法。
+    #
+    #  @param self Observer state with recursion tracking.
+    #  @param selected Resolved owner and function pair.
+    #  @param frame Caller frame whose existing state is preserved.
+    #  @param env Parameter environment for the selected method.
+    #  @return Normal-return frames produced by the method.
     def run(self, selected, frame, env):
         if selected[0] in self.stack or len(self.stack) >= 16:
             raise _OpenQuery()
@@ -773,6 +951,8 @@ class _Observer(_Query):
 
 
 ## Describe a whole private observer query under native class-metadata protocols.
+## 在原生类元数据协议约束下描述完整的私有观察查询。
+#
 #  @param analyzer Fixed source snapshot and explicit support dependency registry.
 #  @param owner Exact source observer class; input class is a separate obligation.
 #  @param name Selected instance method, without library-specific naming rules.
@@ -799,6 +979,8 @@ def observer_query(analyzer, owner, name, *, positional_literals=(), keyword_lit
 
 
 ## Publish conditional observer facts for explicit source metadata iteration.
+## 为显式源码元数据迭代发布条件观察事实。
+#
 #  @param analyzer Fixed source/index generation and caller query budget.
 #  @param target Exact selected source method; existing flow boundaries stay intact.
 #  @return Optional templates without inferring any actual entry receiver state.
@@ -830,6 +1012,15 @@ def observer_effects(analyzer, target):
     return [fact] if fact is not None else []
 
 
+## Build a source-bound observer effect summary for literal query arguments.
+## 根据字面量查询参数构建源码绑定的观察器效果摘要。
+#
+#  @param analyzer Source analyzer providing class and namespace facts.
+#  @param owner Exact source class reference and AST node pair.
+#  @param name Selected observer method name.
+#  @param positional_literals Literal positional arguments for the query.
+#  @param keyword_literals Literal keyword arguments for the query.
+#  @return Conditional observer effect, or None when the proof is open.
 def _observer_query(analyzer, owner, name, positional_literals, keyword_literals):
     ref, cls = owner
     forbidden = {'__new__', '__del__', '__getattribute__', '__getattr__', '__setattr__',

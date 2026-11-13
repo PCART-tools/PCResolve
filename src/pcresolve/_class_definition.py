@@ -1,5 +1,6 @@
 ## @package pcresolve._class_definition
 #  Restricted namespace evaluation shared by source class binding proofs.
+#  供源码类绑定证明共享的受限命名空间求值分析。
 
 import ast
 import copy
@@ -18,6 +19,11 @@ from ._runtime_namespace import unmodified
 _CLASS_DEFINITION_NODE_LIMIT = 2000
 
 
+## Traverse syntax evaluated while forming a class namespace.
+## 遍历形成类命名空间时需要求值的语法。
+#
+#  @param root AST subtree to inspect.
+#  @return Iterator of nodes, excluding deferred function bodies.
 def _namespace_syntax(root):
     pending = [root]
     while pending:
@@ -39,6 +45,11 @@ def _namespace_syntax(root):
         pending.extend(reversed(children))
 
 
+## Check whether an expression can be evaluated as a call-free literal.
+## 判断表达式是否为可求值且不含调用的字面量。
+#
+#  @param value Candidate expression, or None.
+#  @return True when literal evaluation succeeds.
 def _literal(value):
     if value is None or any(isinstance(node, ast.Call) for node in ast.walk(value)):
         return False
@@ -49,6 +60,14 @@ def _literal(value):
         return False
 
 
+## Prove that source decoration preserves function and namespace binding.
+## 证明源码装饰保留函数身份和命名空间绑定。
+#
+#  @param analyzer Analyzer holding source facts and decoration proofs.
+#  @param target Decorated function reference and definition.
+#  @param dependencies Optional collection for supporting source hashes.
+#  @param assumptions Set receiving the proof assumptions.
+#  @return Preservation premise, or None when the proof remains open.
 def _source_function_decoration(analyzer, target, dependencies, assumptions):
     # Reuse the bounded execution-effect proof; identity alone permits unknown
     # helper calls and is not enough to authorize class namespace formation.
@@ -75,6 +94,8 @@ def _source_function_decoration(analyzer, target, dependencies, assumptions):
 
 
 ## Prove a source callable-object decorator preserves decorated function identity.
+## 证明源码可调用对象装饰器保留被装饰函数的身份。
+#
 #  @param analyzer Fixed source snapshot and import bindings.
 #  @param owner Class whose namespace is being formed.
 #  @param member Decorated method definition.
@@ -121,11 +142,21 @@ def _source_callable_object_identity(analyzer, owner, member, dependencies, assu
     if decorator_class.decorator_list or decorator_class.keywords:
         return None
 
+    ## Select the unique undecorated __call__ method in a class body.
+    ## 选择类体中唯一且未装饰的 __call__ 方法。
+    #
+    #  @param cls Class definition to inspect.
+    #  @return Method definition, or None when missing or ambiguous.
     def call_method(cls):
         methods = [statement for statement in cls.body if isinstance(statement, ast.FunctionDef)
                    and statement.name == '__call__']
         return methods[0] if len(methods) == 1 and not methods[0].decorator_list else None
 
+    ## Normalize receiver and argument names for bounded syntax comparison.
+    ## 规范化接收者和参数名称以比较有界语法。
+    #
+    #  @param method Candidate method definition.
+    #  @return Copied normalized method, or None for unsupported signatures.
     def normalized(method):
         arguments = method.args.posonlyargs + method.args.args
         if (len(arguments) != 2 or method.args.kwonlyargs or method.args.vararg
@@ -133,12 +164,24 @@ def _source_callable_object_identity(analyzer, owner, member, dependencies, assu
             return None
         names = {arguments[0].arg: 'self', arguments[1].arg: 'value'}
 
+        ## Rewrite only the two supported formal argument names.
+        ## 仅重写受支持的两个形参名称。
         class Rename(ast.NodeTransformer):
+            ## Rewrite matching name references in the copied syntax.
+            ## 重写所复制语法中匹配的名称引用。
+            #
+            #  @param node Name AST node to visit.
+            #  @return Updated name node.
             def visit_Name(self, node):
                 if node.id in names:
                     node.id = names[node.id]
                 return node
 
+            ## Rewrite matching formal argument names in the copied syntax.
+            ## 重写所复制语法中匹配的形参名称。
+            #
+            #  @param node Argument AST node to visit.
+            #  @return Updated argument node.
             def visit_arg(self, node):
                 if node.arg in names:
                     node.arg = names[node.arg]
@@ -148,6 +191,8 @@ def _source_callable_object_identity(analyzer, owner, member, dependencies, assu
             body=[copy.deepcopy(method)], type_ignores=[])))
         return result.body[0]
 
+    # Compare only supported source templates after validating unique bindings.
+    # 验证绑定唯一后，仅对受支持的源码模板进行比较。
     child_call = call_method(decorator_class)
     if child_call is None:
         return None
@@ -298,6 +343,8 @@ def _source_callable_object_identity(analyzer, owner, member, dependencies, assu
 
 
 ## Compose a source identity decorator with a source argument-forwarding factory.
+## 将源码身份保持装饰器与源码参数转发工厂组合。
+#
 #  @param analyzer Fixed source snapshot and import bindings.
 #  @param owner Class whose namespace is being formed.
 #  @param target Decorated source method.
@@ -337,6 +384,15 @@ def source_identity_factory_wrapper_chain(analyzer, owner, target,
     return wrapper
 
 
+## Prove a source descriptor installs a same-name private property.
+## 证明源码描述符安装同名的私有属性代理。
+#
+#  @param analyzer Analyzer with source definitions and import facts.
+#  @param owner Class whose namespace is being formed.
+#  @param expression Candidate descriptor construction expression.
+#  @param shadowed Names already bound in the class namespace.
+#  @param dependencies Optional set receiving supporting source paths.
+#  @return Descriptor premise, or None when any required proof is missing.
 def _source_same_name_property_descriptor(analyzer, owner, expression, shadowed,
                                           dependencies=None):
     """Prove a source descriptor installs a same-name private property."""
@@ -471,6 +527,15 @@ def _source_same_name_property_descriptor(analyzer, owner, expression, shadowed,
     return 'source_same_name_property_descriptor'
 
 
+## Prove a source deprecation decorator preserves class-property behavior.
+## 证明源码弃用装饰器保留类属性行为。
+#
+#  @param analyzer Analyzer with source definitions and import facts.
+#  @param owner Class whose namespace is being formed.
+#  @param member Decorated member definition.
+#  @param dependencies Optional set receiving supporting source paths.
+#  @param assumptions Optional set receiving required premises.
+#  @return Descriptor premise, or None when the proof is incomplete.
 def _source_deprecated_classproperty(analyzer, owner, member, dependencies=None,
                                      assumptions=None):
     """Prove a source deprecation decorator preserves class-property behavior."""
@@ -508,6 +573,11 @@ def _source_deprecated_classproperty(analyzer, owner, member, dependencies=None,
     if class_node.bases or class_node.decorator_list or class_node.keywords:
         return None
 
+    ## Copy a definition while excluding its leading docstring from comparison.
+    ## 复制定义并从比较中排除开头的文档字符串。
+    #
+    #  @param node Definition whose body is compared.
+    #  @return Shallow copy with an independently copied body.
     def without_docstring(node):
         clone = copy.copy(node)
         clone.body = list(node.body)
@@ -590,7 +660,14 @@ def deprecate(obj):
 ''').body[0].body[0].orelse[0]
     class_name = class_node.name
 
+    ## Match the template's class-property reference to the source class name.
+    ## 将模板中的类属性引用替换为源码类名称。
     class RenameClassName(ast.NodeTransformer):
+        ## Rewrite the template class name in a name node.
+        ## 重写名称节点中的模板类名称。
+        #
+        #  @param node Name AST node in the template.
+        #  @return Updated name node.
         def visit_Name(self, node):
             if node.id == 'classproperty':
                 node.id = class_name
@@ -623,6 +700,8 @@ def deprecate(obj):
 
 
 ## Identify class-definition operations that can change a source namespace.
+## 识别可能改变源码命名空间的类定义操作。
+#
 #  @param analyzer Snapshot lookup machinery confirming builtin method descriptors.
 #  @param hierarchy Bounded source MRO, whose metaclasses/hooks are checked separately.
 #  @param declaration Optional predicate confirming a harmless typing declaration.
@@ -634,6 +713,14 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
                      assumptions=None):
     inspected = [0]
 
+    ## Prove a no-argument construction has a bounded plain-instance namespace.
+    ## 证明无参数构造具有受限的普通实例命名空间。
+    #
+    #  @param value Candidate construction expression.
+    #  @param owner Class containing the expression.
+    #  @param shadowed Names already bound in the enclosing namespace.
+    #  @param seen Class references on the current inspection path.
+    #  @return True when the supported construction is proven harmless.
     def plain_instance(value, owner, shadowed, seen):
         if (not isinstance(value, ast.Call) or value.args or value.keywords
                 or not isinstance(value.func, (ast.Name, ast.Attribute))):
@@ -670,6 +757,12 @@ def namespace_issues(analyzer, hierarchy, declaration=None, dependencies=None,
             dependencies.update(ref.file_path for ref, _ in sources)
         return True
 
+    ## Inspect class namespaces under the shared node and recursion limits.
+    ## 在共享节点和递归限制内检查类命名空间。
+    #
+    #  @param sources Source class hierarchy to inspect.
+    #  @param seen Class references on the current inspection path.
+    #  @return Issue records for unsupported or unconfirmed operations.
     def inspect(sources, seen):
         if len(seen) > 32:
             raise _ClassEffectLimit()

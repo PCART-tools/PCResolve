@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_parameter_dependency
 #  Parameter-derived expression evidence for single-file ownership analysis.
+#  为单文件归属分析提供参数派生表达式的证据。
 
 import ast
 
@@ -10,9 +11,13 @@ from .sources import (
 
 
 ## Parameter-dependency source behavior mixed into SingleFileAnalyzer.
+## 混入 SingleFileAnalyzer 的参数依赖来源处理。
 class SingleFileParameterDependencyMixin:
     ## Preserve whether an assignment value has unresolved parameter origin.
+    ## 保留赋值表达式是否具有未解析的参数来源。
+    #
     #  @param node Assignment value expression.
+    #  @param expression_context Whether the value is used within an expression.
     #  @return ParameterSource, DerivedResult, UnknownSource, "local", or
     #  None.
     def _parameter_dependency_source(self, node, expression_context=False):
@@ -40,6 +45,11 @@ class SingleFileParameterDependencyMixin:
         return None
 
     ## Resolve a name binding that carries parameter-origin evidence.
+    ## 解析携带参数来源证据的名称绑定。
+    #
+    #  @param node Name expression to inspect.
+    #  @param expression_context Whether expression-specific uncertainty applies.
+    #  @return Parameter-related source or None when no dependency is established.
     def _name_parameter_dependency(self, node, expression_context):
         if not self._caller_stack:
             return None
@@ -51,6 +61,9 @@ class SingleFileParameterDependencyMixin:
         if isinstance(existing, (
                 ParameterSource, UnknownSource, DerivedResult)):
             return existing
+        # An unresolved item or imported call result is evidence of uncertainty,
+        # not evidence that the expression belongs to the callee's library.
+        # 未解析的容器元素或导入调用结果表示不确定，不能据此推断表达式归属。
         if expression_context and isinstance(existing, ContainerItem):
             return UnknownSource("unresolved container-item expression")
         if (expression_context
@@ -76,6 +89,11 @@ class SingleFileParameterDependencyMixin:
             self._caller_stack[-1].qualname, node.id)
 
     ## Extend parameter provenance through one attribute access.
+    ## 将参数来源扩展到一次属性访问。
+    #
+    #  @param node Attribute expression to inspect.
+    #  @param expression_context Whether expression-specific handling applies.
+    #  @return Extended parameter or instance source, an unknown source, or None.
     def _attribute_parameter_dependency(self, node, expression_context):
         if (expression_context
                 and isinstance(node.value, ast.Name)
@@ -96,6 +114,10 @@ class SingleFileParameterDependencyMixin:
         return None
 
     ## Resolve self/cls field evidence used by an expression.
+    ## 解析表达式中使用的 self/cls 字段证据。
+    #
+    #  @param node Receiver attribute expression.
+    #  @return Recorded dependency, instance attribute, local marker, or None.
     def _instance_attribute_dependency(self, node):
         attr_name = self._attribute_name(node)
         existing = None
@@ -117,6 +139,11 @@ class SingleFileParameterDependencyMixin:
             self._class_stack[-1], attr_name, scope_name)
 
     ## Extend parameter provenance through one subscript or slice.
+    ## 将参数来源扩展到一次下标或切片访问。
+    #
+    #  @param node Subscript expression to inspect.
+    #  @param expression_context Whether expression-specific handling applies.
+    #  @return Derived parameter source, unknown source, or None.
     def _subscript_parameter_dependency(self, node, expression_context):
         dependency = self._parameter_dependency_source(
             node.value, expression_context=expression_context)
@@ -135,6 +162,10 @@ class SingleFileParameterDependencyMixin:
         return None
 
     ## Preserve dependencies from both operands of a binary expression.
+    ## 保留二元表达式两侧操作数的依赖。
+    #
+    #  @param node Binary operation expression.
+    #  @return Derived expression source, or None without parameter dependency.
     def _binary_parameter_dependency(self, node):
         left = self._parameter_dependency_source(
             node.left, expression_context=True)
@@ -142,6 +173,8 @@ class SingleFileParameterDependencyMixin:
             node.right, expression_context=True)
         if left is None and right is None:
             return None
+        # Include traceable non-local operands once a parameter dependency exists.
+        # 存在参数依赖时，合并其他可追踪的非局部操作数。
         if left is None:
             traced_left = self.trace_source(node.left)
             if traced_left != "local":
@@ -156,6 +189,10 @@ class SingleFileParameterDependencyMixin:
             "expression", operands, type(node.op).__name__)
 
     ## Preserve dependencies across all operands of a comparison.
+    ## 保留比较表达式中所有操作数的依赖。
+    #
+    #  @param node Comparison expression, including chained comparisons.
+    #  @return Derived expression source, or None without parameter dependency.
     def _compare_parameter_dependency(self, node):
         operands = []
         has_dependency = False
@@ -175,6 +212,10 @@ class SingleFileParameterDependencyMixin:
             "expression", tuple(operands), "Compare")
 
     ## Preserve a parameter-dependent method result as an explicit call result.
+    ## 将依赖参数的方法结果保留为显式调用结果。
+    #
+    #  @param node Attribute-method call expression.
+    #  @return Call result, unknown source if unresolved, or None without dependency.
     def _call_parameter_dependency(self, node):
         dependency = self._parameter_dependency_source(node.func.value)
         if dependency is None:

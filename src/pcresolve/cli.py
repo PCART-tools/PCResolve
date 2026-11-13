@@ -1,5 +1,6 @@
 ## @package pcresolve.cli
 #  Provide command-line entry point for the pcresolve tool.
+#  提供 pcresolve 命令行入口及文本、JSON 和解释视图输出。
 #
 #  Usage:
 #    pcresolve /path/to/project
@@ -22,6 +23,8 @@ from .views import (build_summary_view, build_full_view,
 
 
 ## Format source location as a string.
+## 将源码位置格式化为字符串。
+#
 #  @param call ApiCall object.
 #  @return Location string like "(L42:C10-L42:C35)", or "".
 def _format_location(call):
@@ -34,6 +37,11 @@ def _format_location(call):
 
 # ── text output ──────────────────────────────────────────────────────────
 
+## Print the legacy full text diagnostic view.
+## 输出旧版完整文本诊断视图。
+#
+#  @param result Project analysis result to display.
+#  @return None.
 def _print_debug_dump(result):
     """Legacy full text output (--debug-dump)."""
     print("Global symbol table:")
@@ -62,6 +70,12 @@ def _print_debug_dump(result):
                 print(line)
 
 
+## Print compact project statistics and leading library usage entries.
+## 输出项目统计及排名靠前的库使用信息。
+#
+#  @param result Project analysis result to summarize.
+#  @param top Maximum libraries to display; nonpositive values show all.
+#  @return None.
 def _print_summary(result, top=20):
     """Compact summary text output (default)."""
     stats = result.stats
@@ -86,10 +100,13 @@ def _print_summary(result, top=20):
 
 
 ## Print diagnostics once, respecting quiet mode.
+## 按 quiet 选项输出诊断信息，避免重复显示。
+#
 #  @param result ProjectAnalysis result.
 #  @param quiet Show only error diagnostics.
 #  @param verbose Include the number of skipped modules.
 #  @param leading_newline Separate diagnostics from preceding text output.
+#  @return True when diagnostics or a skipped-file summary was printed.
 def _print_diagnostics(result, quiet=False, verbose=False, leading_newline=True):
     diagnostics = [d for d in result.diagnostics if not quiet or d.severity == "error"]
     printed = False
@@ -112,9 +129,12 @@ def _print_diagnostics(result, quiet=False, verbose=False, leading_newline=True)
 
 
 ## Print library usage with a limit on displayed libraries.
+## 按指定数量限制输出库使用信息。
+#
 #  @param result ProjectAnalysis result.
 #  @param top Maximum libraries to list (0 = unlimited).
 #  @param leading_newline Separate this view from preceding text output.
+#  @return True when a usage summary was printed.
 #  @return True if a summary was printed.
 def _print_usage_summary(result, top=20, leading_newline=True):
     if not result.library_usage:
@@ -133,6 +153,13 @@ def _print_usage_summary(result, top=20, leading_newline=True):
     return True
 
 
+## Print calls, symbols and evidence associated with one library.
+## 输出指定库关联的调用、符号和来源证据。
+#
+#  @param result Project analysis result to query.
+#  @param lib Library name to explain.
+#  @param top Maximum calls and symbols to display.
+#  @return None.
 def _print_explain_library(result, lib, top=20):
     v = build_explain_library_view(result, lib, top=top)
     print("Library: %s" % lib)
@@ -166,6 +193,13 @@ def _print_explain_library(result, lib, top=20):
             print("  %-10s %-10s %s" % (p["symbol"], p["kind"], chain_str))
 
 
+## Print provenance matches and related calls for one symbol query.
+## 输出符号查询匹配的来源链及相关调用。
+#
+#  @param result Project analysis result to query.
+#  @param symbol Symbol query string.
+#  @param top Maximum related results to display.
+#  @return None.
 def _print_explain_symbol(result, symbol, top=20):
     v = build_explain_symbol_view(result, symbol, top=top)
     print("Symbol: %s" % symbol)
@@ -187,6 +221,13 @@ def _print_explain_symbol(result, symbol, top=20):
                                           c["expression"], c["top_library"]))
 
 
+## Print matching call sites and their ownership evidence.
+## 输出匹配的调用点及其归属证据。
+#
+#  @param result Project analysis result to query.
+#  @param query Call expression or text query.
+#  @param top Maximum matches to display.
+#  @return None.
 def _print_explain_call(result, query, top=20):
     v = build_explain_call_view(result, query, top=top)
     print("Call Query: %s" % query)
@@ -207,11 +248,22 @@ def _print_explain_call(result, query, top=20):
 
 # ── JSON output ──────────────────────────────────────────────────────────
 
+## Serialize the compact project view as formatted JSON.
+## 将项目摘要视图序列化为格式化 JSON。
+#
+#  @param result Project analysis result to serialize.
+#  @param top Maximum libraries included in the view.
+#  @return None.
 def _print_json_summary(result, top=20):
     v = build_summary_view(result, top=top)
     print(json.dumps(v, indent=2, ensure_ascii=False))
 
 
+## Serialize the complete ownership view as formatted JSON.
+## 将完整归属视图序列化为格式化 JSON。
+#
+#  @param result Project analysis result to serialize.
+#  @return None.
 def _print_json_full(result):
     v = build_full_view(result)
     print(json.dumps(v, indent=2, ensure_ascii=False))
@@ -220,6 +272,8 @@ def _print_json_full(result):
 # ── main ─────────────────────────────────────────────────────────────────
 
 ## Validate ownership output options before analysis.
+## 在分析前校验归属输出选项。
+#
 #  @param parser ArgumentParser used to report invalid combinations.
 #  @param args Parsed CLI options.
 #  @return Pair indicating JSON and explain output modes.
@@ -262,6 +316,8 @@ def _validate_output_options(parser, args):
 
 
 ## Resolve the positional or stdin-selected input path.
+## 解析位置参数或从标准输入读取的输入路径。
+#
 #  @param parser ArgumentParser used to report invalid combinations.
 #  @param args Parsed CLI options.
 #  @return Selected path, or None when explicit value-flow sources may be used.
@@ -279,8 +335,11 @@ def _resolve_input_path(parser, args):
 
 
 ## Validate value-flow-only arguments that do not depend on input contents.
+## 校验不依赖输入内容的 value-flow 专属参数。
+#
 #  @param parser ArgumentParser used to report invalid combinations.
 #  @param args Parsed CLI options.
+#  @return None; invalid combinations are reported through the parser.
 def _validate_value_flow_options(parser, args):
     if (args.json_summary or args.json_full or args.json_stable or args.debug_dump
             or args.verbose or args.strict or args.usage_summary or args.quiet
@@ -301,6 +360,11 @@ def _validate_value_flow_options(parser, args):
         parser.error('Depth and budgets must be positive integers')
 
 
+## Render an experimental value-flow result as readable text.
+## 将实验性值流结果渲染为可读文本。
+#
+#  @param result Value-flow analysis result.
+#  @return Formatted multi-line text including explicit boundaries.
 def _flow_text(result):
     lines = ['Value flow (experimental %s)' % result.schema_version,
              'Entry: %s:%s' % (result.entry.module, result.entry.qualname),
@@ -332,6 +396,13 @@ def _flow_text(result):
     return '\n'.join(lines)
 
 
+## Validate inputs, run value-flow analysis and emit its selected output.
+## 校验输入、执行值流分析并输出所选格式的结果。
+#
+#  @param parser Argument parser used to report invalid input.
+#  @param args Parsed CLI options.
+#  @param input_path Resolved project or source path, if supplied.
+#  @return None; parser errors terminate invalid invocations.
 def _run_value_flow(parser, args, input_path):
     from .flow import FlowAnalyzer, FunctionRef
 
@@ -360,6 +431,9 @@ def _run_value_flow(parser, args, input_path):
     depth = args.depth if args.depth is not None else 1
     functions = args.max_functions if args.max_functions is not None else 500
     calls = args.max_call_contexts if args.max_call_contexts is not None else 2000
+    # Keep value-flow construction and analysis within the same error boundary
+    # so CLI validation reports supported input and budget failures uniformly.
+    # 将值流分析纳入统一错误边界，使命令行以一致方式报告输入和预算错误。
     try:
         analyzer = FlowAnalyzer(project_root=project_root,
                                 source_files=source_files, import_roots=args.import_root,
@@ -378,6 +452,9 @@ def _run_value_flow(parser, args, input_path):
 
 
 ## Run ownership analysis or the opt-in experimental value-flow CLI.
+## 执行归属分析或显式启用的实验性值流命令行流程。
+#
+#  @return None; parses process arguments and writes the selected output.
 def main():
     parser = argparse.ArgumentParser(
         allow_abbrev=False,

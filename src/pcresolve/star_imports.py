@@ -1,5 +1,6 @@
 ## @package pcresolve.star_imports
 #  Bounded source-only expansion of literal __all__ imports.
+#  仅基于源码对字面量 __all__ 的通配导入做有界展开。
 
 import ast
 import os
@@ -10,6 +11,7 @@ from .scope_facts import statement_scope_facts
 
 
 ## Source witnesses for unambiguous wildcard bindings.
+## 无歧义通配导入绑定的源码证据。
 @dataclass(frozen=True)
 class StarImportFacts:
     ## Module to local name to qualified source name.
@@ -19,6 +21,8 @@ class StarImportFacts:
 
 
 ## Expand literal export lists without importing or evaluating target code.
+## 不导入或执行目标代码，展开字面量导出列表。
+#
 #  @param module_bodies Module to (source path, top-level statements) sequences.
 #  @param max_nodes Maximum inspected AST nodes across this source snapshot.
 #  @param max_depth Maximum nested wildcard-import depth.
@@ -31,6 +35,8 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
                for sources in module_bodies.values() if len(sources) == 1
                for _, body in sources for statement in body):
         return StarImportFacts({}, {})
+    # Collect bounded syntax facts first; ambiguous module paths are excluded.
+    # 首先收集有界语法事实，并排除路径有歧义的模块。
     records = {}
     mutation_nodes = []
     remaining = max_nodes
@@ -91,6 +97,12 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
 
     invalidated = set()
 
+    ## Resolve an attribute chain through the module's import aliases.
+    ## 通过模块的导入别名解析属性链。
+    #
+    #  @param module Module containing the expression.
+    #  @param node Name or attribute expression.
+    #  @return Qualified imported name, or None if it is not rooted in an alias.
     def imported_name(module, node):
         parts = []
         while isinstance(node, ast.Attribute):
@@ -102,6 +114,8 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
         head = record[1].get(node.id) if record else None
         return head + ''.join('.' + part for part in reversed(parts)) if head else None
 
+    # Invalidate imports or export lists that can be mutated or escape.
+    # 对可能被修改或逃逸的导入对象和导出列表取消确认。
     for module, node in mutation_nodes:
         if isinstance(node, (ast.Attribute, ast.Subscript)) and isinstance(
                 node.ctx, (ast.Store, ast.Del)):
@@ -128,12 +142,23 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
             if name and (name in records or name.endswith('.__all__')):
                 invalidated.add(name)
 
+    ## Check whether a qualified name lies under an invalidated prefix.
+    ## 判断限定名称是否位于已失效的前缀之下。
+    #
+    #  @param name Qualified name to check.
+    #  @return True when the name or an enclosing prefix was invalidated.
     def invalid(name):
         return any(name == prefix or name.startswith(prefix + '.') for prefix in invalidated)
 
     resolved = {}
     operations = max_nodes
 
+    ## Recursively expand supported wildcard imports within the shared budget.
+    ## 在共享预算内递归展开受支持的通配导入。
+    #
+    #  @param module Module whose wildcard bindings are requested.
+    #  @param active Modules on the current expansion path for cycle detection.
+    #  @return Binding candidates, or None for an open or unsupported namespace.
     def expand(module, active):
         nonlocal operations
         operations -= 1
@@ -164,6 +189,12 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
         resolved[module] = result
         return result
 
+    ## Follow a candidate to a uniquely bound source definition.
+    ## 沿候选来源追踪到唯一绑定的源码定义。
+    #
+    #  @param qualified Qualified candidate name.
+    #  @param seen Names already followed on the current path.
+    #  @return True only when the supported binding chain is stable.
     def stable(qualified, seen):
         nonlocal operations
         operations -= 1
@@ -188,6 +219,8 @@ def static_star_imports(module_bodies, max_nodes=1000000, max_depth=32):
             return bool(target and stable(target, seen + (qualified,)))
         return isinstance(sites[0], (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
 
+    # Publish only candidates whose whole binding chain remains stable.
+    # 仅输出整条绑定链均保持稳定的候选。
     aliases, witnesses = {}, {}
     for module in records:
         expanded = expand(module, ())

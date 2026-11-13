@@ -1,5 +1,6 @@
 ## @package pcresolve._class_metadata_read
 #  Native function scalar metadata under a closed source class-use invariant.
+#  在封闭源码类使用不变量下读取原生函数标量元数据。
 
 import ast
 
@@ -11,6 +12,8 @@ from .scope_facts import statement_scope_facts
 
 
 ## Recognize a scalar metadata read without discarding other class-use evidence.
+## 识别标量元数据读取，同时保留其他类使用的独立检查。
+#
 #  @param analyzer Fixed source generation and shared class-effect budget.
 #  @param expression Actual scalar field read from a directly selected source method.
 #  @param resolve_class Scanner provider returning exact class references for an expression.
@@ -33,6 +36,7 @@ def native_function_scalar(analyzer, expression, resolve_class):
     cls = candidates[0][1]
     # No inherited hook or class decorator can replace this direct slot. Those
     # phases require an independent proof before their reads can be projected.
+    # 继承钩子或类装饰器可能替换直接成员，须另行证明才能投影读取。
     if (cls.bases or cls.keywords or cls.decorator_list or analyzer.definition_conditions.get(owner)
             or not analyzer._stable_import_name(owner.module + '.' + owner.qualname)):
         return False
@@ -58,6 +62,7 @@ def native_function_scalar(analyzer, expression, resolve_class):
         # Deferred bodies can mutate a function through an implicit class
         # receiver which the global class-name scanner cannot resolve. Do not
         # project a referenced method until those uses have an effect proof.
+        # 延迟方法体可能通过隐式类接收者修改方法；缺少效果证明时不投影。
         if any(isinstance(node, ast.Attribute) and node.attr == lookup.attr for node in nodes):
             return False
         matches = analyzer._definition_index.find(owner.module, owner.qualname + '.' + method.name)
@@ -70,6 +75,11 @@ def native_function_scalar(analyzer, expression, resolve_class):
             if not parameters:
                 return False
 
+            ## Charge class-write analysis against the shared fact budget.
+            ## 将类写入分析计入共享事实预算。
+            #
+            #  @param count Number of visited nodes to charge.
+            #  @return None
             def charge(count):
                 analyzer._class_effect_fact_steps -= count
 

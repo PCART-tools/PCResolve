@@ -1,5 +1,6 @@
 ## @package pcresolve.decorator_provenance
-#  Decorator provenance index and evidence helpers (Phase 9-lite PR2).
+#  Decorator provenance index and evidence helpers.
+#  装饰器来源索引和证据查询工具。
 #
 #  Extracted from cross_file.ProjectAnalyzer so decorator evidence
 #  matching (_build_decorator_index, _lookup_decorated_by) lives in
@@ -7,6 +8,7 @@
 
 
 ## Build a decorator evidence index from SymbolProvenance records.
+## 根据 SymbolProvenance 记录构建装饰器证据索引。
 #
 #  Keys are (file_path, scope_name, symbol) tuples; values are
 #  lists of import-backed library names that decorate the symbol.
@@ -27,6 +29,7 @@ def build_decorator_index(all_provenance):
 
 
 ## Look up decorator evidence for an ApiCall from the index.
+## 从索引中查找 API 调用的装饰器证据。
 #
 #  Matches by (file_path, scope_name, func_name).  Scope-aware
 #  matching prevents cross-scope pollution in both directions.
@@ -44,8 +47,8 @@ def build_decorator_index(all_provenance):
 def lookup_decorated_by(file_path, func_name, scope_name, deco_by):
     key = (file_path, scope_name or "", func_name or "")
     result = list(deco_by.get(key, []))
-    # 1.0.5 P2: receiver-aware lookup — if func_name is dotted,
-    # also check the receiver part for decorator evidence.
+    # For dotted names, check the receiver only within the same file and scope.
+    # 对点分隔名称，仅在同一文件和作用域中查找接收者的装饰器证据。
     if not result and func_name and '.' in func_name:
         receiver = func_name.split('.')[0]
         receiver_key = (file_path, scope_name or "", receiver)

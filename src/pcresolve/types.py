@@ -1,11 +1,13 @@
 ## @package pcresolve.types
 #  Shared data types for API ownership and provenance analysis results.
+#  API 归属和符号来源分析结果使用的共享数据类型。
 #
 
 from dataclasses import dataclass, field
 
 
 ## Single API call record.
+## 单个 API 调用记录。
 #
 #  Captures an API call expression and its resolved primary owner.
 @dataclass
@@ -48,6 +50,7 @@ class ApiCall:
 
 
 ## Trace chain for a single symbol.
+## 单个符号的追踪链。
 #
 #  Records how a symbol resolves through aliases/assignments to its ultimate source.
 @dataclass
@@ -61,6 +64,7 @@ class SymbolChain:
 
 
 ## Result of analyzing a single Python source file.
+## 单个 Python 源文件的分析结果。
 @dataclass
 class FileAnalysis:
     ## Absolute path to the source file.
@@ -80,6 +84,7 @@ class FileAnalysis:
 
 
 ## Aggregated usage evidence for one top-level library.
+## 单个顶层库的聚合使用证据。
 @dataclass
 class LibraryUsage:
     ## Top-level library name.
@@ -105,6 +110,7 @@ class LibraryUsage:
 
 
 ## Result of analyzing an entire project.
+## 整个项目的分析结果。
 @dataclass
 class ProjectAnalysis:
     ## The project root directory that was scanned.

@@ -1,5 +1,6 @@
 ## @package pcresolve.project_result_binding
 #  Bounded call, callback, iterator, and method-result binding passes.
+#  执行有界调用、回调、迭代器和方法返回结果的绑定传播。
 
 from .ownership_contracts import _has_result_owner_contract
 from .sources import (
@@ -12,10 +13,12 @@ from .sources import (
 _SKIP_RESULT = object()
 
 ## Check whether a source contains explicit project return evidence.
+## 检查来源是否包含显式的项目返回证据。
 #  This distinguishes a receiver propagated through a local return or tuple
 #  binding from an independently verified external result contract.  The
 #  latter may classify the current call, but it must not rewrite unrelated
 #  downstream records as new call-graph evidence.
+#
 #  @param source Source value to inspect.
 #  @param _seen Recursion guard for nested source objects.
 #  @return True when the source contains a return-origin SourceSet.
@@ -45,13 +48,16 @@ def _has_return_provenance(source, _seen=None):
 
 
 ## Project result-binding passes mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目结果绑定处理。
 class ProjectResultBindingMixin:
     ## Select one positional element from a function return summary.
+    ## 从函数返回摘要中选择一个位置元素。
     #
     #  SourceSet represents alternative return branches, so every branch must
     #  provide the same positional element. A tuple DerivedResult is the only
     #  aggregate shape consumed here. Other return values remain whole-result
     #  sources and use the existing path.
+    #
     #  @param source Return summary source.
     #  @param index Zero-based assignment position.
     #  @return Selected element source, or None when position is unproven.
@@ -74,6 +80,8 @@ class ProjectResultBindingMixin:
         return None
 
     ## Return whether a summary explicitly describes a positional tuple.
+    ## 判断摘要是否明确描述了位置元组。
+    #
     #  @param source Return summary source.
     #  @return True when every alternative has tuple positional evidence.
     def _is_tuple_return_source(self, source):
@@ -85,9 +93,11 @@ class ProjectResultBindingMixin:
         return isinstance(source, DerivedResult) and source.kind == "tuple"
 
     ## Return whether one tuple element is concrete enough to replace a
+    ## 判断元组元素是否足够具体，可以替换调用方绑定。
     #  caller binding. Parameter-derived and unresolved elements must stay on
     #  the legacy bounded path, because their owner still depends on a
     #  runtime argument or an external return contract.
+    #
     #  @param source Positional tuple element source.
     #  @return True when the source carries usable owner evidence.
     def _is_resolved_return_item(self, source):
@@ -101,10 +111,12 @@ class ProjectResultBindingMixin:
         return source is not None
 
     ## Check whether a return summary contains an opaque call result.
+    ## 检查返回摘要是否包含不透明的调用结果。
     #
     #  A call's callable owner is not a contract for the returned object's
     #  owner. Inherited-target fallback therefore must not extend that legacy
     #  inference unless the CallResult carries an explicit result_source.
+    #
     #  @param source Function return summary source.
     #  @return True when any branch contains an unqualified CallResult.
     def _has_opaque_call_result(self, source):
@@ -124,11 +136,13 @@ class ProjectResultBindingMixin:
         return False
 
     ## Check whether a return summary is an unresolved receiver method call.
+    ## 检查返回摘要是否包含未解析的接收者方法调用。
     #
     #  The callable owner of ``self.worker.predict()`` does not establish the
     #  owner of the object returned by ``predict``.  Constructor-style local
     #  factories remain separate because their existing source contract is a
     #  CallResult rather than a parameter-backed InstanceMethod.
+    #
     #  @param source Function return summary source.
     #  @return True when a branch returns a parameter-backed method result.
     def _has_unresolved_method_result(self, source):
@@ -146,7 +160,10 @@ class ProjectResultBindingMixin:
         return False
 
     ## Preserve exact result calls for assigned project-local methods.
+    ## 保留赋值给变量的项目内方法调用结果。
+    #
     #  @param tracers Dict of module name to analyzer.
+    #  @return None; matching call results are propagated in place.
     def _bind_bounded_local_call_results(self, tracers):
         for caller_module, module_cg in self.project_cg.modules.items():
             tracer = tracers.get(caller_module)
@@ -165,6 +182,8 @@ class ProjectResultBindingMixin:
                         index, name, assignment_edges)
 
     ## Index assigned call edges by caller scope and target name.
+    ## 按调用方作用域和目标名称索引已赋值的调用边。
+    #
     #  @param module_cg Module call graph.
     #  @return Ordered assignment-edge mapping.
     def _assigned_call_edges(self, module_cg):
@@ -179,6 +198,8 @@ class ProjectResultBindingMixin:
         return assignments
 
     ## Resolve one assigned edge to a usable local return summary.
+    ## 为一条赋值调用边解析可用的本地返回摘要。
+    #
     #  @param edge Candidate call edge.
     #  @param caller_module Caller module name.
     #  @param tracer Caller module analyzer.
@@ -205,6 +226,8 @@ class ProjectResultBindingMixin:
         return target, summary
 
     ## Bind and propagate one assigned name from a local return summary.
+    ## 根据本地返回摘要绑定并传播一个赋值名称。
+    #
     #  @param module_cg Caller module call graph.
     #  @param tracer Caller analyzer.
     #  @param edge Producing call edge.
@@ -213,6 +236,7 @@ class ProjectResultBindingMixin:
     #  @param assigned_index Position in a tuple assignment.
     #  @param assigned_name Assigned receiver name.
     #  @param assignment_edges Ordered assignment-edge mapping.
+    #  @return None; matching symbols, records, and edges are updated in place.
     def _bind_assigned_local_result(
             self, module_cg, tracer, edge, target, summary,
             assigned_index, assigned_name, assignment_edges):
@@ -250,7 +274,9 @@ class ProjectResultBindingMixin:
             module_cg, edge, assigned_name, result_call, next_position)
 
     ## Select the whole or positional result source for one assigned name.
+    ## 为一个赋值名称选择整体结果来源或位置元素来源。
     #  A private sentinel represents an unproven tuple position.
+    #
     #  @param edge Producing call edge.
     #  @param summary Target function summary.
     #  @param assigned_index Assignment position.
@@ -266,6 +292,8 @@ class ProjectResultBindingMixin:
         return None
 
     ## Rewrite later API records that read one assigned local result.
+    ## 重写后续读取该本地结果的 API 记录。
+    #
     #  @param tracer Caller analyzer.
     #  @param edge Producing call edge.
     #  @param target Resolved local target.
@@ -273,6 +301,7 @@ class ProjectResultBindingMixin:
     #  @param current Previous direct source.
     #  @param result_call Contextual result source.
     #  @param next_position Next assignment position or None.
+    #  @return None; matching API record bases are updated in place.
     def _rewrite_assigned_result_records(
             self, tracer, edge, target, assigned_name, current,
             result_call, next_position):
@@ -296,6 +325,14 @@ class ProjectResultBindingMixin:
                 result_call, func_name.rsplit(".", 1)[-1])
 
     ## Check whether a record receiver denotes the assigned result.
+    ## 检查记录中的接收者是否指向该赋值结果。
+    #
+    #  @param self Project analyzer mixin instance.
+    #  @param record_base Normalized source recorded for the receiver.
+    #  @param current Previous direct symbol source.
+    #  @param assigned_name Name assigned from the call result.
+    #  @param result_call Contextual result source for this call.
+    #  @param target Resolved local function target.
     #  @return True when the receiver matches existing bounded evidence.
     def _assigned_receiver_matches(
             self, record_base, current, assigned_name, result_call, target):
@@ -319,11 +356,14 @@ class ProjectResultBindingMixin:
         return matches
 
     ## Rewrite later call edges that use one assigned result as receiver.
+    ## 重写后续将该赋值结果用作接收者的调用边。
+    #
     #  @param module_cg Caller module call graph.
     #  @param edge Producing call edge.
     #  @param assigned_name Assigned receiver name.
     #  @param result_call Contextual result source.
     #  @param next_position Next assignment position or None.
+    #  @return None; matching call edges are updated in place.
     def _rewrite_assigned_result_edges(
             self, module_cg, edge, assigned_name,
             result_call, next_position):
@@ -345,12 +385,15 @@ class ProjectResultBindingMixin:
             future_edge.callee_source = result_call
             self._invalidate_edge_lookup(future_edge)
     ## Bind one converged local callback return to a Pool.map result field.
+    ## 将收敛后的本地回调返回值绑定到 Pool.map 结果字段。
     #
     #  The existing callback edge proves which project function is invoked.
     #  This pass adds the reverse result edge: every callback return branch
     #  must resolve to one owner before calls through a mapped result item are
     #  rewritten. The rewrite ends at the next source-level rebind.
+    #
     #  @param tracers Dict of module name to analyzer.
+    #  @return None; matching result records and edges are updated in place.
     def _bind_bounded_callback_map_results(self, tracers):
         for caller_module, module_cg in self.project_cg.modules.items():
             tracer = tracers.get(caller_module)
@@ -401,6 +444,8 @@ class ProjectResultBindingMixin:
                             result_source)
 
     ## Return the owning class for one uniquely assigned instance field.
+    ## 返回唯一实例字段赋值对应的所属类。
+    #
     #  @param tracer Analyzer containing field assignment references.
     #  @param module_cg Caller module call graph.
     #  @param edge Pool.map assignment edge.
@@ -429,6 +474,8 @@ class ProjectResultBindingMixin:
         return class_name
 
     ## Find the next source-level assignment to one mapped result binding.
+    ## 查找对映射结果绑定的下一次源码级赋值。
+    #
     #  @param tracer Analyzer containing provenance references.
     #  @param module_cg Caller module call graph.
     #  @param edge Current Pool.map call edge.
@@ -463,6 +510,8 @@ class ProjectResultBindingMixin:
         return min(candidates) if candidates else None
 
     ## Return the method suffix following a mapped container item.
+    ## 返回映射容器项后面的方法名称后缀。
+    #
     #  @param func_name Callable spelling from an API record or edge.
     #  @param assigned_name Mapped result binding.
     #  @return Empty string for direct item calls, method name for item methods,
@@ -483,11 +532,14 @@ class ProjectResultBindingMixin:
         return suffix.rsplit(".", 1)[-1]
 
     ## Rewrite API records using one bounded mapped-result item source.
+    ## 使用有界映射结果项来源重写 API 记录。
+    #
     #  @param tracer Caller analyzer.
     #  @param edge Pool.map assignment edge.
     #  @param assigned_name Mapped result binding.
     #  @param result_source Converged callback return summary.
     #  @param next_position Next rebind position or None.
+    #  @return None; matching API records are updated in place.
     def _rewrite_mapped_result_records(
             self, tracer, edge, assigned_name, result_source,
             next_position):
@@ -512,11 +564,14 @@ class ProjectResultBindingMixin:
                 else InstanceMethod(result_source, method))
 
     ## Rewrite downstream call edges using a mapped-result item source.
+    ## 使用映射结果项来源重写下游调用边。
+    #
     #  @param module_cg Caller module call graph.
     #  @param edge Pool.map assignment edge.
     #  @param assigned_name Mapped result binding.
     #  @param result_source Converged callback return summary.
     #  @param next_position Next rebind position or None.
+    #  @return None; matching call edges are updated in place.
     def _rewrite_mapped_result_edges(
             self, module_cg, edge, assigned_name, result_source,
             next_position):
@@ -544,6 +599,8 @@ class ProjectResultBindingMixin:
                 future_edge.receiver_source = result_source
 
     ## Resolve the unique class containing one API record's method scope.
+    ## 解析唯一包含该 API 记录方法作用域的类。
+    #
     #  @param module_cg Module call graph.
     #  @param scope_name Bare method scope stored on the API record.
     #  @return Class name when unique, otherwise "".
@@ -556,11 +613,14 @@ class ProjectResultBindingMixin:
         return matches[0] if len(matches) == 1 else ""
 
     ## Rewrite mapped field-item records across one proven local class.
+    ## 在已证明的本地类中重写映射字段项记录。
+    #
     #  @param tracer Caller analyzer.
     #  @param module_cg Caller module call graph.
     #  @param class_name Class with one field assignment.
     #  @param assigned_name Mapped self-field binding.
     #  @param result_source Converged callback return summary.
+    #  @return None; matching API record bases are updated in place.
     def _rewrite_class_mapped_result_records(
             self, tracer, module_cg, class_name, assigned_name,
             result_source):
@@ -577,10 +637,13 @@ class ProjectResultBindingMixin:
                 else InstanceMethod(result_source, method))
 
     ## Rewrite mapped field-item edges across one proven local class.
+    ## 在已证明的本地类中重写映射字段项调用边。
+    #
     #  @param module_cg Caller module call graph.
     #  @param class_name Class with one field assignment.
     #  @param assigned_name Mapped self-field binding.
     #  @param result_source Converged callback return summary.
+    #  @return None; matching call edges are updated in place.
     def _rewrite_class_mapped_result_edges(
             self, module_cg, class_name, assigned_name, result_source):
         prefix = class_name + "."
@@ -599,9 +662,12 @@ class ProjectResultBindingMixin:
                 edge.receiver_source = result_source
 
     ## Bind a local generator or returned iterable to its exact for-loop.
+    ## 将本地生成器或返回迭代对象绑定到对应 for 循环。
     #  The binding is bounded by the exact iterator call site and the next
     #  rebind of each loop target. No external return contract is inferred.
+    #
     #  @param tracers Dict of module name to analyzer.
+    #  @return None; iteration bindings and downstream results are updated in place.
     def _bind_bounded_local_iteration_results(self, tracers):
         for caller_module, module_cg in self.project_cg.modules.items():
             tracer = tracers.get(caller_module)
@@ -661,15 +727,19 @@ class ProjectResultBindingMixin:
                         self._invalidate_callable_lookup()
 
     ## Substitute exact call-edge arguments into a local generator yield.
+    ## 将准确调用边参数代入本地生成器的 yield 来源。
     #
     #  A generator summary may yield one of its own parameters.  The summary
     #  is declaration-level evidence, so it still names the generator's
     #  ParameterSource.  An exact local call edge supplies the concrete source
     #  for that parameter.  This substitution is bounded to one iterator call
     #  site and does not infer any external library return semantics.
+    #
     #  @param source Generator yield source or nested source IR.
     #  @param edge Exact call edge for the iterator expression.
     #  @param summary Callee function summary containing parameter metadata.
+    #  @param tracers Analyzers used to resolve nested local yield-from edges.
+    #  @param _seen Recursion guard for nested generator parameter sources.
     #  @return Substituted source, or None when the parameter is ambiguous.
     def _substitute_generator_parameters(
             self, source, edge, summary, tracers, _seen=None):
@@ -754,11 +824,13 @@ class ProjectResultBindingMixin:
         return source
 
     ## Resolve a parameter inherited through one local yield-from edge.
+    ## 解析通过本地 yield from 边传递的形参来源。
     #
     #  For ``outer(value): yield from inner(value)``, the return summary of
     #  outer may still contain ``ParameterSource('inner', 'value')``.  Follow
     #  that exact local edge once, then let the caller's edge resolve the
     #  resulting outer parameter.  Ambiguous targets remain unresolved.
+    #
     #  @param source Nested generator ParameterSource.
     #  @param edge Outer iterator call edge.
     #  @param summary Current generator summary.
@@ -810,7 +882,10 @@ class ProjectResultBindingMixin:
             arguments[0], edge, summary, tracers, seen)
 
     ## Find the next source-level rebind of one loop target.
+    ## 查找循环目标名称在源码中的下一次重新绑定。
+    #
     #  @param module_cg Module call graph.
+    #  @param tracer Analyzer containing symbol references.
     #  @param binding Current iteration binding.
     #  @param target_name Loop target name.
     #  @return Position tuple or None.
@@ -848,11 +923,14 @@ class ProjectResultBindingMixin:
         return min(candidates) if candidates else None
 
     ## Rewrite API call records whose receiver is one generator target.
+    ## 重写以生成器循环目标为接收者的 API 调用记录。
+    #
     #  @param tracer Analyzer for the caller module.
     #  @param binding Iteration binding.
     #  @param target_name Loop target name.
     #  @param yield_source Source yielded by the target function.
     #  @param next_position Next rebind position, if any.
+    #  @return None; matching API record bases are updated in place.
     def _rewrite_generator_target_records(
             self, tracer, binding, target_name, yield_source,
             next_position):
@@ -873,11 +951,14 @@ class ProjectResultBindingMixin:
                 yield_source, func_name.rsplit(".", 1)[-1])
 
     ## Rewrite future call edges whose receiver is one generator target.
+    ## 重写以生成器循环目标为接收者的后续调用边。
+    #
     #  @param module_cg Module call graph.
     #  @param binding Iteration binding.
     #  @param target_name Loop target name.
     #  @param yield_source Source yielded by the target function.
     #  @param next_position Next rebind position, if any.
+    #  @return None; matching call edge sources are updated in place.
     def _rewrite_generator_target_edges(
             self, module_cg, binding, target_name, yield_source,
             next_position):
@@ -897,7 +978,10 @@ class ProjectResultBindingMixin:
             self._invalidate_edge_lookup(edge)
 
     ## Propagate proven receivers through assigned method calls.
+    ## 通过已赋值的方法调用传播已证明的接收者来源。
+    #
     #  @param tracers Dict of module name to analyzer.
+    #  @return None; result sources are propagated to proven method calls.
     def _bind_proven_result_method_results(self, tracers):
         for module, module_cg in self.project_cg.modules.items():
             tracer = tracers.get(module)
@@ -916,6 +1000,8 @@ class ProjectResultBindingMixin:
                     self._clear_assigned_result_flow(edge, flow)
 
     ## Bind one method edge when its receiver has one proven external owner.
+    ## 在接收者具有唯一已证明外部归属时绑定方法调用边。
+    #
     #  @param module Caller module name.
     #  @param tracer Caller module analyzer.
     #  @param edge Candidate method edge.
@@ -977,6 +1063,8 @@ class ProjectResultBindingMixin:
         return True
 
     ## Return call records located at one receiver-method edge.
+    ## 返回位于指定接收者方法调用边上的调用记录。
+    #
     #  @param tracer Caller module analyzer.
     #  @param edge Candidate call edge.
     #  @param root Receiver root name.
@@ -992,8 +1080,11 @@ class ProjectResultBindingMixin:
             and record.get("func_name", "").startswith(root + ".")]
 
     ## Remove assigned names from bounded method-result flow.
+    ## 从有界方法结果传播状态中移除已重新赋值的名称。
+    #
     #  @param edge Edge that ends or invalidates result flow.
     #  @param flow Mutable scope/name result mapping.
+    #  @return None; assigned-name flow entries are removed in place.
     def _clear_assigned_result_flow(self, edge, flow):
         for name in edge.assigned_to:
             flow.pop((edge.caller.qualname, name), None)

@@ -3,6 +3,7 @@
 #
 #  The mixin operates on SingleFileAnalyzer visitor state so call ordering,
 #  lexical bindings, and exact source positions remain snapshot-consistent.
+#  在单文件分析中收集调用边与公开 API 调用事实，并保持调用顺序、词法绑定和源码位置与快照一致。
 
 import ast
 from dataclasses import replace
@@ -32,9 +33,13 @@ from .sources import (
 )
 
 ## Collect API call and call-edge facts using SingleFileAnalyzer state.
+## 使用 SingleFileAnalyzer 的状态收集 API 调用和调用边事实。
 class SingleFileCallCollectionMixin:
     ## Record a single API call with its resolved top-level origin.
+    ## 记录单次 API 调用及其已解析的顶层来源。
+    #
     #  @param node The Call AST node.
+    #  @return None.
     def _one_api_call(self, node):
         if id(node) in self._seen_api_call_ids:
             return
@@ -49,6 +54,8 @@ class SingleFileCallCollectionMixin:
         location = self._call_location(node, func_name, parameters)
         self._snapshot_super_base_path(node, base, location)
         self._snapshot_call_assignment(func_name, location)
+        # Classify known Python-owned calls before deferred structured sources.
+        # 先处理已知属于 Python 的调用，再处理需要延后解析的结构化来源。
         if direct_name and _is_unshadowed_builtin_call(self, node):
             self._append_api_call(
                 api_string, "python", ["python"], direct_name,
@@ -94,6 +101,12 @@ class SingleFileCallCollectionMixin:
                 direct_name, func_name, parameters, location)
 
     ## Record the internal call edge before public call classification.
+    ## 在公开调用分类之前记录内部调用边。
+    #
+    #  @param node Call AST node.
+    #  @param base Resolved callable or receiver source.
+    #  @param func_name Display name of the called expression.
+    #  @return None.
     def _record_call_edge(self, node, base, func_name):
         if not self._caller_stack:
             return
@@ -125,6 +138,10 @@ class SingleFileCallCollectionMixin:
             self._mapping_edges.append((edge, mapping_value))
 
     ## Resolve the receiver source stored on a call edge.
+    ## 解析调用边上保存的接收者来源。
+    #
+    #  @param node Call AST node.
+    #  @return Receiver source for an attribute call, otherwise None.
     def _call_receiver_source(self, node):
         if not isinstance(node.func, ast.Attribute):
             return None
@@ -135,6 +152,10 @@ class SingleFileCallCollectionMixin:
         return self._call_edge_argument_source(receiver)
 
     ## Collect ordinary, protocol, iterable, and starred argument sources.
+    ## 收集普通、协议、可迭代及星号展开参数的来源。
+    #
+    #  @param node Call AST node containing the arguments.
+    #  @return Ordinary, protocol, iterable, starred positional and keyword sources.
     def _call_argument_sources(self, node):
         ordinary = {"pos": {}, "kw": {}}
         protocol = {"pos": {}, "kw": {}}
@@ -152,6 +173,9 @@ class SingleFileCallCollectionMixin:
                 argument, positional_index, ordinary, protocol, iterable)
             if positional_index is not None:
                 positional_index += 1
+        # After a starred positional argument the later positions are unknown;
+        # keyword names remain independently identifiable.
+        # 星号位置参数后的具体位置未知；关键字参数仍可单独按名称识别。
         star_kwargs = []
         for keyword in getattr(node, "keywords", []) or []:
             if keyword.arg is None:
@@ -164,6 +188,14 @@ class SingleFileCallCollectionMixin:
         return ordinary, protocol, iterable, star_args, star_kwargs
 
     ## Record the three source views for one positional argument.
+    ## 记录一个位置参数的三种来源视图。
+    #
+    #  @param argument Argument expression.
+    #  @param index Known positional index, or None after a starred argument.
+    #  @param ordinary Mutable ordinary-source mapping.
+    #  @param protocol Mutable protocol-source mapping.
+    #  @param iterable Mutable iterable-element-source mapping.
+    #  @return None.
     def _record_positional_argument_sources(
             self, argument, index, ordinary, protocol, iterable):
         if index is None:
@@ -182,6 +214,13 @@ class SingleFileCallCollectionMixin:
             iterable["pos"][index] = iterable_source
 
     ## Record the three source views for one named keyword argument.
+    ## 记录一个具名关键字参数的三种来源视图。
+    #
+    #  @param keyword Named keyword AST node.
+    #  @param ordinary Mutable ordinary-source mapping.
+    #  @param protocol Mutable protocol-source mapping.
+    #  @param iterable Mutable iterable-element-source mapping.
+    #  @return None.
     def _record_keyword_argument_sources(
             self, keyword, ordinary, protocol, iterable):
         source = self._call_edge_argument_source(keyword.value)
@@ -195,6 +234,10 @@ class SingleFileCallCollectionMixin:
             iterable["kw"][keyword.arg] = iterable_source
 
     ## Collect callback positions and multiprocessing target/args bindings.
+    ## 收集回调参数位置及 multiprocessing target/args 绑定。
+    #
+    #  @param node Call AST node containing candidate callbacks.
+    #  @return Callback positions and supported target-to-arguments bindings.
     def _call_callback_sources(self, node):
         callback_args = {}
         for index, argument in enumerate(node.args):
@@ -220,6 +263,12 @@ class SingleFileCallCollectionMixin:
         return callback_args, bindings
 
     ## Build stable source-position and lexical-scope call metadata.
+    ## 构造稳定的调用源码位置与词法作用域元数据。
+    #
+    #  @param node Call AST node.
+    #  @param func_name Display name of the called expression.
+    #  @param parameters Display representation of the arguments.
+    #  @return Mapping of call location and scope metadata.
     def _call_location(self, node, func_name, parameters):
         scope = self.current_scope()
         return {
@@ -233,6 +282,12 @@ class SingleFileCallCollectionMixin:
         }
 
     ## Snapshot a zero-argument super() receiver's class import path.
+    ## 记录无参数 super() 接收者对应的类导入路径快照。
+    #
+    #  @param node Call AST node.
+    #  @param base Resolved call base.
+    #  @param location Mutable call metadata receiving the evidence.
+    #  @return None.
     def _snapshot_super_base_path(self, node, base, location):
         if not isinstance(normalize_source(base), SuperMethod):
             return
@@ -255,6 +310,11 @@ class SingleFileCallCollectionMixin:
         location["super_decorator_module"] = decorator_module
 
     ## Snapshot flow-sensitive dotted-call assignment and import evidence.
+    ## 为点式调用保存流敏感的赋值和导入证据快照。
+    #
+    #  @param func_name Display name of the called expression.
+    #  @param location Mutable call metadata receiving the evidence.
+    #  @return None.
     def _snapshot_call_assignment(self, func_name, location):
         if not func_name or "." not in func_name:
             return
@@ -270,6 +330,10 @@ class SingleFileCallCollectionMixin:
                 or binding.source)
 
     ## Resolve a CallResult's provisional single-file owner and chain.
+    ## 解析 CallResult 在单文件分析中的暂定归属及来源链。
+    #
+    #  @param base Structured call result.
+    #  @return Provisional owner display and source chain.
     def _call_result_record_source(self, base):
         callee = base.callee
         explicit = base.result_source
@@ -298,6 +362,10 @@ class SingleFileCallCollectionMixin:
         return top, [source_display(base)]
 
     ## Return whether a call base requires deferred structured resolution.
+    ## 判断调用基底是否需要延后的结构化解析。
+    #
+    #  @param base Call base to inspect.
+    #  @return True when the base uses a supported structured representation.
     def _is_structured_call_base(self, base):
         return (isinstance(base, tuple)
                 or isinstance(base, (
@@ -305,6 +373,12 @@ class SingleFileCallCollectionMixin:
                     SuperMethod, SourceSet)))
 
     ## Resolve a structured base's provisional owner and chain.
+    ## 解析结构化调用基底的暂定归属及来源链。
+    #
+    #  @param node Call AST node.
+    #  @param base Structured call base.
+    #  @param location Mutable call metadata for receiver evidence.
+    #  @return Provisional owner display and source chain.
     def _structured_call_record_source(self, node, base, location):
         if (isinstance(base, InstanceMethod)
                 and isinstance(base.receiver, str)
@@ -317,6 +391,13 @@ class SingleFileCallCollectionMixin:
         return display, [display] if display else []
 
     ## Apply builtin-container and local-receiver evidence at a call site.
+    ## 在调用点应用内置容器及本地接收者证据。
+    #
+    #  @param node Call AST node.
+    #  @param base Instance-method source.
+    #  @param display Default structured source display.
+    #  @param location Mutable call metadata for container evidence.
+    #  @return Python, local, or the original source display.
     def _instance_method_record_source(self, node, base, display, location):
         receiver_top = self.symbols.get_top(base.receiver)
         receiver_is_local = receiver_top == "local"
@@ -333,6 +414,17 @@ class SingleFileCallCollectionMixin:
         return display
 
     ## Append one public call record and its structured call-site snapshot.
+    ## 添加一条公开调用记录及其结构化调用点快照。
+    #
+    #  @param api_string Full display expression for the call.
+    #  @param top Provisional top-level owner.
+    #  @param chain Source chain associated with the owner.
+    #  @param base Resolved call base.
+    #  @param direct_name Direct callee name, if present.
+    #  @param func_name Display name of the called expression.
+    #  @param parameters Display representation of arguments.
+    #  @param location Source and scope metadata.
+    #  @return None.
     def _append_api_call(
             self, api_string, top, chain, base, direct_name,
             func_name, parameters, location):
@@ -347,10 +439,13 @@ class SingleFileCallCollectionMixin:
         self.api_calls.append(record)
         self._collect_call_site(
             api_string, func_name, parameters, base, location)
+
     ## Preserve a lexical local callable's identity on a call edge.
+    ## 在调用边上保留词法局部可调用对象的身份。
     #
     #  Nested functions and lambdas need their qualified binding key so
     #  call contexts cannot merge unrelated same-named local definitions.
+    #
     #  @param node Call target expression.
     #  @return Local callable key or the ordinary traced source.
     def _call_edge_callee_source(self, node):
@@ -362,6 +457,7 @@ class SingleFileCallCollectionMixin:
                 return binding.callable_key
         return self.trace_source(node)
     ## Preserve a direct import-from callable for argument-flow evidence.
+    ## 为参数传播证据保留直接 from-import 的可调用对象。
     #
     #  This metadata is intentionally separate from the ordinary symbol
     #  binding so public provenance and legacy call classification keep their
@@ -387,6 +483,8 @@ class SingleFileCallCollectionMixin:
         )
 
     ## Preserve parameter forwarding in call-edge argument facts.
+    ## 在调用边参数事实中保留参数透传关系。
+    #
     #  @param node Argument expression.
     #  @return ParameterSource or ordinary argument source.
     def _call_edge_argument_source(self, node):
@@ -438,6 +536,8 @@ class SingleFileCallCollectionMixin:
         return self._value_source(node)
 
     ## Preserve the exact producing call for a receiver-protocol argument.
+    ## 为接收者协议参数保留生成它的精确调用。
+    #
     #  @param node Argument or return expression.
     #  @return Concrete Python shape, exact CallResult, or None.
     def _call_edge_protocol_source(self, node):
@@ -480,6 +580,8 @@ class SingleFileCallCollectionMixin:
         return self._expression_python_shape(node)
 
     ## Preserve exact fields of a callback argument tuple.
+    ## 保留回调参数元组的精确元素来源。
+    #
     #  @param node Candidate tuple/list expression.
     #  @return TupleSource with UnknownSource fields when needed, or None for
     #  a non-tuple expression.
@@ -493,15 +595,19 @@ class SingleFileCallCollectionMixin:
         return TupleSource(tuple(fields))
 
     ## Attach the defining module to a declaration-time call source.
+    ## 为声明时的调用来源附加定义所在模块。
     #  Default expressions are evaluated while visiting a function definition,
     #  outside the function call graph. The module fact keeps alias resolution
     #  available when that default is later propagated to a receiver.
+    #
     #  @param source Candidate argument source.
     #  @return Source with module metadata when it is a CallResult.
     def _default_argument_source(self, source):
         return self._source_with_module(source)
 
     ## Attach this analyzer's module to a call result when absent.
+    ## 调用结果缺少模块信息时附加当前分析器的模块。
+    #
     #  @param source Candidate source value.
     #  @return Source with module metadata when applicable.
     def _source_with_module(self, source):
@@ -518,6 +624,8 @@ class SingleFileCallCollectionMixin:
         )
 
     ## Return a project-local callback identity carried by one argument.
+    ## 返回参数携带的项目内回调身份。
+    #
     #  @param node Call argument AST node.
     #  @return Local function or qualified self-method name, otherwise None.
     def _call_edge_callback_name(self, node):
@@ -536,10 +644,12 @@ class SingleFileCallCollectionMixin:
         return None
 
     ## Preserve element ownership for a call argument used as an iterable.
+    ## 为用作可迭代对象的调用参数保留元素归属。
     #
     #  This fact is separate from ordinary argument ownership. A Python list
     #  may yield project-local or import-backed objects, so treating the list
     #  owner as the element owner would contaminate receiver classification.
+    #
     #  @param node Argument expression.
     #  @return Element source or None when the iterable is not explicit.
     def _call_edge_iterable_source(self, node):
@@ -565,10 +675,13 @@ class SingleFileCallCollectionMixin:
         return None
 
     ## Attach an explicit iterable's element source to its lexical binding.
+    ## 将显式可迭代对象的元素来源关联到其词法绑定。
     #
     #  Binding identity prevents a same-name container in another function
     #  from changing an already collected call edge.
+    #
     #  @param node Assignment node whose targets have already been bound.
+    #  @return None.
     def _record_iterable_binding_source(self, node):
         if not isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
             return
@@ -588,10 +701,12 @@ class SingleFileCallCollectionMixin:
                     self._binding_key(binding)] = item_source
 
     ## Resolve the result object of a builtin container method.
+    ## 解析内置容器方法的结果对象来源。
     #
     #  The method callable is Python-owned, but selection methods return a
     #  value from the receiver. Preserve that item source instead of
     #  contaminating the result object with the callable's owner.
+    #
     #  @param node Method call.
     #  @param receiver_kind Independently known builtin container kind.
     #  @param method_name Called method name.
@@ -621,10 +736,13 @@ class SingleFileCallCollectionMixin:
         return "python"
 
     ## Record a SymbolRef for provenance tracking.
+    ## 记录用于来源追踪的 SymbolRef。
+    #
     #  @param symbol Display name.
     #  @param source Source value.
     #  @param kind Symbol category.
     #  @param node Optional AST node for position.
+    #  @return None.
     def _add_symbol_ref(self, symbol, source, kind, node=None):
         scope_name = ""
         cs = self.current_scope()
@@ -644,9 +762,11 @@ class SingleFileCallCollectionMixin:
     ## --- API call detection ---
 
     ## Resolve the base of an API call for origin tracking.
+    ## 为来源追踪解析 API 调用的基底。
     #
     #  Tries getattr(), import_module(), method resolution, and
     #  call-lookup receiver resolution in order.
+    #
     #  @param node The Call AST node.
     #  @return Base symbol, structured tuple, or None.
     def _resolve_call_base_for_api(self, node):
@@ -726,8 +846,10 @@ class SingleFileCallCollectionMixin:
         return self.get_base(node.func)
 
     ## Collect all prefix calls in a chained call expression.
+    ## 收集链式调用表达式中的所有前缀调用。
     #
     #  For a.b().c().d(), returns [a.b(), c(), d()] in call order.
+    #
     #  @param node The outermost Call AST node.
     #  @return List of Call nodes from outermost to innermost chain, reversed.
     def _chained_prefix_calls(self, node):
@@ -747,11 +869,14 @@ class SingleFileCallCollectionMixin:
 
 
     ## Collect a CallSite from the raw call data.
+    ## 从原始调用数据构造并收集 CallSite。
+    #
     #  @param expression Full call expression.
     #  @param func_name Function part.
     #  @param parameters Arguments string.
     #  @param base Base symbol or source.
     #  @param loc Dict with lineno/col_offset/end_lineno/end_col_offset.
+    #  @return None.
     def _collect_call_site(self, expression, func_name, parameters,
                            base, loc):
         scope_name = ""
@@ -773,8 +898,10 @@ class SingleFileCallCollectionMixin:
         ))
 
     ## Record verified owner evidence supplied to callback parameters.
+    ## 记录提供给回调参数的已验证归属证据。
     #
     #  @param node The call expression accepting a callback.
+    #  @return None.
     def _collect_callback_parameter_sources(self, node):
         func_top, func_name = self._resolve_func_top(node.func)
         if not func_top or not func_name:
@@ -800,6 +927,8 @@ class SingleFileCallCollectionMixin:
                 (callback_key, parameter), []).append(contract[0])
 
     ## Return (func_str, args_str) tuple for a Call node.
+    ## 返回 Call 节点的函数和参数字符串元组。
+    #
     #  @param node The Call AST node.
     #  @return Tuple of (function expression, arguments string).
     def _get_call_parts(self, node):
@@ -815,6 +944,8 @@ class SingleFileCallCollectionMixin:
         return func_str, args_str
 
     ## Reconstruct a call expression as a string.
+    ## 将调用表达式重建为字符串。
+    #
     #  @param node The Call AST node.
     #  @return String representation like "func(arg1, arg2, kw=val)".
     def get_call(self, node):
@@ -822,7 +953,10 @@ class SingleFileCallCollectionMixin:
         return f"{func_str}({args_str})"
 
     ## Visit a Call node and record API calls from its chained prefix calls.
+    ## 访问 Call 节点并记录其链式前缀中的 API 调用。
+    #
     #  @param node The Call AST node.
+    #  @return None.
     def visit_Call(self, node):
         self._mapping_facts.call(node)
         self._collect_argparse_destination(node)
@@ -871,7 +1005,10 @@ class SingleFileCallCollectionMixin:
         self.generic_visit(node)
 
     ## Visit an Attribute access node and record the top-level origin.
+    ## 访问属性节点并记录顶层来源。
+    #
     #  @param node The Attribute AST node.
+    #  @return None.
     def visit_Attribute(self, node):
         attr_string = ast.unparse(node)
         name = self._attribute_name(node)
@@ -890,7 +1027,10 @@ class SingleFileCallCollectionMixin:
         self.generic_visit(node)
 
     ## Visit a With node and bind context-variable aliases.
+    ## 访问 With 节点并绑定上下文变量别名。
+    #
     #  @param node The With AST node.
+    #  @return None.
     def visit_With(self, node):
         for item in node.items:
             source = self.trace_source(item.context_expr)
@@ -899,7 +1039,10 @@ class SingleFileCallCollectionMixin:
         self.generic_visit(node)
 
     ## Visit an AsyncWith node and bind context-variable aliases.
+    ## 访问 AsyncWith 节点并绑定上下文变量别名。
+    #
     #  @param node The AsyncWith AST node.
+    #  @return None.
     def visit_AsyncWith(self, node):
         for item in node.items:
             source = self.trace_source(item.context_expr)

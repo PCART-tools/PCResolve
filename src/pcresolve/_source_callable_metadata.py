@@ -1,5 +1,6 @@
 ## @package pcresolve._source_callable_metadata
 #  Finite custom function metadata installed by a source wrapper decorator.
+#  源码包装装饰器设置的有限自定义函数元数据。
 
 import ast
 from dataclasses import asdict
@@ -9,6 +10,13 @@ from ._function_metadata import fresh_function_wraps
 from ._runtime_namespace import unmodified
 
 
+## Prove a literal custom attribute installed on a returned source wrapper.
+## 证明返回的源码包装函数上设置了字面量自定义属性。
+#
+#  @param analyzer Flow analyzer with indexed source and stable-import facts.
+#  @param target Pair of decorated function identity and AST node.
+#  @param attribute Custom attribute name to prove.
+#  @return Versioned evidence dictionary, or None when the shape is unsupported.
 def wrapper_metadata(analyzer, target, attribute):
     """Prove one literal attribute on a returned functools.wraps wrapper.
 
@@ -28,6 +36,9 @@ def wrapper_metadata(analyzer, target, attribute):
         [canonical], analyzer.imports, qualified_guard=analyzer._stable_import_name)
     if selected is None or not isinstance(selected[1], ast.FunctionDef):
         return None
+
+    # Match the whole wrapper-formation shape before asserting metadata.
+    # 断言元数据前先匹配完整的包装函数形成过程。
     decorator_ref, decorator = selected
     parameters = decorator.args.posonlyargs + decorator.args.args
     body = decorator.body[1:] if (decorator.body and isinstance(decorator.body[0], ast.Expr)
@@ -61,6 +72,9 @@ def wrapper_metadata(analyzer, target, attribute):
             or not isinstance(returned, ast.Return) or not isinstance(returned.value, ast.Name)
             or returned.value.id != wrapper.name):
         return None
+
+    # Bind the evidence to all source versions used to establish the proof.
+    # 将证据绑定到证明过程中使用的所有源码版本。
     hashes = dict(wraps['source_hashes'])
     hashes.update(analyzer.hashes)
     return {'kind': 'source_wrapper_custom_function_metadata', 'status': 'source_bound',

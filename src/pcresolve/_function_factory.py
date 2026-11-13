@@ -1,5 +1,6 @@
 ## @package pcresolve._function_factory
 #  Bounded source decorator factories over literal and native signature metadata.
+#  根据字面量和原生签名元数据有界分析源码装饰器工厂。
 
 import ast
 import copy
@@ -17,33 +18,55 @@ from .scope_facts import statement_scope_facts
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Signal that source-factory execution exceeds the supported static grammar.
+## 表示源码工厂行为超出受支持的静态语法范围。
 class _OpenFactory(ValueError):
     pass
 
 
+## Represent a source function captured or constructed by a factory.
+## 表示工厂捕获或构造的源码函数。
 @dataclass(eq=False)
 class _Function:
     node: object
     original: bool = False
 
 
+## Represent a symbolic native name used during factory evaluation.
+## 表示工厂求值期间使用的符号化原生名称。
 @dataclass
 class _Symbol:
     name: str
 
 
+## Represent a bounded functools.partial construction.
+## 表示有界的 functools.partial 构造结果。
 @dataclass
 class _Partial:
     arguments: list
     keywords: dict
 
 
+## Capture source coordinates for a factory proof witness.
+## 记录工厂证明证据的源码坐标。
+#
+#  @param ref Source definition reference.
+#  @param node AST node supporting the witness.
+#  @return File path and source coordinate mapping.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
             'end_col_offset': node.end_col_offset}
 
 
+## Resolve a local name or attribute through stable source imports.
+## 通过稳定的源码导入解析局部名称或属性。
+#
+#  @param analyzer Source analyzer providing scopes and import facts.
+#  @param ref Source definition reference containing the expression.
+#  @param scope Lexical scope for local-shadowing checks.
+#  @param node AST name or attribute expression.
+#  @return Canonical dotted name, or an empty string when unresolved.
 def _canonical(analyzer, ref, scope, node):
     if not isinstance(node, (ast.Name, ast.Attribute)):
         return ''
@@ -61,9 +84,15 @@ def _canonical(analyzer, ref, scope, node):
     return imported + (dot + rest if dot else '') if imported else ref.module + '.' + name
 
 
+## Build a host inspect.Signature from syntax without loading target defaults.
+## 根据语法构造宿主 inspect.Signature，不加载目标默认值。
+#
+#  @param node Source function AST node.
+#  @return Native signature containing opaque placeholders for defaults.
 def _signature(node):
     # These are host stdlib metadata objects built from AST, never inspect of a
     # loaded target function. No default/annotation source expression is run.
+    # 这些宿主标准库元数据对象仅由 AST 构造，不检查已加载目标函数，也不运行默认值或注解表达式。
     args = node.args
     parameters = []
     positional = args.posonlyargs + args.args
@@ -83,6 +112,11 @@ def _signature(node):
     return inspect.Signature(parameters)
 
 
+## Prove inspect.Signature and Parameter bindings remain unmodified and unobserved.
+## 证明 inspect.Signature 与 Parameter 绑定未被修改或动态观察。
+#
+#  @param analyzer Source analyzer with module bodies and stable imports.
+#  @return True only when all protected metadata bindings are safe.
 def _signature_namespace(analyzer):
     cached = analyzer._signature_factory_namespace
     if cached is not None:
@@ -144,7 +178,17 @@ def _signature_namespace(analyzer):
     return True
 
 
+## Interpret a restricted decorator-factory body using native metadata objects.
+## 使用原生元数据对象解释受限的装饰器工厂函数体。
 class _Factory:
+    ## Initialize the selected factory and its bounded evaluation state.
+    ## 初始化选中的工厂及其有界求值状态。
+    #
+    #  @param self Factory evaluator state.
+    #  @param analyzer Source analyzer with snapshot and analysis budgets.
+    #  @param target Decorated function whose factory result is being checked.
+    #  @param selected Resolved source factory owner and function pair.
+    #  @return None.
     def __init__(self, analyzer, target, selected):
         self.analyzer, self.target, self.selected = analyzer, target, selected
         self.ref, self.source = selected
@@ -152,6 +196,11 @@ class _Factory:
         self.metadata, self.registry, self.functions = [], [], []
         self.captures = {}
 
+    ## Consume local and shared node budgets before interpreting more syntax.
+    ## 在解释更多语法前消耗局部和共享节点预算。
+    #
+    #  @param self Factory evaluator state.
+    #  @return None; raises _OpenFactory when either budget is exhausted.
     def charge(self):
         self.remaining -= 1
         self.analyzer._class_effect_fact_steps -= 1
@@ -160,10 +209,23 @@ class _Factory:
         if self.remaining < 0 or self.analyzer._class_effect_fact_steps < 0:
             raise _OpenFactory()
 
+    ## Require the selected name to resolve to an unshadowed builtin.
+    ## 要求指定名称解析为未被遮蔽的内建函数。
+    #
+    #  @param self Factory evaluator state.
+    #  @param name Builtin identifier to validate.
+    #  @return None; raises _OpenFactory when identity is not confirmed.
     def builtin(self, name):
         if self.analyzer._builtin_name_status(self.ref, self.source, name) != 'confirmed_builtin':
             raise _OpenFactory()
 
+    ## Evaluate one expression from the finite factory metadata grammar.
+    ## 计算有限工厂元数据语法中的一个表达式。
+    #
+    #  @param self Factory evaluator and evidence collector.
+    #  @param node Expression AST node.
+    #  @param env Current symbolic factory environment.
+    #  @return Evaluated native or symbolic value; unsupported syntax raises _OpenFactory.
     def evaluate(self, node, env):
         self.charge()
         if isinstance(node, ast.Constant) and type(node.value) in (str, int, bool, float, type(None)):
@@ -294,6 +356,13 @@ class _Factory:
             raise _OpenFactory()
         raise _OpenFactory()
 
+    ## Execute a factory statement block in the restricted symbolic environment.
+    ## 在受限符号环境中解释工厂语句块。
+    #
+    #  @param self Factory evaluator collecting wrappers and registry effects.
+    #  @param statements Ordered source statements to interpret.
+    #  @param env Mutable symbolic environment.
+    #  @return Explicit return value, or None after normal fallthrough.
     def block(self, statements, env):
         for statement in statements:
             self.charge()
@@ -349,6 +418,12 @@ class _Factory:
                 raise _OpenFactory()
         return None
 
+    ## Confirm a module dictionary is a closed native-function registry.
+    ## 确认模块字典是仅保存原生函数的封闭注册表。
+    #
+    #  @param self Factory evaluator with module import and binding facts.
+    #  @param name Module-level registry variable name.
+    #  @return True when all registry writes and reads match the supported protocol.
     def registry_binding(self, name):
         qualified = self.ref.module + '.' + name
         if (not unmodified(self.analyzer, qualified)
@@ -410,6 +485,14 @@ class _Factory:
         return True
 
 
+## Prove a wrapper forwards its original positional and keyword arguments.
+## 证明包装函数转发原始位置参数与关键字参数。
+#
+#  @param wrapper Constructed wrapper function AST node.
+#  @param captures Symbolic values captured by the wrapper.
+#  @param target Original function source reference and node.
+#  @param ref Factory source reference for evidence locations.
+#  @return Forwarding fact, or None when any path changes the arguments.
 def _forwarding(wrapper, captures, target, ref):
     args = wrapper.args
     if args.posonlyargs or args.args or args.kwonlyargs or not args.vararg or not args.kwarg:
@@ -431,6 +514,11 @@ def _forwarding(wrapper, captures, target, ref):
     parents = {child: parent for parent in ast.walk(wrapper)
                for child in ast.iter_child_nodes(parent)}
 
+    ## Match a call that forwards the wrapper's original *args and **kwargs.
+    ## 匹配转发包装函数原始 *args 和 **kwargs 的调用。
+    #
+    #  @param call Candidate return call expression.
+    #  @return True when the call preserves both argument collections.
     def direct_forward(call):
         forwarded = captures.get(call.func.id) if isinstance(call.func, ast.Name) else None
         return (isinstance(forwarded, _Function) and forwarded.original
@@ -444,6 +532,11 @@ def _forwarding(wrapper, captures, target, ref):
 
     returns = []
 
+    ## Gather explicit returns without descending into nested definitions.
+    ## 收集显式返回语句，但不进入嵌套定义。
+    #
+    #  @param node AST subtree whose return statements are collected.
+    #  @return None; appends eligible return nodes to the enclosing list.
     def collect_returns(node):
         if node is not wrapper and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                                                       ast.Lambda, ast.ClassDef)):
@@ -505,10 +598,18 @@ def _forwarding(wrapper, captures, target, ref):
             'call_evidence': _span(ref, returns[-1].value)}
 
 
-## Prove one literal source factory producing a native metadata wrapper function.
+## Prove one literal source factory produces a native metadata wrapper function.
+## 证明字面量源码工厂会构造原生元数据包装函数。
+#
 #  @param analyzer Fixed source snapshot; source expressions are interpreted, never run.
 #  @param target Fresh source member with exactly one literal decorator factory call.
 #  @return Namespace construction fact, or None outside the finite metadata grammar.
+## Return the cached wrapper-factory proof for an exact source member.
+## 返回指定源码成员的缓存包装工厂证明。
+#
+#  @param analyzer Source analyzer with factory proof cache.
+#  @param target Exact decorated function source reference and AST node.
+#  @return Deep-copied wrapper construction fact, or None when unsupported.
 def factory_wrapper(analyzer, target):
     cache = analyzer._function_factory_cache
     key = (target[0], id(target[1]))
@@ -518,6 +619,12 @@ def factory_wrapper(analyzer, target):
     return copy.deepcopy(cache[key])
 
 
+## Verify and summarize one supported literal decorator-factory construction.
+## 验证并汇总一个受支持的字面量装饰器工厂构造。
+#
+#  @param analyzer Source analyzer providing definitions and namespace proofs.
+#  @param target Exact decorated function source reference and AST node.
+#  @return Source-bound construction fact, or None when proof is incomplete.
 def _factory_wrapper(analyzer, target):
     ref, member = target
     if (analyzer.index_boundaries or not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))

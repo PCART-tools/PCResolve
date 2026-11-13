@@ -1,5 +1,6 @@
 ## @package pcresolve._class_deferred
 #  Declaration-time effects of private source helpers and fresh function objects.
+#  分析私有源码辅助函数与新建函数对象在声明阶段产生的效果。
 
 import ast
 import builtins
@@ -16,6 +17,12 @@ from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Check that a function has a closed declaration with supported parameters.
+## 检查函数声明是否封闭且参数形态受支持。
+#
+#  @param node Candidate function AST node.
+#  @param allow_decorators Whether the caller has separately validated decorators.
+#  @return True when defaults, annotations, and return annotations are absent.
 def _declaration(node, allow_decorators=False):
     args = node.args
     arguments = args.posonlyargs + args.args + args.kwonlyargs
@@ -25,6 +32,11 @@ def _declaration(node, allow_decorators=False):
             and not any(arg.annotation is not None for arg in arguments) and node.returns is None)
 
 
+## Return statements excluding an inert leading docstring expression.
+## 返回移除无执行效果文档字符串后的函数体语句。
+#
+#  @param node Function-like AST node.
+#  @return Body statements excluding string-expression docstrings.
 def _body(node):
     return [statement for statement in node.body if not (
         isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
@@ -32,6 +44,8 @@ def _body(node):
 
 
 ## Isolate fresh function-object construction from arbitrary future method bodies.
+## 将新建函数对象构造与后续任意方法体效果隔离。
+#
 #  @param analyzer Fixed source snapshot and optional analysis budget.
 #  @param target Source class-decorator function pair, possibly literal-specialized.
 #  @param parameter Protected class parameter; other namespaces remain unproved.
@@ -58,19 +72,42 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         if analyzer._analysis_budget is not None:
             analyzer._analysis_budget.checkpoint()
 
+    ## Capture a source location for deferred-effect evidence.
+    ## 记录延后效果证据对应的源码位置。
+    #
+    #  @param node AST node whose source coordinates are recorded.
+    #  @return File path and source-coordinate mapping.
     def span(node):
         return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
                 'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
+    ## Replace a fresh function expression with a marker that carries no invariant.
+    ## 将新建函数表达式替换为不携带值不变量的标记。
+    #
+    #  @param node Original expression whose source location is retained.
+    #  @return Synthetic AST name at the original source location.
     def placeholder(node):
         # This effect-only marker must not acquire a literal-value invariant:
         # a stored closure can mutate the protected class when called later.
         # The synthetic name is deliberately outside Python source identifiers.
         return ast.copy_location(ast.Name(id='$deferred_class_function', ctx=ast.Load()), node)
 
+    ## Check whether a local name refers to a fresh helper or function.
+    ## 检查局部名称是否指向新建辅助函数或函数对象。
+    #
+    #  @param state Current helper/function binding state.
+    #  @param name Local name to query.
+    #  @return True when the binding is a supported fresh value.
     def fresh(state, name):
         return name in state and state[name][0] in ('helper', 'fresh')
 
+    ## Build metadata-formation evidence for a fresh function object.
+    ## 为新建函数对象构建元数据形成证据。
+    #
+    #  @param node Fresh function AST node.
+    #  @param wrappers Validated metadata wrapper premises.
+    #  @param call Factory invocation producing the function.
+    #  @return Metadata formation fact, or None when module metadata is unstable.
     def formation(node, wrappers, call):
         if module_native[0] is None:
             bindings = analyzer.import_binding_facts.get(ref.module, [])
@@ -101,6 +138,14 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 'no_external_frame_introspection']
                 + [item for wrapper in wrappers for item in wrapper['assumptions']]))}
 
+    ## Record a stored function metadata snapshot when its formation is proven.
+    ## 仅在函数元数据形成得到证明时记录其存储快照。
+    #
+    #  @param name Stored metadata attribute name.
+    #  @param value Local name containing the fresh function.
+    #  @param state Current helper/function binding state.
+    #  @param statement Assignment providing the source evidence.
+    #  @return None; adds complete metadata evidence in place.
     def store_metadata(name, value, state, statement):
         payload = state[value][2] if len(state[value]) == 3 else None
         if payload is None or payload['formation'] is None or name is None:
@@ -112,6 +157,16 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                           'store_evidence': span(statement), '_token': payload['token']})
         published.add(payload['token'])
 
+    ## Update aliased function metadata and invalidate stale stored snapshots.
+    ## 更新别名函数元数据并使过期存储快照失效。
+    #
+    #  @param name Local function binding being updated.
+    #  @param field Metadata field such as __doc__ or __name__.
+    #  @param value Assigned metadata expression.
+    #  @param state Current helper/function binding state.
+    #  @param values Known local string values.
+    #  @param statement Assignment supplying the evidence location.
+    #  @return None; updates aliases and snapshots in place.
     def metadata_write(name, field, value, state, values, statement):
         current = state[name]
         payload = current[2] if len(current) == 3 else None
@@ -139,6 +194,10 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             if other is not None and other['token'] == token:
                 state[alias] = (item[0], item[1], updated)
 
+    ## Cache whether relevant builtin namespace bindings remain stable.
+    ## 缓存相关内建命名空间绑定是否稳定的结论。
+    #
+    #  @return True when namespace operations are proven to use builtins.
     def native_namespace():
         if namespace_guard[0] is None:
             try:
@@ -148,15 +207,37 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 namespace_guard[0] = False
         return namespace_guard[0]
 
+    ## Inline fresh helpers into expressions while preserving source semantics.
+    ## 将新建辅助函数内联到表达式，同时保留源码语义约束。
+    #
+    #  @param node Expression to validate and rewrite.
+    #  @param state Current helper/function binding state.
+    #  @param values Known local string values for specialization.
+    #  @return Rewritten expression; raises ValueError for unsupported effects.
     def expression(node, state, values=None):
         if node is None:
             return None
         values = values or {}
 
+        ## Rewrite only class-safe observations and immediately invoked helpers.
+        ## 仅改写类安全观察及立即调用的辅助函数。
         class Inline(ast.NodeTransformer):
+            ## Initialize recursion tracking for helper inlining.
+            ## 初始化辅助函数内联的递归跟踪。
+            ## 初始化辅助函数内联的递归跟踪。
+            #
+            #  @param self AST transformer instance.
+            #  @return None.
             def __init__(self):
                 self.active = set()
 
+            ## Keep deferred callable bodies opaque during expression rewriting.
+            ## 表达式改写期间保持延后执行的可调用函数体不透明。
+            ## 表达式改写期间保持延后执行的可调用函数体不透明。
+            #
+            #  @param self AST transformer instance.
+            #  @param item Lambda node to preserve.
+            #  @return Unmodified lambda node.
             def visit_Lambda(self, item):
                 return item
 
@@ -165,6 +246,13 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             visit_SetComp = visit_Lambda
             visit_DictComp = visit_Lambda
 
+            ## Replace a guarded vars(class) membership test with its proof marker.
+            ## 将受守卫的 vars(class) 成员测试替换为证明标记。
+            ## 将受守卫的 vars(class) 成员测试替换为证明标记。
+            #
+            #  @param self AST transformer instance.
+            #  @param item Comparison node to inspect.
+            #  @return Rewritten comparison or recursively transformed node.
             def visit_Compare(self, item):
                 if (len(item.ops) == 1 and isinstance(item.ops[0], (ast.In, ast.NotIn))
                         and len(item.comparators) == 1 and string(item.left, values) is not None):
@@ -182,6 +270,13 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                                 id='$native_class_namespace_membership', ctx=ast.Load()), item)
                 return self.generic_visit(item)
 
+            ## Validate native lookups and inline one exact private helper call.
+            ## 校验原生查找并内联一个精确的私有辅助函数调用。
+            ## 校验原生查找并内联一个精确的私有辅助函数调用。
+            #
+            #  @param self AST transformer with active recursion state.
+            #  @param call Call expression to inspect.
+            #  @return Rewritten expression or raises ValueError when unsupported.
             def visit_Call(self, call):
                 if (isinstance(call.func, ast.Name) and call.func.id == 'getattr'
                         and len(call.args) == 3 and not call.keywords
@@ -245,6 +340,12 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             raise ValueError()
         return result
 
+    ## Evaluate a bounded string expression from known values and literals.
+    ## 根据已知值和字面量求值有界字符串表达式。
+    #
+    #  @param node Candidate string expression.
+    #  @param values Known local string values.
+    #  @return String value within the limit, or None when unresolved.
     def string(node, values):
         if isinstance(node, ast.Name):
             return values.get(node.id)
@@ -277,6 +378,12 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             return ''.join(pieces)
         return None
 
+    ## Record direct class-namespace writes in the current statement inputs.
+    ## 记录当前语句输入中对类命名空间的直接写入。
+    #
+    #  @param statement Source statement being analyzed.
+    #  @param values Known local string values.
+    #  @return None; updates dirty attributes and write evidence in place.
     def writes(statement, values):
         if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Name):
             if statement.value.id in class_aliases:
@@ -297,6 +404,13 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 dirty.add(name)
                 write_sites.append({'attribute': name, 'statement_evidence': span(statement)})
 
+    ## Recognize a helper call that constructs and returns a fresh inner function.
+    ## 识别会构造并返回新建内层函数的辅助函数调用。
+    #
+    #  @param call Factory helper invocation.
+    #  @param state Current helper/function binding state.
+    #  @param values Known local string values.
+    #  @return Fresh function binding and argument-evaluation statements, or None.
     def created(call, state, values):
         if not isinstance(call.func, ast.Name) or not fresh(state, call.func.id):
             return None
@@ -320,6 +434,11 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         arguments += [expression(kw.value, state, values) for kw in call.keywords]
         bound = {record['parameter']: string(record['node'], values) for record in records}
 
+        ## Prove a deferred getter reads one stable native class attribute.
+        ## 证明延后 getter 读取一个稳定的原生类属性。
+        #
+        #  @param node Candidate getter expression.
+        #  @return Class-read premise, or None when the read is not proven.
         def class_read(node):
             if (not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name)
                     or node.func.id != 'getattr' or len(node.args) != 2 or node.keywords
@@ -354,6 +473,12 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         return ('fresh', body[0], payload), [ast.copy_location(ast.Expr(value=value), call)
                                   for value in arguments]
 
+    ## Merge branch bindings, retaining only facts that agree on both paths.
+    ## 合并分支绑定，仅保留两条路径都一致的事实。
+    #
+    #  @param left Binding state after the left branch.
+    #  @param right Binding state after the right branch.
+    #  @return Conservative binding state after the branch join.
     def merge(left, right):
         result = {}
         for name in set(left) | set(right):
@@ -364,6 +489,14 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                                 else (*left[name][:2], None))
         return result
 
+    ## Interpret declaration-time statements and preserve bounded branch paths.
+    ## 解释声明阶段语句并保留有界分支路径。
+    #
+    #  @param body Ordered statements to interpret.
+    #  @param state Mutable helper/function bindings.
+    #  @param values Mutable known literal values.
+    #  @param depth Current nested-branch depth.
+    #  @return Rewritten statements; raises ValueError when effects are open.
     def block(body, state, values, depth=0):
         if depth > 32:
             raise ValueError()
@@ -415,6 +548,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 # Bound effects on every branch; this overapproximates the
                 # continuation after a terminating native raise. It does not
                 # establish normal completion or suppress the source exception.
+                # 每条分支都纳入效果上界；这不证明正常完成，也不会抑制源码异常。
                 output.append(ast.copy_location(ast.Expr(value=value), statement))
                 exception_branches.append({'exception': name, 'evidence': span(statement),
                     'completion': 'source_exceptional_exit', 'runtime_exception_confirmed': False})

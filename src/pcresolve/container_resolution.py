@@ -3,6 +3,7 @@
 #
 #  The mixin owns bounded container evidence while ProjectAnalyzer supplies
 #  project call contexts, recursive source resolution, and owner candidates.
+#  根据项目调用上下文和来源证据解析容器元素、迭代与返回值归属。
 
 from .builtin_ownership import _builtin_method_return_shape
 from .ownership_model import bounded_ownership_query
@@ -17,6 +18,8 @@ from .sources import (
 
 
 ## Select one field from a bounded tuple/list source.
+## 从有界元组或列表来源中选取一个字段。
+#
 #  @param source Candidate tuple/list source.
 #  @param index Zero-based field index.
 #  @return Field source, or None when the field is not proven.
@@ -30,8 +33,11 @@ def _tuple_source_item(source, index):
 
 
 ## Resolve container ownership through project-level provenance facts.
+## 通过项目级来源事实解析容器归属。
 class ContainerResolutionMixin:
     ## Normalize a container index to its positive equivalent.
+    ## 将容器索引规范化为等价的非负索引。
+    #
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @param container_name Name of the container variable.
     #  @param key_idx Raw index (may be negative).
@@ -47,9 +53,11 @@ class ContainerResolutionMixin:
         return key_idx
 
     ## Resolve a container item access to its source symbol.
+    ## 将容器元素访问解析为其来源符号。
     #
     #  Looks up the item in the current module's container_items, and falls
     #  back to cross-file import if not found locally.
+    #
     #  @param module The module where the access occurs.
     #  @param container_name Name of the container variable.
     #  @param key_idx The index/key being accessed.
@@ -76,6 +84,9 @@ class ContainerResolutionMixin:
         return None
 
     ## Add a candidate to the list if not already visited.
+    ## 在尚未访问时将候选来源加入列表。
+    #
+    #  @return None
     #  @param module The current module.
     #  @param src The source symbol.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
@@ -90,6 +101,8 @@ class ContainerResolutionMixin:
             candidates.append(top_src)
 
     ## Collect all candidates for a container's iteration source.
+    ## 收集容器迭代来源的全部候选。
+    #
     #  @param module The current module.
     #  @param tracer The SingleFileAnalyzer for the module.
     #  @param container_name Name of the container variable.
@@ -108,11 +121,13 @@ class ContainerResolutionMixin:
         return candidates
 
     ## Resolve Python element shapes carried by an iterable argument.
+    ## 解析可迭代实参携带的 Python 元素形态。
     #
     #  This uses only a concrete PythonShape already recorded at a call site.
     #  A dictionary's value shape is not reused for iteration because Python
     #  iteration yields keys, not values. Unknown or mixed shapes remain
     #  unknown.
+    #
     #  @param source Argument source or PythonShape.
     #  @return List of element sources, or None when no Python shape was
     #  proven for this argument.
@@ -135,6 +150,8 @@ class ContainerResolutionMixin:
         return None
 
     ## Resolve a concrete Python protocol through exact local return contexts.
+    ## 通过精确的本地返回上下文解析具体 Python 协议形态。
+    #
     #  @param module Source module.
     #  @param source Value source, distinct from its primary owner.
     #  @param tracers Per-module analyzers.
@@ -150,6 +167,9 @@ class ContainerResolutionMixin:
                if context is not None else None)
         if key in self._python_shape_in_progress:
             return None
+
+        # Track active cross-resolver queries to stop recursive shape inference.
+        # 跟踪正在进行的跨解析器查询，防止形态推断递归。
         self._python_shape_in_progress.add(key)
         try:
             return self._infer_returned_python_shape(
@@ -158,6 +178,8 @@ class ContainerResolutionMixin:
             self._python_shape_in_progress.remove(key)
 
     ## Infer a Python shape while the cross-resolver recursion guard is held.
+    ## 在跨解析器递归保护下推断 Python 形态。
+    #
     #  @param module Source module.
     #  @param source Value source.
     #  @param tracers Per-module analyzers.
@@ -205,6 +227,10 @@ class ContainerResolutionMixin:
         return None
 
     ## Select one shape only when every candidate is equal and known.
+    ## 仅当所有候选均已知且相等时选择该形态。
+    #
+    #  @param values Candidate shapes.
+    #  @return Uniform shape or None for empty, unknown, or differing candidates.
     def _uniform_python_shapes(self, values):
         result = None
         for value in values:
@@ -214,6 +240,14 @@ class ContainerResolutionMixin:
         return result
 
     ## Resolve a parameter's Python shape through exact call contexts.
+    ## 通过精确调用上下文解析参数的 Python 形态。
+    #
+    #  @param module Module containing the parameter.
+    #  @param source Parameter source.
+    #  @param tracers Per-module analyzers.
+    #  @param context Enclosing call context, if available.
+    #  @param seen Path-local recursion guard.
+    #  @return Uniform PythonShape or None when not proven.
     def _parameter_returned_python_shape(
             self, module, source, tracers, context, seen):
         if (source.attributes or (source.derived
@@ -257,6 +291,14 @@ class ContainerResolutionMixin:
         return shape
 
     ## Resolve Python shape from bounded local call return summaries.
+    ## 从有界本地调用返回摘要解析 Python 形态。
+    #
+    #  @param module Module containing the call.
+    #  @param source Call-result source.
+    #  @param tracers Per-module analyzers.
+    #  @param context Enclosing call context, if available.
+    #  @param seen Path-local recursion guard.
+    #  @return Uniform PythonShape or None when not proven.
     def _call_result_returned_python_shape(
             self, module, source, tracers, context, seen):
         origin = source.source_module or module
@@ -283,6 +325,14 @@ class ContainerResolutionMixin:
         return None
 
     ## Resolve the Python shape produced by a method result.
+    ## 解析方法结果产生的 Python 形态。
+    #
+    #  @param module Module containing the method.
+    #  @param source Method source.
+    #  @param tracers Per-module analyzers.
+    #  @param context Enclosing call context, if available.
+    #  @param seen Path-local recursion guard.
+    #  @return PythonShape or None when unsupported or unknown.
     def _instance_method_returned_python_shape(
             self, module, source, tracers, context, seen):
         receiver = source.receiver
@@ -303,6 +353,8 @@ class ContainerResolutionMixin:
         return None
 
     ## Resolve project-returned elements without erasing their value sources.
+    ## 解析项目返回的元素，并保留其各自的值来源。
+    #
     #  @param module Module containing the source expression.
     #  @param source Element source, or iterable when iterable is True.
     #  @param tracers Per-module analyzers.
@@ -354,6 +406,15 @@ class ContainerResolutionMixin:
         return None
 
     ## Resolve returned elements forwarded from a parameter.
+    ## 解析从参数转发的返回元素。
+    #
+    #  @param module Module containing the parameter.
+    #  @param source Parameter source.
+    #  @param tracers Per-module analyzers.
+    #  @param context Enclosing call context, if available.
+    #  @param iterable Whether iterable elements are requested.
+    #  @param seen Path-local recursion guard.
+    #  @return Origin and source pairs, or None when not proven.
     def _parameter_returned_element_sources(
             self, module, source, tracers, context, iterable, seen):
         if source.derived or source.attributes:
@@ -396,6 +457,14 @@ class ContainerResolutionMixin:
         return elements or None
 
     ## Resolve iterable elements from a bounded local call result.
+    ## 从有界本地调用结果解析可迭代元素。
+    #
+    #  @param module Module containing the call.
+    #  @param source Call-result source.
+    #  @param tracers Per-module analyzers.
+    #  @param context Enclosing call context, if available.
+    #  @param seen Path-local recursion guard.
+    #  @return Origin and source pairs, or None when no evidence is available.
     def _call_result_returned_element_sources(
             self, module, source, tracers, context, seen):
         origin = source.source_module or module
@@ -423,6 +492,8 @@ class ContainerResolutionMixin:
         return elements
 
     ## Resolve an iteration over a container to its source(s).
+    ## 将容器迭代解析为元素来源候选。
+    #
     #  @param module The current module.
     #  @param container_name Name of the container variable.
     #  @param tracers Dict of module_name -> SingleFileAnalyzer.
@@ -466,6 +537,13 @@ class ContainerResolutionMixin:
         return None
 
     ## Resolve iteration over a parameter from its exact call arguments.
+    ## 根据精确调用实参解析参数的迭代来源。
+    #
+    #  @param module Module containing the parameter.
+    #  @param source Parameter source.
+    #  @param tracer Analyzer for the source module.
+    #  @param tracers Per-module analyzers.
+    #  @return Module and candidate list, including unknown when unresolved.
     def _parameter_container_iter_source(
             self, module, source, tracer, tracers):
         if source.derived or source.attributes:
@@ -505,6 +583,13 @@ class ContainerResolutionMixin:
         return (module, self._dedupe_list(candidates) or ["unknown"])
 
     ## Resolve iteration over a call result from explicit element evidence.
+    ## 根据显式元素证据解析调用结果的迭代来源。
+    #
+    #  @param module Module containing the call.
+    #  @param source Call-result source.
+    #  @param tracer Analyzer for the source module.
+    #  @param tracers Per-module analyzers.
+    #  @return Module and candidate list, including unknown when unresolved.
     def _call_result_container_iter_source(
             self, module, source, tracer, tracers):
         elements = tracer.return_element_sources.get(source.callee)
@@ -521,6 +606,8 @@ class ContainerResolutionMixin:
         return (module, ["unknown"])
 
     ## Resolve one structured container-item source.
+    ## 解析单个结构化容器元素来源。
+    #
     #  @param module Module containing the item access.
     #  @param a Container source extracted by the dispatcher.
     #  @param b Item index or key extracted by the dispatcher.
@@ -579,6 +666,8 @@ class ContainerResolutionMixin:
         return (f"{a}[{b}]", module, a)
 
     ## Resolve one structured container-iteration source.
+    ## 解析单个结构化容器迭代来源。
+    #
     #  @param module Module containing the iteration.
     #  @param a Container source extracted by the dispatcher.
     #  @param tracers Dict of module name to analyzer.
@@ -586,7 +675,8 @@ class ContainerResolutionMixin:
     def _resolve_container_iter_source(self, module, a, tracers):
         resolved = self._resolve_container_iter(module, a, tracers)
         if not resolved:
-            ## Cannot determine element type — conservative fallback.
+            # An unresolved element source stays unknown.
+            # 元素来源无法解析时保留 unknown。
             return (f"{a}[*]", module, "unknown")
         src_module, candidates = resolved
         if len(candidates) == 1:

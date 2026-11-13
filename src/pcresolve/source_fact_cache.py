@@ -1,5 +1,6 @@
 ## @package pcresolve.source_fact_cache
 #  Detached ownership visitor facts, captured before any project propagation.
+#  在项目级传播前捕获并隔离的归属访问器事实。
 
 import ast
 from copy import deepcopy
@@ -8,6 +9,8 @@ from .call_graph import FunctionId
 
 
 ## Copy collected facts without copying ASTs or retaining callbacks to another run.
+## 复制已收集事实，不复制 AST，也不保留指向其他运行的回调。
+#
 #  @param tracer Pristine single-file visitor state, never a propagated tracer.
 #  @param document Read-only source version owning its AST identities.
 #  @param budget Optional current analysis budget.
@@ -24,6 +27,9 @@ def clone_source_facts(tracer, document, budget=None):
     if previous_budget is not None:
         memo[id(previous_budget)] = None
     copied = deepcopy(tracer, memo)
+
+    # Rebind callbacks to the copied visitor so later propagation stays isolated.
+    # 将回调重新绑定到副本，使后续传播互不干扰。
     copied._analysis_budget = budget
     facts = copied._mapping_facts
     facts.lookup = copied._mapping_binding

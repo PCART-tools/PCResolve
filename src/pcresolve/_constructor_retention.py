@@ -1,5 +1,6 @@
 ## @package pcresolve._constructor_retention
 #  Partial fresh-receiver write proofs, separate from execution/completion facts.
+#  推导新鲜接收者的部分写入事实，并与执行和完成状态分开。
 
 import ast
 from dataclasses import asdict
@@ -11,15 +12,21 @@ from ._class_definition import _source_callable_object_identity
 from ._property_namespace import _stable_builtin_namespace
 
 
+## Signal an open receiver effect or unsupported constructor behavior.
+## 表示接收者效果开放或构造器行为不受支持。
 class _OpenReceiver(Exception):
     pass
 
 
 ## Describe root initializer stores retained on normal construction return.
+## 描述根初始化器在构造正常返回后保留的属性写入。
+#
 #  @param analyzer Fixed source generation and bounded source lookup.
 #  @param hierarchy Source MRO already checked by the constructor binding.
 #  @param target Selected initializer definition pair.
 #  @param binding Source class invocation binding, never a runtime observation.
+#  @param lookup_name Optional attribute whose writes must be excluded.
+#  @param return_effects Whether to return the broader receiver effect summary.
 #  @return Store witnesses, or none for open protocols, effects or budgets.
 def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
                     return_effects=False):
@@ -82,6 +89,13 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
     receiver_values = {}
     unknown = object()
 
+    ## Resolve a literal, local, or previously written receiver attribute.
+    ## 解析字面量、局部值或先前写入的接收者属性。
+    #
+    #  @param node Expression whose known value is requested.
+    #  @param locals_ Current local literal values.
+    #  @param receiver Receiver parameter identifier.
+    #  @return Known value, or the local unknown sentinel.
     def known_value(node, locals_, receiver):
         if isinstance(node, ast.Constant):
             return node.value
@@ -92,6 +106,15 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
             return receiver_values.get(node.attr, unknown)
         return unknown
 
+    ## Evaluate a condition only when all required values are statically known.
+    ## 仅在所需值均可静态确定时计算条件。
+    #
+    #  @param node Condition expression to inspect.
+    #  @param locals_ Current local literal values.
+    #  @param receiver Receiver parameter identifier.
+    #  @param owner Source reference owning the method.
+    #  @param method Method AST node used for builtin checks.
+    #  @return Boolean result, or the unknown sentinel.
     def known_condition(node, locals_, receiver, owner=ref, method=initializer):
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 and node.func.id == 'len' and len(node.args) == 1 and not node.keywords
@@ -125,6 +148,11 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
         value = known_value(node, locals_, receiver)
         return unknown if value is unknown else bool(value)
 
+    ## Find a property setter only when builtin property binding is stable.
+    ## 仅在内建 property 绑定稳定时查找属性 setter。
+    #
+    #  @param name Property name to resolve.
+    #  @return Owner and setter node, or raises _OpenReceiver on ambiguity.
     def property_setter(name):
         for owner, cls in hierarchy:
             members = [item for item in cls.body
@@ -151,6 +179,12 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
 
     decorator_assumptions, decorator_dependencies = set(), set()
 
+    ## Prove a source decorator preserves the callable object's identity.
+    ## 证明源码装饰器保留可调用对象身份。
+    #
+    #  @param owner Class source reference containing the method.
+    #  @param method Method node whose decorators are inspected.
+    #  @return True when the identity-preserving protocol is proven.
     def callable_object_identity_decorator(owner, method):
         classes = analyzer._definition_index.find(owner.module, owner.qualname, kind='class')
         if len(classes) != 1:
@@ -164,6 +198,11 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
             decorator_dependencies.update(dependencies)
         return proven
 
+    ## Confirm a class member is a single immutable literal assignment.
+    ## 确认类成员是唯一的不可变字面量赋值。
+    #
+    #  @param name Class member name to inspect.
+    #  @return True when a supported constant binding is found.
     def plain_class_constant(name):
         for owner, cls in hierarchy:
             bindings = []
@@ -190,6 +229,11 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
                     and type(statement.value.value) in (type(None), bool, int, float, str, bytes))
         return False
 
+    ## Confirm a property getter returns a direct receiver attribute.
+    ## 确认属性 getter 直接返回接收者属性。
+    #
+    #  @param name Property name to inspect.
+    #  @return True only for a simple builtin property getter.
     def plain_receiver_property(name):
         for owner, cls in hierarchy:
             members = [item for item in cls.body
@@ -215,11 +259,22 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
             return True
         return False
 
+    ## Consume one unit of the local syntax-inspection budget.
+    ## 消耗一单位局部语法检查预算。
+    #
+    #  @param node AST node being inspected.
+    #  @return None; raises _OpenReceiver when the budget is exhausted.
     def charge(node):
         remaining[0] -= 1
         if remaining[0] < 0:
             raise _OpenReceiver()
 
+    ## Resolve the next supported method implementation in the class hierarchy.
+    ## 在类继承层次中解析下一个受支持的方法实现。
+    #
+    #  @param name Method name to resolve.
+    #  @param after Optional class reference after which lookup continues.
+    #  @return Unique owner and method pair, or raises _OpenReceiver.
     def method_target(name, after=None):
         if name in hook_attributes:
             raise _OpenReceiver()
@@ -238,6 +293,13 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
             return matches[0]
         raise _OpenReceiver()
 
+    ## Traverse a receiver method while collecting reads, writes, and call edges.
+    ## 遍历接收者方法并收集读写操作与调用边。
+    #
+    #  @param definition Owner and method pair to inspect.
+    #  @param active Active recursion stack of method identities.
+    #  @param initial_values Known argument values for this invocation.
+    #  @return None; raises _OpenReceiver for unsupported behavior.
     def inspect(definition, active=(), initial_values=None):
         owner, method = definition
         definition_key = (owner, method.name, method.lineno)
@@ -252,16 +314,33 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
         receiver = parameters[0].arg
         local_values = dict(initial_values or {})
 
+        ## Detect whether an expression reads the receiver parameter.
+        ## 检测表达式是否读取接收者参数。
+        #
+        #  @param node AST subtree to inspect.
+        #  @return True when the receiver is loaded anywhere in the subtree.
         def receiver_read(node):
             return any(isinstance(child, ast.Name) and child.id == receiver
                        and isinstance(child.ctx, ast.Load) for child in ast.walk(node))
 
+        ## Detect reads of attributes captured by receiver closures.
+        ## 检测接收者闭包捕获属性的读取。
+        #
+        #  @param node AST subtree to inspect.
+        #  @return True when a captured receiver attribute is read.
         def captured_read(node):
             return any(isinstance(child, ast.Attribute) and child.attr in captures
                        and (not return_effects or child.attr in namespace)
                        and isinstance(child.value, ast.Name) and child.value.id == receiver
                        for child in ast.walk(node))
 
+        ## Inspect one syntax node and recursively validate receiver behavior.
+        ## 检查单个语法节点并递归校验接收者行为。
+        #
+        #  @param node AST node to inspect.
+        #  @param parent Parent node used for context-sensitive checks.
+        #  @param captured_store Whether a closure store is explicitly permitted.
+        #  @return None; raises _OpenReceiver when effects escape the model.
         def visit(node, parent=None, captured_store=False):
             charge(node)
             if (isinstance(node, ast.Return) and method.name == '__init__'

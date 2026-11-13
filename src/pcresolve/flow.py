@@ -1,5 +1,6 @@
 ## @package pcresolve.flow
 #  Experimental, explicit-boundary value-flow summaries for Python functions.
+#  针对 Python 函数的实验性数据流摘要，显式保留分析边界。
 
 import ast
 import builtins
@@ -77,16 +78,31 @@ _BUILTIN_SCOPE = replace(FLOW_SCOPE, descend_lambdas=False,
                         include_except_targets=True, import_from_root=False)
 
 
+## Look up a builtin exception class by name.
+## 按名称查找内置异常类。
+#
+#  @param name Candidate builtin name.
+#  @return Exception class or None when unavailable.
 def _exception_class(name):
     value = getattr(builtins, name or '', None)
     return value if isinstance(value, type) and issubclass(value, BaseException) else None
 
 
+## Conservatively identify syntax that may raise during evaluation.
+## 保守识别求值时可能抛出异常的语法。
+#
+#  @param node Source AST node.
+#  @return True when a modeled potentially raising expression occurs.
 def _may_raise(node):
     return any(isinstance(n, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Attribute,
                               ast.Subscript, ast.Compare)) for n in ast.walk(node))
 
 
+## Find root names of attribute or subscript writes in the current scope.
+## 查找当前作用域内属性或下标写入的根名称。
+#
+#  @param node Source AST node.
+#  @return Set of root names, excluding nested definitions.
 def _attribute_write_roots(node):
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
                          ast.Lambda)):
@@ -104,16 +120,28 @@ def _attribute_write_roots(node):
     return roots
 
 
+## Build a snapshot-local call identifier, including any implicit suffix.
+## 构建快照内调用标识，包括可选的隐式调用后缀。
+#
+#  @param path Source file path.
+#  @param node Call or implicit protocol AST node.
+#  @return Call identifier string.
 def _call_key(path, node):
     key = SourceSpan.from_ast(path, node).key
     return key + getattr(node, '_flow_implicit_suffix', '')
 
 
+## Read call coordinates and any implicit protocol suffix.
+## 读取调用坐标及可选的隐式协议后缀。
+#
+#  @param node Call or implicit protocol AST node.
+#  @return Coordinate tuple with suffix.
 def _call_span(node):
     return SourceSpan.from_ast('', node).coordinates + (getattr(node, '_flow_implicit_suffix', ''),)
 
 
 ## A source function selector; definition location disambiguates duplicates.
+## 源码函数选择器；定义位置用于区分重复名称。
 @dataclass(frozen=True)
 class FunctionRef:
     module: str = ''
@@ -123,6 +151,7 @@ class FunctionRef:
 
 
 ## A source call or identified implicit protocol call, with source candidates.
+## 带有源码候选项的调用或已识别隐式协议调用。
 @dataclass
 class FlowCall:
     id: str
@@ -167,6 +196,7 @@ class FlowCall:
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.
+## 按约定不可变且提供 JSON 安全视图的分析快照。
 @dataclass
 class FlowAnalysis:
     entry: FunctionRef
@@ -177,6 +207,8 @@ class FlowAnalysis:
     schema_version: str = 'flow-0.2'
 
     ## Find calls by caller and exact syntactic callee spelling.
+    ## 根据调用方和精确语法调用名查找调用。
+    #
     #  @param caller Optional function selector.
     #  @param callee_name Optional exact spelling.
     #  @return Matching calls in deterministic source order.
@@ -186,6 +218,8 @@ class FlowAnalysis:
                 and (callee_name is None or c.callee_name == callee_name)]
 
     ## Return evidence for one exact call site.
+    ## 返回单个精确调用点的证据。
+    #
     #  @param call_id Identifier returned by find_calls.
     #  @return JSON-safe call flow record.
     def describe_call_flow(self, call_id):
@@ -195,14 +229,23 @@ class FlowAnalysis:
         raise KeyError(call_id)
 
     ## Serialize the snapshot without internal AST objects.
+    ## 序列化快照，不包含内部 AST 对象。
+    #
     #  @return Dictionary suitable for json.dumps.
     def to_dict(self):
         return asdict(self)
 
     ## Trace an entry parameter through explicitly expanded return summaries.
+    ## 通过显式展开的返回摘要追踪入口参数。
+    #
     #  @param parameter Entry parameter name.
     #  @return Proven return paths and boundaries; absence is not a no-flow proof.
     def trace_parameter(self, parameter):
+        ## Derive a definition key that distinguishes file, name and line.
+        ## 构建区分文件、名称和行号的定义键。
+        #
+        #  @param ref FunctionRef or serialized function identity.
+        #  @return Definition key tuple.
         def function_key(ref):
             value = asdict(ref) if isinstance(ref, FunctionRef) else ref
             return (value['file_path'], value['qualname'], value['lineno'])
@@ -228,6 +271,8 @@ class FlowAnalysis:
             calls[call.id] = ReturnCall(
                 call.id, function_key(call.target) if call.target is not None else None,
                 tuple(bindings), tuple(call.return_dependencies))
+        # Compose supported return dependencies while preserving explicit boundaries.
+        # 组合受支持的返回依赖，同时保留显式分析边界。
         resolution = resolve_return_dependencies(
             entry_key, parameter,
             {key: [value for value in summary['returns']
@@ -246,6 +291,12 @@ class FlowAnalysis:
 
 
 
+## Match a function identity against optional selector components.
+## 按选择器中提供的字段匹配函数标识。
+#
+#  @param actual Actual function identity.
+#  @param selector Requested function selector.
+#  @return True when all specified fields match.
 def _matches(actual, selector):
     return (actual.qualname == selector.qualname
             and (not selector.module or actual.module == selector.module)
@@ -253,6 +304,11 @@ def _matches(actual, selector):
             and (not selector.lineno or actual.lineno == selector.lineno))
 
 
+## Deduplicate values while retaining their first occurrence order.
+## 去重并保留值首次出现的顺序。
+#
+#  @param values Iterable of comparable values.
+#  @return List of unique values in input order.
 def _unique(values):
     result = []
     for value in values:
@@ -261,16 +317,32 @@ def _unique(values):
     return result
 
 
+## Build an environment key for invalidated source-class identity.
+## 为已失效的源码类身份构建环境键。
+#
+#  @param identity Class identity dictionary.
+#  @return Internal class-origin invalidation key.
 def _class_origin_key(identity):
     return '$class_origin_invalid:%s' % repr(tuple(identity.get(key)
         for key in ('module', 'qualname', 'file_path', 'lineno')))
 
 
+## Build an environment key for one source class identity.
+## 为源码类标识构建环境键。
+#
+#  @param identity Class identity dictionary.
+#  @return Internal class-lookup key.
 def _class_lookup_key(identity):
     return '$class_lookup_state:%s' % repr(tuple(identity.get(key)
         for key in ('module', 'qualname', 'file_path', 'lineno')))
 
 
+## Merge result alternatives while retaining incomplete container evidence.
+## 合并结果候选，并保留不完整的容器证据。
+#
+#  @param left First branch sources.
+#  @param right Second branch sources.
+#  @return Deduplicated merged source records.
 def _merge_result_sources(left, right):
     incomplete = any(not values or any(
         not value.get('container_object') or value.get('value_incomplete')
@@ -280,6 +352,11 @@ def _merge_result_sources(left, right):
                     for value in left + right])
 
 
+## Merge branch environments without treating absent bindings as certain.
+## 合并分支环境，不将缺失绑定视为确定事实。
+#
+#  @param environments Branch environment mappings.
+#  @return Merged environment with uncertainty markers.
 def _merge_env(environments):
     keys = set().union(*(e.keys() for e in environments))
     merged = {}
@@ -302,17 +379,33 @@ def _merge_env(environments):
     return merged
 
 
+## Build a dependency identity without explanatory path records.
+## 构建不包含解释路径记录的依赖标识。
+#
+#  @param value Dependency record.
+#  @return Representation used for loop convergence.
 def _loop_key(value):
     return repr({k: v for k, v in value.items() if k not in ('evidence', 'conditions')})
 
 
+## Build a loop convergence signature for each environment binding.
+## 为每个环境绑定构建循环收敛签名。
+#
+#  @param env Abstract environment.
+#  @return Mapping from names to dependency-key sets.
 def _loop_signature(env):
     return {k: frozenset(_loop_key(v) for v in values) for k, values in env.items()}
 
 
+## Retain one witness per dependency for a finite may-flow fixed point.
+## 为有限的可能数据流不动点保留每个依赖的一条证据。
+#
+#  @param env Abstract environment.
+#  @return Environment with duplicate dependency witnesses removed.
 def _loop_env(env):
     # Keep one finite witness per abstract dependency. This is a may-flow
     # fixed point, not enumeration of all iteration counts or path conditions.
+    # 这是可能流的不动点，不枚举所有迭代次数或路径条件。
     result = {}
     for name, values in env.items():
         witnesses = {}
@@ -323,8 +416,11 @@ def _loop_env(env):
 
 
 ## Analyze explicit Python source sets without executing analyzed code.
+## 分析显式选定的 Python 源码集合，不执行被分析代码。
 class FlowAnalyzer:
     ## Configure available sources; import roots do not enlarge the source set.
+    ## 配置可用源码；导入根目录不会扩大源码集合。
+    #
     #  @param source_files Explicit files, mutually exclusive with project_root.
     #  @param import_roots Roots used to derive module names.
     #  @param project_root Optional project directory scanned with FileScanner.
@@ -333,6 +429,7 @@ class FlowAnalyzer:
     #  @param analysis_limits Optional cooperative resource limits for each analyze().
     #  @param support_source_protocols Opt in to separately versioned dependency protocol proofs.
     #  @param source_store Optional run-local SourceStore; reads still refresh content.
+    #  @return None
     def __init__(self, source_files=None, import_roots=None, project_root=None,
                  return_summaries=None, parameter_shapes=None, analysis_limits=None,
                  support_source_protocols=False, source_store=None):
@@ -369,11 +466,16 @@ class FlowAnalyzer:
         self.add_files(FileScanner().scan(str(project_root)) if project_root else source_files)
 
     ## Add sources for the next analysis; existing snapshots remain unchanged.
+    ## 为下次分析添加源码；已有快照保持不变。
+    #
     #  @param files Iterable of Python source paths.
+    #  @return None
     def add_files(self, files):
         self.files.update(os.path.abspath(p) for p in files if str(p).endswith(('.py', '.pyi')))
 
     ## Read bounded literal, protocol and context-manager facts for one exact caller call
+    ## 读取精确调用点的有界字面量、协议和上下文管理器事实。
+    #
     #  @param callsite Exact caller source span.
     #  @return Versioned caller-input fact; no caller expression is executed.
     def caller_inputs(self, callsite):
@@ -384,6 +486,8 @@ class FlowAnalyzer:
         return dict(fact, schema_version='caller-inputs-0.1')
 
     ## Report whether one source class member has a stable class binding
+    ## 报告源码类成员的类绑定是否稳定。
+    #
     #  @param module Source module containing the class.
     #  @param qualname Fully qualified source class name.
     #  @param member Class member whose binding is queried.
@@ -451,6 +555,8 @@ class FlowAnalyzer:
         }
 
     ## Prove a source method returns a fallback after a selected exception
+    ## 证明源码方法在指定异常后返回回退值。
+    #
     #  @param module Source module containing the class.
     #  @param qualname Fully qualified source class name.
     #  @param member Method whose exception branch is queried.
@@ -486,7 +592,11 @@ class FlowAnalyzer:
             if len(method.args.posonlyargs + method.args.args) > 1 else None
         before_try = method.body[:method.body.index(tries[0])]
 
-        # Accept only early paths that return the descriptor or its class value.
+        ## Check that early paths return only the descriptor or its class value.
+        ## 检查提前返回路径仅返回描述符或其类值。
+        #
+        #  @param statements Early branch statements.
+        #  @return True when the supported block always returns an allowed value.
         def only_safe_returns(statements):
             falls_through = True
             for statement in statements:
@@ -515,7 +625,11 @@ class FlowAnalyzer:
                 return False
             return bool(statements) and not falls_through
 
-        # Track whether a descriptor lookup branch can reach the protected call.
+        ## Check whether a supported return block can fall through.
+        ## 检查受支持的返回语句块是否可能继续执行。
+        #
+        #  @param statements Branch statements.
+        #  @return True when a path can reach the following statement.
         def _safe_return_block_falls_through(statements):
             falls_through = True
             for statement in statements:
@@ -648,6 +762,8 @@ class FlowAnalyzer:
         }
 
     ## Resolve a supported source protocol used by one exact function call
+    ## 解析精确函数调用使用的受支持源码协议。
+    #
     #  @param caller Function containing the call.
     #  @param callsite Exact source span of the call expression.
     #  @param protocol Supported source protocol query.
@@ -662,6 +778,8 @@ class FlowAnalyzer:
         validate_source_dependencies(getattr(self, '_supporting_source_hashes', {}))
         self._index(preserve_source_facts=True)
         validate_source_dependencies(self._supporting_source_hashes)
+        # Require both the caller identity and full call span to match uniquely.
+        # 要求调用方标识和完整调用位置唯一匹配。
         definitions = [(ref, node) for ref, node in self.definitions
                        if _matches(ref, caller)
                        and os.path.normcase(os.path.abspath(ref.file_path))
@@ -695,6 +813,11 @@ class FlowAnalyzer:
             'fact': proof,
         }
 
+    ## Build a source generation and reset per-query analysis state.
+    ## 构建源码生成版本并重置每次查询的分析状态。
+    #
+    #  @param preserve_source_facts Reuse compatible facts from the same source generation.
+    #  @return None
     def _index(self, preserve_source_facts=False):
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
@@ -793,11 +916,13 @@ class FlowAnalyzer:
             # generation. Preserve both complete results and conservative
             # unknown results across unbudgeted queries; budgeted queries must
             # rebuild so their work limits remain authoritative.
+            # 源码版本不变时可复用事实；有预算的查询仍须重新计量工作量。
             if self._analysis_budget is None:
                 self._runtime_namespace_cache = previous_runtime_namespace
             return
         # Clear the reusable generation before construction so an interrupted
         # or failed build cannot expose partially rebuilt facts on the next query.
+        # 构建前清空可复用版本，避免中断后暴露部分索引。
         self._indexed_snapshot = None
         self.definitions = []
         self.classes = []
@@ -844,6 +969,8 @@ class FlowAnalyzer:
             self.definitions.extend(definitions)
             self.classes.extend(classes)
             self.definition_conditions.update(conditions)
+        # Add statically supported wildcard bindings after collecting module bodies.
+        # 收集模块体后，再加入静态支持的通配符导入绑定。
         star_facts = static_star_imports(self.module_bodies)
         for module, aliases in star_facts.aliases.items():
             self.imports[module].update(aliases)
@@ -861,6 +988,8 @@ class FlowAnalyzer:
         self._indexed_roots = tuple(self.roots)
 
     ## Collect immutable file facts independently of query state.
+    ## 独立于查询状态收集不可变文件事实。
+    #
     #  @param path Source path.
     #  @param document Exact read-only source version.
     #  @param module Module identity under current import roots.
@@ -916,6 +1045,12 @@ class FlowAnalyzer:
         evidence_cache = {}
         source_lines = None
 
+        ## Cache source-span evidence and optionally recover exact source text.
+        ## 缓存源码位置证据，并按需恢复精确源码文本。
+        #
+        #  @param node AST node with source positions.
+        #  @param text Whether to include the source snippet.
+        #  @return Source evidence dictionary.
         def evidence(node, text=False):
             nonlocal source_lines
             key = id(node), text
@@ -934,6 +1069,13 @@ class FlowAnalyzer:
                 evidence_cache[key] = value
             return evidence_cache[key]
 
+        ## Collect nested definitions and their syntactic conditions.
+        ## 收集嵌套定义及其语法条件。
+        #
+        #  @param body Statement sequence.
+        #  @param prefix Enclosing qualified-name prefix.
+        #  @param conditions Enclosing syntactic conditions.
+        #  @return None
         def collect(body, prefix='', conditions=()):
             for node in body:
                 if self._analysis_budget is not None:
@@ -949,6 +1091,12 @@ class FlowAnalyzer:
                         classes.append((ref, node))
                     collect(node.body, name + '.', conditions)
                 else:
+                    ## Collect lambdas without crossing another statement boundary.
+                    ## 收集 lambda，不跨越其他语句边界。
+                    #
+                    #  @param item AST node to inspect.
+                    #  @param root Whether this is the starting statement.
+                    #  @return None
                     def collect_lambdas(item, root=False):
                         if isinstance(item, ast.Lambda):
                             name = prefix + '<lambda>@%s:%s' % (item.lineno, item.col_offset)
@@ -982,6 +1130,12 @@ class FlowAnalyzer:
                 tuple(aliases.items()), frozenset(module_bindings),
                 tuple(definitions), tuple(classes), tuple(definition_conditions))
 
+    ## Resolve exact source base classes without guessing dynamic bases.
+    ## 解析精确源码基类，不猜测动态基类。
+    #
+    #  @param module Class module.
+    #  @param owner Qualified class name.
+    #  @return Tuple of base definitions or None when unresolved.
     def _base_classes(self, module, owner):
         classes = self._definition_index.find(module, owner, kind='class')
         if len(classes) != 1:
@@ -1010,6 +1164,13 @@ class FlowAnalyzer:
             result.append(matches[0])
         return tuple(result)
 
+    ## Construct a source class MRO with cycle and ambiguity checks.
+    ## 在循环和歧义检查下构造源码类 MRO。
+    #
+    #  @param module Class module.
+    #  @param owner Qualified class name.
+    #  @param seen Ancestor identities already visited.
+    #  @return Ordered class definitions or None when unproven.
     def _class_mro(self, module, owner, seen=()):
         identity = (module, owner)
         if identity in seen:
@@ -1028,6 +1189,8 @@ class FlowAnalyzer:
                 return None
             sequences.append(list(inherited))
         sequences.append(list(bases))
+        # Apply the C3 merge; incompatible base orders remain unresolved.
+        # 执行 C3 合并；基类顺序不兼容时保持未解析。
         result = [classes[0]]
         while any(sequences):
             candidate = next((sequence[0] for sequence in sequences if sequence
@@ -1041,6 +1204,15 @@ class FlowAnalyzer:
                     sequence.pop(0)
         return tuple(result)
 
+    ## Find an inherited method only when source lookup remains unambiguous.
+    ## 仅在源码查找无歧义时查找继承方法。
+    #
+    #  @param module Class module.
+    #  @param owner Qualified class name.
+    #  @param method Method name.
+    #  @param seen Ancestor identities already visited.
+    #  @param skip_current_members Whether to begin after the current class.
+    #  @return Source definition or None when lookup is unproven.
     def _inherited_method(self, module, owner, method, seen=(),
                           skip_current_members=False):
         identity = (module, owner)
@@ -1090,6 +1262,11 @@ class FlowAnalyzer:
                 return None
         return None
 
+    ## Select the first modeled allocator or initializer in the source MRO.
+    ## 从源码 MRO 中选择首个已建模的分配器或初始化器。
+    #
+    #  @param target_class Class reference and AST pair.
+    #  @return Constructor source member or None when lookup is unproven.
     def _constructor_target(self, target_class):
         ref, _ = target_class
         hierarchy = self._class_mro(ref.module, ref.qualname)
@@ -1098,6 +1275,7 @@ class FlowAnalyzer:
         # type.__call__ invokes the MRO-selected allocator before deciding
         # whether initialization applies. A direct __init__ cannot override
         # an inherited __new__, and an unresolved allocator cannot license it.
+        # 分配器先于初始化器选择；未解析的分配器不能证明初始化器被调用。
         for method in ('__new__', '__init__'):
             if method == '__init__' and not self._ordinary_construction(
                     ref, allow_bounded_decorations=True):
@@ -1110,6 +1288,8 @@ class FlowAnalyzer:
         return None
 
     ## Select an instance member through an unchanged source MRO.
+    ## 通过未变更的源码 MRO 选择实例成员。
+    #
     #  @param module Source receiver module.
     #  @param owner Actual receiver class, which may differ from the lexical owner.
     #  @param method Attribute being invoked.
@@ -1136,6 +1316,11 @@ class FlowAnalyzer:
                 return constructor_source_member(self, ref, cls, method)
         return None
 
+    ## Find the innermost indexed class enclosing a source definition.
+    ## 查找包围源码定义的最内层已索引类。
+    #
+    #  @param ref Source definition identity.
+    #  @return Class name or empty string when no class is found.
     def _lexical_class_name(self, ref):
         parts = ref.qualname.split('.')[:-1]
         for length in range(len(parts), 0, -1):
@@ -1144,11 +1329,15 @@ class FlowAnalyzer:
         return ''
 
     ## Reuse statement-ordered syntax only within this immutable source generation.
+    ## 仅在当前不可变源码生成版本内复用按语句排序的语法事实。
+    #
     #  @param body Ordered statements, never a synthetic or modified source body.
     #  @param limit Remaining caller-specific node allowance.
     #  @return Complete structure, or None to retain budgeted per-node traversal.
     def _syntax_facts(self, body, limit):
         if self._analysis_budget is not None:
+            # Budgeted traversals must charge their own visits.
+            # 有预算的遍历必须单独计量节点访问。
             return None
         key = tuple(body)
         facts = self._syntax_fact_cache.get(key)
@@ -1160,6 +1349,8 @@ class FlowAnalyzer:
         return facts
 
     ## Read immutable lexical facts once per AST definition in this source generation.
+    ## 在当前源码生成版本内，每个 AST 定义只读取一次不可变词法事实。
+    #
     #  @param node Function or lambda definition.
     #  @return Flow-compatible lexical facts.
     def _scope_facts(self, node):
@@ -1169,10 +1360,20 @@ class FlowAnalyzer:
             self._scope_fact_cache[node] = facts
         return facts
 
+    ## Collect bindings relevant to builtin lookup, including definition inputs.
+    ## 收集与内置名称查找相关的绑定，包括定义时求值的输入。
+    #
+    #  @param body Statement sequence.
+    #  @return Lexical facts augmented with definition-evaluation bindings.
     def _builtin_statement_facts(self, body):
         facts = statement_scope_facts(body, _BUILTIN_SCOPE)
         bound = set(facts.bound)
 
+        ## Visit expressions evaluated while a definition is created.
+        ## 访问创建定义时求值的表达式。
+        #
+        #  @param node Source AST node.
+        #  @return None
         def evaluations(node):
             if self._analysis_budget is not None:
                 self._analysis_budget.checkpoint()
@@ -1194,6 +1395,7 @@ class FlowAnalyzer:
                 return
             # Definition evaluation belongs to this lexical body, not the new
             # function/class/lambda body. Keep the shared collectors unchanged.
+            # 定义输入在外层词法体求值，不属于新定义的执行体。
             bound.update(statement_scope_facts(expressions, _BUILTIN_SCOPE).bound)
             for expression in expressions:
                 evaluations(expression)
@@ -1202,6 +1404,11 @@ class FlowAnalyzer:
             evaluations(statement)
         return replace(facts, bound=frozenset(bound))
 
+    ## Cache builtin-lookup bindings for a function, lambda or class body.
+    ## 缓存函数、lambda 或类体的内置名称查找绑定。
+    #
+    #  @param node Source definition AST.
+    #  @return Immutable lexical facts for builtin lookup.
     def _builtin_scope_facts(self, node):
         facts = self._builtin_scope_cache.get(node)
         if facts is None:
@@ -1221,6 +1428,8 @@ class FlowAnalyzer:
         return facts
 
     ## Classify a bare builtin spelling under explicit lexical lookup rules.
+    ## 按显式词法查找规则分类裸内置名称。
+    #
     #  @param ref Source function identity.
     #  @param node Source function or lambda whose lexical names are checked.
     #  @param name Bare name, not an attribute or import alias.
@@ -1254,6 +1463,9 @@ class FlowAnalyzer:
                 parent = parent.rpartition('.')[0]
         if nonlocal_name:
             return 'unconfirmed'
+
+        # A module binding, incomplete index or possible namespace write blocks proof.
+        # 模块绑定、索引不完整或可能的命名空间写入都会阻止证明。
         if ref.module not in self._builtin_module_cache:
             bodies = self.module_bodies.get(ref.module, [])
             names = set()
@@ -1278,6 +1490,13 @@ class FlowAnalyzer:
             return 'unconfirmed'
         return 'confirmed_builtin'
 
+    ## Find a uniquely constructed field and its undecorated source method.
+    ## 查找唯一构造的字段及其未装饰源码方法。
+    #
+    #  @param ref Accessing method identity.
+    #  @param field Instance field name.
+    #  @param method Requested method name.
+    #  @return Target definition and assignment, or None when unproven.
     def _field_candidate(self, ref, field, method):
         owner = ref.qualname.rpartition('.')[0]
         classes = self._definition_index.find(ref.module, owner, kind='class')
@@ -1318,6 +1537,8 @@ class FlowAnalyzer:
         return (target[0], assignment) if len(target) == 1 and not target[0][1].decorator_list else None
 
     ## Find constructor-backed field types shared by every normal return path.
+    ## 查找所有正常返回路径共享的构造函数字段类型。
+    #
     #  @param target Local method definition.
     #  @return Bounded field/type facts with assignment and return AST evidence.
     def _returned_field_instances(self, target):
@@ -1350,6 +1571,11 @@ class FlowAnalyzer:
                for statement in cls.body):
             return []
 
+        ## Collect supported receiver-field returns and detect fallthrough paths.
+        ## 收集受支持的接收者字段返回并检测可继续执行的路径。
+        #
+        #  @param statements Statement sequence to inspect.
+        #  @return Return nodes and fallthrough flag, or None for unsupported syntax.
         def returns_from(statements):
             returns = []
             open_path = True
@@ -1439,6 +1665,11 @@ class FlowAnalyzer:
                if node is not assignment.value):
             return []
 
+        ## Resolve every supported conditional constructor alternative.
+        ## 解析所有受支持的条件构造器候选。
+        #
+        #  @param value Constructor expression.
+        #  @return Class identities or None when an alternative is unproven.
         def constructors(value):
             if isinstance(value, ast.IfExp):
                 if any(isinstance(node, (ast.Call, ast.NamedExpr))
@@ -1475,6 +1706,11 @@ class FlowAnalyzer:
                  'return_ref': ref, 'return_nodes': paths[0]}
                 for class_ref in _unique(types)]
 
+    ## Recognize an unshadowed builtin staticmethod or classmethod decorator.
+    ## 识别未被遮蔽的内置 staticmethod 或 classmethod 装饰器。
+    #
+    #  @param target Function identity and AST pair.
+    #  @return Descriptor name or None when not proven.
     def _descriptor_kind(self, target):
         ref, node = target
         decorators = getattr(node, 'decorator_list', [])
@@ -1505,6 +1741,12 @@ class FlowAnalyzer:
                     return None
         return name
 
+    ## Scan bounded source for class-binding writes and optional escape evidence.
+    ## 有界扫描源码中的类绑定写入及可选逃逸证据。
+    #
+    #  @param include_escapes Include possible class escapes in the scan.
+    #  @param private_result Optional private-result projection callback.
+    #  @return Pair of write records and truncation flag.
     def _class_binding_writes(self, include_escapes=False, private_result=None):
         cached = self._class_binding_escape_cache if include_escapes else self._class_binding_write_cache
         if cached is not None and private_result is None:
@@ -1512,12 +1754,24 @@ class FlowAnalyzer:
         writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
         closure_bindings = {}
 
+        ## Find the unique source class owning a qualified method.
+        ## 查找限定方法所属的唯一源码类。
+        #
+        #  @param qualified Qualified method name.
+        #  @return Zero or one class identities.
         def method_owner(qualified):
             target = self._resolve_import_binding(qualified) if include_escapes else None
             owner = target[0].qualname.rpartition('.')[0] if target else ''
             classes = self._definition_index.find(target[0].module, owner, kind='class') if owner else []
             return [classes[0][0]] if len(classes) == 1 else []
 
+        ## Resolve possible class identities from a bounded source expression.
+        ## 从有界源码表达式解析可能的类标识。
+        #
+        #  @param expression Candidate expression.
+        #  @param ref Enclosing source identity.
+        #  @param aliases Known local aliases.
+        #  @return Candidate class identities.
         def identity(expression, ref, aliases):
             if isinstance(expression, ast.IfExp):
                 return _unique(identity(expression.body, ref, aliases)
@@ -1543,8 +1797,19 @@ class FlowAnalyzer:
                 target = self._class_symbol(ref.module + '.' + name)
             return [target[0]] if target else method_owner(ref.module + '.' + name)
 
+        ## Find class identities potentially exposed by an expression.
+        ## 查找表达式可能暴露的类标识。
+        #
+        #  @param expression Candidate expression.
+        #  @param ref Enclosing source identity.
+        #  @param aliases Known local aliases.
+        #  @param held Captured class identities.
+        #  @param result_only Restrict traversal to result projections.
+        #  @param contained_only Treat candidates as contained exposures.
+        #  @return Potentially exposed class identities.
         def exposed(expression, ref, aliases, held, result_only=False, contained_only=False):
             # Containment is an escape hazard, never an exact class identity.
+            # 容器持有表示可能逃逸，不能据此断言精确类标识。
             found, pending = [], [(expression, aliases, held, result_only)]
             while pending:
                 child, names, captures, projection = pending.pop()
@@ -1618,10 +1883,25 @@ class FlowAnalyzer:
                 pending.extend((value, names, captures, projection) for value in ast.iter_child_nodes(child))
             return _unique(found)
 
+        ## Record potential class escapes at a source node.
+        ## 记录源码节点处可能发生的类逃逸。
+        #
+        #  @param references Class identities potentially exposed.
+        #  @param ref Enclosing source identity.
+        #  @param node Evidence AST node.
+        #  @return None
         def escape(references, ref, node):
             writes.extend((class_ref, '*', 'visible_class_escape', ref, node)
                           for class_ref in references)
 
+        ## Traverse one source node while tracking class aliases and captures.
+        ## 遍历源码节点，同时跟踪类别名和捕获。
+        #
+        #  @param node AST node to inspect.
+        #  @param ref Enclosing source identity.
+        #  @param aliases Known local aliases.
+        #  @param held Captured class identities.
+        #  @return None
         def walk(node, ref, aliases, held):
             # These leaves cannot contain an import, class reference, closure or
             # effect. Inspect their parent operations, not repeated literal data.
@@ -1743,6 +2023,12 @@ class FlowAnalyzer:
             self._class_binding_write_cache = result
         return result
 
+    ## Resolve a single stable source decorator definition.
+    ## 解析单个稳定的源码装饰器定义。
+    #
+    #  @param target Decorated source identity and AST pair.
+    #  @param kind Definition category to resolve.
+    #  @return Decorator definition or None when ambiguous or unsupported.
     def _decorator_definition(self, target, kind='function'):
         ref, node = target
         decorators = getattr(node, 'decorator_list', [])
@@ -1778,6 +2064,8 @@ class FlowAnalyzer:
         return decorator
 
     ## Prove that every normal decorator return preserves its input identity.
+    ## 证明装饰器每条正常返回路径均保留输入身份。
+    #
     #  @param target Decorated source definition.
     #  @return Source proof facts, or None outside the bounded supported shape.
     def _identity_decorator(self, target):
@@ -1829,6 +2117,8 @@ class FlowAnalyzer:
                     isinstance(child.ctx, ast.Store) for child in nodes)}
 
     ## Describe one bounded decoration on the exact original source definition.
+    ## 描述精确原始源码定义上的有界装饰效果。
+    #
     #  @param target FunctionRef and source definition.
     #  @return JSON-safe function-level effect facts, separate from identity proof.
     def _decoration_facts(self, target):
@@ -1882,6 +2172,11 @@ class FlowAnalyzer:
                             'assumptions': sorted(assumptions)}
         return copy.deepcopy(self._decoration_fact_cache[ref])
 
+    ## Refine an identity-preserving decoration using a fresh-function proof.
+    ## 使用新建函数证明细化保留身份的装饰事实。
+    #
+    #  @param target Function identity and source definition.
+    #  @return Copied list of refined facts, possibly empty.
     def _fresh_decoration_facts(self, target):
         ref, node = target
         if ref not in self._fresh_decoration_fact_cache:
@@ -1895,12 +2190,22 @@ class FlowAnalyzer:
                     self._fresh_decoration_fact_cache[ref] = [fact]
         return copy.deepcopy(self._fresh_decoration_fact_cache[ref])
 
+    ## Select ordinary or refined decoration facts for binding analysis.
+    ## 为绑定分析选择普通或细化后的装饰事实。
+    #
+    #  @param target Function identity and source definition.
+    #  @return Decoration fact list.
     def _binding_decoration_facts(self, target):
         facts = self._decoration_facts(target)
         if len(facts) == 1 and facts[0]['body_binding_status'] != 'preserved':
             return self._fresh_decoration_facts(target) or facts
         return facts
 
+    ## Resolve a simple noncapturing wrapper returned by a source decorator.
+    ## 解析源码装饰器返回的简单无捕获包装函数。
+    #
+    #  @param target Decorated source identity and AST pair.
+    #  @return Wrapper definition or None when the shape is unsupported.
     def _decorated_target(self, target):
         decorator = self._decorator_definition(target)
         if decorator is None or not isinstance(decorator[1], ast.FunctionDef):
@@ -1925,10 +2230,21 @@ class FlowAnalyzer:
             return None
         return matches[0]
 
+    ## Resolve a callable name using the caller's lexical and import context.
+    ## 使用调用方的词法和导入上下文解析可调用名称。
+    #
+    #  @param caller Caller function identity.
+    #  @param name Syntactic callable name.
+    #  @return Unique source definition or None.
     def _resolve(self, caller, name):
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports)
 
+    ## Check a qualified source binding for a unique stable declaration chain.
+    ## 检查限定源码绑定是否具有唯一稳定的声明链。
+    #
+    #  @param qualified Qualified name to inspect.
+    #  @return True only when every component has one supported binding.
     def _stable_import_name(self, qualified):
         module, _, name = qualified.rpartition('.')
         while module and module not in self.import_binding_facts:
@@ -1956,16 +2272,30 @@ class FlowAnalyzer:
                     bindings_by_name.setdefault(member, []).append(statement)
         return False
 
+    ## Resolve a qualified source target through stable import bindings.
+    ## 通过稳定导入绑定解析限定源码目标。
+    #
+    #  @param qualified Qualified target name.
+    #  @return Unique source definition or None.
     def _resolve_import_binding(self, qualified):
         return self._definition_index.resolve_qualified(
             [qualified], self.imports, qualified_guard=self._stable_import_name)
 
+    ## Find global declarations that can rebind a module-level definition.
+    ## 查找可能重新绑定模块级定义的 global 声明。
+    #
+    #  @param ref Source definition identity.
+    #  @return Matching declaration nodes.
     def _module_global_declarations(self, ref):
         definitions = self.import_binding_facts.get(ref.module, [])
         name = ref.qualname.partition('.')[0]
         return ([statement for statement in definitions[0].get(name, [])
                  if isinstance(statement, ast.Global)] if len(definitions) == 1 else [])
 
+    ## Collect source evidence for possible module-global rebindings.
+    ## 收集模块全局名称可能被重新绑定的源码证据。
+    #
+    #  @return Ordered rebinding fact records.
     def _module_global_rebindings(self):
         result = []
         for module, bodies in sorted(self.module_bodies.items()):
@@ -1983,10 +2313,22 @@ class FlowAnalyzer:
                             'source_hash': self.hashes[path]})
         return result
 
+    ## Resolve a class name in a caller's lexical and import context.
+    ## 在调用方词法和导入上下文中解析类名。
+    #
+    #  @param caller Caller function identity.
+    #  @param name Syntactic class name.
+    #  @return Unique source class or None.
     def _resolve_class(self, caller, name):
         return self._definition_index.resolve_name(
             caller.module, caller.qualname, name, self.imports, kind='class')
 
+    ## Resolve a class through stable imports and bounded assignment aliases.
+    ## 通过稳定导入和有界赋值别名解析类。
+    #
+    #  @param qualified Qualified class name.
+    #  @param seen Previously visited names.
+    #  @return Unique source class or None for cycles or uncertainty.
     def _class_symbol(self, qualified, seen=()):
         if qualified in seen or len(seen) >= 20:
             return None
@@ -2016,6 +2358,12 @@ class FlowAnalyzer:
                      else module + '.' + expression)
         return self._class_symbol(next_name, seen + (qualified,))
 
+    ## Check whether source class construction follows the modeled ordinary path.
+    ## 检查源码类构造是否遵循已建模的普通路径。
+    #
+    #  @param class_ref Source class identity.
+    #  @param allow_bounded_decorations Permit independently proved decorations.
+    #  @return True only when the ordinary construction premises hold.
     def _ordinary_construction(self, class_ref, allow_bounded_decorations=False):
         hierarchy = self._class_mro(class_ref.module, class_ref.qualname)
         if hierarchy is None:
@@ -2042,6 +2390,11 @@ class FlowAnalyzer:
             '__new__' in statement_scope_facts([member]).bound
             for member in cls.body) for owner, cls in hierarchy)
 
+    ## Check source premises for explicit object.__new__ allocation.
+    ## 检查显式 object.__new__ 分配的源码前提。
+    #
+    #  @param class_ref Source class identity.
+    #  @return True only when the modeled ordinary layout is established.
     def _explicit_object_allocation(self, class_ref):
         # Explicit object.__new__ bypasses the selected class's __new__ and
         # __init__. Its source class/MRO must still identify an ordinary object
@@ -2064,6 +2417,8 @@ class FlowAnalyzer:
             return False
 
     ## Summarize enter returns symbolically, never caching a caller object identity.
+    ## 符号化概括 enter 返回值，不缓存调用方对象身份。
+    #
     #  @param definition Exact source protocol method.
     #  @param receiver_class Source instance class used for the type lookup.
     #  @return Bounded normal-return paths, completion and unresolved proof issues.
@@ -2135,7 +2490,10 @@ class FlowAnalyzer:
             self._context_enter_stack.pop()
 
     ## Prove a single-inheritance source chain ending at the unshadowed builtin dict.
+    ## 证明单继承源码链最终指向未被遮蔽的内置 dict。
+    #
     #  @param class_ref Source class identity; no whole-object builtin shape is inferred.
+    #  @param seen Class identities already visited on this path.
     #  @return Source hierarchy, or None for incomplete or customized construction.
     def _dict_subclass_hierarchy(self, class_ref, seen=()):
         identity = (class_ref.module, class_ref.qualname)
@@ -2171,6 +2529,8 @@ class FlowAnalyzer:
         return (matches[0],) + hierarchy if hierarchy else None
 
     ## Describe a builtin method's source binding without treating a subclass as dict.
+    ## 描述内置方法的源码绑定，不将子类直接视为 dict。
+    #
     #  @param class_ref Source receiver class.
     #  @param method Exact attribute being looked up.
     #  @return Proof, an explicit scan-budget issue, or None for uncertain lookup/writes.
@@ -2212,6 +2572,11 @@ class FlowAnalyzer:
                                 'no_external_monkeypatch_or_import_hook'],
                 'hierarchy': hierarchy}
 
+    ## Summarize supported function effects under recursion and work limits.
+    ## 在递归和工作量限制下概括受支持的函数效果。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @return Pair of complete effects or None, and an unresolved reason.
     def _function_effects(self, definition):
         ref, node = definition
         key = (ref, repr(getattr(node, '_flow_conditions', [])))
@@ -2221,6 +2586,9 @@ class FlowAnalyzer:
             return None, 'recursive_helper_effects'
         if len(self._function_effect_stack) >= 16:
             return None, 'mapping_effect_budget'
+
+        # Cache complete outcomes and explicit cutoff reasons for this query.
+        # 缓存本次查询中的完整结果及明确的截断原因。
         steps = len(getattr(node, 'body', ())) if isinstance(node, ast.FunctionDef) else 1
         if getattr(node, '_flow_branch_budget', None) is not None:
             result = None, 'literal_branch_budget'
@@ -2240,6 +2608,8 @@ class FlowAnalyzer:
         return result
 
     ## Compose complete same-module mapping effects from a direct helper call.
+    ## 组合直接调用同模块辅助函数所产生的完整映射效果。
+    #
     #  @param definition Calling source definition.
     #  @param statement Expression call whose result is unused.
     #  @param aliases Calling ordinary-name bindings, with parameter identity.
@@ -2275,6 +2645,11 @@ class FlowAnalyzer:
             sequence_loop=statement if effect.sequence_loop is not None else None)
             for effect in effects)
 
+    ## Summarize supported returns that preserve an argument object identity.
+    ## 概括受支持的、保留实参对象身份的返回。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @return Pair of optional return fact and unresolved reason.
     def _object_returns(self, definition):
         ref, node = definition
         if getattr(node, '_flow_branch_budget', None) is not None:
@@ -2355,6 +2730,12 @@ class FlowAnalyzer:
         self._object_return_cache[key] = (fact, cause)
         return fact, cause
 
+    ## Specialize bounded literal branches for one incoming call context.
+    ## 为单个传入调用上下文特化有界字面量分支。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @param incoming Incoming argument facts keyed by parameter.
+    #  @return Original or condition-annotated function definition pair.
     def _selected_definition(self, definition, incoming):
         ref, node = definition
         if not isinstance(node, ast.FunctionDef) or contains_yield(node):
@@ -2406,6 +2787,11 @@ class FlowAnalyzer:
         selected._flow_branch_budget = branch_budget
         return ref, selected
 
+    ## Describe a supported guarded argument-alias return path.
+    ## 描述受支持的、受守卫约束的实参别名返回路径。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @return Partial-path return facts, possibly empty.
     def _guarded_object_returns(self, definition):
         ref, node = definition
         body = [statement for statement in getattr(node, 'body', [])
@@ -2435,6 +2821,12 @@ class FlowAnalyzer:
             'content_status': 'unchanged_on_this_path',
             'evidence': [evidence.evidence(branch.body[0])]}]
 
+    ## Determine a classmethod or allocator receiver class when uniquely supported.
+    ## 在证据唯一时确定类方法或分配器的接收者类。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @param call Optional call containing receiver argument sources.
+    #  @return Source class identity or None when uncertain.
     def _receiver_class(self, definition, call=None):
         ref, node = definition
         positional = node.args.posonlyargs + node.args.args
@@ -2457,6 +2849,13 @@ class FlowAnalyzer:
         classes = self._definition_index.find(ref.module, owner, kind='class')
         return classes[0][0] if len(classes) == 1 else None
 
+    ## Summarize source-class return candidates under a bounded context.
+    ## 在有界上下文中概括源码类返回候选。
+    #
+    #  @param definition Source function identity and AST pair.
+    #  @param receiver_class Optional source receiver class.
+    #  @param incoming Optional incoming parameter facts.
+    #  @return Candidate records and an optional recursion or budget reason.
     def _class_returns(self, definition, receiver_class, incoming=None):
         ref, node = definition
         incoming = {parameter: [{'class_lookup_mutations': copy.deepcopy(
@@ -2513,6 +2912,8 @@ class FlowAnalyzer:
             self._class_return_stack.pop()
 
     ## Find a source __call__ candidate for one imported module-level instance.
+    ## 为导入的模块级实例查找源码 __call__ 候选。
+    #
     #  @param caller Function containing the invocation.
     #  @param name Syntactic callee spelling.
     #  @param binding Current lexical binding of the callee's first name.
@@ -2546,11 +2947,21 @@ class FlowAnalyzer:
             return None, None, 'ambiguous_module'
         path, body = sources[0]
 
+        ## Find the root name of an attribute or subscript target.
+        ## 查找属性或下标目标的根名称。
+        #
+        #  @param node Target AST node.
+        #  @return Root name or None when unavailable.
         def root_name(node):
             while isinstance(node, (ast.Attribute, ast.Subscript)):
                 node = node.value
             return node.id if isinstance(node, ast.Name) else ''
 
+        ## Traverse statements without entering deferred callable bodies.
+        ## 遍历语句，不进入延迟执行的可调用体。
+        #
+        #  @param nodes Statement sequence.
+        #  @return Iterator of inspected statements.
         def statements(nodes):
             for statement in nodes:
                 yield statement
@@ -2666,6 +3077,12 @@ class FlowAnalyzer:
             'class_ref': class_ref, 'arguments': records,
             'source_body': body}, None
 
+    ## Collect transitive lexical captures from known enclosing bindings.
+    ## 从已知外层绑定中收集传递性词法捕获。
+    #
+    #  @param ref Source function identity.
+    #  @param node Function or lambda AST.
+    #  @return Captured names in stable order.
     def _captures(self, ref, node):
         if ref in self._capture_name_cache:
             return list(self._capture_name_cache[ref])
@@ -2681,6 +3098,11 @@ class FlowAnalyzer:
         self._capture_name_cache[ref] = names
         return list(names)
 
+    ## Find indexed modules reachable through static import bindings.
+    ## 查找通过静态导入绑定可达的已索引模块。
+    #
+    #  @param entry_module Starting module name.
+    #  @return Set of reachable module names.
     def _reachable_modules(self, entry_module):
         known = set(self.imports)
         known.update(boundary.get('module') for boundary in self.index_boundaries
@@ -2700,6 +3122,11 @@ class FlowAnalyzer:
                     pending.append(target)
         return reachable
 
+    ## Identify parameters without visible reads when reflection is absent.
+    ## 在没有可见反射能力时识别未被读取的参数。
+    #
+    #  @param node Function or lambda AST.
+    #  @return Parameter records, or empty list when reflection prevents proof.
     def _unreferenced_parameters(self, node):
         arguments = node.args
         parameters = (arguments.posonlyargs + arguments.args + arguments.kwonlyargs +
@@ -2718,11 +3145,14 @@ class FlowAnalyzer:
                 for parameter in parameters if parameter.arg not in loaded]
 
     ## Analyze reachable summaries up to a bounded number of call edges.
+    ## 在有限调用边深度内分析可达摘要。
+    #
     #  @param entry FunctionRef identifying a function or source class invocation.
     #  @param max_depth Number of call-edge layers, at least one.
     #  @param max_functions Maximum distinct function summaries.
     #  @param max_call_contexts Maximum traversed call edges.
     #  @param conditional_source_state Retain source-class lookup under explicit state predicates.
+    #  @param max_class_effect_steps Maximum class-effect fact steps.
     #  @return FlowAnalysis snapshot; cutoffs are explicit boundaries.
     def analyze(self, entry, max_depth=1, max_functions=500, max_call_contexts=2000,
                 conditional_source_state=False, max_class_effect_steps=8000):
@@ -2744,6 +3174,8 @@ class FlowAnalyzer:
         self._effect_fact_functions = max_functions
         self._effect_fact_steps = max_call_contexts
         self._class_effect_fact_steps = max_class_effect_steps
+        # Resolve entry aliases, constructors and inherited methods only with unique evidence.
+        # 仅在证据唯一时解析入口别名、构造函数和继承方法。
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
         entry_binding = None
         entry_alias = None
@@ -2808,6 +3240,8 @@ class FlowAnalyzer:
                         'lineno': statement.lineno, 'col_offset': statement.col_offset,
                         'end_lineno': statement.end_lineno, 'end_col_offset': statement.end_col_offset}
                         for statement in declarations]})
+        # Keep source failures as boundaries even when their relation is uncertain.
+        # 即使与入口的关系不确定，也将源码失败保留为边界。
         reachable_modules = self._reachable_modules(matches[0][0].module)
         unreferenced = self._unreferenced_parameters(matches[0][1])
         for boundary in self.index_boundaries:
@@ -2845,6 +3279,16 @@ class FlowAnalyzer:
             self._analysis_budget.checkpoint(force=True)
         return result
 
+    ## Expand one call context, retaining recursion and budget cutoffs as boundaries.
+    ## 展开单个调用上下文，将递归和预算截断保留为边界。
+    #
+    #  @param result Mutable analysis snapshot.
+    #  @param definition Source function identity and AST pair.
+    #  @param depth Remaining call-edge depth.
+    #  @param context Current call context.
+    #  @param max_functions Maximum context summaries.
+    #  @param max_calls Maximum traversed calls.
+    #  @return None
     def _walk(self, result, definition, depth, context, max_functions, max_calls):
         if self._analysis_budget is not None:
             self._analysis_budget.checkpoint(force=True)
@@ -2869,6 +3313,8 @@ class FlowAnalyzer:
                 if entry_binding.get('fresh_receiver_origin'):
                     incoming[parameter][0]['fresh_receiver_origin'] = copy.deepcopy(
                         entry_binding['fresh_receiver_origin'])
+        # Cache by incoming context so different argument facts do not share summaries.
+        # 按传入上下文缓存，避免不同实参事实共用摘要。
         key = (ref, receiver_class, context.edge.id if context.edge else None,
                repr(incoming))
         if key in self._context_summaries:
@@ -2937,6 +3383,12 @@ class FlowAnalyzer:
             else:
                 result.boundaries.append({'call_id': call.id, 'reason': 'depth_limit'})
 
+    ## Prepare parameter and capture facts from an incoming call edge.
+    ## 从传入调用边准备参数和捕获事实。
+    #
+    #  @param definition Target source function definition.
+    #  @param edge Incoming call record, or None at the entry.
+    #  @return Incoming facts keyed by local name.
     def _incoming_facts(self, definition, edge):
         if edge is None or edge.binding_status == 'invalid':
             return {}
@@ -3134,6 +3586,12 @@ class FlowAnalyzer:
                 incoming[name] = [{'capture_container_binding': copy.deepcopy(binding)}]
         return incoming
 
+    ## Merge fresh mapping checks only when their lookup proofs agree.
+    ## 仅在查找证明一致时合并新建映射检查。
+    #
+    #  @param previous Previously collected checks.
+    #  @param current Checks from another context.
+    #  @return Bounded merged alternatives, or an empty list when incompatible.
     @staticmethod
     def _merge_fresh_mapping_checks(previous, current):
         """Keep bounded receiver alternatives only when their lookup proof agrees."""
@@ -3156,6 +3614,12 @@ class FlowAnalyzer:
         merged = _unique(copy.deepcopy(previous) + copy.deepcopy(current))
         return merged if len(merged) <= 8 else []
 
+    ## Merge one context summary while retaining unresolved alternatives.
+    ## 合并单个上下文摘要，同时保留未解析候选的不确定性。
+    #
+    #  @param result Mutable combined analysis snapshot.
+    #  @param summary Context-specific summary snapshot.
+    #  @return None
     def _merge_summary(self, result, summary):
         result.boundaries.extend(summary.boundaries)
         for function in summary.functions:
@@ -3184,6 +3648,9 @@ class FlowAnalyzer:
                 if previous.target != call.target:
                     previous.target = None
                     previous.target_status = 'bounded_alternatives'
+
+                # An unresolved context prevents a unique target and complete value proof.
+                # 未解析的上下文会阻止唯一目标和完整值的证明。
                 if unresolved:
                     previous.target = None
                     previous.target_status = ('receiver_unresolved'
@@ -3211,10 +3678,13 @@ class FlowAnalyzer:
                     previous.binding_status = 'uncertain'
 
     ## Expand the selected call target, retaining existing function summaries.
+    ## 展开选定调用目标，并保留已有函数摘要。
+    #
     #  @param result Previous snapshot from this source set.
     #  @param call_id Exact call-site identifier.
     #  @param additional_depth Layers below the selected target.
     #  @param isolate Return only the selected incoming context, without merging the caller snapshot.
+    #  @param preserve_lineage Retain available origin call facts in isolated expansion.
     #  @return New snapshot, leaving result unchanged.
     def expand(self, result, call_id, additional_depth=1, isolate=False,
                preserve_lineage=False):
@@ -3239,6 +3709,8 @@ class FlowAnalyzer:
         self._class_effect_fact_steps = max_class_effect_steps
         self._conditional_source_state = result.inputs.get('conditional_source_state') is True
         self._supporting_source_hashes.update(dependencies)
+        # The parent snapshot and the expansion must use the same sources and contracts.
+        # 父快照与本次展开必须使用相同源码和契约。
         if (self.hashes != result.inputs['sha256'] or sorted(self.files) != result.inputs['source_files']
                 or self.return_summaries != result.inputs.get('return_summaries', {})
                 or self.parameter_shapes != result.inputs.get('parameter_shapes', {})):
@@ -3278,6 +3750,7 @@ class FlowAnalyzer:
                     or item.get('reason') == 'source_constructor_entry_binding'])
             # The selected edge starts a bounded context. Recursion below this
             # entry is still checked by _walk; no root facts are merged into it.
+            # 选定边作为独立有界上下文，后续递归仍由 _walk 检查。
             context = CallContext(call.caller.module, call.target, copy.deepcopy(call))
             self._walk(updated, definition, additional_depth, context, 500, 2000)
             updated.boundaries = _unique(updated.boundaries)
@@ -3299,7 +3772,20 @@ class FlowAnalyzer:
         return updated
 
 
+## Summarize one function under a bounded incoming call context.
+## 在有界传入调用上下文下概括单个函数。
 class _Summary:
+    ## Initialize query-local evidence, effects and control-flow state.
+    ## 初始化本次查询的证据、效果和控制流状态。
+    #
+    #  @param analyzer Owning flow analyzer.
+    #  @param result Snapshot receiving boundaries and facts.
+    #  @param ref Source function identity.
+    #  @param node Function AST.
+    #  @param remaining Remaining call budget.
+    #  @param receiver_class Optional proven receiver class.
+    #  @param incoming Optional incoming parameter facts.
+    #  @return None
     def __init__(self, analyzer, result, ref, node, remaining, receiver_class=None,
                  incoming=None):
         self.analyzer, self.result, self.ref, self.node = analyzer, result, ref, node
@@ -3326,6 +3812,11 @@ class _Summary:
         self.modified_return_callables = set()
         self.incoming = incoming or {}
 
+    ## Resolve bounded callable candidates and report whether they are complete.
+    ## 解析有界可调用候选，并报告候选是否完整。
+    #
+    #  @param values Candidate source records.
+    #  @return Candidate definitions and completeness flag.
     def callable_targets(self, values):
         if len(values) > 64:
             self.result.boundaries.append({'function': asdict(self.ref),
@@ -3356,6 +3847,12 @@ class _Summary:
             complete = complete and not value.get('value_incomplete')
         return _unique(targets), complete
 
+    ## Extract a finite literal or a uniformly known literal binding.
+    ## 提取有限字面量或一致已知的字面量绑定。
+    #
+    #  @param node Expression AST.
+    #  @param env Current abstract environment.
+    #  @return Literal fact or None when unsupported or uncertain.
     def literal_fact(self, node, env):
         if isinstance(node, ast.Name):
             values = env.get(node.id, [])
@@ -3381,6 +3878,12 @@ class _Summary:
             return {'type': type(value).__name__, 'value': list(value)}
         return None
 
+    ## Remove literal assumptions for aliases of affected containers.
+    ## 移除受影响容器别名上的字面量假设。
+    #
+    #  @param values Affected source records.
+    #  @param env Mutable abstract environment.
+    #  @return None
     def invalidate_literals(self, values, env):
         identities = {value['source'] for value in self.container_values(values)
                       if value.get('kind') == 'container'}
@@ -3388,6 +3891,12 @@ class _Summary:
             env[name] = [{key: item for key, item in value.items() if key != 'literal'}
                          if value.get('source') in identities else value for value in items]
 
+    ## Resolve a closed literal module dispatch table under source restrictions.
+    ## 在源码约束下解析封闭的模块级字面量分派表。
+    #
+    #  @param name Dispatch table binding name.
+    #  @param env Mutable abstract environment.
+    #  @return Source records or an empty list when unproven.
     def module_dispatch(self, name, env):
         if name in env:
             return env[name]
@@ -3401,6 +3910,11 @@ class _Summary:
         assignment = statements[0]
         expression = assignment.value
         if isinstance(expression, ast.DictComp):
+            ## Check that a generated table entry names one stable source function.
+            ## 检查生成表项是否指向唯一稳定的源码函数。
+            #
+            #  @param symbol Candidate function name.
+            #  @return True only for a supported stable definition.
             def stable_function(symbol):
                 matches = self.analyzer._definition_index.find(self.ref.module, symbol)
                 return (len(matches) == 1 and not matches[0][1].decorator_list
@@ -3420,6 +3934,8 @@ class _Summary:
         if len(expression.keys) > 64:
             self.add_boundary('literal_dispatch_budget', assignment, env)
             return []
+        # Any use other than a read-only subscript can invalidate the closed table.
+        # 只读下标以外的使用可能使封闭表假设失效。
         for statement in bodies[0][1]:
             for parent in ast.walk(statement):
                 for child in ast.iter_child_nodes(parent):
@@ -3437,6 +3953,13 @@ class _Summary:
         self.remaining = summary.remaining
         return self.marked(values, assignment)
 
+    ## Build a class source record with current lookup-state evidence.
+    ## 构建带当前查找状态证据的类来源记录。
+    #
+    #  @param class_ref Source class identity.
+    #  @param node Source evidence AST node.
+    #  @param env Current abstract environment.
+    #  @return Class source record.
     def class_value(self, class_ref, node, env):
         value = {'kind': 'class', 'module': class_ref.module,
                 'source': class_ref.qualname, 'class_type': asdict(class_ref),
@@ -3451,6 +3974,13 @@ class _Summary:
             value['class_lookup_mutations'] = copy.deepcopy(effects)
         return value
 
+    ## Resolve class alternatives without silently dropping uncertain candidates.
+    ## 解析类候选，不悄然丢弃不确定项。
+    #
+    #  @param values Candidate source records.
+    #  @param allow_incomplete Whether incomplete class values may be retained.
+    #  @param env Optional current environment for lookup invalidation.
+    #  @return Resolved class records, or an empty list when unproven.
     def class_values(self, values, allow_incomplete=False, env=None):
         known = []
         for value in values:
@@ -3515,6 +4045,12 @@ class _Summary:
                     value['value_incomplete'] = True
         return _unique(known)
 
+    ## Build a class-attribute environment key for one unique source class.
+    ## 为唯一源码类构建类属性环境键。
+    #
+    #  @param node Attribute expression.
+    #  @param env Current abstract environment.
+    #  @return Key and class identity, or None when lookup is uncertain.
     def attribute_key(self, node, env):
         if not isinstance(node, ast.Attribute) or not isinstance(node.value, ast.Name):
             return None
@@ -3535,16 +4071,33 @@ class _Summary:
             attribute = '_' + owner + attribute
         return '$attribute:%s:%s:%s' % (identity['module'], identity['qualname'], attribute), identity
 
+    ## Clear modeled class-attribute values after an unknown mutation.
+    ## 未知修改后清空已建模的类属性值。
+    #
+    #  @param env Mutable abstract environment.
+    #  @return None
     def invalidate_attributes(self, env):
         for key in list(env):
             if key.startswith('$attribute:'):
                 env[key] = []
 
+    ## Gather recorded lookup mutations for a class and its known hierarchy.
+    ## 收集类及其已知继承层次的已记录查找修改。
+    #
+    #  @param identity Source class identity dictionary.
+    #  @param env Current abstract environment.
+    #  @return Deduplicated lookup effect records.
     def class_lookup_effects(self, identity, env):
         hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
         owners = [asdict(ref) for ref, _ in hierarchy] if hierarchy else [identity]
         return _unique([effect for owner in owners for effect in env.get(_class_lookup_key(owner), [])])
 
+    ## Record a class lookup effect and propagate it to existing aliases.
+    ## 记录类查找效果并传播给已有别名。
+    #
+    #  @param effect Class lookup effect record.
+    #  @param env Mutable abstract environment.
+    #  @return None
     def register_class_lookup_effect(self, effect, env):
         key = _class_lookup_key(effect['receiver_class'])
         env[key] = _unique(env.get(key, []) + [copy.deepcopy(effect)])
@@ -3558,10 +4111,25 @@ class _Summary:
                     if effects else value)
             env[name] = updated
 
+    ## Check whether recorded lookup mutations touch requested attributes.
+    ## 检查已记录的查找修改是否涉及指定属性。
+    #
+    #  @param values Source records with lookup mutations.
+    #  @param attributes Attributes being queried.
+    #  @return True when any recorded effect intersects the attributes.
     def class_lookup_affected(self, values, attributes):
         return any(set(effect.get('attributes', [])) & set(attributes)
                    for value in values for effect in value.get('class_lookup_mutations', []))
 
+    ## Prove bounded class-attribute effects for an exact source call.
+    ## 为精确源码调用证明有界类属性效果。
+    #
+    #  @param definition Source target identity and AST pair.
+    #  @param call Current flow call.
+    #  @param captures Captured source records.
+    #  @param env Mutable abstract environment.
+    #  @param node Call-site AST node.
+    #  @return Class identity records for proved effects.
     def class_attribute_effect(self, definition, call, captures, env, node):
         if (call.binding_status == 'invalid' or call.target != definition[0]
                 or (definition[0].module, definition[0].qualname) in self.modified_return_callables
@@ -3652,18 +4220,33 @@ class _Summary:
                         and isinstance(default, ast.Constant)
                         and type(default.value) in (str, int, float, bool, type(None))):
                     uncertain.discard(record['parameter'])
+            ## Identify a name whose class write must remain protected.
+            ## 判断名称是否属于必须保护的类写入范围。
+            #
+            #  @param source Name AST node.
+            #  @return True when uncertain or within the receiver hierarchy.
             def protected(source):
                 if source.id in uncertain:
                     return True
                 match = self.analyzer._resolve_class(definition[0], source.id)
                 return match is not None and asdict(match[0]) in owners
 
+            ## Charge work against the shared class-effect budget.
+            ## 将工作量计入共享类效果预算。
+            #
+            #  @param count Number of steps to charge.
+            #  @return None
             def charge(count):
                 self.analyzer._class_effect_fact_steps -= count
 
             metadata = []
             read_bindings = {}
 
+            ## Obtain and cache an independent class-attribute read premise.
+            ## 获取并缓存独立的类属性读取前提。
+            #
+            #  @param attribute Attribute name.
+            #  @return True when the binding is source-bound.
             def class_read(attribute):
                 if attribute not in read_bindings:
                     binding = source_class_read_binding(self, identity, definition, parameter, call, node, attribute)
@@ -3673,6 +4256,11 @@ class _Summary:
                 binding = read_bindings[attribute]
                 return binding is not None and binding.get('status') == 'source_bound'
 
+            ## Obtain the independently proved source class-name literal.
+            ## 获取独立证明的源码类名字面量。
+            #
+            #  @param source Name expression supplied by the effect scanner.
+            #  @return Literal class name or None when unproven.
             def class_name(source):
                 if not metadata:
                     binding = source_class_name_binding(self, identity, definition, parameter, call, node)
@@ -3731,6 +4319,8 @@ class _Summary:
         return preserved
 
     ## Check whether class lookup depends on an invalidated source class or base.
+    ## 检查类查找是否依赖已失效的源码类或基类。
+    #
     #  @param identity Source class identity.
     #  @param env Current path's invalidation markers.
     #  @param exposed Additional exposed class identities.
@@ -3743,8 +4333,12 @@ class _Summary:
         return any(owner in exposed or env.get(_class_origin_key(owner)) for owner in owners)
 
     ## Invalidate source class identity proofs after an unmodeled write or escape.
+    ## 未建模写入或逃逸后使源码类身份证明失效。
+    #
     #  @param values Class provenance exposed to the operation.
     #  @param env Current lexical/heap values, including aliases of those classes.
+    #  @param call Optional call responsible for the exposure.
+    #  @return None
     def invalidate_class_origins(self, values, env, call=None):
         identities = [value['class_type'] for value in values + self.materialize(values, env)
                       if value.get('source_class_origin') and value.get('class_type')]
@@ -3763,6 +4357,8 @@ class _Summary:
                         value['class_type'], env, identities) else value for value in sources]
 
     ## Retain an explicit subsequent-lookup predicate, without proving the effect.
+    ## 保留显式后续查找谓词，但不据此证明效果。
+    #
     #  @param identities Source class objects exposed to the call.
     #  @param values Actual input provenance, checked for prior incompleteness.
     #  @param env Current path state to annotate without materializing class data.
@@ -3829,6 +4425,12 @@ class _Summary:
                 if value.get('class_type') else value for value in sources]
         return True
 
+    ## Mark exposed instance aliases incomplete after an unknown effect.
+    ## 未知效果后将暴露的实例别名标记为不完整。
+    #
+    #  @param values Exposed source records.
+    #  @param env Mutable abstract environment.
+    #  @return None
     def invalidate_instance_receivers(self, values, env):
         exposed = {(value.get('source'), repr(value['instance_type']))
                    for value in values + self.materialize(values, env)
@@ -3839,6 +4441,14 @@ class _Summary:
                     if value.get('instance_type') and (value.get('source'),
                         repr(value['instance_type'])) in exposed else value for value in sources]
 
+    ## Detect an explicit keyword conflicting with an implicit binding.
+    ## 检测与隐式绑定冲突的显式关键字。
+    #
+    #  @param call Current flow call.
+    #  @param parameter Implicitly bound parameter name.
+    #  @param slot Implicit argument location.
+    #  @param positional_only Positional-only parameter names.
+    #  @return True when a duplicate binding was recorded.
     def implicit_keyword_conflict(self, call, parameter, slot, positional_only):
         if parameter in positional_only:
             return False
@@ -3865,6 +4475,8 @@ class _Summary:
         return True
 
     ## Explain a source classmethod binding under explicit snapshot assumptions.
+    ## 在显式快照假设下解释源码类方法绑定。
+    #
     #  @param node Attribute call expression.
     #  @param target Selected static method candidate, when available.
     #  @param receiver Raw receiver provenance, before dependency materialization.
@@ -3903,6 +4515,13 @@ class _Summary:
                                     for statement in bindings[0].get(first, [])
                                     if hasattr(statement, 'lineno'))
 
+        ## Record a classmethod binding issue with optional source evidence.
+        ## 记录类方法绑定问题及可选源码证据。
+        #
+        #  @param reason Issue reason code.
+        #  @param source_ref Optional source identity.
+        #  @param source_node Optional evidence AST node.
+        #  @return None
         def issue(reason, source_ref=None, source_node=None):
             item = {'reason': reason}
             if source_node is not None:
@@ -4035,9 +4654,20 @@ class _Summary:
                 fact['source_hashes'].update(effect.get('source_hashes', {}))
         return fact
 
+    ## Capture source evidence in the current function.
+    ## 捕获当前函数中的源码证据。
+    #
+    #  @param node Source AST node.
+    #  @return Source evidence dictionary.
     def evidence(self, node):
         return self.evidence_at(self.ref, node)
 
+    ## Capture source evidence for an explicitly selected function.
+    ## 为显式选定的函数捕获源码证据。
+    #
+    #  @param ref Source function identity.
+    #  @param node Source AST node.
+    #  @return Source evidence dictionary.
     def evidence_at(self, ref, node):
         key = (ref.file_path, node.lineno, node.col_offset,
                node.end_lineno, node.end_col_offset)
@@ -4060,6 +4690,12 @@ class _Summary:
         self.evidence_cache[key] = value
         return value
 
+    ## Assemble evidence for a module-level callable instance.
+    ## 为模块级可调用实例组装证据。
+    #
+    #  @param facts Collected callable-instance facts.
+    #  @param node Call-site AST node.
+    #  @return Callable-instance evidence record.
     def module_callable_evidence(self, facts, node):
         ref = facts['module_ref']
         arguments = []
@@ -4103,6 +4739,13 @@ class _Summary:
                 'constructor_arguments': arguments,
                 'call': self.evidence(node)}
 
+    ## Attach current source evidence and conditions to value records.
+    ## 为值记录附加当前源码证据和条件。
+    #
+    #  @param values Source value records.
+    #  @param node Evidence AST node.
+    #  @param relation Optional replacement dependency relation.
+    #  @return Marked value records.
     def marked(self, values, node, relation=None):
         result = [dict(v, relation=relation or v['relation'], evidence=v['evidence'] + [self.evidence(node)],
                        conditions=v.get('conditions', []) + list(self.conditions)) for v in values]
@@ -4112,6 +4755,12 @@ class _Summary:
                 value.pop('container_object', None)
         return result
 
+    ## Identify input roots potentially affected by an analysis boundary.
+    ## 识别可能受分析边界影响的输入根。
+    #
+    #  @param values Source values to inspect.
+    #  @param env Current abstract environment.
+    #  @return Input-root records and an unknown-scope flag.
     def affected_values(self, values, env):
         roots = []
         unknown = False
@@ -4134,6 +4783,7 @@ class _Summary:
                         # An opaque callee can return a value from any input it
                         # receives, but cannot read an unpassed local parameter.
                         # Include lexical captures for locally defined callees.
+                        # 不透明调用可能返回其接收的实参或词法捕获，但不能读取未传入的局部参数。
                         pending.extend(value for argument in call.argument_sources
                                        for value in argument.get('sources', []))
                         pending.extend(call.receiver_sources)
@@ -4150,6 +4800,15 @@ class _Summary:
                 unknown = True
         return roots, unknown
 
+    ## Append an explicit boundary with affected-input evidence.
+    ## 附加带受影响输入证据的显式边界。
+    #
+    #  @param reason Boundary reason code.
+    #  @param node Evidence AST node.
+    #  @param env Current abstract environment.
+    #  @param values Potentially affected source records.
+    #  @param fields Additional boundary fields.
+    #  @return None
     def add_boundary(self, reason, node, env, values=(), **fields):
         roots, unknown = self.affected_values(values, env)
         record = {'function': asdict(self.ref), 'reason': reason,
@@ -4160,16 +4819,25 @@ class _Summary:
         record.update(fields)
         self.result.boundaries.append(record)
 
+    ## Build a source callable value with optional declaration defaults.
+    ## 构建带可选声明默认值的源码可调用值。
+    #
+    #  @param target Source function identity.
+    #  @param node Evidence AST node.
+    #  @param defaults Optional parameter default facts.
+    #  @return Callable source record.
     def callable_value(self, target, node, defaults=None):
         return {'kind': 'callable', 'source': target.qualname, 'module': target.module,
                 'defaults': defaults or {}, 'relation': 'direct',
                 'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}
 
     ## Attach analysis boundaries to the pure syntax binder's result.
+    ## 为纯语法绑定结果附加分析边界。
+    #
     #  @param node Call expression.
     #  @param params Callee ast.arguments.
     #  @param positional Positional nodes after receiver binding.
-    #  @param call_id Public flow call identity.
+    #  @param call Flow call record receiving binding issues.
     #  @return Existing flow binding records with AST payloads.
     def bind_call_arguments(self, node, params, positional, call):
         records, reasons = bind_ast_call(node, FunctionSignature.from_ast(params, positional))
@@ -4197,6 +4865,12 @@ class _Summary:
             'uncertain' if call.binding_issues else 'complete')
         return records
 
+    ## Evaluate supported source syntax into abstract dependency records.
+    ## 将受支持的源码语法求值为抽象依赖记录。
+    #
+    #  @param node Expression AST, or None.
+    #  @param env Mutable abstract environment.
+    #  @return Dependency records; unsupported behavior is retained as boundaries.
     def expression(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
@@ -5656,6 +6330,12 @@ class _Summary:
         relation = 'contained' if isinstance(node, (ast.List, ast.Tuple, ast.Set, ast.Dict)) else 'derived'
         return self.marked(values, node, relation)
 
+    ## Convert proven container endpoints into their tracked object references.
+    ## 将已证明的容器端点转换为被跟踪的对象引用。
+    #
+    #  @param values Source records.
+    #  @param allow_contained Permit endpoints within an output path.
+    #  @return Converted records, preserving uncertain values.
     def container_values(self, values, allow_contained=False):
         converted = []
         for value in values:
@@ -5672,6 +6352,8 @@ class _Summary:
         return converted
 
     ## Preserve only the builtin copy protocol of an exact incoming dict.
+    ## 仅为精确传入字典保留内置复制协议。
+    #
     #  @param node Copy call expression, with no arguments.
     #  @param values Receiver roots, retaining generic return/alias facts.
     #  @param call Current source call.
@@ -5706,6 +6388,16 @@ class _Summary:
         return [{'kind': 'container', 'source': heap, 'container_shape': 'dict',
                  'relation': 'direct', 'evidence': [self.evidence(node.func.value)], 'conditions': []}]
 
+    ## Resolve a returned container identity from complete source evidence.
+    ## 根据完整源码证据解析返回容器的身份。
+    #
+    #  @param target Optional source callee definition.
+    #  @param call Current flow call.
+    #  @param actuals Argument source records.
+    #  @param env Current abstract environment.
+    #  @param node Call-site AST node.
+    #  @param effects_complete Whether required callee effects were fully modeled.
+    #  @return Object identity record or None with an appropriate boundary.
     def returned_container(self, target, call, actuals, env, node, effects_complete=False):
         references = [value for values in actuals.values()
                       for value in self.container_values(values)
@@ -5749,6 +6441,13 @@ class _Summary:
                                     for item in value.get('evidence', [])] +
                     [self.evidence_at(target[0], statement) for statement in fact['evidence']])}
 
+    ## Expand tracked container contents into dependency records.
+    ## 将被跟踪容器内容展开为依赖记录。
+    #
+    #  @param values Source records to expand.
+    #  @param env Current abstract environment.
+    #  @param visited Container identities already expanded on this path.
+    #  @return Materialized dependency records.
     def materialize(self, values, env, visited=()):
         result = []
         for value in values:
@@ -5760,6 +6459,8 @@ class _Summary:
             if value['kind'] != 'container':
                 result.append(value)
                 continue
+            # Stop object cycles without claiming their missing contents are empty.
+            # 遇到对象环时停止展开，不据此断言缺失内容为空。
             if value['source'] in visited:
                 continue
             for item in self.materialize(env.get(value['source'], []), env, visited + (value['source'],)):
@@ -5773,6 +6474,13 @@ class _Summary:
                 result.append(materialized)
         return result
 
+    ## Project value dependencies through a container element path.
+    ## 通过容器元素路径投影值依赖。
+    #
+    #  @param values Container or dependency records.
+    #  @param index Element index, key, or wildcard.
+    #  @param env Current abstract environment.
+    #  @return Projected dependency records.
     def project(self, values, index, env):
         result = []
         for value in self.container_values(values):
@@ -5802,6 +6510,12 @@ class _Summary:
                 result.extend(select_dependencies([value], [index]))
         return result
 
+    ## Widen tracked container contents and key presence after an unknown effect.
+    ## 未知效果后扩大被跟踪容器内容和键存在性的可能范围。
+    #
+    #  @param values Potentially affected container records.
+    #  @param env Mutable abstract environment.
+    #  @return None
     def unknown_container_contents(self, values, env):
         for reference in self.container_values(values):
             if reference.get('kind') != 'container' or reference['source'] not in env:
@@ -5816,6 +6530,13 @@ class _Summary:
                 for marker in env.get(source + '$keys', [])] +
                 [{'kind': 'key', 'source': '*', 'key': '*'}])
 
+    ## Select one direct tracked container only when every candidate agrees.
+    ## 仅当所有候选一致时选择唯一的直接跟踪容器。
+    #
+    #  @param values Candidate source records.
+    #  @param shapes Allowed container shapes.
+    #  @param env Current abstract environment.
+    #  @return Container reference or None when identity or shape is uncertain.
     def exact_container(self, values, shapes, env):
         references = self.container_values(values)
         if (not references or not all(value.get('kind') == 'container'
@@ -5827,6 +6548,13 @@ class _Summary:
             return None
         return references[0]
 
+    ## Build an object-only call result with optional container identity.
+    ## 构建仅表示对象的调用结果，可附带容器身份。
+    #
+    #  @param call Current flow call.
+    #  @param node Call-site AST node.
+    #  @param obj Optional tracked container identity.
+    #  @return Call-result source record.
     def container_endpoint(self, call, node, obj=None):
         value = {'kind': 'call_result', 'source': call.id, 'relation': 'direct',
                  'object_only': True, 'evidence': [self.evidence(node)],
@@ -5835,6 +6563,15 @@ class _Summary:
             value['container_object'] = obj
         return value
 
+    ## Model a proven shallow container copy or tuple identity reuse.
+    ## 建模已证明的容器浅复制或元组身份复用。
+    #
+    #  @param values Input container source records.
+    #  @param shape Requested output shape.
+    #  @param node Call-site AST node.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @return Result records or None when the copy is unproven.
     def copy_container(self, values, shape, node, call, env):
         allowed = ('dict',) if shape == 'dict' else ('list', 'tuple')
         reference = self.exact_container(values, allowed, env)
@@ -5859,6 +6596,7 @@ class _Summary:
         call.result_sources = [result]
         # Contents are read through the object at each use, never through a stale
         # whole-input dependency. Nested container IDs remain shallow aliases.
+        # 每次使用时读取当前容器内容；嵌套容器身份仍为浅层别名。
         call.return_dependencies = []
         roots, unknown = self.affected_values(values, env)
         effect = {'kind': 'container_copy', 'operation': 'copy',
@@ -5872,6 +6610,14 @@ class _Summary:
             self.mapping_effects.append(effect)
         return [result]
 
+    ## Model a supported builtin container constructor from one exact input.
+    ## 根据一个精确输入建模受支持的内置容器构造器。
+    #
+    #  @param node Constructor call AST.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @param actuals Argument sources by position.
+    #  @return Result records or None when the constructor is unproven.
     def container_constructor(self, node, call, env, actuals):
         name = node.func.id
         if (name not in ('dict', 'list', 'tuple')
@@ -5892,6 +6638,13 @@ class _Summary:
             flow['target_parameter'] = 'object'
         return result
 
+    ## Classify a tracked mapping key as present, absent or unknown.
+    ## 将被跟踪映射键分类为存在、缺失或未知。
+    #
+    #  @param reference Tracked mapping reference.
+    #  @param key Key or wildcard.
+    #  @param env Current abstract environment.
+    #  @return Key presence status string.
     def mapping_key_state(self, reference, key, env):
         if key == '*' or any(marker.get('contents_unknown')
                 for marker in env.get(reference['source'] + '$state', [])):
@@ -5904,6 +6657,15 @@ class _Summary:
             return 'unknown'
         return 'absent'
 
+    ## Model dict.setdefault for an exact receiver and bounded literal key.
+    ## 为精确接收者和有界字面量键建模 dict.setdefault。
+    #
+    #  @param node Call AST node.
+    #  @param receiver Receiver source records.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @param actuals Argument source records by position.
+    #  @return Result records or None when the effect is unproven.
     def mapping_setdefault(self, node, receiver, call, env, actuals):
         reference = self.exact_container(receiver, ('dict',), env)
         literal = self.literal_fact(node.args[0], env)
@@ -5938,6 +6700,7 @@ class _Summary:
                             for value in inserted]
             # Separate this slot from the open remainder, retaining both guarded
             # existing/default alternatives instead of overriding an unknown key.
+            # 将该槽位与开放余项分开，保留受条件约束的已有值和默认值候选。
             remainder = []
             for value in env.get(source, []):
                 path = value.get('output_path', [])
@@ -5979,6 +6742,14 @@ class _Summary:
         call.result_sources = [endpoint] if obj else [endpoint] + selected
         return call.result_sources
 
+    ## Model an inherited dict.setdefault binding under source-class premises.
+    ## 在源码类前提下建模继承的 dict.setdefault 绑定。
+    #
+    #  @param node Call AST node.
+    #  @param receiver Receiver source records.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @return Modeled result or None when the binding is unproven.
     def inherited_setdefault(self, node, receiver, call, env):
         if (not isinstance(node.func, ast.Attribute) or node.func.attr != 'setdefault'
                 or node.keywords or any(isinstance(item, ast.Starred) for item in node.args)
@@ -6032,6 +6803,15 @@ class _Summary:
             self.add_boundary('container_effect_unknown', node, env, receiver,
                               call_id=call.id, detail='dynamic_key_protocol_unconfirmed')
 
+    ## Model supported builtin container method calls and their effects.
+    ## 建模受支持的内置容器方法调用及其效果。
+    #
+    #  @param node Call AST node.
+    #  @param receiver Receiver source records.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @param actuals Optional argument sources by position.
+    #  @return Modeled result or None when no exact protocol applies.
     def container_call(self, node, receiver, call, env, actuals=None):
         receiver = self.container_values(receiver)
         if (not isinstance(node.func, ast.Attribute) or not receiver or not all(
@@ -6270,6 +7050,16 @@ class _Summary:
                 'conditions': copy.deepcopy(self.conditions), 'evidence': self.evidence(node)})
         return None  # Preserve the mutator's call-result endpoint (the runtime value is None).
 
+    ## Apply supported complete helper effects to tracked caller objects.
+    ## 将受支持的完整辅助函数效果应用于调用方跟踪对象。
+    #
+    #  @param definition Source target identity and AST pair.
+    #  @param actuals Bound argument source records.
+    #  @param captures Captured source records.
+    #  @param call Current flow call.
+    #  @param env Mutable abstract environment.
+    #  @param node Call-site AST node.
+    #  @return Whether all relevant effects were completely applied.
     def apply_effects(self, definition, actuals, captures, call, env, node):
         # Apply complete summaries to proven objects on normal completion.
         # Unsupported mapping effects widen exclusions without inventing writes.
@@ -6549,6 +7339,8 @@ class _Summary:
         return complete
 
     ## Apply only the unchanged-key part of a bounded fresh-dict helper proof.
+    ## 仅应用有界新建字典辅助函数证明中未变键的部分。
+    #
     #  @param definition Unique source target, with any proved branch selection.
     #  @param actuals Raw bound values, preserving object identities and literals.
     #  @param call Exact producer edge receiving evidence and assumptions.
@@ -6581,6 +7373,7 @@ class _Summary:
             return False
         # References stored in another object, capture or external binding can
         # let an unrelated call mutate this object. Such escapes stay unproved.
+        # 保存到其他对象、捕获或外部绑定中的引用可能允许无关调用修改对象。
         for name, values in env.items():
             if name.startswith('$') and any(
                     value.get('kind') == 'container' and value.get('source') == source
@@ -6689,6 +7482,12 @@ class _Summary:
                 'conditions': copy.deepcopy(self.conditions)}]
         return True
 
+    ## Identify input roots affected through tracked mapping contents.
+    ## 识别通过被跟踪映射内容受到影响的输入根。
+    #
+    #  @param values Mapping source records.
+    #  @param env Current abstract environment.
+    #  @return Affected roots and unknown-scope flag.
     def mapping_affected_values(self, values, env):
         roots, unknown = self.affected_values(values, env)
         for reference in self.container_values(values):
@@ -6699,6 +7498,12 @@ class _Summary:
                 roots.append({'kind': 'parameter', 'name': name, 'element_path': []})
         return roots, unknown
 
+    ## Widen mapping exclusions after an unmodeled helper effect.
+    ## 在未建模辅助函数效果后放宽映射排除信息。
+    #
+    #  @param actuals Argument source records.
+    #  @param env Mutable abstract environment.
+    #  @return None
     def widen_mapping_exclusions(self, actuals, env):
         for inputs in actuals.values():
             for reference in self.container_values(inputs):
@@ -6713,6 +7518,12 @@ class _Summary:
                     for marker in env.get(source + '$keys', [])] +
                     [{'kind': 'key', 'source': '*', 'key': '*'}])
 
+    ## Analyze a statement block until its control flow no longer continues.
+    ## 分析语句块，直到其控制流不再继续。
+    #
+    #  @param statements Ordered statement sequence.
+    #  @param env Mutable abstract environment.
+    #  @return Exit tuples carrying control-flow kind, environment and pending values.
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
         # them to the function summary prematurely.
@@ -6729,6 +7540,8 @@ class _Summary:
         return exits
 
     ## Look up a synchronous protocol on a proven source instance's type and MRO.
+    ## 在已证明源码实例的类型及 MRO 上查找同步协议。
+    #
     #  @param values Raw manager values, not the result of enter.
     #  @param method Special protocol method name.
     #  @return Source method, receiver class and proof issues; no runtime guarantee.
@@ -6814,6 +7627,12 @@ class _Summary:
             return None, receiver, ['visible_protocol_write']
         return target, receiver, []
 
+    ## Check whether an implicit context protocol call binds exactly.
+    ## 检查隐式上下文协议调用是否能够精确绑定。
+    #
+    #  @param target Optional source method definition.
+    #  @param arguments Number of explicit protocol arguments after the receiver.
+    #  @return True only when every argument binds exactly.
     def context_signature_valid(self, target, arguments):
         if target is None:
             return False
@@ -6822,6 +7641,11 @@ class _Summary:
         records, reasons = bind_ast_call(call, FunctionSignature.from_ast(target[1].args))
         return not reasons and all(record['status'] == 'exact' for record in records)
 
+    ## Recognize a source exit method with no modeled effects or suppression.
+    ## 识别没有建模效果且不抑制异常的源码退出方法。
+    #
+    #  @param target Optional source exit method definition.
+    #  @return True for the supported no-op shape.
     def context_exit_noop(self, target):
         if not self.context_signature_valid(target, 3):
             return False
@@ -6837,6 +7661,11 @@ class _Summary:
             return False
         return True
 
+    ## Widen tracked object facts after an unmodeled context-manager effect.
+    ## 在未建模上下文管理器效果后放宽跟踪对象事实。
+    #
+    #  @param env Mutable abstract environment.
+    #  @return None
     def unknown_context_effects(self, env):
         self.unknown_container_contents([value for items in env.values() for value in items], env)
         self.invalidate_attributes(env)
@@ -6846,6 +7675,13 @@ class _Summary:
                          or value.get('class_type') or value.get('callable_type') else value
                          for value in values]
 
+    ## Apply or restore proven temporary attributes on the matching fresh receiver.
+    ## 为匹配的新建接收者应用或恢复已证明的临时属性。
+    #
+    #  @param env Mutable abstract environment.
+    #  @param effect Temporary receiver attribute evidence.
+    #  @param entering Whether entry is being applied rather than cleanup.
+    #  @return None
     def apply_temporary_receiver_attributes(self, env, effect, entering):
         receiver = effect['receiver_parameter']
         expected = effect['receiver_origin']
@@ -6869,6 +7705,8 @@ class _Summary:
             env[receiver] = _unique(updated)
 
     ## Evaluate only proven builtin literal truth or exception/None identity tests.
+    ## 仅计算已证明的内置字面量真值或异常与 None 的身份测试。
+    #
     #  @param node Exit expression; no arbitrary truth protocol is executed.
     #  @param env Current bounded lexical/object facts.
     #  @return True, False or None for an unproved truth value.
@@ -6893,6 +7731,8 @@ class _Summary:
         return None
 
     ## Separate normal constant-key deletion from its pre-operation failure state.
+    ## 区分常量键删除的正常完成状态与操作前的失败状态。
+    #
     #  @param node Direct dict pop expression or deletion subscript.
     #  @param previous Caller frame before evaluating the operation.
     #  @param env Normal-completion frame after evaluation.
@@ -6925,6 +7765,8 @@ class _Summary:
         return ([] if state == 'present' else [('raise', previous, [], 'KeyError')], state != 'absent')
 
     ## Execute a bounded source exit in an isolated lexical frame sharing heap IDs.
+    ## 在共享堆标识的独立词法帧中执行有界源码退出分析。
+    #
     #  @param target Saved source descriptor, not a new lookup after the body.
     #  @param call Implicit exit call with actual exception/capture bindings.
     #  @param state Caller state at cleanup, retaining pending-return identities.
@@ -7025,6 +7867,8 @@ class _Summary:
         return completed, []
 
     ## Bind the cached exit descriptor to the saved manager and pending exception.
+    ## 将缓存的退出描述符绑定到保存的管理器和待处理异常。
+    #
     #  @param node Owning with statement, used as the implicit call location.
     #  @param record Successful entry facts, not a rebound as/context variable.
     #  @param outcome Pending normal, return, control or exceptional state.
@@ -7093,6 +7937,8 @@ class _Summary:
         return target, call
 
     ## Clean up successful entries in reverse order, preserving pending objects.
+    ## 按相反顺序清理成功进入的管理器，并保留待处理对象。
+    #
     #  @param node Owning with statement.
     #  @param outcomes Existing normal/return/control/exception exit tuples.
     #  @param records Managers whose enter completed normally, in entry order.
@@ -7211,6 +8057,17 @@ class _Summary:
         self.conditions = before
         return outcomes
 
+    ## Record an implicit enter call for a proven source context manager.
+    ## 为已证明的源码上下文管理器记录隐式 enter 调用。
+    #
+    #  @param item Context-manager item.
+    #  @param index Item index in the with statement.
+    #  @param node Owning with statement.
+    #  @param values Manager source records.
+    #  @param target Selected source enter method.
+    #  @param env Current abstract environment.
+    #  @param proof Protocol lookup evidence.
+    #  @return Implicit call record.
     def context_enter_call(self, item, index, node, values, target, env, proof):
         temporary = '$with:%s:%s' % (_call_key(self.ref.file_path, node), index)
         env[temporary] = copy.deepcopy(values) if target else [dict(value, value_incomplete=True)
@@ -7234,6 +8091,8 @@ class _Summary:
         return call
 
     ## Propagate enter results and clean up every modeled body/entry exit path.
+    ## 传播 enter 结果，并清理每条已建模的语句体或进入退出路径。
+    #
     #  @param node Synchronous ast.With.
     #  @param env Current object contents and lexical bindings.
     #  @return Existing block exit tuples, with explicit protocol boundaries.
@@ -7396,9 +8255,20 @@ class _Summary:
         self.conditions = before
         return exceptions + outcomes
 
+    ## Analyze one statement into possible control-flow outcomes.
+    ## 将单条语句分析为可能的控制流结果。
+    #
+    #  @param node Statement AST node.
+    #  @param env Mutable abstract environment at entry.
+    #  @return Outcome tuples including normal and exceptional alternatives.
     def statement(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
+        ## Construct normal outcomes while retaining earlier exceptional paths.
+        ## 构造正常结果，同时保留此前的异常路径。
+        #
+        #  @param e Current abstract environment.
+        #  @return Outcome tuple list.
         def normal(e):
             return [('normal', e, [], None)]
         if self.context_execution:
@@ -7441,6 +8311,7 @@ class _Summary:
         exceptional = []
         # A possible exception uses the environment BEFORE evaluation. Simple
         # name/constant assignments cannot import a later definition into it.
+        # 可能异常沿用求值前的环境，不能引入之后才建立的绑定。
         expressions = []
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Return, ast.Expr)):
             expressions = [node.value]
@@ -7653,6 +8524,14 @@ class _Summary:
         self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_statement', 'evidence': self.evidence(node)})
         return [('unknown', env, [], None)]
 
+    ## Assign abstract source records to a supported target.
+    ## 将抽象来源记录赋给受支持的目标。
+    #
+    #  @param target Assignment target AST.
+    #  @param values Source records being assigned.
+    #  @param env Mutable abstract environment.
+    #  @param node Statement or expression supplying evidence.
+    #  @return None
     def assign_target(self, target, values, env, node):
         attribute = self.attribute_key(target, env)
         self.invalidate_class_origins([value for name in _attribute_write_roots(target)
@@ -7751,6 +8630,8 @@ class _Summary:
                               list(values) + list(target_values))
 
     ## Select a stable plain source function named by a guard operand.
+    ## 选择守卫操作数所指向的稳定普通源码函数。
+    #
     #  @param node Bare name or source module attribute, never an evaluated call.
     #  @param env Current branch bindings.
     #  @return Unique undecorated module-level source target, or None.
@@ -7777,6 +8658,8 @@ class _Summary:
         return candidates[0]
 
     ## Refine facts only on a supported guard branch, preserving dependency roots.
+    ## 仅在受支持的守卫分支上细化事实，并保留依赖根。
+    #
     #  @param test Already evaluated condition expression.
     #  @param env Independent state for the selected branch.
     #  @param positive Whether this branch requires a truthy condition.
@@ -7867,6 +8750,12 @@ class _Summary:
                              for v in env.get(name, [])]
         return True
 
+    ## Analyze supported try, handler and cleanup paths.
+    ## 分析受支持的 try、异常处理及清理路径。
+    #
+    #  @param node Try statement AST.
+    #  @param env Abstract environment at entry.
+    #  @return Control-flow outcome tuples.
     def try_statement(self, node, env):
         outcomes = self.block(node.body, copy.deepcopy(env))
         completed = []
@@ -7922,6 +8811,10 @@ class _Summary:
                     finalized.append((final_kind, final_env, final_values, final_exc))
         return finalized
 
+    ## Analyze the function body and publish its collected summary facts.
+    ## 分析函数体并发布收集到的摘要事实。
+    #
+    #  @return None
     def run(self):
         if getattr(self.node, '_flow_branch_budget', None) is not None:
             self.result.boundaries.append({'function': asdict(self.ref),
@@ -8047,6 +8940,11 @@ class _Summary:
         for effect in self.mapping_effects:
             if effect.get('call_id') in partial_effect_calls:
                 effect.update(state_after='conditional', status='partial_context')
+        ## Collect source nodes for the function summary.
+        ## 收集函数摘要使用的源码节点。
+        #
+        #  @param node AST node to inspect.
+        #  @return None
         def collect(node):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
                 return

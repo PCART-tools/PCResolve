@@ -1,11 +1,13 @@
 ## @package pcresolve.import_facts
 #  Immutable import-syntax facts and relative-module name resolution.
+#  不可变的导入语法事实及相对模块名解析。
 
 import ast
 from dataclasses import dataclass
 
 
 ## One name declared by an import or from-import statement.
+## import 或 from-import 语句声明的一个名称。
 @dataclass(frozen=True)
 class ImportFact:
     ## import or from.
@@ -20,6 +22,8 @@ class ImportFact:
     level: int = 0
 
     ## Return the name bound by Python evaluation rules.
+    ## 返回按 Python 求值规则绑定的名称。
+    #
     #  @return Dotted-import root or explicit alias.
     @property
     def python_binding(self):
@@ -28,12 +32,16 @@ class ImportFact:
         return self.name.split('.')[0] if self.kind == 'import' else self.name
 
     ## Return the full imported name unless an explicit alias replaces it.
+    ## 返回完整导入名称；存在显式别名时返回别名。
+    #
     #  @return Full dotted import name or explicit alias.
     @property
     def full_binding(self):
         return self.asname or self.name
 
     ## Report whether this is a wildcard from-import.
+    ## 判断是否为通配符 from-import。
+    #
     #  @return True for from X import *.
     @property
     def wildcard(self):
@@ -41,6 +49,8 @@ class ImportFact:
 
 
 ## Extract ordered facts from one import statement.
+## 从一条导入语句提取有序事实。
+#
 #  @param node ast.Import, ast.ImportFrom, or another AST node.
 #  @return Immutable ImportFact tuple; empty for non-import nodes.
 def import_facts(node):
@@ -55,6 +65,8 @@ def import_facts(node):
 
 
 ## Resolve the module portion of a relative import.
+## 解析相对导入的模块部分。
+#
 #  @param current_module Dotted name of the file containing the import.
 #  @param is_package Whether the containing file is a package initializer.
 #  @param imported_module Module after the leading dots, or None.
@@ -71,6 +83,9 @@ def resolve_relative_module(current_module, is_package, imported_module, level):
         if len(parts) < 2:
             return module
         package_parts = parts[:-1]
+
+    # One leading dot denotes the current package; each further dot ascends.
+    # 第一个点代表当前包，后续每个点向上一级。
     strip = level - 1
     if strip >= len(package_parts):
         base = ''

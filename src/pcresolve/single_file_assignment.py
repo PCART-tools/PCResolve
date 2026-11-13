@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_assignment
 #  Collect assignment and container-binding facts during single-file analysis.
+#  收集单文件赋值、调用绑定和容器形状事实。
 #
 #  The mixin operates on SingleFileAnalyzer visitor state so lexical binding
 #  timing, target positions, and container invalidation remain unchanged.
@@ -17,9 +18,10 @@ from .sources import (
 
 
 ## Trace an expression used as a builtin result candidate.
-#
+## 追踪内置结果候选表达式的来源。
 #  Literal values are Python-owned.  Other expressions retain their full
 #  source IR so cross-file resolution can preserve every possible owner.
+#
 #  @param node Candidate AST expression.
 #  @param trace_fn Callable to trace an AST expression.
 #  @return Source value or UnknownSource.
@@ -33,33 +35,46 @@ def _builtin_value_source(node, trace_fn):
 
 
 ## Collect assignment facts using SingleFileAnalyzer state.
+## 在单文件分析阶段收集赋值事实。
 class SingleFileAssignmentMixin:
     ## Shared assignment pipeline: pending targets, trace RHS, visit, call_assign_funcs.
+    ## 按固定顺序跟踪右值、访问赋值节点并更新调用绑定。
+    #  expression-owner propagation.
     #
     #  @param node The Assign or AnnAssign AST node.
     #  @param target_names Flat list of target name strings.
     #  @param field_target_names Instance-field targets used for bounded
-    #  expression-owner propagation.
     #  @return The traced RHS source (right-hand value).
     def _visit_assignment(self, node, target_names,
                           field_target_names=None):
+        # Capture imported-call identity before visiting can mutate bindings.
         imported_call = self._imported_call_result_source(node.value)
         pending_targets = list(target_names)
         pending_targets.extend(field_target_names or [])
+
+        # Associate direct call expressions with targets for exact return lookup.
         if pending_targets and isinstance(node.value, ast.Call):
             self._pending_call_targets_by_node[
                 id(node.value)] = pending_targets
+
+        # Refine the RHS in layers; each step only applies when its evidence is exact.
         right = self._assignment_right_source(node.value)
         right = self._method_result_assignment_source(node.value, right)
         right = self._conversion_assignment_source(node.value, right)
         right = self._operator_assignment_source(node.value, right)
         right = self._local_method_assignment_source(node.value, right)
+
+        # Visit after tracing the pre-assignment state, then publish the new bindings.
         self.generic_visit(node)
         self._update_assigned_call_sources(target_names, imported_call)
         self._update_call_assignment_funcs(node.value, target_names)
         return right
 
     ## Trace the right-hand source, including positional result contracts.
+    ## 追踪赋值右值，并优先应用参数依赖和位置返回契约。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _assignment_right_source(self, value):
         result_item_owner = None
         if (isinstance(value, ast.Subscript)
@@ -71,6 +86,11 @@ class SingleFileAssignmentMixin:
                 or self.trace_source(value))
 
     ## Wrap an imported method result that has an explicit owner contract.
+    ## 为满足显式所有者契约的导入方法结果包装结构化来源。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _method_result_assignment_source(self, value, right):
         normalized = normalize_source(right)
         if (not isinstance(value, ast.Call)
@@ -91,6 +111,11 @@ class SingleFileAssignmentMixin:
         )
 
     ## Apply a proven conversion-result owner to the assignment source.
+    ## 将已证明的转换结果所有者写入赋值来源。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _conversion_assignment_source(self, value, right):
         conversion = self._resolve_conversion_target(value)
         if not conversion:
@@ -107,9 +132,16 @@ class SingleFileAssignmentMixin:
         return conversion
 
     ## Preserve converged same-scope operator ownership evidence.
+    ## 保留同作用域内已收敛的运算符所有者证据。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _operator_assignment_source(self, value, right):
         if not isinstance(value, (ast.BinOp, ast.UnaryOp)):
             return right
+
+        # Do not replace parameter-dependent provenance with an operator guess.
         expression_top = self._expr_receiver_top(value)
         normalized = normalize_source(right)
         has_parameter = self._source_contains_parameter(normalized)
@@ -127,11 +159,18 @@ class SingleFileAssignmentMixin:
             top for top in self._operator_operand_tops(value)
             if top not in (None, "", "local", "python", "unknown")
         }
+
+        # Conflicting external operands cannot establish one result owner.
         if len(external_tops) > 1:
             return UnknownSource("conflicting operator result owners")
         return right
 
     ## Wrap a local method call with its local return identity.
+    ## 为本地方法调用保留本地返回值身份。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _local_method_assignment_source(self, value, right):
         normalized = normalize_source(right)
         local_receiver = (
@@ -150,6 +189,11 @@ class SingleFileAssignmentMixin:
         )
 
     ## Replace flow-sensitive assigned-call metadata after RHS visitation.
+    ## 在访问右值后更新流敏感的调用赋值元数据。
+    #
+    #  @param target_names Input target names used by this analysis step.
+    #  @param imported_call Input imported call used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _update_assigned_call_sources(self, target_names, imported_call):
         for name in target_names:
             key = (id(self.current_scope()), name)
@@ -159,6 +203,11 @@ class SingleFileAssignmentMixin:
                 self._assigned_call_sources[key] = imported_call
 
     ## Record the dotted callee assigned to each target name.
+    ## 记录各赋值目标所绑定的限定调用名称。
+    #
+    #  @param value Input value used by this analysis step.
+    #  @param target_names Input target names used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _update_call_assignment_funcs(self, value, target_names):
         while isinstance(value, ast.Attribute):
             value = value.value
@@ -172,10 +221,12 @@ class SingleFileAssignmentMixin:
             self.call_assign_funcs[name] = func_full
 
     ## Visit an Assign node and record symbol bindings.
-    #
+    ## 访问普通赋值并记录符号与容器绑定。
     #  Handles dict/list/tuple/set container tracking, and traces the
     #  right-hand side to bind target symbols.
+    #
     #  @param node The Assign AST node.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def visit_Assign(self, node):
         mapping_value = self._mapping_facts.value(node.value)
         container_kind, item_kind = self._expression_container_shape(
@@ -222,6 +273,10 @@ class SingleFileAssignmentMixin:
         self._collect_argparse_assignment(node)
 
     ## Invalidate module-level comprehension and append facts on rebind.
+    ## 重新绑定目标时使旧容器事实失效。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _invalidate_assignment_container_facts(self, node):
         if self.current_scope().kind != SCOPE_MODULE:
             return
@@ -244,6 +299,10 @@ class SingleFileAssignmentMixin:
             self._iterated_append_tuple_conflicts.discard(binding_key)
 
     ## Record scalar literals used by static key resolution.
+    ## 记录供静态键解析使用的标量字面量。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_literal_assignment(self, node):
         if (not isinstance(node.value, ast.Constant)
                 or not isinstance(node.value.value, (str, int))):
@@ -253,6 +312,10 @@ class SingleFileAssignmentMixin:
                 self._literal_values[target.id] = node.value.value
 
     ## Record dictionary key/value and homogeneous-value facts.
+    ## 记录字典键值和同质值容器事实。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_dict_assignment(self, node):
         if not isinstance(node.value, ast.Dict):
             return
@@ -290,6 +353,10 @@ class SingleFileAssignmentMixin:
                     container_name, None)
 
     ## Record literal list/tuple item sources and lengths.
+    ## 记录列表和元组字面量的元素来源与长度。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_sequence_assignment(self, node):
         if not isinstance(node.value, (ast.List, ast.Tuple)):
             return
@@ -308,6 +375,10 @@ class SingleFileAssignmentMixin:
                         (container_name, index)] = value_source
 
     ## Record literal set element sources.
+    ## 记录集合字面量的元素来源。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_set_assignment(self, node):
         if not isinstance(node.value, ast.Set):
             return
@@ -324,6 +395,10 @@ class SingleFileAssignmentMixin:
                 self.container_set_sources[target.id] = bases
 
     ## Record container kinds and item sources for comprehensions.
+    ## 记录推导式生成的容器类型和元素来源。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_comprehension_assignment(self, node):
         for target in node.targets:
             if not isinstance(target, ast.Name):
@@ -355,6 +430,10 @@ class SingleFileAssignmentMixin:
                 self.container_kinds[target.id] = "str"
 
     ## Record builtin constructor and defaultdict item kinds.
+    ## 记录内置容器构造器及 defaultdict 的元素类型。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _record_constructor_container_assignment(self, node):
         if (not isinstance(node.value, ast.Call)
                 or not isinstance(node.value.func, ast.Name)):
@@ -376,6 +455,12 @@ class SingleFileAssignmentMixin:
                 self.container_item_kinds[target.id] = factory.id
 
     ## Synchronize legacy container maps with the inferred assignment shape.
+    ## 按推断的赋值形状同步容器类型映射。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _sync_assignment_container_kinds(
             self, node, container_kind, item_kind):
         for target in node.targets:
@@ -391,6 +476,10 @@ class SingleFileAssignmentMixin:
                 self.container_item_kinds.pop(target.id, None)
 
     ## Collect simple and instance-field assignment target names.
+    ## 收集简单名称与实例字段赋值目标。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _assign_statement_target_names(self, node):
         targets = []
         field_targets = []
@@ -408,6 +497,12 @@ class SingleFileAssignmentMixin:
         return targets, field_targets
 
     ## Register a local lambda summary and return its assignment source.
+    ## 登记本地 lambda 摘要并返回赋值来源。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param targets Input targets used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _lambda_assignment_source(self, node, targets, right):
         callable_keys = {}
         if not isinstance(node.value, ast.Lambda):
@@ -420,6 +515,15 @@ class SingleFileAssignmentMixin:
         return "local", callable_keys
 
     ## Bind every target to the traced right-hand source.
+    ## 将已追踪的右值来源绑定到每个赋值目标。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @param callable_keys Input callable keys used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_traced_assignment_targets(
             self, node, right, callable_keys, container_kind,
             item_kind, item_fields):
@@ -438,6 +542,16 @@ class SingleFileAssignmentMixin:
                     node, target, right, normalized)
 
     ## Bind one simple name while preserving self-assignment semantics.
+    ## 绑定名称并保留自赋值语义。
+    #
+    #  @param target Input target used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @param normalized Input normalized used by this analysis step.
+    #  @param callable_keys Input callable keys used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_traced_name_target(
             self, target, right, normalized, callable_keys,
             container_kind, item_kind, item_fields):
@@ -459,6 +573,16 @@ class SingleFileAssignmentMixin:
             container_item_fields=item_fields)
 
     ## Bind one attribute target with imported-result preservation.
+    ## 绑定属性目标并保留导入结果来源。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param target Input target used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @param normalized Input normalized used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_traced_attribute_target(
             self, node, target, right, normalized,
             container_kind, item_kind, item_fields):
@@ -487,6 +611,13 @@ class SingleFileAssignmentMixin:
             container_item_fields=item_fields)
 
     ## Bind positional elements of one tuple/list assignment target.
+    ## 将序列元素来源按位置绑定到解包目标。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param target Input target used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @param normalized Input normalized used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_unpacked_assignment_target(
             self, node, target, right, normalized):
         unpacked_owner = None
@@ -538,6 +669,14 @@ class SingleFileAssignmentMixin:
             self._bind_target_name(element.id, right, element)
 
     ## Bind unresolved assignment targets to the conservative local source.
+    ## 将未解析的赋值目标保守地绑定为本地来源。
+    #
+    #  @param node Input node used by this analysis step.
+    #  @param callable_keys Input callable keys used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_local_assignment_targets(
             self, node, callable_keys, container_kind,
             item_kind, item_fields):
@@ -564,8 +703,10 @@ class SingleFileAssignmentMixin:
                         container_item_fields=item_fields)
 
     ## Visit an AnnAssign node with RHS-before-target ordering.
+    ## 按右值先于目标的顺序访问带注解赋值。
     #
     #  @param node The AnnAssign AST node.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def visit_AnnAssign(self, node):
         if node.value is None:
             return
@@ -590,6 +731,10 @@ class SingleFileAssignmentMixin:
         self._bind_mapping_value(node.target, mapping_value)
 
     ## Collect names bound by one annotated assignment target.
+    ## 收集带注解赋值目标绑定的名称。
+    #
+    #  @param target Input target used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _annotated_assignment_target_names(self, target):
         if isinstance(target, ast.Name):
             return [target.id]
@@ -605,6 +750,15 @@ class SingleFileAssignmentMixin:
         return []
 
     ## Bind one annotated target to its traced or conservative source.
+    ## 将带注解目标绑定到追踪来源或保守来源。
+    #
+    #  @param target Input target used by this analysis step.
+    #  @param right Input right used by this analysis step.
+    #  @param callable_keys Input callable keys used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_annotated_assignment_target(
             self, target, right, callable_keys,
             container_kind, item_kind, item_fields):
@@ -623,6 +777,16 @@ class SingleFileAssignmentMixin:
                     self._bind_target_name(element.id, source, element)
 
     ## Bind one annotated name while preserving self-assignment semantics.
+    ## 绑定带注解名称并保留自赋值语义。
+    #
+    #  @param target Input target used by this analysis step.
+    #  @param source Input source used by this analysis step.
+    #  @param has_traced_source Input has traced source used by this analysis step.
+    #  @param callable_keys Input callable keys used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_annotated_name(
             self, target, source, has_traced_source, callable_keys,
             container_kind, item_kind, item_fields):
@@ -637,6 +801,15 @@ class SingleFileAssignmentMixin:
             container_item_fields=item_fields)
 
     ## Bind one annotated attribute using the original conservative boundary.
+    ## 按保守边界绑定带注解属性目标。
+    #
+    #  @param target Input target used by this analysis step.
+    #  @param source Input source used by this analysis step.
+    #  @param has_traced_source Input has traced source used by this analysis step.
+    #  @param container_kind Input container kind used by this analysis step.
+    #  @param item_kind Input item kind used by this analysis step.
+    #  @param item_fields Input item fields used by this analysis step.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def _bind_annotated_attribute(
             self, target, source, has_traced_source,
             container_kind, item_kind, item_fields):
@@ -655,7 +828,10 @@ class SingleFileAssignmentMixin:
             container_item_fields=item_fields)
 
     ## Reject mapping identities affected by augmented assignment.
+    ## 使增量赋值影响的映射身份失效。
+    #
     #  @param node AugAssign AST node.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def visit_AugAssign(self, node):
         self._mapping_facts.escape(node.target)
         self._mapping_facts.escape(node.value)
@@ -663,7 +839,10 @@ class SingleFileAssignmentMixin:
         self._bind_mapping_value(node.target, None)
 
     ## Invalidate mapping aliases when a binding or item is deleted.
+    ## 删除名称或元素时使映射别名失效。
+    #
     #  @param node Delete AST node.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def visit_Delete(self, node):
         for target in node.targets:
             self._mapping_facts.escape(target)
@@ -671,7 +850,10 @@ class SingleFileAssignmentMixin:
         self.generic_visit(node)
 
     ## Do not reuse mapping identities across an unsupported walrus rebind.
+    ## 海象运算符重新绑定后不复用映射身份。
+    #
     #  @param node NamedExpr AST node.
+    #  @return Resolved analysis fact, source value, or None when evidence is insufficient.
     def visit_NamedExpr(self, node):
         self.generic_visit(node)
         self._bind_mapping_value(node.target, None)

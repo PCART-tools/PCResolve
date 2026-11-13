@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_source_resolution
 #  Expression-to-source tracing for the single-file ownership visitor.
+#  为单文件归属访问器追踪表达式来源。
 
 import ast
 
@@ -38,6 +39,8 @@ _BUILTIN_PROTOCOL_DERIVED = frozenset({"abs"})
 
 
 ## Resolve the element source carried by an iterable expression.
+## 解析可迭代表达式所携带的元素来源。
+#
 #  @param node Iterable AST expression.
 #  @param trace_fn Callable to trace an AST expression.
 #  @return Source value describing the iterable's possible elements.
@@ -77,6 +80,8 @@ def _iterable_element_source(node, trace_fn):
 
 
 ## Resolve element source for min/max/next arguments.
+## 解析 min、max 和 next 参数的元素来源。
+#
 #  @param name Bare builtin name.
 #  @param call_node The ast.Call node.
 #  @param trace_fn Callable to trace an AST expression.
@@ -103,6 +108,8 @@ def _element_source(name, call_node, trace_fn):
 
 
 ## Return the result source for a known builtin callable.
+## 返回已知内置可调用对象的结果来源。
+#
 #  @param name Bare builtin name.
 #  @param call_node The ast.Call node.
 #  @param trace_fn Callable to trace an AST expression to its source.
@@ -149,6 +156,8 @@ def _resolve_builtin_result(name, call_node, trace_fn):
 
 
 ## Check whether every possible return source is Python-owned.
+## 判断所有可能的返回来源是否均属于 Python。
+#
 #  @param source Return source or SourceSet.
 #  @return True when all possible sources are exactly Python-owned.
 def _is_uniform_python_result(source):
@@ -161,6 +170,8 @@ def _is_uniform_python_result(source):
 
 
 ## Check whether any possible return source is Python-owned.
+## 判断是否有可能的返回来源属于 Python。
+#
 #  @param source Return source or SourceSet.
 #  @return True when at least one branch is Python-owned.
 def _has_python_result(source):
@@ -173,6 +184,8 @@ def _has_python_result(source):
 
 
 ## Return one concrete Python shape when every return branch agrees.
+## 当所有返回分支一致时返回具体的 Python 形状。
+#
 #  @param source Return source or SourceSet.
 #  @return Common PythonShape, otherwise None.
 def _uniform_python_shape(source):
@@ -191,8 +204,11 @@ def _uniform_python_shape(source):
 
 
 ## Expression source resolver mixed into SingleFileAnalyzer.
+## 混入 SingleFileAnalyzer 的表达式来源解析器。
 class SingleFileSourceResolutionMixin:
     ## Trace an AST expression to its symbol or structured source.
+    ## 将 AST 表达式追踪到符号或结构化来源。
+    #
     #  @param node AST expression.
     #  @return Source value or None.
     def trace_source(self, node):
@@ -216,6 +232,8 @@ class SingleFileSourceResolutionMixin:
         return None
 
     ## Trace one call expression after special dynamic forms are considered.
+    ## 考虑特殊动态形式后追踪调用表达式。
+    #
     #  @param node Call AST node.
     #  @return Source value or None.
     def _trace_call_source(self, node):
@@ -239,6 +257,8 @@ class SingleFileSourceResolutionMixin:
         return self._trace_regular_call_source(node)
 
     ## Convert a resolved method target into the call expression's value source.
+    ## 将已解析的方法目标转换为调用表达式的值来源。
+    #
     #  @param node Call AST node.
     #  @param method Resolved method source.
     #  @return Method call value source.
@@ -276,6 +296,8 @@ class SingleFileSourceResolutionMixin:
         return method
 
     ## Resolve the local class identity carried by a method receiver.
+    ## 解析方法接收者携带的局部类身份。
+    #
     #  @param receiver Receiver source string.
     #  @return Local class name or None.
     def _local_method_receiver_class(self, receiver):
@@ -291,6 +313,8 @@ class SingleFileSourceResolutionMixin:
         return None
 
     ## Resolve an outer chained call from the inner call's result evidence.
+    ## 根据内层调用的结果证据解析外层链式调用。
+    #
     #  @param node Outer Call AST node.
     #  @return Pair of handled flag and source value.
     def _trace_chained_call_source(self, node):
@@ -336,6 +360,8 @@ class SingleFileSourceResolutionMixin:
         return False, None
 
     ## Trace an ordinary call into a CallResult after callee lookup.
+    ## 查找被调用对象后，将普通调用追踪为 CallResult。
+    #
     #  @param node Call AST node.
     #  @return CallResult, fallback source, or None.
     def _trace_regular_call_source(self, node):
@@ -383,6 +409,8 @@ class SingleFileSourceResolutionMixin:
             call_col_offset=node.col_offset, result_source=result_source)
 
     ## Determine the result-object source for an ordinary resolved call.
+    ## 确定普通已解析调用的结果对象来源。
+    #
     #  @param node Call AST node.
     #  @param call_key Resolved callee source.
     #  @return Result source or None.
@@ -429,6 +457,8 @@ class SingleFileSourceResolutionMixin:
         return result_source
 
     ## Trace a lambda from its body without treating parameters as owners.
+    ## 从 lambda 主体追踪来源，不将参数本身视为归属。
+    #
     #  @param node Lambda AST node.
     #  @return Body source or local.
     def _trace_lambda_source(self, node):
@@ -444,6 +474,8 @@ class SingleFileSourceResolutionMixin:
         return body_base
 
     ## Trace an indexed expression through exact and homogeneous item facts.
+    ## 使用精确和同质元素事实追踪下标表达式。
+    #
     #  @param node Subscript AST node.
     #  @return Item source or container source.
     def _trace_subscript_source(self, node):
@@ -482,6 +514,8 @@ class SingleFileSourceResolutionMixin:
         return container_name
 
     ## Trace a literal container only when every element has one common base.
+    ## 仅当所有元素具有共同基底时追踪字面量容器。
+    #
     #  @param node Dict, list, tuple, or set AST node.
     #  @return Common base source or None.
     def _trace_literal_container_source(self, node):
@@ -494,6 +528,8 @@ class SingleFileSourceResolutionMixin:
         return next(iter(bases)) if len(bases) == 1 else None
 
     ## Extract a string literal from an AST node.
+    ## 从 AST 节点提取字符串字面量。
+    #
     #  @param node AST node.
     #  @return String value or None.
     def _literal_str(self, node):
@@ -502,6 +538,8 @@ class SingleFileSourceResolutionMixin:
         return None
 
     ## Check whether a call is functools.partial-compatible syntax.
+    ## 判断调用是否符合 functools.partial 的语法形式。
+    #
     #  @param node Call AST node.
     #  @return True for partial calls.
     def _is_partial_call(self, node):
@@ -512,6 +550,8 @@ class SingleFileSourceResolutionMixin:
                 or (isinstance(func, ast.Attribute) and func.attr == 'partial'))
 
     ## Check whether a call is getattr-compatible syntax.
+    ## 判断调用是否符合 getattr 的语法形式。
+    #
     #  @param node Call AST node.
     #  @return True for getattr calls with a name argument.
     def _is_getattr_call(self, node):
@@ -522,6 +562,8 @@ class SingleFileSourceResolutionMixin:
                 or (isinstance(func, ast.Attribute) and func.attr == "getattr"))
 
     ## Resolve getattr(obj, literal_name) to the object's source.
+    ## 将 getattr(obj, literal_name) 解析到对象来源。
+    #
     #  @param node Call AST node.
     #  @return Object source or None.
     def _resolve_getattr_trace(self, node):
@@ -532,6 +574,8 @@ class SingleFileSourceResolutionMixin:
         return self.trace_source(node.args[0])
 
     ## Check whether a symbol ultimately originates from importlib.
+    ## 判断符号是否最终来源于 importlib。
+    #
     #  @param symbol Symbol to inspect.
     #  @return True for an importlib source.
     def _is_importlib_module(self, symbol):
@@ -540,6 +584,8 @@ class SingleFileSourceResolutionMixin:
         return symbol == "importlib" or self.symbols.get_top(symbol) == "importlib"
 
     ## Check whether a call is importlib.import_module().
+    ## 判断调用是否为 importlib.import_module()。
+    #
     #  @param node Call AST node.
     #  @return True for a proven import_module call.
     def _is_import_module_call(self, node):
@@ -555,6 +601,8 @@ class SingleFileSourceResolutionMixin:
         return False
 
     ## Resolve importlib.import_module(literal) to the module name.
+    ## 将 importlib.import_module 的字面量参数解析为模块名。
+    #
     #  @param node Call AST node.
     #  @return Module name or None.
     def _resolve_import_module_trace(self, node):
@@ -563,6 +611,8 @@ class SingleFileSourceResolutionMixin:
         return self._literal_str(node.args[0])
 
     ## Extract a constant or negated constant from a slice node.
+    ## 从切片节点提取常量或取负的常量。
+    #
     #  @param slice_node Slice AST node.
     #  @return Constant value or None.
     def _get_slice(self, slice_node):
@@ -575,6 +625,8 @@ class SingleFileSourceResolutionMixin:
         return None
 
     ## Normalize a negative container index when length is known.
+    ## 已知容器长度时规范化负索引。
+    #
     #  @param container_name Container binding name.
     #  @param idx Raw index.
     #  @return Adjusted index.

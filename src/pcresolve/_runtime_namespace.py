@@ -1,5 +1,6 @@
 ## @package pcresolve._runtime_namespace
 #  Possible source writes to import-backed module bindings, without execution.
+#  不执行源码，检查对导入来源模块绑定的可能写入。
 
 import ast
 from dataclasses import asdict
@@ -13,6 +14,8 @@ _LIMIT = 10_000_000
 
 
 ## Locate reflective and imported-module export writes in the fixed source set.
+## 在固定源码集合中定位反射写入和导入模块导出写入。
+#
 #  @param analyzer Indexed source files, definitions and module bodies.
 #  @return Module/name sets and source witnesses, or None for exhausted syntax work.
 def writes(analyzer):
@@ -24,6 +27,14 @@ def writes(analyzer):
     module_names = set(analyzer.module_bodies)
     class_names = {ref.module + '.' + ref.qualname for ref, _ in analyzer.classes}
 
+    ## Record a possible namespace write and its source witness.
+    ## 记录可能的命名空间写入及其源码证据。
+    #
+    #  @param module Qualified module or class namespace.
+    #  @param name Written name or wildcard.
+    #  @param ref Enclosing source identity.
+    #  @param node AST node witnessing the write.
+    #  @return None
     def changed_at(module, name, ref, node):
         changed.setdefault(module, set()).add(name)
         evidence.append({'module': module, 'name': name, 'function': asdict(ref),
@@ -57,6 +68,11 @@ def writes(analyzer):
                 continue
             module_ref = ref_type(module, '', path)
 
+            ## Resolve supported module, class or namespace-dictionary references.
+            ## 解析受支持的模块、类或命名空间字典引用。
+            #
+            #  @param value Candidate source expression.
+            #  @return Set of qualified namespace and kind pairs.
             def reference(value):
                 if isinstance(value, ast.Name):
                     names = set(imports.get(value.id, ())) | {module + '.' + value.id}
@@ -81,6 +97,13 @@ def writes(analyzer):
                         return {(name, 'module')} if name is not None else set()
                 return set()
 
+            ## Visit syntax and record writes under its enclosing callable scope.
+            ## 遍历语法并记录所属可调用作用域内的写入。
+            #
+            #  @param node Source AST node.
+            #  @param ref Enclosing source identity.
+            #  @param scope Enclosing callable AST, or None at module level.
+            #  @return None; budget exhaustion raises OverflowError.
             def visit(node, ref, scope=None):
                 count[0] += 1
                 if count[0] > _LIMIT:
@@ -118,6 +141,7 @@ def writes(analyzer):
                                 continue
                             # A module-initialization update builds its snapshot
                             # exports. Runtime updates cannot inherit that premise.
+                            # 模块初始化更新建立快照导出；运行时更新不能沿用该前提。
                             if scope is None and node.func.attr == 'update':
                                 continue
                             names = []
@@ -145,12 +169,17 @@ def writes(analyzer):
                     visit(statement, module_ref)
             except OverflowError:
                 return None
+
+    # Cache only a completed scan; exhaustion leaves the conservative sentinel.
+    # 仅缓存完整扫描；预算耗尽时保留保守的未确认标记。
     result = changed, evidence
     analyzer._runtime_namespace_cache = result
     return result
 
 
 ## Check that no bounded source writer can change this namespace lookup prefix.
+## 检查有界源码写入是否可能改变该命名空间查找前缀。
+#
 #  @param analyzer Fixed source generation and per-query writer cache.
 #  @param qualified Import-backed name, including optional class/method suffixes.
 #  @return False for a possible write or scan exhaustion; True is not runtime binding evidence.

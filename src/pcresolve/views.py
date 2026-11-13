@@ -4,6 +4,7 @@
 #  Pure functions: take ProjectAnalysis, return dict/list/str.
 #  Do NOT print, read files, or re-analyze.
 #  All paths are returned as relative POSIX.
+#  将项目分析结果转换为输出视图，不执行分析或读取文件。
 
 import os
 
@@ -11,6 +12,7 @@ from .sources import source_to_legacy
 
 
 ## Build the summary view (small, stable, for CI/scripts).
+## 构建供 CI 和脚本使用的精简稳定摘要视图。
 #
 #  @param result ProjectAnalysis result.
 #  @param top Maximum entries in per-library detail (0 = unlimited).
@@ -61,6 +63,7 @@ def build_summary_view(result, top=20):
 
 
 ## Build the full view (all facts, for debugging / golden regression).
+## 构建包含全部输出事实的完整视图，用于调试和基准回归。
 #
 #  @param result ProjectAnalysis result.
 #  @return Dict suitable for JSON serialization.
@@ -102,6 +105,7 @@ def build_full_view(result):
 
 
 ## Build an explain library view.
+## 构建库使用解释视图。
 #
 #  @param result ProjectAnalysis result.
 #  @param library Library name to explain.
@@ -113,7 +117,8 @@ def build_explain_library_view(result, library, top=20):
         return None
     calls = [c for c in result.all_api_calls if c.top_library == library]
     provs = [p for p in result.all_symbol_provenance if p.top_library == library]
-    # Per-file call/symbol counts
+    # Count all primary-owner matches before limiting displayed examples.
+    # 限制展示样例前，先统计所有主归属匹配的每文件调用和符号。
     file_stats = {}
     for c in calls:
         fp = _relpath(c.file_path, result.project_root)
@@ -145,6 +150,7 @@ def build_explain_library_view(result, library, top=20):
 
 
 ## Build an explain symbol view.
+## 构建符号来源解释视图。
 #
 #  @param result ProjectAnalysis result.
 #  @param symbol Symbol name to search.
@@ -154,7 +160,8 @@ def build_explain_symbol_view(result, symbol, top=20):
     matches = [p for p in result.all_symbol_provenance if p.symbol == symbol]
     if top > 0:
         matches = matches[:top]
-    # Find related calls whose func_name starts with this symbol
+    # Find calls using the symbol itself or an attribute rooted at it.
+    # 查找使用该符号本身或以其为根的属性调用。
     related = []
     for f in result.files:
         for c in f.api_calls:
@@ -170,6 +177,7 @@ def build_explain_symbol_view(result, symbol, top=20):
 
 
 ## Build an explain call view.
+## 构建调用归属解释视图。
 #
 #  @param result ProjectAnalysis result.
 #  @param query Exact callable name or dotted path suffix in func_name/resolved_func.
@@ -195,6 +203,12 @@ def build_explain_call_view(result, query, top=20):
 
 # ── internal helpers ────────────────────────────────────────────────────
 
+## Format a path relative to the project and mark external paths.
+## 将路径格式化为项目相对路径，并标记外部路径。
+#
+#  @param file_path Source path, or an empty value.
+#  @param project_root Root used for relative paths.
+#  @return POSIX-style path or empty string.
 def _relpath(file_path, project_root):
     """Return a relative POSIX path with <external>/ prefix for external paths."""
     if not file_path:
@@ -211,6 +225,12 @@ def _relpath(file_path, project_root):
     return result
 
 
+## Serialize a call record for the full and explain views.
+## 为完整视图和解释视图序列化调用记录。
+#
+#  @param c API call record.
+#  @param root Project root for path formatting.
+#  @return JSON-compatible call dictionary.
 def _full_api_call(c, root):
     return {
         "expression": c.expression,
@@ -233,6 +253,12 @@ def _full_api_call(c, root):
     }
 
 
+## Serialize one symbol provenance record.
+## 序列化单个符号来源记录。
+#
+#  @param p Symbol provenance record.
+#  @param root Project root for path formatting.
+#  @return JSON-compatible provenance dictionary.
 def _full_provenance(p, root):
     return {
         "symbol": p.symbol,
@@ -250,6 +276,12 @@ def _full_provenance(p, root):
     }
 
 
+## Serialize one diagnostic with a normalized path.
+## 序列化单个诊断并规范化其路径。
+#
+#  @param d Diagnostic record.
+#  @param root Project root for path formatting.
+#  @return JSON-compatible diagnostic dictionary.
 def _full_diagnostic(d, root):
     return {
         "code": d.code,
@@ -264,6 +296,11 @@ def _full_diagnostic(d, root):
     }
 
 
+## Serialize the aggregate usage evidence for one library.
+## 序列化单个库的聚合使用证据。
+#
+#  @param u Library usage record.
+#  @return JSON-compatible usage dictionary.
 def _full_library_usage(u):
     return {
         "library": u.library,
@@ -279,6 +316,11 @@ def _full_library_usage(u):
     }
 
 
+## Recursively convert structured sources and containers to JSON-safe values.
+## 递归转换结构化来源和容器为可 JSON 序列化的值。
+#
+#  @param value Value to convert.
+#  @return Converted value with string dictionary keys and list sequences.
 def _json_value(value):
     """Recursively convert Source IR and containers to JSON-safe values."""
     converted = source_to_legacy(value)

@@ -1,5 +1,6 @@
 ## @package pcresolve._class_type_tests
 #  Non-escaping class operands of guarded native isinstance/issubclass tests.
+#  建模守卫式原生 isinstance/issubclass 检查中不会逃逸的类操作数。
 
 import ast
 import builtins
@@ -12,6 +13,15 @@ from ._class_identity import identity_decorations
 from .syntax_facts import SyntaxLimit
 
 
+## Resolve a class operand from a unique local import binding.
+## 从唯一的局部导入绑定解析类操作数。
+#
+#  @param analyzer Analyzer containing source and scope facts.
+#  @param ref Lexical source reference containing the import.
+#  @param scope Function scope whose bindings are inspected.
+#  @param head Imported local name at the start of the operand.
+#  @param rest Remaining qualified attribute suffix.
+#  @return Exact imported source class, or None when the binding is ambiguous.
 def _local_import_class(analyzer, ref, scope, head, rest):
     if not isinstance(scope, ast.FunctionDef):
         return None
@@ -24,6 +34,9 @@ def _local_import_class(analyzer, ref, scope, head, rest):
     # Only a unique unconditional import without any other lexical binding can
     # supply this scope's exact class operand. A method saved under the same
     # name remains a function value, not its declaring class.
+    # 只有唯一、无条件且未被其他词法绑定遮蔽的导入，才能提供精确类操作数。
+    # 同名保存的方法仍是函数值，不是声明它的类。
+
     probe = copy.copy(scope)
     probe.body = [node for node in scope.body if node is not statement]
     facts = analyzer._scope_facts(probe)
@@ -34,10 +47,19 @@ def _local_import_class(analyzer, ref, scope, head, rest):
         kind='class', qualified_guard=analyzer._stable_import_name)
 
 
+## Check that builtin type-test names remain stable across the source snapshot.
+## 检查源码快照中的内建类型测试名称是否保持稳定。
+#
+#  @param analyzer Analyzer containing source modules and binding facts.
+#  @param ref Source reference used to validate builtin bindings.
+#  @return True only when the inspected namespace preserves the required builtins.
 def _namespace(analyzer, ref):
     cached = analyzer._class_type_test_namespace
     if cached is not None:
         return cached
+
+    # Cache a conservative sentinel before scanning to guard against recursive re-entry.
+    # 扫描前缓存保守占位值，避免递归重入。
     analyzer._class_type_test_namespace = False
     try:
         stable, _ = _stable_builtin_namespace(analyzer, ref,
@@ -48,6 +70,9 @@ def _namespace(analyzer, ref):
         return False
     functions = {'isinstance', 'issubclass', '__build_class__'}
     inspected = 0
+
+    # Reject reflective namespace access and rebinding of the tested builtins.
+    # 排除反射式命名空间访问和类型测试内建名称的重绑定。
     for bodies in analyzer.module_bodies.values():
         for _, body in bodies:
             try:
@@ -68,6 +93,7 @@ def _namespace(analyzer, ref):
                     # A module or saved builtin function grants a route to the
                     # builtin namespace. This narrower proof does not authorize
                     # reflection through such capabilities.
+                    # 模块对象或保存的内建函数可通向 builtins 命名空间；本证明不允许经这些能力进行反射。
                     if (isinstance(node, ast.Import) and any(alias.name == 'builtins'
                                                             for alias in node.names)
                             or isinstance(node, ast.ImportFrom) and node.module == 'builtins'
@@ -84,6 +110,8 @@ def _namespace(analyzer, ref):
 
 
 ## Recognize the class operand of a native type test as a non-escaping operand.
+## 将原生类型测试的类操作数识别为不会逃逸的操作数。
+#
 #  @param analyzer Fixed source/class/import bindings; no source module is executed.
 #  @param ref Lexical source scope containing the call.
 #  @param call Actual synchronous call syntax.
@@ -105,6 +133,9 @@ def native_class_operand(analyzer, ref, call, aliases):
                                       definition_scope=not ref.qualname) != 'confirmed_builtin'
             or not _namespace(analyzer, ref)):
         return False
+
+    # Expand tuple operands while requiring every leaf to resolve to a class.
+    # 展开元组操作数，并要求每个叶节点都能解析为类。
     pending, count = [call.args[1]], 0
     while pending:
         node = pending.pop()
@@ -136,6 +167,7 @@ def native_class_operand(analyzer, ref, call, aliases):
         # replace that class object's immutable native type. A class decorator
         # can return a different object; admitting it requires an independent
         # normal-return identity proof, never constructor-slot preservation.
+        # 类装饰器可能返回其他对象；只有独立的正常返回身份证明才可纳入，构造器槽位保持证明不足以支持这一点。
         if (not hierarchy or len(hierarchy) > 64
                 or any(cls.keywords
                        or analyzer.definition_conditions.get(owner)

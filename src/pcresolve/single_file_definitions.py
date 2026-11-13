@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_definitions
 #  Function, lambda, class, decorator, and constructor-field collection.
+#  函数、lambda、类、装饰器和构造函数字段的收集逻辑。
 
 import ast
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from .sources import PythonShape, UnknownSource, make_source_set, normalize_sour
 
 
 ## Immutable declaration facts computed before entering a function scope.
+## 进入函数作用域前计算的不可变声明事实。
 @dataclass(frozen=True)
 class FunctionDefinitionFacts:
     is_direct_method: bool
@@ -26,15 +28,18 @@ class FunctionDefinitionFacts:
 
 
 ## Definition collection mixed into SingleFileAnalyzer.
+## 混入 SingleFileAnalyzer 的定义收集逻辑。
 class SingleFileDefinitionMixin:
     ## Collect statically declared pytest parameter values.
-    #
     #  pytest.mark.parametrize supplies concrete call-site-like evidence for
     #  test parameters even though pytest performs the invocation at runtime.
     #  Only literal parameter names and literal value sequences are accepted.
+    ## 静态收集 pytest 参数化测试提供的参数值证据。
+    #
     #  @param node Function definition carrying decorators.
     #  @param qualname Qualified function name.
     #  @param params Declared function parameter names.
+    #  @return None; matching values are stored in the analyzer's parameter sources.
     def _collect_parametrize_sources(self, node, qualname, params):
         for decorator in node.decorator_list:
             if (not isinstance(decorator, ast.Call)
@@ -82,6 +87,8 @@ class SingleFileDefinitionMixin:
                             (qualname, name), []).append(source)
 
     ## Return a kwargs parameter for a direct __dict__.update contract.
+    ## 返回直接用于 __dict__.update 契约的 kwargs 参数。
+    #
     #  @param node The constructor AST node.
     #  @return kwargs parameter name, or None when no direct contract exists.
     def _constructor_kwargs_parameter(self, node):
@@ -104,11 +111,12 @@ class SingleFileDefinitionMixin:
         return None
 
     ## Return one unambiguous wildcard-import owner, when available.
-    #
     #  A wildcard import is still import evidence, but it does not identify
     #  the imported symbol.  It is therefore safe to use only when the file
     #  has one unique wildcard source.  Multiple wildcard sources remain
     #  unresolved rather than selecting one by name.
+    ## 在存在唯一来源时返回明确的通配符导入所有者。
+    #
     #  @return Module name or None when wildcard evidence is ambiguous.
     def _unique_wildcard_import_owner(self):
         owners = []
@@ -121,15 +129,18 @@ class SingleFileDefinitionMixin:
         return owners[0] if len(owners) == 1 else None
 
     ## Return the lexical scope key for local instance field facts.
+    ## 返回本地实例字段事实对应的词法作用域键。
+    #
     #  @return Tuple identifying the current module, class, and function scope.
     def _local_instance_field_scope_key(self):
         scope = tuple(self._class_stack) + tuple(self._func_stack)
         return scope or ("<module>",)
 
     ## Return lexical scopes eligible for a local instance field lookup.
-    #  A binding in the current scope blocks inherited field facts, including
-    #  a function-local global rebinding. An unbound name may inherit facts
-    #  from enclosing function, class, or module scope.
+    ## 返回可参与本地实例字段查找的词法作用域。
+    #  当前作用域中的绑定会阻止继承外层字段事实，包括函数中的 global 重绑定；
+    #  未绑定名称可以继承外层函数、类或模块作用域中的事实。
+    #
     #  @param root_name Root name of the instance expression.
     #  @return Scope keys ordered from innermost to outermost.
     def _local_instance_field_scope_keys(self, root_name):
@@ -148,10 +159,12 @@ class SingleFileDefinitionMixin:
         return keys
 
     ## Record fields established by a local kwargs-backed constructor call.
-    #  Only direct keyword arguments are retained. Constructors without an
-    #  explicit self.__dict__.update(kwargs) contract remain unresolved.
+    ## 记录本地 kwargs 构造调用确立的字段。
+    #  仅保留直接关键字参数；未显式调用 self.__dict__.update(kwargs) 的构造函数保持未解析。
+    #
     #  @param node Assignment node.
     #  @param target_names Names assigned by the node.
+    #  @return None; field facts are recorded in the analyzer's local stores.
     def _record_local_constructor_fields(self, node, target_names):
         scope_key = self._local_instance_field_scope_key()
         shadowed = self._local_instance_field_shadowed.setdefault(
@@ -183,7 +196,10 @@ class SingleFileDefinitionMixin:
                         (scope_key, target_name, keyword.arg)] = shape
 
     ## Visit a function definition through declaration, body, and summary stages.
+    ## 按声明、函数体和摘要阶段访问函数定义。
+    #
     #  @param node FunctionDef or AsyncFunctionDef AST node.
+    #  @return None; the function summary is registered with the module call graph.
     def _visit_function_def(self, node):
         facts = self._function_definition_facts(node)
         self._class_receiver_stack.append(facts.receiver_name)
@@ -198,6 +214,9 @@ class SingleFileDefinitionMixin:
         self._mapping_local_names[id(self.current_scope())] = (
             mapping_bound_names(node.body))
         self.generic_visit(node)
+
+        # Restore caller state before constructing the completed function summary.
+        # 构造函数摘要前恢复调用者状态，避免函数局部状态泄漏。
         self._global_names = saved_globals
         self._caller_stack.pop()
         self._func_stack.pop()
@@ -210,6 +229,8 @@ class SingleFileDefinitionMixin:
         self._bind_decorated_target(node.name, node.decorator_list)
 
     ## Compute parameter and receiver facts in the defining lexical scope.
+    ## 在定义处的词法作用域中计算参数与接收者事实。
+    #
     #  @param node Function definition AST node.
     #  @return Immutable FunctionDefinitionFacts.
     def _function_definition_facts(self, node):
@@ -279,8 +300,11 @@ class SingleFileDefinitionMixin:
                   if arg.arg in params))
 
     ## Register the callable in the enclosing scope before visiting its body.
+    ## 访问函数体前，先在外围作用域注册可调用对象。
+    #
     #  @param node Function definition AST node.
     #  @param facts Precomputed declaration facts.
+    #  @return None; the callable and any mapping facts are bound in the current scope.
     def _register_function_binding(self, node, facts):
         self.local.add(node.name)
         if self._class_stack:
@@ -299,8 +323,11 @@ class SingleFileDefinitionMixin:
                     self.module_name or "", callable_key)))
 
     ## Bind declared parameters inside the newly pushed function scope.
+    ## 在新建的函数作用域内绑定声明参数。
+    #
     #  @param node Function definition AST node.
     #  @param facts Precomputed declaration facts.
+    #  @return None; declared parameters are bound in the current function scope.
     def _bind_function_parameters(self, node, facts):
         if facts.receiver_name and facts.receiver_name != "self":
             self._bind_target_name(
@@ -320,6 +347,8 @@ class SingleFileDefinitionMixin:
             self._bind_target_name(facts.kwarg, "local", kind="parameter")
 
     ## Enter function stacks and return the qualified definition name.
+    ## 进入函数栈并返回限定定义名。
+    #
     #  @param node Function definition AST node.
     #  @param facts Precomputed declaration facts.
     #  @return Qualified function name.
@@ -340,6 +369,8 @@ class SingleFileDefinitionMixin:
         return qualname
 
     ## Build the completed call-graph summary for a visited function body.
+    ## 为已访问的函数体构造完整调用图摘要。
+    #
     #  @param node Function definition AST node.
     #  @param facts Precomputed declaration facts.
     #  @param qualname Qualified function name.
@@ -356,6 +387,9 @@ class SingleFileDefinitionMixin:
             make_source_set(yield_values, origin="yield")
             if yield_values else None)
         return_values = self.call_graph_return_values.get(qualname)
+
+        # Add implicit None only when control can fall through the body.
+        # 仅当控制流可能自然落出函数体时，才补入隐式 None 返回值。
         if not self._block_exits(node.body):
             return_values = make_source_set(
                 [return_values, PythonShape("NoneType")]
@@ -380,8 +414,11 @@ class SingleFileDefinitionMixin:
         )
 
     ## Link a direct method summary into its enclosing class summary.
+    ## 将直接方法摘要关联到外围类摘要。
+    #
     #  @param node Function definition AST node.
     #  @param summary Completed FunctionSummary.
+    #  @return None; the method summary is linked when its class is available.
     def _link_method_summary(self, node, summary):
         if not self._class_stack:
             return
@@ -393,12 +430,18 @@ class SingleFileDefinitionMixin:
         self.module_cg.classes[class_name].methods[method_qualname] = summary
 
     ## Visit a FunctionDef node and register it as a local definition.
+    ## 访问 FunctionDef 节点并将其注册为本地定义。
+    #
     #  @param node The FunctionDef AST node.
+    #  @return None; collection is delegated to the shared function visitor.
     def visit_FunctionDef(self, node):
         self._visit_function_def(node)
 
     ## Visit an AsyncFunctionDef node and register it as a local definition.
+    ## 访问 AsyncFunctionDef 节点并将其注册为本地定义。
+    #
     #  @param node The AsyncFunctionDef AST node.
+    #  @return None; collection is delegated to the shared function visitor.
     def visit_AsyncFunctionDef(self, node):
         self._visit_function_def(node)
 
@@ -407,7 +450,12 @@ class SingleFileDefinitionMixin:
     #  Inline callbacks stored in literal containers need the same bounded
     #  parameter substitution as named functions. The source location makes
     #  the identity stable without inferring a name from a dispatch key.
+    ## 将 lambda 作为一等本地调用图目标进行访问。
+    #  存在字面量容器中的内联回调需要与命名函数相同的有限参数替换。
+    #  使用源码位置保持身份稳定，不从分派键推断名称。
+    #
     #  @param node Lambda expression.
+    #  @return None; lambda bindings and its call-graph summary are recorded.
     def visit_Lambda(self, node):
         qualname = self._local_lambda_key(node)
         positional_nodes = (
@@ -466,6 +514,9 @@ class SingleFileDefinitionMixin:
         self.visit(node.body)
         result = self.trace_source(node.body) or self.get_base(node.body)
         result = result or UnknownSource("lambda result")
+
+        # Pop each stack in reverse push order to restore the enclosing scope.
+        # 按压入顺序的逆序弹出各栈，恢复外围作用域状态。
         self._caller_stack.pop()
         self._func_stack.pop()
         self.pop_scope()
@@ -486,6 +537,8 @@ class SingleFileDefinitionMixin:
         )
 
     ## Qualify a name or attribute through its current lexical import binding.
+    ## 通过当前词法导入绑定限定名称或属性。
+    #
     #  @param root Expression evaluated in the defining scope.
     #  @return Dotted import path, or None for non-import or ambiguous bindings.
     def _definition_import_path(self, root):
@@ -505,6 +558,8 @@ class SingleFileDefinitionMixin:
         return '.'.join([imported] + list(reversed(attributes)))
 
     ## Recognize the narrow Keras registration contract that returns its class.
+    ## 识别会返回原类的有限 Keras 注册契约。
+    #
     #  @param node Class decorator expression.
     #  @return True for a proven registration call with literal configuration.
     def _is_class_preserving_keras_registration(self, node):
@@ -549,6 +604,8 @@ class SingleFileDefinitionMixin:
         return True
 
     ## Capture a simple single base's import path at class definition time.
+    ## 在类定义时捕获单一直接基类的导入路径。
+    #
     #  @param node ClassDef node.
     #  @return Import-backed dotted path, or None for unsupported inheritance.
     def _super_base_import_path(self, node):
@@ -560,7 +617,10 @@ class SingleFileDefinitionMixin:
         return self._definition_import_path(node.bases[0])
 
     ## Visit a ClassDef node and register it with its method and base lists.
+    ## 访问 ClassDef 节点并登记其方法与基类列表。
+    #
     #  @param node The ClassDef AST node.
+    #  @return None; class facts and its summary are registered with the analyzer.
     def visit_ClassDef(self, node):
         super_base_path = self._super_base_import_path(node)
         self.local.add(node.name)
@@ -583,6 +643,7 @@ class SingleFileDefinitionMixin:
         self.class_methods[node.name] = methods
         self.class_bases[node.name] = bases
         ## Create ClassSummary BEFORE generic_visit so methods can link to it.
+        ## 在 generic_visit 前创建 ClassSummary，以便方法访问时能关联摘要。
         class_id = FunctionId(self.module_name or "", node.name)
         self.module_cg.classes[node.name] = ClassSummary(
             id=class_id,
@@ -603,6 +664,7 @@ class SingleFileDefinitionMixin:
         self._class_stack.pop()
         self._super_base_path_stack.pop()
         ## Populate ClassSummary attrs collected during class body visit.
+        ## 填充访问类体期间收集到的 ClassSummary 属性。
         class_attrs = {}
         for (cn, attr_name), src in self.instance_attrs.items():
             if cn == node.name:

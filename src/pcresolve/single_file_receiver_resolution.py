@@ -3,6 +3,7 @@
 #
 #  The mixin operates on SingleFileAnalyzer lexical state and preserves
 #  receiver-resolution order without owning a second analysis state.
+#  基于单文件分析器的词法状态解析接收者、可调用对象和有限结果归属，不另建分析状态。
 
 import ast
 
@@ -21,14 +22,17 @@ from .sources import (
 
 
 ## Resolve receiver and result ownership using SingleFileAnalyzer state.
+## 使用 SingleFileAnalyzer 状态解析接收者和结果归属。
 class SingleFileReceiverResolutionMixin:
     ## --- Method resolution ---
 
     ## Resolve a method inherited from a statically known builtin base class.
+    ## 解析从静态已知内置基类继承的方法。
     #
     #  Follows local base classes in declared MRO order.  A local override wins;
     #  an external or otherwise unknown base stops inference so a later builtin
     #  base cannot be claimed speculatively.
+    #
     #  @param class_name Local class whose bases should be inspected.
     #  @param method_name Method looked up on the instance.
     #  @param seen Local classes already visited during recursive lookup.
@@ -75,6 +79,7 @@ class SingleFileReceiverResolutionMixin:
 
 
     ## Resolve the owner of a comparison-result method call.
+    ## 解析比较结果上的方法调用归属。
     #
     #  For (np.diag(W) == np.zeros(...)).any(), both sides of the
     #  comparison are numpy expressions, so the result is a boolean
@@ -84,6 +89,7 @@ class SingleFileReceiverResolutionMixin:
     #  library AND the method is in _COMPARE_RESULT_METHODS for that
     #  library.  Returns None otherwise — no fallback to the first
     #  operand (which would overclaim ownership for mixed libraries).
+    #
     #  @param compare_node The ast.Compare node.
     #  @param method_name The method being called on the result.
     #  @return InstanceMethod or None.
@@ -117,6 +123,8 @@ class SingleFileReceiverResolutionMixin:
         return InstanceMethod(first, method_name)
 
     ## Flatten an attribute chain (e.g. a.b.c) into a list ["a", "b", "c"].
+    ## 将属性链（如 a.b.c）展开为名称列表。
+    #
     #  @param node The starting Attribute node.
     #  @return List of name parts from root to leaf, or None.
     def _attribute_chain_list(self, node):
@@ -131,6 +139,8 @@ class SingleFileReceiverResolutionMixin:
         return None
 
     ## Reconstruct a dotted attribute name from an AST node.
+    ## 从 AST 节点重建点分隔的属性名称。
+    #
     #  @param node The Attribute or Name node.
     #  @return Dotted name string (e.g. "os.path.join"), or None.
     def _attribute_name(self, node):
@@ -140,9 +150,11 @@ class SingleFileReceiverResolutionMixin:
         return None
 
     ## Check whether an expression is rooted at an imported module symbol.
+    ## 判断表达式是否以导入的模块符号为根。
     #
     #  This is deliberately syntactic.  A variable whose value came from an
     #  external call is not treated as the module that produced that value.
+    #
     #  @param node Receiver expression below an Attribute node.
     #  @return True only for an import alias or import-from root.
     def _is_import_backed_receiver_expression(self, node):
@@ -162,11 +174,13 @@ class SingleFileReceiverResolutionMixin:
         return top not in (None, "", "local", "python", "unknown")
 
     ## Resolve an explicitly evidenced external receiver expression.
+    ## 解析具有明确外部证据的接收者表达式。
     #
     #  Accepted roots are import symbols and instance fields already bound to
     #  an external source. A local variable is intentionally excluded even
     #  when its current source came from an external call, because that call's
     #  return object has no generic static owner contract.
+    #
     #  @param node Receiver expression.
     #  @return External owner top or None.
     def _explicit_external_receiver_top(self, node):
@@ -178,6 +192,8 @@ class SingleFileReceiverResolutionMixin:
                 root = chain[0] if chain else None
             return self._receiver_top(root) if root else None
 
+        # Inspect the longest recorded instance-field prefix first.
+        # 优先检查已记录的最长实例字段前缀。
         if isinstance(node, ast.Attribute) and self._class_stack:
             chain = self._attribute_chain_list(node) or []
             if chain and chain[0] == "self":
@@ -202,6 +218,8 @@ class SingleFileReceiverResolutionMixin:
         return None
 
     ## Check whether an expression is rooted at a local instance field.
+    ## 判断表达式是否以局部实例字段为根。
+    #
     #  @param node Receiver expression.
     #  @return True for self.field and its subscripted forms.
     def _is_instance_field_expression(self, node):
@@ -212,16 +230,13 @@ class SingleFileReceiverResolutionMixin:
             return self._is_instance_field_expression(node.value)
         return False
 
-    ## Find the root receiver of a call expression.
-    #
-    #  Unwinds chained calls and attributes to find the base object.
-    #  @param receiver_node The receiver AST node.
-    #  @return Base symbol name, or None.
     ## Resolve an Attribute receiver through scope binding.
+    ## 通过作用域绑定解析属性接收者。
     #
     #  When the root of the attribute chain (e.g. "v" in "v.armW.mean")
     #  has a scope binding with a library source, propagate it instead
     #  of returning the raw dotted name.
+    #
     #  @param receiver_node The Attribute AST node.
     #  @param receiver_name The full dotted name (e.g. "v.armW").
     #  @return Resolved source or the original receiver_name.
@@ -235,6 +250,11 @@ class SingleFileReceiverResolutionMixin:
                 return root_src
         return receiver_name
 
+    ## Find the root receiver of a call expression.
+    ## 沿链式调用和属性访问查找调用表达式的根接收者。
+    #
+    #  @param receiver_node Receiver AST node.
+    #  @return Resolved receiver source, or None when no root is found.
     def _resolve_call_receiver(self, receiver_node):
         if isinstance(receiver_node, ast.Name):
             return self._lookup_name_source(receiver_node.id)
@@ -261,9 +281,11 @@ class SingleFileReceiverResolutionMixin:
     ## --- Base extraction ---
 
     ## Extract the root/base name from an expression node.
+    ## 从表达式节点提取根或基底来源。
     #
     #  For simple names returns the name. For attributes returns the chain root.
     #  For calls with call_lookup=True, resolves the call receiver.
+    #
     #  @param node The AST expression node.
     #  @param call_lookup If True, resolve call receivers instead of just func base.
     #  @return Root symbol name, or None.
@@ -316,6 +338,10 @@ class SingleFileReceiverResolutionMixin:
 
 
     ## Resolve a receiver name to its top library using lexical scope.
+    ## 使用词法作用域将接收者名称解析为顶层来源。
+    #
+    #  @param name Receiver name to resolve.
+    #  @return Top-level source or None when unresolved.
     def _receiver_top(self, name):
         binding = self.current_scope().lookup(
             name, skip_parent_classes=True)
@@ -372,11 +398,15 @@ class SingleFileReceiverResolutionMixin:
         return top
 
     ## Resolve the ownership top of an expression node.
+    ## 解析表达式节点的顶层归属。
     #  Recursively handles ast.Call arguments so that
     #  np.log(price.dropna()).diff() preserves the inner call's
     #  receiver owner (pandas).
     #  Respects conversion boundaries: data.to_numpy() returns
     #  numpy even though the receiver is pandas.
+    #
+    #  @param expr Expression AST node.
+    #  @return Resolved owner string or None when evidence is insufficient.
     def _expr_receiver_top(self, expr):
         if isinstance(expr, ast.Name):
             return self._receiver_top(expr.id)
@@ -434,6 +464,8 @@ class SingleFileReceiverResolutionMixin:
         return None
 
     ## Identify one imported attribute path by its lexical root binding.
+    ## 通过词法根绑定识别导入属性路径。
+    #
     #  @param node Attribute expression.
     #  @return Binding key and attribute path, or None for non-import roots.
     def _import_attribute_key(self, node):
@@ -449,13 +481,16 @@ class SingleFileReceiverResolutionMixin:
         return (self._binding_key(binding), tuple(chain[1:]))
 
     ## Record runtime attributes of imported objects used via subscripting.
+    ## 记录通过下标访问的导入对象属性。
     #
     #  A subscript proves only that the attribute supports the subscription
     #  protocol. It does not prove that the attribute value is owned by the
     #  library that owns the outer object. Later method calls on the same
     #  attribute therefore remain unknown unless independent shape evidence
     #  exists.
+    #
     #  @param node Subscript expression.
+    #  @return None.
     def visit_Subscript(self, node):
         key = self._import_attribute_key(node.value)
         if key is not None:
@@ -463,6 +498,8 @@ class SingleFileReceiverResolutionMixin:
         self.generic_visit(node)
 
     ## Check whether a return expression is fully bounded by project sources.
+    ## 判断返回表达式是否完全受项目来源约束。
+    #
     #  @param source Structured return-expression source.
     #  @return True when exact call-edge substitution is safe.
     def _is_bounded_return_expression(self, source):
@@ -488,9 +525,11 @@ class SingleFileReceiverResolutionMixin:
         return False
 
     ## Check whether a structured source still depends on a parameter.
+    ## 判断结构化来源是否仍依赖参数。
     #
     #  Parameter expressions must be resolved from project call edges.  A
     #  same-scope expression owner must not overwrite that richer evidence.
+    #
     #  @param source Source value to inspect.
     #  @return True when any nested source is parameter-backed.
     def _source_contains_parameter(self, source):
@@ -507,9 +546,11 @@ class SingleFileReceiverResolutionMixin:
         return False
 
     ## Collect immediate ownership evidence from an operator expression.
+    ## 收集运算表达式操作数的直接归属证据。
     #
     #  The caller uses these candidates only to distinguish strict
     #  same-owner convergence from conflicting import-backed operands.
+    #
     #  @param expr BinOp or UnaryOp expression.
     #  @return List of operand owner strings.
     def _operator_operand_tops(self, expr):
@@ -523,7 +564,11 @@ class SingleFileReceiverResolutionMixin:
         return []
 
     ## Resolve (top_library, function_name) for a function expression.
+    ## 为函数表达式解析顶层库和函数名。
     #  Handles both bare names (cdist) and dotted names (np.log).
+    #
+    #  @param func_node Function expression AST node.
+    #  @return Pair of library and function name, or (None, None) if unresolved.
     def _resolve_func_top(self, func_node):
         if isinstance(func_node, ast.Name):
             name = func_node.id
@@ -564,10 +609,12 @@ class SingleFileReceiverResolutionMixin:
         return (None, None)
 
     ## Resolve a verified owner for an item selected from a call result.
+    ## 解析从调用结果选出的元素的已验证归属。
     #
     #  Direct import calls use _resolve_func_top().  Receiver calls additionally
     #  use _resolve_methods(), which can recover owners stored on instance
     #  attributes such as self.model = GPRegression(...).
+    #
     #  @param call_node The call whose result is indexed or destructured.
     #  @return Verified item owner string, or None.
     def _resolve_call_result_item_owner(self, call_node):
@@ -604,10 +651,12 @@ class SingleFileReceiverResolutionMixin:
         return _match_result_item_owner(attr_top, call_node.func.attr)
 
     ## Resolve the result owner of a protocol-dispatched NumPy ufunc.
+    ## 解析通过协议分派的 NumPy ufunc 的结果归属。
     #
     #  Pandas and NumPy inputs retain their owner.  Python literals and
     #  containers produce NumPy results.  An unresolved or other import-backed
     #  receiver remains unknown because array protocols may override dispatch.
+    #
     #  @param call_node Ufunc call expression.
     #  @param func_top Resolved callable owner.
     #  @param func_name Resolved function name.
@@ -639,6 +688,8 @@ class SingleFileReceiverResolutionMixin:
                 deferred_sources.append(arg_top)
             arg_tops.append(arg_top)
 
+        # Defer parameter-backed operands; unresolved operands stay unknown.
+        # 参数支持的操作数延后解析，无法解析的操作数保持未知。
         if any(top in (None, "", "local", "unknown")
                for top in arg_tops):
             return DerivedResult(
@@ -657,9 +708,11 @@ class SingleFileReceiverResolutionMixin:
         return UnknownSource("receiver-preserving ufunc result")
 
     ## Check whether a call expression is a known library-to-library conversion.
+    ## 判断调用表达式是否属于已知的库间转换。
     #
     #  Unwraps trailing attribute chains (e.g. data.to_numpy().T) to find
     #  the inner conversion call, then looks up (source_library, method).
+    #
     #  @param value_node The RHS expression node.
     #  @return The conversion target library name, or None.
     def _resolve_conversion_target(self, value_node):
@@ -709,6 +762,8 @@ class SingleFileReceiverResolutionMixin:
         return None
 
     ## Resolve a class identity through already defined local return summaries.
+    ## 通过已定义的局部返回摘要解析类身份。
+    #
     #  @param source Receiver value, not the name of the producing method.
     #  @param seen Local return-summary cycle guard.
     #  @return Local class name or None without uniform constructor evidence.

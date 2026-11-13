@@ -1,5 +1,6 @@
 ## @package pcresolve._class_identity
 #  Normal class-decorator return identity, independent of class write effects.
+#  独立于类属性写入效果，证明类装饰器正常返回时的对象身份。
 
 import ast
 import copy
@@ -13,12 +14,25 @@ from .class_attribute_effects import _ClassEffectLimit
 from .scope_facts import statement_scope_facts
 
 
+## Build a source span record for one decoration or return expression.
+## 为一次装饰或返回表达式构造源码范围记录。
+#
+#  @param ref Source reference carrying the file path.
+#  @param node AST node carrying the source coordinates.
+#  @return Dictionary containing the node's start and end positions.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
             'end_col_offset': node.end_col_offset}
 
 
+## Find every direct return of an unchanged ordinary parameter.
+## 查找普通参数未经改变而直接返回的所有路径。
+#
+#  @param analyzer Analyzer providing query-local identity budget.
+#  @param function Candidate source decorator function.
+#  @param parameter Parameter name whose identity must be preserved.
+#  @return Return nodes that preserve the parameter, or None if any path differs.
 def _returns_input(analyzer, function, parameter):
     if (not isinstance(function, ast.FunctionDef) or not function.body
             or not isinstance(function.body[-1], ast.Return)
@@ -26,6 +40,7 @@ def _returns_input(analyzer, function, parameter):
         return None
     # A nested nonlocal declaration can change the outer cell during a helper
     # invocation even though its store is absent from the outer scope facts.
+    # 嵌套 nonlocal 声明可在辅助函数调用时改变外层单元，即使外层作用域事实中看不到该写入。
     inspected = 0
     for node in ast.walk(function):
         inspected += 1
@@ -41,6 +56,9 @@ def _returns_input(analyzer, function, parameter):
                 and parameter in (getattr(node, 'name', None), getattr(node, 'rest', None))):
             return None
     returns, pending = [], list(function.body)
+
+    # Inspect only the decorator's immediate control flow, excluding nested definitions.
+    # 只检查装饰器的直接控制流，并排除嵌套定义。
     while pending:
         node = pending.pop()
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
@@ -57,6 +75,14 @@ def _returns_input(analyzer, function, parameter):
     return returns or None
 
 
+## Cache the proof that a callable instance's class-sensitive namespace is intact.
+## 缓存可调用实例类敏感命名空间保持完整的证明结果。
+#
+#  @param analyzer Analyzer holding mutable namespace guard caches.
+#  @param ref Source class reference associated with the decorator.
+#  @param expression Decorator expression that selected the callable instance.
+#  @param resolution Resolved callable-instance class and captured state.
+#  @return True when no unsupported class mutation or escape was found.
 def _instance_namespace(analyzer, ref, expression, resolution):
     name = ast.unparse(expression)
     head, dot, rest = name.partition('.')
@@ -72,11 +98,21 @@ def _instance_namespace(analyzer, ref, expression, resolution):
             'file_path', 'lineno', 'col_offset', 'end_lineno', 'end_col_offset'))
     cache = analyzer._class_identity_instance_guards
     if key not in cache:
+        # Seed the cache before the expensive project-wide guard scan.
+        # 在昂贵的项目级保护扫描前先写入缓存占位。
         cache[key] = False
         cache[key] = _instance_namespace_uncached(analyzer, ref, expression, resolution)
     return cache[key]
 
 
+## Check a callable instance for class mutation and reference escape.
+## 检查可调用实例是否存在类变更或引用逃逸。
+#
+#  @param analyzer Analyzer containing source classes, calls, and budgets.
+#  @param ref Source reference used to resolve the decorator expression.
+#  @param expression Decorator expression evaluated by the source model.
+#  @param resolution Resolved callable-instance class and captured state.
+#  @return True only when the instance remains within the supported closed namespace.
 def _instance_namespace_uncached(analyzer, ref, expression, resolution):
     # A shared source instance has a mutable __class__, unlike a native class
     # object. Resolution of its original constructor alone is insufficient.
@@ -85,6 +121,9 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
     if analyzer._class_identity_layout_guard is None:
         analyzer._class_identity_layout_guard = False
         inspected = 0
+
+        # Audit sensitive layout writes project-wide because an instance may be shared across modules.
+        # 实例可能跨模块共享，因此在整个项目范围内审计敏感布局写入。
         for bodies in analyzer.module_bodies.values():
             for _, body in bodies:
                 for statement in body:
@@ -149,6 +188,13 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
     # work. The shared AnalysisLimits checkpoint still charges every visit.
     remaining = 3000000
 
+    ## Record why a source namespace proof failed, with the first useful location.
+    ## 记录源码命名空间证明失败的原因及首个有效位置。
+    #
+    #  @param reason Machine-readable boundary reason.
+    #  @param module Module containing the evidence node.
+    #  @param node Optional syntax node supporting the boundary.
+    #  @return False, for direct propagation from guard checks.
     def fail(reason, module='', node=None):
         analyzer._class_identity_guard_failures[origin] = {
             'reason': reason, 'module': module,
@@ -156,6 +202,12 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
             'syntax': ast.unparse(node)[:240] if node is not None else None}
         return False
 
+    ## Resolve a name-like source expression to its qualified module identity.
+    ## 将名称类源码表达式解析为限定模块身份。
+    #
+    #  @param node Name, attribute, or supported globals subscript.
+    #  @param module Module providing the lexical import context.
+    #  @return Qualified identity, or an empty string for unsupported syntax.
     def identity(node, module):
         if isinstance(node, ast.Name):
             imported = analyzer.imports.get(module, {}).get(node.id)
@@ -168,6 +220,8 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
             return module + '.' + node.slice.value
         return ''
 
+    # Capture and audit all project source before propagating aliases to a fixed point.
+    # 在迭代传播别名前，先捕获并审计整个项目源码。
     for module, bodies in analyzer.module_bodies.items():
         for _, body in bodies:
             nodes, parents = [], {}
@@ -198,6 +252,9 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
             break
     else:
         return fail('instance_namespace_alias_cycle')
+
+    # Reject every use that can expose, reflect on, or mutate the shared instance class.
+    # 拒绝所有可能暴露、反射访问或修改共享实例类的用法。
     for module, nodes, parents in scopes:
         for node in nodes:
             remaining -= 1
@@ -230,6 +287,8 @@ def _instance_namespace_uncached(analyzer, ref, expression, resolution):
 
 
 ## Prove only that each normal class-decorator return is its original input.
+## 仅证明每个类装饰器的正常返回值仍是其原始输入对象。
+#
 #  @param analyzer Fixed source snapshot and query-local identity/effect budgets.
 #  @param target Exact source class declaration before its decorators are applied.
 #  @return Ordered identity-only records, or None for open bindings/returns.
@@ -247,6 +306,9 @@ def identity_decorations(analyzer, target):
     if observations is None:
         return None
     facts = []
+
+    # Decorators execute from the innermost expression outward; prove each layer separately.
+    # 装饰器按从内到外的顺序执行，因此逐层独立证明身份保持。
     for expression in reversed(cls.decorator_list):
         probe = copy.copy(cls)
         probe.decorator_list = [expression]

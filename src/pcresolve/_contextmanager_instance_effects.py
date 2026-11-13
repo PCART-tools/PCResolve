@@ -1,5 +1,9 @@
 """Bounded effects for source context managers that temporarily set receiver data attributes."""
 
+## @package pcresolve._contextmanager_instance_effects
+#  Bounded effects for source context managers that temporarily set receiver data attributes.
+#  有界分析临时设置并恢复接收者实例属性的源码上下文管理器效果。
+
 import ast
 from dataclasses import asdict
 
@@ -16,6 +20,11 @@ def _dotted(node):
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
+## Build a dotted name from a simple name or attribute expression.
+## 从简单名称或属性表达式构造点分名称。
+#
+#  @param node AST expression to convert.
+#  @return Dotted name, or None for unsupported expression shapes.
         head = _dotted(node.value)
         return head + '.' + node.attr if head else None
     return None
@@ -30,6 +39,13 @@ def _target(analyzer, caller, call):
     qualified = (imported + (dot + tail if dot else '') if imported
                  else caller.module + '.' + dotted)
     return analyzer._definition_index.resolve_qualified(
+## Resolve a call target under the caller's stable import bindings.
+## 根据调用方稳定的导入绑定解析调用目标。
+#
+#  @param analyzer Source analyzer with imports and definition index.
+#  @param caller Source definition containing the call.
+#  @param call Call expression to resolve.
+#  @return Unique source function pair, or None when unresolved.
         [qualified], analyzer.imports, kind='function',
         qualified_guard=analyzer._stable_import_name)
 
@@ -50,6 +66,13 @@ def _standard_contextmanager(analyzer, ref, node):
                 and contextmanager_namespace(analyzer, require_nonobserving=False))
     except _ClassEffectLimit:
         return False
+## Confirm use of the standard contextlib.contextmanager protocol.
+## 确认装饰器使用标准 contextlib.contextmanager 协议。
+#
+#  @param analyzer Source analyzer providing stable import and namespace facts.
+#  @param ref Source definition reference for the decorated function.
+#  @param node Function AST node to inspect.
+#  @return True only when the standard decorator and namespace are stable.
 
 
 def _is_name(node, value):
@@ -75,6 +98,12 @@ def _temporary_set_restore_shape(node, receiver, capture):
         and isinstance(item.value, ast.Constant) and type(item.value.value) is str)]
     tries = [item for item in body if isinstance(item, ast.Try)]
     if len(tries) != 1:
+## Match an AST name against an expected identifier.
+## 判断 AST 名称是否匹配预期标识符。
+#
+#  @param node AST node to compare.
+#  @param value Expected identifier.
+#  @return True when node is the expected name.
         return False
     block = tries[0]
     if block is not body[-1] or block.handlers or block.orelse or len(block.body) != 2:
@@ -85,6 +114,13 @@ def _temporary_set_restore_shape(node, receiver, capture):
             or len(set_loop.target.elts) != 2
             or not all(isinstance(item, ast.Name) for item in set_loop.target.elts)
             or not _mapping_items(set_loop.iter, capture)
+## Match a positional call to a named builtin with expected name arguments.
+## 匹配名称指定的内建函数及其预期位置参数。
+#
+#  @param node AST expression to check.
+#  @param name Expected callee identifier.
+#  @param arguments Expected argument identifiers in order.
+#  @return True when the complete call shape matches.
             or len(set_loop.body) != 1 or not isinstance(set_loop.body[0], ast.Expr)):
         return False
     attribute, value = (item.id for item in set_loop.target.elts)
@@ -99,6 +135,12 @@ def _temporary_set_restore_shape(node, receiver, capture):
     if (restore.orelse or not isinstance(restore.target, (ast.Tuple, ast.List))
             or len(restore.target.elts) != 2
             or not all(isinstance(item, ast.Name) for item in restore.target.elts)
+## Match a no-argument items() call on the expected mapping name.
+## 匹配对预期映射名称进行的无参 items() 调用。
+#
+#  @param node AST expression to check.
+#  @param mapping Expected mapping identifier.
+#  @return True when node has the required mapping-items shape.
             or not _mapping_items(restore.iter, 'origs') or len(restore.body) != 1
             or not isinstance(restore.body[0], ast.If)):
         return False
@@ -111,6 +153,13 @@ def _temporary_set_restore_shape(node, receiver, capture):
             or not isinstance(guard.body, list) or len(guard.body) != 1
             or not isinstance(guard.body[0], ast.Expr)
             or not _is_call(guard.body[0].value, 'delattr', [receiver, restore_key])
+## Recognize a finite mapping-driven set/yield/finally-restore protocol.
+## 识别由有限映射驱动的设置、让出与 finally 恢复协议。
+#
+#  @param node Context-manager function AST node.
+#  @param receiver Receiver parameter identifier.
+#  @param capture Keyword-capture parameter identifier.
+#  @return True only when the function matches the supported protocol shape.
             or len(guard.orelse) != 1 or not isinstance(guard.orelse[0], ast.Expr)
             or not _is_call(guard.orelse[0].value, 'setattr',
                             [receiver, restore_key, original])):
@@ -167,6 +216,7 @@ def _temporary_set_restore_shape(node, receiver, capture):
 
     if (len(save_guard.body) != 1 or not save_assignment(save_guard.body[0], original)
             or len(save_guard.orelse) != 2 or not isinstance(save_guard.orelse[0], ast.Assign)
+    # 进入 try 前保存每个输入键；静态确认不存在的键会通过此守卫保存哨兵值。
             or len(save_guard.orelse[0].targets) != 1
             or not _is_name(save_guard.orelse[0].targets[0], 'cls_orig')):
         return False
@@ -207,6 +257,12 @@ def temporary_receiver_attributes(summary, expression, env):
             or len({item.arg for item in expression.keywords}) != len(expression.keywords)):
         return None
     receiver_name = expression.args[0].id
+    ## Match an assignment that stores a selected value in the originals map.
+    ## 匹配将指定值写入 originals 映射的赋值语句。
+    #
+    #  @param statement Candidate AST statement.
+    #  @param value Expected source identifier.
+    #  @return True when the assignment has the required exact shape.
     receiver_values = env.get(receiver_name, [])
     origins = [value.get('fresh_receiver_origin') for value in receiver_values]
     if (not origins or not origins[0]
@@ -249,6 +305,13 @@ def temporary_receiver_attributes(summary, expression, env):
     if keyword_names & class_names:
         return None
 
+## Prove that a finite context manager only saves, sets, and restores receiver attributes.
+## 证明有限上下文管理器仅保存、设置并恢复接收者实例属性。
+#
+#  @param summary Active effect summary with source and evidence access.
+#  @param expression Context-manager call expression to inspect.
+#  @param env Abstract values available at the call site.
+#  @return Bounded temporary-attribute effect, or None when proof is incomplete.
     body_nodes = list(ast.walk(function))
     if any(isinstance(node, (ast.AsyncFunctionDef, ast.Lambda, ast.YieldFrom,
                              ast.Await, ast.Global, ast.Nonlocal))

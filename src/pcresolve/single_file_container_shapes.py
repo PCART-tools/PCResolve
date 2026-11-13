@@ -1,5 +1,6 @@
 ## @package pcresolve.single_file_container_shapes
 #  Container, item, field, and Python value-shape facts for one source file.
+#  收集单个源码文件中的容器、元素、字段和 Python 值形状事实。
 
 import ast
 from .single_file_query import memoized_expression_query
@@ -16,8 +17,11 @@ from .sources import (
     SourceSet, TupleSource, UnknownSource, normalize_source, source_display,
 )
 
-## Check if a Call node is a defaultdict(list) call with a statically
-#  known default factory (list/dict/set/tuple/str).
+## Check whether a call uses defaultdict with a supported builtin factory.
+## 检查调用是否使用 defaultdict 和受支持的内建工厂。
+#
+#  @param node Candidate call expression.
+#  @return True for a statically recognized list/dict/set/tuple/str factory.
 def _is_defaultdict_itemkind(node):
     if not isinstance(node, ast.Call):
         return False
@@ -30,6 +34,8 @@ def _is_defaultdict_itemkind(node):
 
 
 ## Return the concrete Python container kind produced by an expression.
+## 返回表达式产生的具体 Python 容器类型。
+#
 #  @param node Assignment right-hand side AST node.
 #  @return Container kind string or None.
 def _container_kind(node):
@@ -52,7 +58,9 @@ def _container_kind(node):
 
 
 ## Return the concrete kind produced by subscripting a container expression.
+## 返回对容器表达式执行下标访问后得到的具体类型。
 #  Dict literals qualify only when every value has the same known kind.
+#
 #  @param node Assignment right-hand side AST node.
 #  @return Item kind string or None.
 def _container_item_kind(node):
@@ -64,10 +72,14 @@ def _container_item_kind(node):
         return node.args[0].id
     return None
 ## Container-shape collection mixed into SingleFileAnalyzer.
+## 混入 SingleFileAnalyzer 的容器形状收集逻辑。
 class SingleFileContainerShapeMixin:
     ## Return assignment metadata for a name in the active lexical scope.
+    ## 返回当前词法作用域中名称对应的赋值元数据。
     #  A found binding with no metadata is authoritative and prevents a
     #  same-name binding from another scope leaking through legacy maps.
+    #  找到但不含元数据的词法绑定仍具有权威性，可防止其他作用域的同名旧映射泄漏进来。
+    #
     #  @param name Receiver variable name.
     #  @param item Whether to request the subscript item kind.
     #  @return Container kind string or None.
@@ -77,9 +89,12 @@ class SingleFileContainerShapeMixin:
         if binding is not None:
             attr = "container_item_kind" if item else "container_kind"
             return getattr(binding, attr, "") or None
+
         # Compatibility maps are file-wide and can contain a same-name local
         # from a previously visited function. Only module code may use their
         # fallback; nested scopes require a lexical Binding as evidence.
+        # 兼容映射是文件级的，可能包含此前访问函数中的同名局部变量；仅模块代码可回退使用，
+        # 嵌套作用域必须提供词法 Binding 作为证据。
         if self.current_scope().kind != SCOPE_MODULE:
             return None
         if item:
@@ -87,6 +102,8 @@ class SingleFileContainerShapeMixin:
         return self.container_kinds.get(name)
 
     ## Return field shapes for elements of a statically known container.
+    ## 返回静态已知容器元素的字段形状。
+    #
     #  @param node Container expression or bound name.
     #  @return Mapping of literal field names to shape tuples.
     def _expression_container_item_fields(self, node):
@@ -113,11 +130,13 @@ class SingleFileContainerShapeMixin:
         return {}
 
     ## Return positional sources for a homogeneous tuple/list comprehension.
+    ## 返回同质元组/列表推导式的各位置来源。
     #
     #  The fact is intentionally limited to a comprehension whose element is
     #  a tuple or list and whose every field has an explicit source. It lets
     #  ``for value, label in pairs`` preserve the source of ``value`` without
     #  inferring ownership from the loop variable or method name.
+    #
     #  @param node Candidate list comprehension.
     #  @return Tuple of field sources, or None when incomplete.
     def _expression_tuple_item_sources(self, node):
@@ -137,6 +156,8 @@ class SingleFileContainerShapeMixin:
         return tuple(sources)
 
     ## Return module-level tuple-field facts for an active container binding.
+    ## 返回当前容器绑定的模块级元组字段事实。
+    #
     #  @param name Container name.
     #  @return Tuple of sources, or None when unavailable or shadowed.
     def _lookup_tuple_item_sources(self, name):
@@ -152,6 +173,11 @@ class SingleFileContainerShapeMixin:
     #  objects in separate functions isolated without relying on reusable
     #  Python object ids. Attribute facts are shared across functions only
     #  when their root resolves to the same enclosing binding.
+    ## 返回属性容器的词法身份键。
+    #  根绑定的单调赋值索引可区分不同函数中同名的局部对象。
+    #  仅当属性根解析到同一个外围绑定时，才跨函数共享事实。
+    #
+    #
     #  @param node Attribute expression naming the container.
     #  @return Tuple of root binding identity and attribute path, or None.
     def _attribute_container_key(self, node):
@@ -165,6 +191,8 @@ class SingleFileContainerShapeMixin:
         return (binding.assignment_index, tuple(chain[1:]))
 
     ## Return tuple-field facts recorded for an attribute-backed list.
+    ## 返回属性列表记录的元组字段事实。
+    #
     #  @param node Attribute expression naming the list.
     #  @return TupleSource fields, or None when unresolved or conflicting.
     def _lookup_attribute_tuple_item_sources(self, node):
@@ -175,7 +203,10 @@ class SingleFileContainerShapeMixin:
         return source.items if isinstance(source, TupleSource) else None
 
     ## Invalidate tuple-field facts when an attribute container is rebound.
+    ## 属性容器重绑定时，使其元组字段事实失效。
+    #
     #  @param node Attribute assignment target naming the container.
+    #  @return None; prior tuple facts are removed and conflict state is cleared.
     def _invalidate_attribute_tuple_item_sources(self, node):
         key = self._attribute_container_key(node)
         if key is None:
@@ -184,8 +215,10 @@ class SingleFileContainerShapeMixin:
         self._attribute_append_tuple_conflicts.discard(key)
 
     ## Check whether two tuple item facts have the same positional owners.
+    ## 检查两个元组元素事实是否具有相同的位置所有者。
     #  Call locations and expression spellings are not ownership differences.
     #  Unresolved positions never converge.
+    #
     #  @param left Existing TupleSource fact.
     #  @param right Newly observed TupleSource fact.
     #  @return True when every field has one matching resolved owner.
@@ -203,6 +236,8 @@ class SingleFileContainerShapeMixin:
         return True
 
     ## Infer field shapes from a literal dictionary element.
+    ## 从字面量字典元素推导字段形状。
+    #
     #  @param node Candidate dictionary AST node.
     #  @return Mapping of literal string keys to shape tuples.
     def _literal_dict_field_shapes(self, node):
@@ -220,6 +255,8 @@ class SingleFileContainerShapeMixin:
         return fields
 
     ## Return the shape of a literal-key field on a known element.
+    ## 返回已知元素中字面量键字段的形状。
+    #
     #  @param node Subscript AST node.
     #  @return (container kind, item kind), or empty strings.
     def _expression_subscript_field_shape(self, node):
@@ -235,9 +272,11 @@ class SingleFileContainerShapeMixin:
         return shape
 
     ## Resolve a structured source to one uniform owner within the file.
+    ## 在当前文件内将结构化来源解析为单一统一所有者。
     #
     #  This follows existing provenance only. It does not infer ownership from
     #  an attribute or method name, and mixed SourceSet owners stay unresolved.
+    #
     #  @param source Source value to inspect.
     #  @param seen Recursion guard for cyclic structured sources.
     #  @return Uniform owner string or None.
@@ -280,9 +319,14 @@ class SingleFileContainerShapeMixin:
             owners.discard(None)
             if len(owners) == 1:
                 return next(iter(owners))
+
+        # Mixed or partially unresolved alternatives cannot establish one owner.
+        # 候选来源混杂或部分未解析时，无法确定单一所有者。
         return None
 
     ## Infer a Python-provided container shape from local expression evidence.
+    ## 根据局部表达式证据推导 Python 内建容器形状。
+    #
     #  @param node Value expression.
     #  @return Pair of container kind and item kind, or empty strings.
     @memoized_expression_query(lambda: ('', ''))
@@ -290,6 +334,9 @@ class SingleFileContainerShapeMixin:
         direct_kind = _container_kind(node)
         if direct_kind is not None:
             return (direct_kind, _container_item_kind(node) or "")
+
+        # Prefer literal syntax, then lexical facts, then supported producer protocols.
+        # 依次优先使用字面量语法、词法事实和受支持的生产者协议。
         if (isinstance(node, ast.Constant)
                 and type(node.value) in (bool, int, float, complex, bytes)):
             return (type(node.value).__name__, "")
@@ -308,12 +355,17 @@ class SingleFileContainerShapeMixin:
         if isinstance(node, ast.IfExp):
             body = self._expression_container_shape(node.body)
             orelse = self._expression_container_shape(node.orelse)
+
+            # Conditional branches contribute a shape only when both agree exactly.
+            # 条件分支只有在形状完全一致时才提供共同形状。
             return body if body[0] and body == orelse else ("", "")
         if isinstance(node, ast.Call):
             return self._call_container_shape(node)
         return ("", "")
 
     ## Resolve the shape of an attribute expression from lexical evidence.
+    ## 根据词法证据解析属性表达式的形状。
+    #
     #  @param node Attribute AST node.
     #  @return Pair of container kind and item kind.
     def _attribute_container_shape(self, node):
@@ -346,6 +398,8 @@ class SingleFileContainerShapeMixin:
                 if shape is not None else ("", ""))
 
     ## Resolve the shape of a subscript expression.
+    ## 解析下标表达式的形状。
+    #
     #  @param node Subscript AST node.
     #  @return Pair of container kind and item kind.
     def _subscript_container_shape(self, node):
@@ -364,6 +418,8 @@ class SingleFileContainerShapeMixin:
         return ("", "")
 
     ## Resolve shape-preserving binary operators.
+    ## 解析保持容器形状的二元运算符。
+    #
     #  @param node Binary-operation AST node.
     #  @return Pair of container kind and item kind.
     def _binary_container_shape(self, node):
@@ -377,6 +433,8 @@ class SingleFileContainerShapeMixin:
         return ("", "")
 
     ## Resolve call-result and receiver-method container shapes.
+    ## 解析调用结果和接收者方法产生的容器形状。
+    #
     #  @param node Call AST node.
     #  @return Pair of container kind and item kind.
     def _call_container_shape(self, node):
@@ -421,10 +479,12 @@ class SingleFileContainerShapeMixin:
                 return (shape.kind, shape.item_kind)
         return ("", "")
     ## Preserve a concrete Python value shape for local call arguments.
+    ## 为本地调用实参保留具体的 Python 值形状。
     #
     #  Container shapes reuse lexical flow facts. Scalar literals are carried
     #  by their builtin type so downstream method resolution can validate the
     #  protocol instead of treating every Python value as interchangeable.
+    #
     #  @param node Value expression.
     #  @return PythonShape or None.
     def _expression_python_shape(self, node):
@@ -451,6 +511,8 @@ class SingleFileContainerShapeMixin:
         return None
 
     ## Return the container kind relevant to a method call receiver.
+    ## 返回与方法调用接收者相关的容器类型。
+    #
     #  @param node The ast.Call node.
     #  @return Container or subscript-item kind string, or None.
     def _call_receiver_container_kind(self, node):
@@ -510,12 +572,15 @@ class SingleFileContainerShapeMixin:
         return None
 
     ## Record the concrete kind assigned through a dictionary subscript.
+    ## 记录通过字典下标赋值的具体元素类型。
     #
     #  The evidence is accepted only for a receiver already known to be a
     #  Python dict. All writes must converge to one concrete item kind.
     #  Conflicting or unresolved writes invalidate the fact for that binding.
+    #
     #  @param target Assignment target AST node.
     #  @param value_kind Concrete kind of the assigned value, or None.
+    #  @return None; conflicting or unknown writes invalidate the binding fact.
     def _record_subscript_item_kind(self, target, value_kind):
         if (not isinstance(target, ast.Subscript)
                 or not isinstance(target.value, ast.Name)):
@@ -531,6 +596,9 @@ class SingleFileContainerShapeMixin:
             return
         current = binding.container_item_kind or ""
         if not value_kind or (current and current != value_kind):
+
+            # Conflicting writes invalidate the binding instead of widening its item type.
+            # 写入冲突时使该绑定失效，不将元素类型扩大成多个候选。
             binding.container_item_kind = ""
             self.container_item_kinds.pop(container_name, None)
             self._container_item_kind_conflicts.add(conflict_key)
@@ -539,7 +607,10 @@ class SingleFileContainerShapeMixin:
         self.container_item_kinds[container_name] = value_kind
 
     ## Record owner, tuple, kind, and field facts for one list append.
+    ## 记录一次列表 append 的所有者、元组、类型和字段事实。
+    #
     #  @param node Append call AST node.
+    #  @return None; compatible append facts are merged into the active binding.
     def _record_container_append_shape(self, node):
         if (not isinstance(node, ast.Call)
                 or not isinstance(node.func, ast.Attribute)
@@ -552,6 +623,9 @@ class SingleFileContainerShapeMixin:
             return
 
         value = node.args[0]
+
+        # Collect ownership, tuple layout, Python kind, and literal fields independently.
+        # 分别收集所有者、元组布局、Python 类型和字面量字段事实。
         item_source = normalize_source(self.trace_source(value))
         tuple_source = self._appended_tuple_source(value)
         if isinstance(receiver, ast.Name):
@@ -576,8 +650,11 @@ class SingleFileContainerShapeMixin:
         self._record_appended_fields(receiver, fields, item_kind)
 
     ## Merge one appended item's owner into a list binding.
+    ## 将单个追加元素的所有者合并到列表绑定中。
+    #
     #  @param binding Active receiver binding.
     #  @param item_source Traced appended-value source.
+    #  @return None; conflicting or unresolved item owners remain unknown.
     def _record_appended_item_source(self, binding, item_source):
         if binding is None or binding.container_kind != "list":
             return
@@ -600,6 +677,8 @@ class SingleFileContainerShapeMixin:
                 "conflicting iterable items")
 
     ## Return exact positional evidence for an appended tuple or list.
+    ## 返回追加的元组或列表的精确位置证据。
+    #
     #  @param value Appended value AST node.
     #  @return TupleSource or None.
     def _appended_tuple_source(self, value):
@@ -618,8 +697,11 @@ class SingleFileContainerShapeMixin:
         return TupleSource(tuple(items))
 
     ## Merge tuple evidence for a named list binding.
+    ## 合并具名列表绑定的元组证据。
+    #
     #  @param binding Active receiver binding.
     #  @param tuple_source New positional evidence or None.
+    #  @return None; conflicting tuple layouts invalidate the binding fact.
     def _record_named_append_tuple(self, binding, tuple_source):
         if binding is None:
             return
@@ -638,8 +720,11 @@ class SingleFileContainerShapeMixin:
             self._iterated_append_tuple_conflicts.add(key)
 
     ## Merge tuple evidence for an attribute-backed list.
+    ## 合并属性列表的元组证据。
+    #
     #  @param receiver Attribute receiver AST node.
     #  @param tuple_source New positional evidence or None.
+    #  @return None; conflicting tuple layouts invalidate the attribute fact.
     def _record_attribute_append_tuple(self, receiver, tuple_source):
         key = self._attribute_container_key(receiver)
         if key is None or key in self._attribute_append_tuple_conflicts:
@@ -657,9 +742,12 @@ class SingleFileContainerShapeMixin:
             self._attribute_append_tuple_conflicts.add(key)
 
     ## Merge one appended item's Python kind into a list binding.
+    ## 将单个追加元素的 Python 类型合并到列表绑定中。
+    #
     #  @param binding Active receiver binding.
     #  @param container_name Receiver name.
     #  @param item_kind Concrete appended item kind or empty.
+    #  @return None; conflicting or unknown item kinds invalidate the fact.
     def _record_appended_item_kind(self, binding, container_name, item_kind):
         if binding is None or binding.container_kind != "list":
             return
@@ -676,9 +764,12 @@ class SingleFileContainerShapeMixin:
         self.container_item_kinds[container_name] = item_kind
 
     ## Record literal dictionary fields or attribute item-kind fallback.
+    ## 记录字面量字典字段，或更新属性元素类型的回退事实。
+    #
     #  @param receiver List receiver AST node.
     #  @param fields Literal field-shape mapping.
     #  @param item_kind Concrete item kind or empty.
+    #  @return None; field and item-kind facts are updated or cleared.
     def _record_appended_fields(self, receiver, fields, item_kind):
         if not fields:
             if isinstance(receiver, ast.Attribute):

@@ -1,5 +1,6 @@
 ## @package pcresolve._module_class_prefix
 #  Fresh root-class namespace before a first bounded module-level call.
+#  首次有界模块级调用前新建根类的命名空间。
 
 import ast
 import copy
@@ -12,12 +13,20 @@ from ._property_namespace import _stable_builtin_namespace
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Capture a node's complete position in the source class module.
+## 捕获源码类所在模块中节点的完整位置。
+#
+#  @param ref Source class identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return {'file_path': ref.file_path, **{field: getattr(node, field) for field in
         ('lineno', 'col_offset', 'end_lineno', 'end_col_offset')}}
 
 
 ## Bound the fresh namespace before an explicit module call, not its effects.
+## 有界证明显式模块调用前的新建命名空间，不证明调用效果。
+#
 #  @param analyzer Fixed source snapshot and shared class-evidence budget.
 #  @param target Exact source root class declaration.
 #  @param call Actual standalone module-call AST node.
@@ -46,6 +55,11 @@ def module_class_prefix(analyzer, target, call):
     assumptions, paths, evidence = set(), {ref.file_path}, []
     aliases = []
 
+    ## Charge syntax traversal against the shared class-effect budget.
+    ## 将语法遍历计入共享类效果预算。
+    #
+    #  @param node Source node to inspect.
+    #  @return None; exhaustion raises _ClassEffectLimit.
     def charge(node):
         for _ in _namespace_syntax(node):
             analyzer._class_effect_fact_steps -= 1
@@ -67,6 +81,7 @@ def module_class_prefix(analyzer, target, call):
             charge(statement)
             # Retaining Root in even a deferred function's default is an
             # immediate exposure. Its body alone has no prefix execution.
+            # 延迟函数的默认值仍会立即求值，保存类引用会造成暴露。
             if any(isinstance(node, ast.Name) and node.id == cls.name
                    for node in _namespace_syntax(statement)):
                 return None
@@ -85,6 +100,7 @@ def module_class_prefix(analyzer, target, call):
                     return None
                 # Only independently modeled native declaration operations may
                 # run after the protected class has become globally accessible.
+                # 类暴露后只允许独立建模的原生声明操作。
                 for node in _namespace_syntax(statement):
                     if isinstance(node, ast.Call) and _canonical(analyzer, ref, statement, node.func) not in (
                             're.compile', 'functools.lru_cache'):
@@ -125,6 +141,9 @@ def module_class_prefix(analyzer, target, call):
             evidence.append(_span(ref, statement))
     except _ClassEffectLimit:
         return None
+
+    # Publish only a normal-prefix premise; the call and later state are unproved.
+    # 仅发布正常前缀前提，调用效果和后续状态仍未证明。
     assumptions.update(observation['assumptions'])
     assumptions.update(['source_snapshot_bindings_hold', 'builtin_type_class_creation_protocol',
         'source_module_fresh_class_prefix', 'no_external_monkeypatch_or_import_hook',

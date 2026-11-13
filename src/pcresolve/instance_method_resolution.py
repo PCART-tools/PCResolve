@@ -3,6 +3,7 @@
 #
 #  The mixin owns receiver-specific resolution order while ProjectAnalyzer
 #  supplies project indexes, recursive resolution, and import-origin evidence.
+#  使用项目索引、递归解析和导入来源证据解析实例方法归属。
 
 from .builtin_ownership import _BUILTIN_CONTAINER_METHODS, _is_builtin
 from .ownership_contracts import _is_verified_result_owner
@@ -14,6 +15,8 @@ from .sources import (
 
 
 ## Check a receiver's proven container kind from single-file analysis.
+## 查询单文件分析已证明的接收者容器类型。
+#
 #  @param tracer Single-file analyzer.
 #  @param receiver_name Variable name.
 #  @return Container kind string or None.
@@ -22,8 +25,10 @@ def _receiver_container_kind(tracer, receiver_name):
 
 
 ## Resolve InstanceMethod ownership through project-level provenance facts.
+## 通过项目级来源事实解析 InstanceMethod 归属。
 class InstanceMethodResolutionMixin:
     ## Resolve ownership for one structured instance-method source.
+    ## 解析单个结构化实例方法来源的归属。
     #
     #  @param module Module containing the method call.
     #  @param direct_source Full InstanceMethod source and receiver metadata.
@@ -41,6 +46,9 @@ class InstanceMethodResolutionMixin:
             module, direct_source, a, b, tracer, tracers, _seen)
         if direct is not None:
             return direct
+
+        # Check local class branches before interpreting a structured receiver.
+        # 解释结构化接收者前先检查本地类分支。
         local_classes = []
         if isinstance(a, (CallResult, SourceSet)):
             local_resolution, local_classes = (
@@ -93,6 +101,16 @@ class InstanceMethodResolutionMixin:
         return (f"{a}.{b}", src_module, src_symbol)
 
     ## Resolve bounded and directly proven receiver sources first.
+    ## 优先解析有界且已直接证明的接收者来源。
+    #
+    #  @param module Module containing the call.
+    #  @param direct_source Structured method source.
+    #  @param receiver Receiver source.
+    #  @param method_name Method name.
+    #  @param tracer Analyzer for the calling module.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Resolved tuple or None when no direct rule applies.
     def _direct_instance_method_source(
             self, module, direct_source, receiver, method_name,
             tracer, tracers, _seen):
@@ -142,6 +160,14 @@ class InstanceMethodResolutionMixin:
         return None
 
     ## Resolve local-class branches and unresolved method-return summaries.
+    ## 解析本地类分支和未解析的方法返回摘要。
+    #
+    #  @param module Calling module.
+    #  @param receiver Receiver source.
+    #  @param method_name Method name.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Pair of optional resolution and local class candidates.
     def _local_class_instance_method_source(
             self, module, receiver, method_name, tracers, _seen):
         local_classes = self._local_class_candidates(
@@ -160,6 +186,8 @@ class InstanceMethodResolutionMixin:
                     identity[0], identity[1], method_name, tracers)]
             if len(method_classes) == 1:
                 return (display, module, "local"), local_classes
+            # Multiple matching local classes do not identify a unique method owner.
+            # 多个匹配的本地类不能确定唯一的方法归属。
             if len(method_classes) > 1:
                 return (display, module, "unknown"), local_classes
         if (isinstance(receiver, CallResult)
@@ -170,6 +198,11 @@ class InstanceMethodResolutionMixin:
         return None, local_classes
 
     ## Return whether a call-result summary contains unresolved method output.
+    ## 判断调用结果摘要是否包含未解析的方法输出。
+    #
+    #  @param module Calling module.
+    #  @param callee Callee name to locate.
+    #  @return True if a matching summary contains an unresolved method result.
     def _call_result_has_unresolved_method(self, module, callee):
         for target_module, module_cg in self.project_cg.modules.items():
             prefix = target_module + "."
@@ -186,6 +219,15 @@ class InstanceMethodResolutionMixin:
         return False
 
     ## Resolve a structured receiver after bounded local-class checks.
+    ## 在有界本地类检查后解析结构化接收者。
+    #
+    #  @param module Calling module.
+    #  @param receiver Structured receiver source.
+    #  @param method_name Method name.
+    #  @param local_classes Previously discovered local class candidates.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Display, module, and resolved or unknown owner tuple.
     def _structured_instance_method_source(
             self, module, receiver, method_name, local_classes,
             tracers, _seen):
@@ -218,6 +260,15 @@ class InstanceMethodResolutionMixin:
         return (display, receiver_module, receiver_top or "unknown")
 
     ## Resolve homogeneous mapping values after the full file visit.
+    ## 完成文件遍历后解析同源映射值。
+    #
+    #  @param module Calling module.
+    #  @param receiver Receiver name.
+    #  @param method_name Method name.
+    #  @param tracer Analyzer for the calling module.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Structured-source recursion guard.
+    #  @return External owner tuple or None when not proven.
     def _homogeneous_instance_method_source(
             self, module, receiver, method_name, tracer, tracers, _seen):
         homogeneous = getattr(
@@ -236,6 +287,11 @@ class InstanceMethodResolutionMixin:
         return (f"{receiver}.{method_name}", receiver_module, receiver_top)
 
     ## Resolve the class identity stored for a receiver name.
+    ## 解析接收者名称保存的类标识。
+    #
+    #  @param receiver Receiver name.
+    #  @param tracer Analyzer containing its bindings.
+    #  @return Stored class source or None when unavailable.
     def _instance_method_class_symbol(self, receiver, tracer):
         if receiver in tracer.import_from_symbols:
             return receiver
@@ -252,6 +308,14 @@ class InstanceMethodResolutionMixin:
         return class_symbol
 
     ## Resolve a receiver without a known class identity.
+    ## 解析缺少已知类标识的接收者。
+    #
+    #  @param module Calling module.
+    #  @param receiver Receiver source.
+    #  @param method_name Method name.
+    #  @param tracer Analyzer for the calling module.
+    #  @param tracers Per-module analyzers.
+    #  @return Resolved tuple or None when no owner is established.
     def _unbound_instance_method_source(
             self, module, receiver, method_name, tracer, tracers):
         if isinstance(receiver, str) and _is_builtin(receiver):
@@ -267,6 +331,16 @@ class InstanceMethodResolutionMixin:
         return None
 
     ## Resolve conservative fallbacks when no method symbol is found.
+    ## 找不到方法符号时解析保守回退结果。
+    #
+    #  @param module Calling module.
+    #  @param receiver Receiver source.
+    #  @param method_name Method name.
+    #  @param class_symbol Candidate class source.
+    #  @param tracer Analyzer for the calling module.
+    #  @param tracers Per-module analyzers.
+    #  @param _seen Structured-source recursion guard.
+    #  @return Resolved tuple or None when no fallback is proven.
     def _unresolved_instance_method_source(
             self, module, receiver, method_name, class_symbol,
             tracer, tracers, _seen):
@@ -297,6 +371,13 @@ class InstanceMethodResolutionMixin:
         return None
 
     ## Resolve constructor/class attribute evidence from the project graph.
+    ## 从项目调用关系中解析构造函数或类属性证据。
+    #
+    #  @param module Calling module.
+    #  @param receiver Receiver source.
+    #  @param method_name Method name.
+    #  @param class_symbol Candidate class source.
+    #  @return Resolved tuple or None when no attribute evidence exists.
     def _call_graph_attribute_method_source(
             self, module, receiver, method_name, class_symbol):
         call_graph_attr = self._lookup_cg_class_attr_source(

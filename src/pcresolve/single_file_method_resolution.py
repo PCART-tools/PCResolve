@@ -3,6 +3,7 @@
 #
 #  The mixin preserves lexical visitor state on SingleFileAnalyzer while
 #  isolating receiver-shape and method-source policy from AST orchestration.
+#  在保留词法访问状态的同时，将接收者形状和方法来源规则与 AST 编排分开。
 
 import ast
 from .single_file_query import memoized_expression_query
@@ -20,10 +21,13 @@ from .sources import (
 
 
 ## Resolve method receiver sources using SingleFileAnalyzer state.
+## 使用 SingleFileAnalyzer 状态解析方法接收者来源。
 class SingleFileMethodResolutionMixin:
     ## Attempt to resolve an instance method call to a class member.
+    ## 尝试将实例方法调用解析为类成员。
     #
     #  Handles self.method(), known_object.method(), and chained attribute calls.
+    #
     #  @param node The Call AST node.
     #  @return Method name, structured ("instance_method", ...) tuple, or None.
     @memoized_expression_query(lambda: None)
@@ -66,6 +70,11 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve operator and comparison receiver ownership evidence.
+    ## 解析运算和比较结果的接收者归属证据。
+    #
+    #  @param receiver Operator or comparison expression.
+    #  @param method_name Method called on the expression result.
+    #  @return Structured method source, unknown source, or None.
     def _operator_receiver_method_source(self, receiver, method_name):
         if not isinstance(receiver, (ast.BinOp, ast.UnaryOp, ast.Compare)):
             return None
@@ -90,6 +99,10 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Return whether a structured source contains bounded receiver evidence.
+    ## 判断结构化来源是否包含有界接收者证据。
+    #
+    #  @param source Structured source to inspect recursively.
+    #  @return True when it contains a parameter or instance attribute source.
     def _contains_bounded_method_source(self, source):
         source = normalize_source(source)
         if isinstance(source, (ParameterSource, InstanceAttribute)):
@@ -104,6 +117,11 @@ class SingleFileMethodResolutionMixin:
         return False
 
     ## Resolve methods on a proven builtin container shape.
+    ## 解析已证明的内置容器形状上的方法。
+    #
+    #  @param receiver_kind Proven builtin container kind.
+    #  @param method_name Called method name.
+    #  @return Python-owned method source or explicit unknown protocol source.
     def _container_receiver_method_source(self, receiver_kind, method_name):
         if _has_builtin_shape_method(receiver_kind, method_name):
             return InstanceMethod("python", method_name)
@@ -112,6 +130,11 @@ class SingleFileMethodResolutionMixin:
             method_name)
 
     ## Resolve a method invoked on the result of another call.
+    ## 解析另一个调用结果上的方法。
+    #
+    #  @param receiver Inner call expression used as the receiver.
+    #  @param method_name Called method name.
+    #  @return Resolved structured method source, or None when unresolved.
     def _call_receiver_method_source(self, receiver, method_name):
         if isinstance(receiver.func, ast.Name) and receiver.func.id == "super":
             if self._class_stack:
@@ -155,6 +178,10 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Return whether a chained receiver is a known project-local method.
+    ## 判断链式接收者是否为已知的项目内方法。
+    #
+    #  @param inner_method Resolved source for the inner method.
+    #  @return True when its receiver binds to a project-local method.
     def _is_local_inner_method(self, inner_method):
         if (not isinstance(inner_method, InstanceMethod)
                 or not isinstance(inner_method.receiver, str)):
@@ -170,6 +197,11 @@ class SingleFileMethodResolutionMixin:
                 and binding_source.callee in self.class_methods)
 
     ## Resolve the explicit object returned by a project-local method.
+    ## 解析项目内方法显式返回的对象。
+    #
+    #  @param receiver Call expression returning the candidate object.
+    #  @param method_name Method invoked on that object.
+    #  @return Structured method source when a return binding is known.
     def _local_call_result_method_source(self, receiver, method_name):
         result_source = normalize_source(self.trace_source(receiver))
         if not isinstance(result_source, CallResult):
@@ -188,6 +220,10 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Look up one instance attribute in class or legacy symbol state.
+    ## 在类实例状态或旧符号状态中查找实例属性。
+    #
+    #  @param attr_name Attribute name to look up.
+    #  @return Recorded source, or None when absent.
     def _lookup_method_instance_attr(self, attr_name):
         if self._class_stack:
             class_name = self._class_stack[-1]
@@ -196,6 +232,12 @@ class SingleFileMethodResolutionMixin:
         return self.symbols.direct.get(attr_name)
 
     ## Resolve one method against a local or imported class identity.
+    ## 根据局部或导入的类身份解析方法。
+    #
+    #  @param class_name Class identity used for lookup.
+    #  @param receiver_key Receiver source retained in the result.
+    #  @param method_name Method name to resolve.
+    #  @return Structured method source, or None when unconfirmed.
     def _resolve_method_on_class(
             self, class_name, receiver_key, method_name):
         if not class_name:
@@ -216,6 +258,12 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Preserve lexical parameter identity on a method receiver.
+    ## 在方法接收者上保留词法参数身份。
+    #
+    #  @param receiver Resolved receiver source.
+    #  @param parameter_name Lexically bound parameter name.
+    #  @param method_name Called method name.
+    #  @return Parameter-scoped method source, or None when not a parameter.
     def _parameter_receiver_method_source(
             self, receiver, parameter_name, method_name):
         if not self._caller_stack:
@@ -237,6 +285,11 @@ class SingleFileMethodResolutionMixin:
             parameter_name=parameter_name)
 
     ## Resolve a simple-name method receiver.
+    ## 解析简单名称形式的方法接收者。
+    #
+    #  @param receiver Name AST node used as receiver.
+    #  @param method_name Called method name.
+    #  @return Resolved method source, or None when evidence is insufficient.
     def _name_receiver_method_source(self, receiver, method_name):
         guarded = self._guarded_receiver_method_source(
             receiver.id, method_name)
@@ -270,6 +323,11 @@ class SingleFileMethodResolutionMixin:
             class_name, receiver.id, method_name)
 
     ## Resolve receiver ownership narrowed by a finite guard.
+    ## 根据有限条件保护所缩小的范围解析接收者归属。
+    #
+    #  @param receiver_name Receiver name checked by the guard.
+    #  @param method_name Called method name.
+    #  @return Guarded method source, or None without matching guard evidence.
     def _guarded_receiver_method_source(self, receiver_name, method_name):
         for guards in reversed(self._receiver_owner_guards):
             guarded_owner = guards.get(receiver_name)
@@ -282,6 +340,12 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a lexical binding used as a simple-name receiver.
+    ## 解析用作简单名称接收者的词法绑定。
+    #
+    #  @param receiver_name Bound receiver name.
+    #  @param binding Lexical binding record, if present.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None when unresolved.
     def _binding_receiver_method_source(
             self, receiver_name, binding, method_name):
         if binding is None:
@@ -320,6 +384,11 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a method receiver selected through a subscript.
+    ## 解析通过下标选出的接收者上的方法。
+    #
+    #  @param receiver Subscript receiver expression.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None without bounded evidence.
     def _subscript_receiver_method_source(self, receiver, method_name):
         container_dependency = self._parameter_dependency_source(
             receiver.value)
@@ -352,6 +421,11 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a dotted attribute method receiver.
+    ## 解析点分隔属性形式的方法接收者。
+    #
+    #  @param receiver Attribute receiver expression.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None when unresolved.
     def _attribute_receiver_method_source(self, receiver, method_name):
         attribute_receiver_top = self._expr_receiver_top(receiver.value)
         attribute_owner = _match_attribute_result_owner(
@@ -377,6 +451,11 @@ class SingleFileMethodResolutionMixin:
         return self._named_attribute_method_source(chain, method_name)
 
     ## Resolve a method invoked through an enclosing instance attribute.
+    ## 解析通过当前实例属性调用的方法。
+    #
+    #  @param chain Attribute path rooted at self.
+    #  @param method_name Called method name.
+    #  @return Instance attribute, stored source, or container method source.
     def _self_attribute_method_source(self, chain, method_name):
         class_name = self._class_stack[-1]
         attr_name = "self." + ".".join(chain[1:])
@@ -399,6 +478,11 @@ class SingleFileMethodResolutionMixin:
             method_name)
 
     ## Resolve a stored self attribute's method receiver source.
+    ## 解析已保存的 self 属性的方法接收者来源。
+    #
+    #  @param source Recorded source for the instance attribute.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None when unsupported.
     def _instance_attribute_method_source(self, source, method_name):
         if isinstance(source, ParameterSource):
             receiver = ".".join((source.name,) + source.attributes)
@@ -420,6 +504,11 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a CallResult stored in an instance attribute.
+    ## 解析实例属性中保存的 CallResult。
+    #
+    #  @param source Stored call result.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None if no owner is established.
     def _attribute_call_result_method_source(self, source, method_name):
         callee = source.callee
         if not isinstance(callee, str):
@@ -455,6 +544,11 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a method receiver rooted at a non-self dotted name.
+    ## 解析以非 self 点分隔名称为根的方法接收者。
+    #
+    #  @param chain Dotted receiver path.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None when unconfirmed.
     def _named_attribute_method_source(self, chain, method_name):
         root = chain[0]
         root_binding = self.current_scope().lookup(
@@ -493,6 +587,12 @@ class SingleFileMethodResolutionMixin:
         return None
 
     ## Resolve a local-instance field source recorded for one lexical scope.
+    ## 解析某词法作用域中记录的局部实例字段来源。
+    #
+    #  @param root Local instance root name.
+    #  @param chain Dotted receiver path.
+    #  @param method_name Called method name.
+    #  @return Method source for a confirmed external field, or None.
     def _local_field_method_source(self, root, chain, method_name):
         field_source = None
         for scope_key in self._local_instance_field_scope_keys(root):
@@ -508,6 +608,13 @@ class SingleFileMethodResolutionMixin:
         return InstanceMethod(field_top, method_name)
 
     ## Resolve an attribute on a receiver proven to be a local class.
+    ## 解析已证明为局部类的接收者上的属性。
+    #
+    #  @param class_name Local class identity.
+    #  @param root Receiver root name.
+    #  @param chain Dotted receiver path.
+    #  @param method_name Called method name.
+    #  @return Structured method source, or None when unresolved.
     def _local_class_attribute_method_source(
             self, class_name, root, chain, method_name):
         if len(chain) >= 2:
@@ -525,6 +632,11 @@ class SingleFileMethodResolutionMixin:
             class_name, root, method_name)
 
     ## Resolve a method on a literal constant receiver.
+    ## 解析字面量常量接收者上的方法。
+    #
+    #  @param receiver Constant AST node.
+    #  @param method_name Called method name.
+    #  @return String or bytes method source, or None for other constants.
     def _constant_receiver_method_source(self, receiver, method_name):
         if isinstance(receiver.value, str):
             return InstanceMethod("str", method_name)

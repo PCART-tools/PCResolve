@@ -1,5 +1,6 @@
 ## @package pcresolve._class_name_binding
 #  Restricted source-snapshot class-name values at a bound helper's entry.
+#  在已绑定辅助函数的入口处分析受限源码快照类名称值。
 
 import ast
 import copy
@@ -11,6 +12,15 @@ from .scope_facts import statement_scope_facts
 
 
 def _write_name(value, function, receiver, class_name, before):
+## Resolve a stable local name or expression used in a class-name write.
+## 解析用于类名称写入的稳定局部名称或表达式。
+#
+#  @param value Candidate expression whose literal value is requested.
+#  @param function Function scope containing the expression.
+#  @param receiver Protected class receiver parameter.
+#  @param class_name Source class name bound to the receiver.
+#  @param before Source line that all accepted assignments must precede.
+#  @return Literal string value, or None when binding is dynamic or ambiguous.
     """Read only stable, straight-line local names; no incoming default guesses."""
     stores = {}
     for item in ast.walk(function):
@@ -32,6 +42,12 @@ def _write_name(value, function, receiver, class_name, before):
         if (stores.get(name) == 1 and assigned and assigned[1] < before
                 and isinstance(assigned[0], ast.Name)):
             return root(assigned[0].id, seen + (name,))
+    ## Follow a uniquely assigned local name to its stable root binding.
+    ## 将唯一赋值的局部名称追溯到稳定的根绑定。
+    #
+    #  @param name Local identifier being followed.
+    #  @param seen Names already visited in this alias chain.
+    #  @return Protected receiver parameter name, or None for cycles/ambiguity.
         return None
 
     protected = root(receiver)
@@ -51,6 +67,12 @@ def _write_name(value, function, receiver, class_name, before):
                 return read(assigned[0], seen + (node.id,))
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
             left, right = read(node.left, seen + ('+',)), read(node.right, seen + ('+',))
+    ## Read a bounded literal expression without evaluating target code.
+    ## 在不执行目标代码的前提下读取有界字面量表达式。
+    #
+    #  @param node Expression to inspect recursively.
+    #  @param seen Local aliases already traversed.
+    #  @return Literal string, or None for unsupported syntax or size.
             if left is not None and right is not None and len(left) + len(right) <= 2000:
                 return left + right
         return None
@@ -79,6 +101,13 @@ def _global_calls(analyzer):
         if remaining[0] < 0 or depth > 64:
             raise _ClassEffectLimit()
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+## Check whether a class escape is only to a confirmed builtin read-only call.
+## 检查类对象是否仅逃逸到已确认的内建只读调用。
+#
+#  @param analyzer Analyzer providing definition and builtin binding facts.
+#  @param ref Lexical source reference containing the call.
+#  @param node Candidate call expression.
+#  @return True for an exact builtin super/isinstance/issubclass call.
             expressions = list(getattr(node, 'decorator_list', [])) + list(node.args.defaults)
             expressions += [value for value in node.args.kw_defaults if value is not None]
             expressions += [arg.annotation for arg in node.args.posonlyargs + node.args.args
@@ -96,6 +125,11 @@ def _global_calls(analyzer):
             child = replace(ref, qualname=(ref.qualname + '.' if ref.qualname else '') + node.name)
             for item in node.body:
                 visit(item, child, depth + 1)
+## Collect calls with lexical references across all indexed source modules.
+## 收集所有已索引源码模块中带有词法引用的调用。
+#
+#  @param analyzer Analyzer containing module bodies and definition references.
+#  @return Ordered (source reference, call node) pairs.
             return
         if isinstance(node, ast.Call):
             calls.append((ref, node))
@@ -105,11 +139,21 @@ def _global_calls(analyzer):
     for module, bodies in analyzer.module_bodies.items():
         for path, body in bodies:
             ref = replace(analyzer.definitions[0][0], module=module, qualname='', file_path=path, lineno=0)
+
+    # Bound the complete recursive inventory, including definition-time expressions.
+    # 限制完整递归清点规模，包括定义阶段的表达式。
             for statement in body:
                 visit(statement, ref)
     analyzer._class_name_global_calls = calls
     return calls
 
+    ## Visit one AST node and assign the correct nested lexical reference.
+    ## 访问单个 AST 节点并分配正确的嵌套词法引用。
+    #
+    #  @param node AST node to inspect.
+    #  @param ref Current source reference.
+    #  @param depth Recursive syntax depth.
+    #  @return None; discovered calls are appended to the shared result list.
 
 ## Bind a source class's canonical name only within a restricted entry snapshot.
 #  @param summary Bound caller summary; incoming origins have already been checked.
@@ -155,6 +199,8 @@ def source_binding(summary, identity, definition, parameter, call, node):
             parents = {child: parent for parent in ast.walk(function) for child in ast.iter_child_nodes(parent)}
             for item in parents:
                 if (isinstance(item, ast.Attribute) and item.attr in ('__name__', '__class__', '__bases__')
+## 仅在受限入口快照中绑定源码类的规范名称。
+#
                         and isinstance(item.ctx, (ast.Store, ast.Del))):
                     issue('class_name_write_possible', function_ref, item)
                 if (isinstance(item, ast.Name) and item.id in ('setattr', 'delattr')
@@ -172,6 +218,13 @@ def source_binding(summary, identity, definition, parameter, call, node):
                         or analyzer._builtin_name_status(function_ref, function, item.func.id)
                            != 'confirmed_builtin'):
                     issue('class_name_dynamic_write_unconfirmed', function_ref, item)
+    ## Record a unique binding issue with the source node that supports it.
+    ## 记录唯一的绑定问题及其对应源码节点。
+    #
+    #  @param reason Machine-readable reason the class-name proof is uncertain.
+    #  @param owner Class owning the evidence node.
+    #  @param source AST node supporting the issue.
+    #  @return None; the issue is appended only once.
     for reason, owner, source in namespace_issues(analyzer, hierarchy):
         issue('class_name_' + reason, owner, source)
     writes, truncated = ([], False) if issues else analyzer._class_binding_writes(include_escapes=True)
@@ -189,6 +242,9 @@ def source_binding(summary, identity, definition, parameter, call, node):
             issue('class_name_source_escape', owner, source)
         elif attribute in ('__name__', '__class__', '__bases__', '*'):
             issue('class_name_visible_write', owner, source)
+
+    # Audit each class in MRO order before trusting its __name__ metadata.
+    # 信任类的 __name__ 元数据前，按 MRO 顺序审计每个类。
     for owner, source in (() if issues else _global_calls(analyzer)):
         for value in ast.walk(source):
             if not isinstance(value, (ast.Name, ast.Attribute)):
@@ -210,3 +266,7 @@ def source_binding(summary, identity, definition, parameter, call, node):
     if not issues:
         result['literal'] = {'type': 'str', 'value': cls.name}
     return result
+    # Reject unrelated project-wide activity that can observe this source class.
+    # 拒绝可能观察该源码类的无关项目级活动。
+    # Permit only the active call edge or a proven readonly escape to observe the class.
+    # 仅允许当前调用边或已证明只读的逃逸观察该类。

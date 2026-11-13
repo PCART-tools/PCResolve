@@ -1,5 +1,6 @@
 ## @package pcresolve._decorator_text
 #  Bounded immutable text inputs and builtin text operations for decoration proofs.
+#  为装饰器证明提供有界不可变文本输入和内建文本操作模型。
 
 import ast
 import string
@@ -9,6 +10,13 @@ from .scope_facts import statement_scope_facts
 _TEXT_BINDING_NODE_LIMIT = 1000000
 
 
+## Resolve a text input only from a stable literal source binding.
+## 仅从稳定的字面量源码绑定解析文本输入。
+#
+#  @param proof Current decoration proof collecting evidence and dependencies.
+#  @param expression Candidate expression expected to name a literal string.
+#  @param caller Source function containing the expression.
+#  @return Known string data, or None when binding stability is unproven.
 def literal_argument(proof, expression, caller):
     if not isinstance(expression, ast.Name):
         return None
@@ -39,6 +47,9 @@ def literal_argument(proof, expression, caller):
            and node.id in ('exec', 'eval', 'globals', 'locals', 'vars', '__import__')
            for statement in bodies[0][1] for node in ast.walk(statement)):
         return None
+
+    # Audit project-wide attribute and item writes once before reusing this literal.
+    # 首次复用该字面量前，对项目级属性和下标写入进行一次审计。
     cached = getattr(analyzer, '_decorator_literal_writes', None)
     if cached is None:
         writes, paths, count = set(), set(), 0
@@ -48,6 +59,9 @@ def literal_argument(proof, expression, caller):
                 for statement in body:
                     for node in ast.walk(statement):
                         count += 1
+
+                        # Keep the mutation audit bounded across all indexed modules.
+                        # 限制对所有已索引模块进行的变更审计规模。
                         if count > _TEXT_BINDING_NODE_LIMIT:
                             return None
                         if analyzer._analysis_budget is not None:
@@ -72,8 +86,10 @@ def literal_argument(proof, expression, caller):
     writes, paths = cached
     if name in writes:
         return None
+
     # Dynamic names elsewhere are not assigned to this module without an alias
     # proof. The explicit source-binding premise excludes indirect mutation.
+    # 缺少别名证明时，其他位置的动态名称不会被视为写入本模块；显式源码绑定前提排除间接变更。
     proof.extra_assumptions.append('source_literal_binding_no_indirect_mutation')
     proof.dependency_paths.update(paths)
     proof.evidence.append(proof.evidence_at(caller, bindings[0]))
@@ -81,6 +97,15 @@ def literal_argument(proof, expression, caller):
             'python_shape': 'str'}
 
 
+## Model a small set of builtin string operations without invoking user protocols.
+## 有限建模少数内建字符串操作，不调用用户自定义协议。
+#
+#  @param proof Current decoration proof collecting effects and evidence.
+#  @param node AST call for the candidate string method.
+#  @param receiver Provenance record for the method receiver.
+#  @param arguments Provenance records for positional arguments.
+#  @param ref Source function identity containing the call.
+#  @return Result data shape and known value when available, or None.
 def text_call(proof, node, receiver, arguments, ref):
     if not receiver or receiver.get('python_shape') != 'str' or node.keywords:
         return None
@@ -96,7 +121,9 @@ def text_call(proof, node, receiver, arguments, ref):
             fields = list(string.Formatter().parse(receiver['value']))
         except ValueError:
             return None
+
         # No attribute/index traversal, conversion, nested format or user protocol.
+        # 不允许属性/下标遍历、转换、嵌套格式化或用户自定义协议。
         if any(field is not None and (field and not field.isdecimal()
                 or spec or conversion) for _, field, spec, conversion in fields):
             return None

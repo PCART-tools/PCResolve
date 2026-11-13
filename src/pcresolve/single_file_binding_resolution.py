@@ -3,6 +3,7 @@
 #
 #  The mixin shares SingleFileAnalyzer lexical state so binding time and AST
 #  traversal order remain unchanged.
+#  绑定装饰器、赋值目标和迭代来源，并处理有界条件守卫。
 
 import ast
 
@@ -17,17 +18,21 @@ from .sources import (
 
 
 ## Resolve flow-sensitive bindings using SingleFileAnalyzer state.
+## 使用 SingleFileAnalyzer 状态解析对控制流敏感的绑定。
 class SingleFileBindingResolutionMixin:
 
     ## --- Decorator binding ---
 
     ## Record decorator evidence without overwriting the target's primary binding.
+    ## 记录装饰器证据，不覆盖目标的主要绑定。
     #
     #  Each decorator expression is traced and recorded as a separate
     #  provenance record (kind="decorated_by"), while the decorated
     #  function/class keeps its "local" primary identity.
+    #
     #  @param target_name Name of the decorated function/class.
     #  @param decorator_nodes List of decorator AST nodes.
+    #  @return None
     def _bind_decorated_target(self, target_name, decorator_nodes):
         if not decorator_nodes:
             return
@@ -48,12 +53,15 @@ class SingleFileBindingResolutionMixin:
     ## --- Assignment helpers ---
 
     ## Record a project-local callable assigned onto an imported class.
+    ## 记录赋给导入类的项目本地可调用对象。
     #
     #  The fact identifies a possible monkey patch. It does not prove that an
     #  arbitrary receiver from the same library has the patched runtime class;
     #  cross-file classification therefore uses it only to remove false
     #  certainty from a library owner.
+    #
     #  @param node Assignment node.
+    #  @return None
     def _record_external_method_override(self, node):
         local_callable = False
         if isinstance(node.value, ast.Lambda):
@@ -102,10 +110,17 @@ class SingleFileBindingResolutionMixin:
                 (scope_name, node.lineno, class_symbol))
 
     ## Bind assignment targets to a source value.
+    ## 将赋值目标绑定到来源值。
     #
     #  Handles simple names, self.attr, and tuple/list unpacking.
+    #
     #  @param target The assignment target AST node.
     #  @param source The source symbol or structured tuple.
+    #  @param kind Binding role.
+    #  @param container_kind Proven container kind, if available.
+    #  @param container_item_kind Proven element kind, if available.
+    #  @param container_item_fields Known element field shapes, if available.
+    #  @return None
     def _target_to_source(self, target, source, kind="variable",
                           container_kind="", container_item_kind="",
                           container_item_fields=None):
@@ -134,6 +149,8 @@ class SingleFileBindingResolutionMixin:
                     container_item_fields=container_item_fields)
 
     ## Trace the source of a for-loop iterator.
+    ## 追踪 for 循环迭代器的来源。
+    #
     #  @param iter_node The iterator AST node.
     #  @return Source symbol, structured tuple, or None.
     def _iter_source(self, iter_node):
@@ -182,6 +199,7 @@ class SingleFileBindingResolutionMixin:
         return self.get_base(iter_node)
 
     ## Resolve a true-branch receiver-owner guard.
+    ## 解析真分支的接收者归属守卫。
     #
     #  @param test_node Conditional expression.
     #  @return (receiver_name, owner) or None.
@@ -214,10 +232,12 @@ class SingleFileBindingResolutionMixin:
         return None
 
     ## Visit nodes under an optional receiver-owner guard.
+    ## 在可选接收者归属守卫下访问节点。
     #
     #  @param nodes Iterable of AST nodes.
     #  @param guard Optional (receiver_name, owner) pair.
     #  @param test Optional branch condition for finite-name narrowing.
+    #  @return None
     def _visit_guarded_nodes(self, nodes, guard, test=None):
         finite = self._finite_name_guard(test, nodes)
         if finite is not None:
@@ -228,12 +248,16 @@ class SingleFileBindingResolutionMixin:
             for child in nodes:
                 self.visit(child)
         finally:
+            # Restore both guard stacks even if a child visitor raises.
+            # 即使子节点访问抛出异常，也要恢复两个守卫栈。
             if guard is not None:
                 self._receiver_owner_guards.pop()
             if finite is not None:
                 self._finite_name_guards.pop()
 
     ## Read a finite string-name guard without evaluating project code.
+    ## 不执行项目代码，读取有限字符串名称守卫。
+    #
     #  @param test Branch condition.
     #  @param nodes Guarded statements.
     #  @return Expression key and allowed strings, or None.
@@ -265,6 +289,11 @@ class SingleFileBindingResolutionMixin:
                 return None
         mutated_roots = set()
 
+        ## Find names that can escape through a literal container.
+        ## 查找可能通过字面量容器逃逸的名称。
+        #
+        #  @param value Candidate expression.
+        #  @return Set of name roots found in supported expressions.
         def escaped_roots(value):
             if isinstance(value, ast.Name):
                 return {value.id}
@@ -273,6 +302,8 @@ class SingleFileBindingResolutionMixin:
                                      for child in ast.iter_child_nodes(value)))
             return set()
 
+        # A write or escape can invalidate the guard before it is consumed.
+        # 守卫使用前发生写入或逃逸可能使其失效。
         for statement in nodes:
             for child in ast.walk(statement):
                 if (isinstance(child, ast.Name) and child.id == root.id
@@ -309,6 +340,8 @@ class SingleFileBindingResolutionMixin:
                 mutated_roots)
 
     ## Resolve only finite qualified-name eval expressions as value identities.
+    ## 仅将有限的限定名 eval 表达式解析为值标识。
+    #
     #  @param node Call expression.
     #  @return SourceSet of possible names, or None for open evaluation.
     def _finite_eval_names(self, node):
@@ -335,6 +368,8 @@ class SingleFileBindingResolutionMixin:
             candidates = [prefix + value for prefix in candidates for value in values]
             if len(candidates) > 32:
                 return None
+        # Every candidate must remain an imported, stable qualified name.
+        # 每个候选都必须是稳定的导入限定名。
         sources = []
         for candidate in candidates:
             try:
@@ -357,6 +392,8 @@ class SingleFileBindingResolutionMixin:
         return make_source_set(sources, origin='finite_name_selection')
 
     ## Reject namespace writes or escapes before narrowing an eval result.
+    ## 缩小 eval 结果候选前，排除命名空间写入或逃逸。
+    #
     #  @param name Imported module binding name.
     #  @return True only for read-only attribute access in this module.
     def _finite_namespace_is_stable(self, name):

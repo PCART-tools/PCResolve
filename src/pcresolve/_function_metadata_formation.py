@@ -1,5 +1,6 @@
 ## @package pcresolve._function_metadata_formation
 #  Native function metadata immediately after bounded source decoration.
+#  有界源码装饰完成后原生函数的初始元数据。
 
 import ast
 import copy
@@ -11,6 +12,8 @@ from ._runtime_namespace import unmodified
 
 
 ## Bound native metadata formation, separately from a current namespace lookup.
+## 有界验证原生元数据形成，与当前命名空间查找分离。
+#
 #  @param analyzer Fixed source snapshot and existing decoration budgets.
 #  @param target Exact source function declaration before its name is bound.
 #  @return Formation evidence or None for open/non-native metadata effects.
@@ -30,6 +33,9 @@ def metadata_formation(analyzer, target):
             analyzer._analysis_budget.checkpoint()
         if count > 2000 or analyzer._class_effect_fact_steps < 0:
             raise _ClassEffectLimit()
+
+    # Only constant annotations avoid unmodeled evaluation and callback effects.
+    # 仅接受常量注解，避免未建模的求值和回调效果。
     annotations = [argument.annotation for argument in
         node.args.posonlyargs + node.args.args + node.args.kwonlyargs]
     annotations += [node.returns]
@@ -48,6 +54,8 @@ def metadata_formation(analyzer, target):
     paths = {ref.file_path}
     facts = []
     if node.decorator_list:
+        # Require one complete decoration summary before using any write effects.
+        # 使用任何写入效果之前，要求唯一且完整的装饰摘要。
         if _source_function_decoration(analyzer, target, paths, assumptions) is None:
             return None
         facts = analyzer._decoration_facts(target)
@@ -68,6 +76,9 @@ def metadata_formation(analyzer, target):
                 module.update(shape)
             else:
                 return None
+
+    # Every premise path must have a version before evidence is published.
+    # 发布证据前，每个前提源码路径都必须具有版本摘要。
     hashes = {**analyzer.hashes, **analyzer._supporting_source_hashes}
     if any(path not in hashes for path in paths):
         return None

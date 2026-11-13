@@ -1,11 +1,13 @@
 ## @package pcresolve.return_resolution
 #  Owner-neutral call bindings and bounded return-dependency substitution.
+#  与归属无关的调用绑定和有界返回依赖替换。
 
 from dataclasses import dataclass
 from collections.abc import Mapping
 
 
 ## Values supplied to one named parameter or lexical capture at a call site.
+## 在调用点传给某个具名参数或词法捕获的值。
 @dataclass(frozen=True)
 class CallBinding:
     ## Binding category: parameter or capture.
@@ -17,12 +19,17 @@ class CallBinding:
     ## Element path within a variadic formal binding.
     target_path: tuple = ()
 
+    ## Freeze supplied values and variadic element paths.
+    ## 将传入值及可变参数元素路径固定为元组。
+    #
+    #  @return None
     def __post_init__(self):
         object.__setattr__(self, 'values', tuple(self.values))
         object.__setattr__(self, 'target_path', tuple(self.target_path))
 
 
 ## Return-substitution view of one exact call occurrence.
+## 单个精确调用在返回依赖替换中的视图。
 @dataclass(frozen=True)
 class ReturnCall:
     ## Snapshot-local call identifier.
@@ -34,6 +41,10 @@ class ReturnCall:
     ## Opt-in external/builtin return dependencies.
     return_dependencies: tuple = ()
 
+    ## Freeze call bindings and optional return dependencies.
+    ## 将调用绑定和可选返回依赖固定为元组。
+    #
+    #  @return None
     def __post_init__(self):
         object.__setattr__(self, 'bindings', tuple(self.bindings))
         object.__setattr__(self, 'return_dependencies',
@@ -41,6 +52,7 @@ class ReturnCall:
 
 
 ## Explicit fixed-point budgets for return substitution.
+## 返回依赖替换的显式不动点预算。
 @dataclass(frozen=True)
 class ResolutionLimits:
     ## Maximum whole-project summary iterations.
@@ -50,6 +62,7 @@ class ResolutionLimits:
 
 
 ## Result of resolving one entry parameter through return dependencies.
+## 通过返回依赖解析单个入口参数的结果。
 @dataclass(frozen=True)
 class ReturnResolution:
     ## Proven dependency records for the requested parameter.
@@ -63,6 +76,8 @@ class ReturnResolution:
 
 
 ## Select bindings by category and exact formal name without merging paths.
+## 按类别和精确形参名选取绑定，不合并路径。
+#
 #  @param bindings Iterable of CallBinding facts.
 #  @param kind parameter or capture.
 #  @param name Formal name.
@@ -73,6 +88,8 @@ def select_call_bindings(bindings, kind, name):
 
 
 ## Read the first value under the existing ownership bounded-context policy.
+## 按现有归属分析的有界上下文策略读取第一个值。
+#
 #  @param bindings Iterable of CallBinding facts.
 #  @param kind parameter or capture.
 #  @param name Formal name.
@@ -85,6 +102,8 @@ def first_bound_value(bindings, kind, name):
 
 
 ## Combine dependency relations using the flow contract's precedence.
+## 按数据流契约的优先级合并依赖关系。
+#
 #  @param relations Iterable containing direct, contained, or derived.
 #  @return Strongest composed relation.
 def dependency_relation(relations):
@@ -93,6 +112,8 @@ def dependency_relation(relations):
 
 
 ## Project return dependencies through one output path.
+## 按指定输出路径投影返回依赖。
+#
 #  @param values Dependency dictionaries.
 #  @param projection Requested element path.
 #  @return Projected dependency dictionaries.
@@ -106,6 +127,9 @@ def select_dependencies(values, projection):
                 and any(len(path) <= len(projection)
                         and path == projection[:len(path)] for path in excluded)):
             continue
+
+        # Match concrete or wildcard path components before projecting the tail.
+        # 投影剩余路径前，先匹配具体或通配符路径分量。
         path = value.get('output_path', [])
         if path:
             if not all(a == b or a == '*' or b == '*'
@@ -131,10 +155,12 @@ def select_dependencies(values, projection):
 
 
 ## Resolve one parameter through local summaries and opt-in call contracts.
+## 通过本地摘要及显式启用的调用契约解析一个参数。
 #  Dependencies remain dictionaries because their evidence and condition
 #  payloads belong to the value-flow adapter. This function routes dependency
 #  kinds, sources, relations, and element paths, and concatenates the opaque
 #  evidence, condition, and call-context sequences without interpreting them.
+#
 #  @param entry_key Hashable key of the entry summary.
 #  @param parameter Entry parameter to retain in the final result.
 #  @param summaries Mapping of function key to return dependency iterable.
@@ -147,10 +173,20 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
     resolved = {key: [] for key in summaries}
     limited = False
 
+    ## Identify a dependency independently of accumulated explanatory records.
+    ## 在不考虑累积解释记录的情况下标识依赖。
+    #
+    #  @param value Dependency dictionary.
+    #  @return Representation used for deduplication.
     def dependency_key(value):
         return repr({key: item for key, item in value.items()
                      if key not in ('evidence', 'conditions', 'call_context')})
 
+    ## Deduplicate dependencies and enforce the per-function budget.
+    ## 去重依赖并执行每个函数的依赖数量预算。
+    #
+    #  @param values Candidate dependency dictionaries.
+    #  @return Retained dependencies in first-seen order.
     def compact(values):
         nonlocal limited
         unique = {}
@@ -163,6 +199,12 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
                 unique[key] = value
         return list(unique.values())
 
+    ## Substitute call returns and bindings back to parameter or capture sources.
+    ## 将调用返回和绑定替换回参数或捕获来源。
+    #
+    #  @param values Dependencies to expand.
+    #  @param stack Call identifiers already being expanded.
+    #  @return Compacted source dependencies.
     def sources(values, stack):
         found = []
         for value in values:
@@ -170,6 +212,8 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
                 found.append(dict(value, call_context=[]))
                 continue
             call = calls.get(value['source'])
+            # Missing calls and recursive call chains do not establish a path.
+            # 缺失调用或递归调用链不能据此建立依赖路径。
             if call is None or call.id in stack:
                 continue
             inner_values = (resolved.get(call.target, [])
@@ -216,6 +260,7 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
     # A summary can read another summary through a returned call or through
     # that call's actual arguments. Retain all such dependencies, including
     # nested external-call bindings, without interpreting their values.
+    # 跟踪返回调用及实参中的摘要依赖，以便只重新计算受影响的调用方。
     reverse = {key: set() for key in summaries}
     for owner, summary in summaries.items():
         pending, visited = list(summary), set()
@@ -239,6 +284,9 @@ def resolve_return_dependencies(entry_key, parameter, summaries, calls,
             if call.target is None:
                 pending.extend(call.return_dependencies)
     dirty = set(summaries)
+
+    # Use bounded synchronous rounds; exhaustion remains an explicit boundary.
+    # 使用有界同步迭代；预算耗尽时保留明确的边界状态。
     for iteration in range(limits.max_iterations):
         iterations = iteration + 1
         # Keep synchronous rounds, original record order and the final

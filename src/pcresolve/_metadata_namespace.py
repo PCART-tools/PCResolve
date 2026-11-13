@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_namespace
 #  Stable stdlib metadata entry points; no source module is imported or executed.
+#  验证标准库元数据入口的稳定性，不导入或执行目标源码模块。
 
 import ast
 import builtins
@@ -10,6 +11,8 @@ from ._property_namespace import _stable_builtin_namespace
 
 
 ## Guard the builtin dependencies used inside standard metadata implementations.
+## 守卫标准元数据实现使用的内置依赖。
+#
 #  @param analyzer Fixed source snapshot and shared syntax budget.
 #  @param owner Source owner supplying evidence and namespace checks.
 #  @return Stability and audited paths, or the existing class-effect budget signal.
@@ -22,6 +25,8 @@ def builtin_namespace(analyzer, owner):
 
 
 ## Audit stdlib entry points and module capabilities in the fixed source scope.
+## 在固定源码范围内审查标准库入口和模块能力。
+#
 #  @param analyzer Fixed primary snapshot and shared resource checkpoints.
 #  @param module Standard library module supplying the modeled entry points.
 #  @param names Exact modeled attribute names; unrelated attribute reads are allowed.
@@ -31,6 +36,8 @@ def namespace(analyzer, module, names):
     cache = analyzer._metadata_stdlib_namespace
     if key in cache:
         return cache[key]
+    # A partial or interrupted scan cannot become a positive cached premise.
+    # 部分完成或中断的扫描不能成为肯定的缓存前提。
     cache[key] = None
     if analyzer.index_boundaries or module in analyzer.module_bodies:
         return None
@@ -84,6 +91,7 @@ def namespace(analyzer, module, names):
                     use = parents.get(current)
                     # A bare decorator is an immediate invocation just like a
                     # Call.func use. It does not publish the entry-point object.
+                    # 裸装饰器也会立即调用入口，不会因此暴露入口对象。
                     invoked = (isinstance(use, ast.Call) and use.func is current
                                or isinstance(use, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
                                and current in use.decorator_list)

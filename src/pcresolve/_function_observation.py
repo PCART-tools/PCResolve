@@ -1,5 +1,6 @@
 ## @package pcresolve._function_observation
 #  Source guards for local object isolation during fresh function decoration.
+#  新建函数装饰期间局部对象隔离所需的源码守卫。
 
 import ast
 import copy
@@ -22,6 +23,16 @@ _EXECUTION = {'__code__', '__defaults__', '__kwdefaults__', '__closure__', 'cell
 _FRAME_FIELDS = {'f_back', 'f_globals', 'f_code', 'f_lineno', 'f_lasti'}
 
 
+## Inspect ambient namespace operations for unsupported mutation or escape.
+## 检查外部命名空间操作是否存在不支持的修改或逃逸。
+#
+#  @param analyzer Fixed source analysis state.
+#  @param module Current module name.
+#  @param path Current source file path.
+#  @param nodes Source AST nodes.
+#  @param parents Node-to-parent mapping.
+#  @param scopes Node-to-enclosing-scope mapping.
+#  @return Allowed initialization witnesses or None for an open capability.
 def _ambient_namespaces(analyzer, module, path, nodes, parents, scopes):
     aliases, initializers = {}, []
     callable_names = {ref.qualname.rsplit('.', 1)[-1] for ref, _ in analyzer.definitions}
@@ -94,12 +105,20 @@ def _ambient_namespaces(analyzer, module, path, nodes, parents, scopes):
     return initializers
 
 
+## Capture a node's source location.
+## 捕获节点的源码位置。
+#
+#  @param ref Source function identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno, 'col_offset': node.col_offset,
             'end_lineno': node.end_lineno, 'end_col_offset': node.end_col_offset}
 
 
 ## Guard source-visible access to frame locals and global GC object discovery.
+## 对源码可见的帧局部变量和全局 GC 对象发现能力设置守卫。
+#
 #  @param analyzer Fixed source snapshot; no target library code is imported.
 #  @param modules Optional source modules whose reachable call path is being checked.
 #  @return Observer premises for the selected source scope, or None for an open capability.
@@ -148,6 +167,12 @@ def nonobserving_source(analyzer, modules=None):
                 return None
             initializers.extend(namespace)
 
+            ## Resolve an unshadowed stable import expression to its qualified name.
+            ## 将未遮蔽且稳定的导入表达式解析为限定名。
+            #
+            #  @param expression Candidate name or attribute expression.
+            #  @param scope Enclosing callable scope, or None.
+            #  @return Qualified import name or empty string when unproven.
             def canonical(expression, scope):
                 if not isinstance(expression, (ast.Name, ast.Attribute)):
                     return ''
@@ -240,7 +265,14 @@ def nonobserving_source(analyzer, modules=None):
                 roots.append((ref, scope, call, variable.id, destination))
 
             for ref, scope, call, name, origin in roots:
+                ## Mask frame variable stores while checking for other bindings.
+                ## 检查其他绑定时屏蔽帧变量的存储节点。
                 class IgnoreNameStores(ast.NodeTransformer):
+                    ## Replace matching stores with a sentinel name.
+                    ## 将匹配的存储节点替换为哨兵名称。
+                    #
+                    #  @param node Name AST node.
+                    #  @return Original or replacement name node.
                     def visit_Name(self, node):
                         return (ast.copy_location(ast.Name(id='$frame_store', ctx=ast.Store()), node)
                                 if node.id == name and isinstance(node.ctx, ast.Store) else node)
@@ -257,6 +289,7 @@ def nonobserving_source(analyzer, modules=None):
                         continue
                     # A same-spelled name in an unrelated scope does not refer
                     # to this local frame. A nested closure does expose it.
+                    # 无关作用域中的同名变量不指向当前帧；嵌套闭包则可能暴露它。
                     containing = scopes[node]
                     if containing is not scope:
                         current = containing
@@ -328,6 +361,8 @@ def nonobserving_source(analyzer, modules=None):
             if any(isinstance(node, ast.Attribute) and node.attr in _FRAME_FIELDS
                    and node not in checked_metadata for node in nodes):
                 return None
+    # Source guards are premises and do not assert runtime observations occurred.
+    # 源码守卫只是前提，不断言运行时观察已经发生。
     result = {'source_hashes': dict(sorted(analyzer.hashes.items())), 'frame_metadata': records,
         'namespace_guard': {'scope': 'bounded_source_callable_namespaces',
             'module_initializers': initializers, 'runtime_reflective_writes': [],

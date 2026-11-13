@@ -1,5 +1,6 @@
 ## @package pcresolve.scope
 #  Lexical scope and binding model.
+#  词法作用域与绑定模型。
 
 from dataclasses import dataclass, field
 
@@ -11,6 +12,7 @@ SCOPE_COMPREHENSION = "comprehension"
 
 
 ## A source binding for a symbol in one lexical scope.
+## 单个词法作用域中符号的来源绑定。
 @dataclass
 class Binding:
     ## Symbol name.
@@ -42,6 +44,7 @@ class Binding:
 
 
 ## A lexical scope with parent lookup.
+## 支持沿父作用域查找的词法作用域。
 @dataclass
 class Scope:
     ## Scope kind.
@@ -54,6 +57,8 @@ class Scope:
     bindings: dict = field(default_factory=dict)
 
     ## Bind a name in the current scope.
+    ## 在当前作用域绑定名称。
+    #
     #  @param name Symbol name.
     #  @param source Source value.
     #  @param lineno Source line.
@@ -63,6 +68,8 @@ class Scope:
     #  @param container_item_kind Concrete subscript result kind, if known.
     #  @param callable_key Qualified return_sources key for local callables.
     #  @param binding_kind Binding role used for flow-sensitive checks.
+    #  @param container_item_fields Known field shapes of a container element.
+    #  @return None
     def bind(self, name, source, lineno=0, col_offset=0, assignment_index=0,
              container_kind="", container_item_kind="", callable_key="",
              binding_kind="", container_item_fields=None):
@@ -76,6 +83,8 @@ class Scope:
         )
 
     ## Look up a name through lexical parents.
+    ## 沿词法父作用域查找名称。
+    #
     #  @param name Symbol name.
     #  @param skip_parent_classes If True, skip parent class-scope
     #         bindings (Python does not resolve bare names through
@@ -86,6 +95,8 @@ class Scope:
         scope = self
         is_origin = True
         while scope is not None:
+            # The starting class scope remains visible even when parent classes are skipped.
+            # 即使跳过父类作用域，仍搜索作为起点的类作用域。
             should_search = (
                 is_origin
                 or not (
@@ -100,12 +111,17 @@ class Scope:
         return None
 
     ## Return a shallow copy of current bindings (for branch snapshots).
+    ## 返回当前绑定的浅拷贝，供分支快照使用。
+    #
     #  @return Dict copy of bindings.
     def snapshot(self):
         return dict(self.bindings)
 
     ## Restore bindings from a snapshot.
+    ## 从快照恢复绑定。
+    #
     #  @param state Dict of bindings or Scope whose bindings to copy.
+    #  @return None
     def restore(self, state):
         if isinstance(state, Scope):
             self.bindings = dict(state.bindings)
@@ -114,12 +130,14 @@ class Scope:
 
 
 ## Merge two branch snapshots with a base.
+## 结合基线合并两个分支快照。
 #
 #  - Both unchanged from base: keep base.
 #  - One branch changed, other unchanged: SourceSet([changed, base])
 #    (or just changed if base had no binding for that name).
 #  - Both changed to same value: keep single value.
 #  - Both changed to different values: SourceSet([left, right]).
+#
 #  @param base Base snapshot dict.
 #  @param left Left branch snapshot dict.
 #  @param right Right branch snapshot dict.
@@ -154,9 +172,20 @@ def merge_snapshots(base, left, right):
     return merged
 
 
+## Merge two branch sources while retaining distinct located call results.
+## 合并两个分支来源，并保留位置不同的调用结果。
+#
+#  @param left_binding Left binding or source.
+#  @param right_binding Right binding or source.
+#  @return SourceSet of deduplicated alternatives.
 def _merge_two(left_binding, right_binding):
     """Create a merged binding from two different branch bindings."""
     from .sources import source_display, CallResult, SourceSet as SS
+    ## Include call-site location when distinguishing call results.
+    ## 区分调用结果时将调用点位置纳入键。
+    #
+    #  @param src Source alternative.
+    #  @return Display-based merge key with optional call location.
     def _merge_key(src):
         key = source_display(src)
         if isinstance(src, CallResult) and src.call_lineno:
@@ -166,6 +195,8 @@ def _merge_two(left_binding, right_binding):
     right_src = right_binding.source if isinstance(right_binding, Binding) else right_binding
     items = []
     seen = set()
+    # Flatten source sets while preserving the first occurrence of each key.
+    # 展平来源集合，同时保留各键首次出现的顺序。
     for src in (left_src, right_src):
         if isinstance(src, SS):
             for s in src.sources:

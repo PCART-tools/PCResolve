@@ -1,5 +1,6 @@
 ## @package pcresolve._decorator_exceptions
 #  Exception-only translations inside a bounded decoration proof.
+#  有界装饰证明中仅涉及异常退出的转换。
 
 import ast
 import copy
@@ -9,6 +10,17 @@ from .effect_facts import builtin_exception_translation
 from .scope_facts import statement_scope_facts
 
 
+## Record a proven builtin exception raise or mark its protocol unproven.
+## 记录已证明的内置异常抛出，或标记协议未获证明。
+#
+#  @param proof Active bounded decoration proof.
+#  @param statement Raise statement.
+#  @param env Current abstract environment.
+#  @param target Source function identity and definition.
+#  @param initializing Whether initialization is in progress.
+#  @param shapes_of Callback returning possible value shapes.
+#  @param translation Optional enclosing exception translation evidence.
+#  @return True if the raise was modeled, otherwise False.
 def builtin_raise(proof, statement, env, target, initializing, shapes_of, translation=None):
     ref, definition = target
     raised = statement.exc
@@ -38,6 +50,16 @@ def builtin_raise(proof, statement, env, target, initializing, shapes_of, transl
     return False
 
 
+## Analyze supported exception translations and the protected body.
+## 分析受支持的异常转换及其受保护的语句体。
+#
+#  @param proof Active bounded decoration proof.
+#  @param statement Try statement to analyze.
+#  @param env Entry abstract environment.
+#  @param target Source function identity and definition.
+#  @param initializing Whether initialization is in progress.
+#  @param shapes_of Callback returning possible value shapes.
+#  @return Body analysis result, or None for unsupported translation shapes.
 def translate(proof, statement, env, target, initializing, shapes_of):
     if statement.orelse or statement.finalbody or not 1 <= len(statement.handlers) <= 4:
         return None
@@ -48,6 +70,7 @@ def translate(proof, statement, env, target, initializing, shapes_of):
     proof.extra_assumptions.append('builtin_exception_handler_semantics')
     # The handler can run after any body prefix. Only immutable local inputs
     # untouched throughout the try body can be reused from its entry state.
+    # 处理器可能在语句体任意前缀后执行，只能复用未被写入的入口值。
     written = statement_scope_facts(statement.body).bound
     for handler, shape in zip(statement.handlers, shapes):
         if set(shape['argument_names']) & written:
@@ -72,4 +95,5 @@ def translate(proof, statement, env, target, initializing, shapes_of):
             proof.conditions.pop()
     # All supported handlers terminate exceptionally. They cannot supply a
     # return value, restore a modified binding, or continue after the try.
+    # 所有受支持处理器均以异常退出，不能提供返回值或继续执行。
     return proof.statements(statement.body, env, target, initializing)

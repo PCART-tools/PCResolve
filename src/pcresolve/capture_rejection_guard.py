@@ -1,16 +1,25 @@
 ## @package pcresolve.capture_rejection_guard
 #  Conditional source obligations for rejecting a nonempty captured dictionary.
+#  拒绝非空捕获字典的条件性源码证据要求。
 
 import ast
 from dataclasses import asdict
 
 
+## Record source coordinates for one guard or raise node.
+## 记录守卫或抛出节点的源码坐标。
+#
+#  @param ref Source function identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return dict(file_path=ref.file_path, lineno=node.lineno, col_offset=node.col_offset,
                 end_lineno=node.end_lineno, end_col_offset=node.end_col_offset)
 
 
 ## Describe direct rejection guards without asserting runtime reachability or type.
+## 描述直接拒绝守卫，不断言运行时可达性或类型。
+#
 #  @param analyzer Fixed source analyzer, providing lexical builtin facts and hashes.
 #  @param ref Source function identity.
 #  @param node Source function AST.
@@ -31,6 +40,9 @@ def checks(analyzer, ref, node):
         if branch is not node and isinstance(branch, (
                 ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
             continue
+
+        # Inspect this function only; nested definitions execute in other scopes.
+        # 仅检查当前函数；嵌套定义在其他作用域中执行。
         pending.extend(ast.iter_child_nodes(branch))
         if not isinstance(branch, ast.If) or len(branch.body) != 1:
             continue
@@ -50,6 +62,9 @@ def checks(analyzer, ref, node):
                 or analyzer._builtin_name_status(ref, node, raised.exc.func.id)
                 != 'confirmed_builtin'):
             continue
+
+        # Source syntax alone does not establish an uncaught runtime exception.
+        # 仅凭源码语法不能证明运行时出现未捕获异常。
         facts.append({'kind': 'capture_truth_rejection', 'status': 'requires_observation',
                       'function': asdict(ref), 'parameter': presence.id,
                       'exception': raised.exc.func.id, 'guard_evidence': _span(ref, branch.test),

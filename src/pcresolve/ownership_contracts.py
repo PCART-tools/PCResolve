@@ -4,6 +4,7 @@
 #  These rules are ownership policy, not shared program facts. Both the
 #  single-file and project analyzers import them without depending on each
 #  other's implementation.
+#  根据已记录证据提供归属和 Python 结果形态契约，供两种归属分析器使用。
 
 from .sources import PythonShape
 
@@ -150,6 +151,12 @@ _BUILTIN_METHOD_RESULT_ITEM_KINDS = {
     ("str", "rsplit"): "str",
 }
 
+## Match a verified owner for an import-backed call result.
+## 匹配导入来源调用结果的已验证归属。
+#
+#  @param top Established callable owner or qualified prefix.
+#  @param func_name Called function or method name.
+#  @return Result owner or None when no contract matches.
 def _match_result_owner(top, func_name):
     """Return the verified owner of an import-backed call's result object."""
     if top is None:
@@ -162,6 +169,11 @@ def _match_result_owner(top, func_name):
     return None
 
 
+## Check whether any result-owner contract names a method.
+## 检查是否存在针对该方法名的结果归属契约。
+#
+#  @param func_name Function or method name.
+#  @return True if at least one contract uses the name.
 def _has_result_owner_contract(func_name):
     """Return whether any verified result contract covers a method name."""
     return any(
@@ -170,6 +182,12 @@ def _has_result_owner_contract(func_name):
     )
 
 
+## Match a verified owner for an import-backed attribute value.
+## 匹配导入来源属性值的已验证归属。
+#
+#  @param top Established receiver owner or qualified prefix.
+#  @param attribute Attribute name.
+#  @return Result owner or None when no contract matches.
 def _match_attribute_result_owner(top, attribute):
     """Return the verified owner of an import-backed attribute's value."""
     if top is None:
@@ -183,6 +201,12 @@ def _match_attribute_result_owner(top, attribute):
     return None
 
 
+## Match a concrete Python shape from an attribute-result contract.
+## 从属性结果契约匹配具体 Python 形态。
+#
+#  @param top Established receiver owner or qualified prefix.
+#  @param attribute Attribute name.
+#  @return PythonShape or None when no shape contract matches.
 def _match_attribute_python_shape(top, attribute):
     """Return the concrete Python shape from a verified attribute contract."""
     if top is None:
@@ -197,6 +221,12 @@ def _match_attribute_python_shape(top, attribute):
     return None
 
 
+## Match a concrete Python shape from a call-result contract.
+## 从调用结果契约匹配具体 Python 形态。
+#
+#  @param top Established callable owner or qualified prefix.
+#  @param func_name Called function or method name.
+#  @return PythonShape or None when no shape contract matches.
 def _match_result_python_shape(top, func_name):
     """Return the concrete Python shape from a verified result contract."""
     if top is None:
@@ -210,11 +240,22 @@ def _match_result_python_shape(top, func_name):
     return None
 
 
+## Check whether an owner occurs in the verified result contracts.
+## 检查归属是否出现在已验证的结果契约中。
+#
+#  @param owner Candidate result owner.
+#  @return True if a result contract names that owner.
 def _is_verified_result_owner(owner):
     """Return whether owner is produced by a verified result contract."""
     return owner in _VERIFIED_RESULT_OWNERS
 
 
+## Match the uniform owner of indexed or unpacked call-result items.
+## 匹配调用结果索引或解包元素的统一归属。
+#
+#  @param top Established callable owner or qualified prefix.
+#  @param func_name Called function or method name.
+#  @return Item owner or None when no contract matches.
 def _match_result_item_owner(top, func_name):
     """Return a uniform owner for destructured or indexed call-result items."""
     if top is None:
@@ -227,6 +268,12 @@ def _match_result_item_owner(top, func_name):
     return None
 
 
+## Match the owner of elements from a verified iterator contract.
+## 匹配已验证迭代器契约中元素的归属。
+#
+#  @param top Established callable owner or qualified prefix.
+#  @param func_name Called function or method name.
+#  @return Element owner or None when no contract matches.
 def _match_iterator_element_owner(top, func_name):
     """Return the owner of elements from a known import-backed iterator."""
     if top is None:
@@ -239,6 +286,12 @@ def _match_iterator_element_owner(top, func_name):
     return None
 
 
+## Match the Python shape of elements from a verified iterator contract.
+## 匹配已验证迭代器契约中元素的 Python 形态。
+#
+#  @param top Established callable owner or qualified prefix.
+#  @param func_name Called function or method name.
+#  @return PythonShape or None when no shape contract matches.
 def _match_iterator_element_shape(top, func_name):
     """Return the Python shape of elements from a verified iterator."""
     if top is None:

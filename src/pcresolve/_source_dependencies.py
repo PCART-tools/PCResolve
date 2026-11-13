@@ -1,10 +1,13 @@
 ## @package pcresolve._source_dependencies
 #  Versioned support for explicit source-protocol proofs, outside primary flow.
+#  为显式源码协议证明维护版本化支持依赖，不扩展主数据流范围。
 
 from .source_snapshot import FLOW_SOURCE, SourceStore
 
 
 ## Register only independently proved dependency versions for an opted-in query.
+## 为显式启用的查询仅注册已独立证明的依赖版本。
+#
 #  @param analyzer Primary flow adapter; its source files and naming scope stay fixed.
 #  @param hashes Complete source-protocol premise, including ambient primary files.
 #  @return False for an unapproved extension; conflicting versions raise ValueError.
@@ -18,6 +21,9 @@ def register(analyzer, hashes):
             external[path] = digest
     if external and not analyzer.support_source_protocols:
         return False
+
+    # Validate every extension before publishing any of them to the registry.
+    # 更新注册表前先验证全部扩展依赖，避免保留部分更新。
     for path, digest in external.items():
         previous = analyzer._supporting_source_hashes.get(path)
         if previous is not None and previous != digest:
@@ -27,6 +33,8 @@ def register(analyzer, hashes):
 
 
 ## Verify supporting versions independently of primary snapshot membership.
+## 独立于主快照成员关系校验支持依赖的版本。
+#
 #  @param hashes Dependency versions from a completed protocol proof.
 #  @param budget Optional shared source-reading budget.
 #  @return None; stale/missing dependency versions raise ValueError.
@@ -40,6 +48,8 @@ def validate(hashes, budget=None):
 
 
 ## Attach supporting versions without claiming that they are primary flow inputs.
+## 附加支持依赖版本，不将其视为主数据流输入。
+#
 #  @param analyzer Query-local dependency registry.
 #  @param result Completed primary analysis or expansion.
 #  @return None.

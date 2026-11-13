@@ -1,5 +1,6 @@
 ## @package pcresolve._contextmanager_namespace
 #  Standard contextmanager function construction, excluding future with effects.
+#  标准 contextmanager 函数构造模型，不包含未来 with 执行产生的效果。
 
 import ast
 
@@ -10,12 +11,21 @@ from ._runtime_namespace import unmodified
 from .class_attribute_effects import _ClassEffectLimit
 
 
+## Check whether contextlib namespace uses remain stable in the source snapshot.
+## 检查源码快照中的 contextlib 命名空间使用是否保持稳定。
+#
+#  @param analyzer Analyzer containing the fixed modules and import bindings.
+#  @param require_nonobserving Whether to require an observer-isolation premise.
+#  @return True only when all inspected contextlib uses satisfy the contract.
 def _namespace(analyzer, require_nonobserving=True):
     cache_name = ('_contextmanager_namespace_premise' if require_nonobserving
                   else '_contextmanager_namespace_protocol_premise')
     cached = getattr(analyzer, cache_name, None)
     if cached is not None:
         return cached
+
+    # Seed a conservative result before traversing modules to prevent re-entry loops.
+    # 遍历模块前先写入保守结果，避免检查过程重入形成循环。
     setattr(analyzer, cache_name, False)
     if 'contextlib' in analyzer.module_bodies or analyzer.index_boundaries:
         return False
@@ -33,6 +43,9 @@ def _namespace(analyzer, require_nonobserving=True):
             for statement in body:
                 for node in ast.walk(statement):
                     inspected += 1
+
+                    # Stop on oversized snapshots before the namespace proof becomes unbounded.
+                    # 命名空间证明遍历过大快照前先停止，保持分析开销有界。
                     if inspected > 1000000:
                         raise _ClassEffectLimit()
                     if analyzer._analysis_budget is not None:
@@ -78,6 +91,8 @@ def _namespace(analyzer, require_nonobserving=True):
 
 
 ## Prove only creation of a native helper by the imported contextmanager decorator.
+## 仅证明已导入的 contextmanager 装饰器会创建原生辅助函数。
+#
 #  @param analyzer Fixed source snapshot and query budget.
 #  @param owner Class identity before its namespace is bound to the class object.
 #  @param member Fresh method with one decorator, whose inputs are checked separately.

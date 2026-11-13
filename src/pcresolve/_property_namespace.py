@@ -1,5 +1,6 @@
 ## @package pcresolve._property_namespace
 #  Builtin property construction is separate from descriptor access or execution.
+#  内置 property 构造与描述符访问或执行分开分析。
 
 import ast
 import builtins
@@ -13,6 +14,12 @@ from .syntax_facts import SyntaxLimit
 _PROPERTY_NAMESPACE_NODE_LIMIT = 1000000
 
 
+## Check whether a projection avoids writes and special attributes.
+## 检查投影是否避开写入和特殊属性。
+#
+#  @param node Root expression node.
+#  @param parents Node-to-parent mapping.
+#  @return True for a supported read-only projection.
 def _readonly_projection(node, parents):
     current = parents.get(node)
     if not isinstance(current, ast.Attribute) or current.value is not node:
@@ -30,6 +37,17 @@ def _readonly_projection(node, parents):
     return True
 
 
+## Check a narrow builtin read of a module object.
+## 检查对模块对象的受限内置只读操作。
+#
+#  @param analyzer Fixed source analysis state.
+#  @param owner Source class identity used to construct lookup references.
+#  @param module Current module name.
+#  @param path Current source path.
+#  @param node Module name expression.
+#  @param parent Parent AST node.
+#  @param parents Node-to-parent mapping.
+#  @return True only for a supported confirmed builtin use.
 def _readonly_module_use(analyzer, owner, module, path, node, parent, parents):
     if (not isinstance(parent, ast.Call) or not isinstance(parent.func, ast.Name)
             or parent.func.id not in ('dir', 'getattr', 'hasattr')
@@ -40,6 +58,7 @@ def _readonly_module_use(analyzer, owner, module, path, node, parent, parents):
         return False
     if name == 'getattr' and not isinstance(parents.get(parent), ast.Compare):
         # An arbitrary attribute result could be the mutable namespace itself.
+        # 任意属性结果可能就是可变命名空间本身。
         return False
     names, scope, definition_scope = [], None, True
     child, current = parent, parents.get(parent)
@@ -64,6 +83,13 @@ def _readonly_module_use(analyzer, owner, module, path, node, parent, parents):
         ref, scope, name, definition_scope=definition_scope) == 'confirmed_builtin'
 
 
+## Check indexed source for possible writes or escapes of builtin names.
+## 检查已索引源码中内置名称可能发生的写入或逃逸。
+#
+#  @param analyzer Fixed source analysis state.
+#  @param owner Source identity for builtin lookup.
+#  @param protected Builtin names requiring stability.
+#  @return Stability flag and examined source paths; exhaustion raises _ClassEffectLimit.
 def _stable_builtin_namespace(analyzer, owner, protected=('property',)):
     cache = getattr(analyzer, '_property_namespace_premises', None)
     key = tuple(sorted(protected))
@@ -152,6 +178,8 @@ def _stable_builtin_namespace(analyzer, owner, protected=('property',)):
 
 
 ## Recognize builtin property/getter/setter/deleter construction in one class body.
+## 识别类体中内置 property 及 getter、setter、deleter 的构造。
+#
 #  @param analyzer Fixed source and import/builtin lookup facts.
 #  @param owner Exact source class reference.
 #  @param member New function whose evaluated defaults/annotations are checked separately.
@@ -195,6 +223,8 @@ def property_declaration(analyzer, owner, member, shadowed, properties, dependen
 
 
 ## Prove direct native property construction from preceding plain class functions.
+## 证明由之前的普通类函数直接构造原生 property。
+#
 #  @param analyzer Source/import and builtin binding machinery.
 #  @param owner Exact class declaration identity.
 #  @param cls Class whose statement order supplies the accessors.
@@ -213,6 +243,7 @@ def property_assignment(analyzer, owner, cls, member, shadowed, dependencies=Non
             or len(expression.keywords) > 1 or len(expression.args) == 4 and expression.keywords):
         return None
     # Class-body lookup includes prior class locals, unlike an ordinary method.
+    # 类体名称查找包含此前的类局部绑定。
     ref = replace(owner, qualname=owner.qualname + '.<namespace>')
     if analyzer._builtin_name_status(ref, cls, 'property') != 'confirmed_builtin':
         return None

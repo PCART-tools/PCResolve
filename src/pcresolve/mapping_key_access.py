@@ -1,11 +1,14 @@
 ## @package pcresolve.mapping_key_access
 #  Bounded source footprints for nonescaping keyword-capture dictionaries.
+#  未逃逸关键字捕获字典的有界源码访问记录。
 
 import ast
 from dataclasses import asdict
 
 
 ## Describe all accesses to a keyword capture when each is local to a fixed key.
+## 当关键字捕获的所有访问均局限于固定键时描述这些访问。
+#
 #  @param analyzer Fixed source analyzer providing the source snapshot hash.
 #  @param ref Source function identity.
 #  @param node Source function AST.
@@ -25,6 +28,7 @@ def footprints(analyzer, ref, node):
     for item in nodes:
         # Reject referenced reflection capabilities as well as direct calls.
         # Alias invocation must not bypass a namespace escape boundary.
+        # 同时拒绝反射能力的引用，防止别名调用绕过命名空间逃逸边界。
         if (isinstance(item, ast.Name) and item.id in reflection
                 or isinstance(item, ast.Attribute) and item.attr in reflection
                 or isinstance(item, ast.alias) and item.name in reflection | {'*'}):
@@ -32,6 +36,7 @@ def footprints(analyzer, ref, node):
         if not isinstance(item, ast.Name) or item.id != name:
             continue
         # Captures, rebinding, aliases and non-key-local writes are excluded.
+        # 排除捕获、重新绑定、别名及非固定键的写入。
         current = parents.get(item)
         while current is not None and current is not node:
             if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
@@ -41,6 +46,9 @@ def footprints(analyzer, ref, node):
             current = parents.get(current)
         if not isinstance(item.ctx, ast.Load):
             return []
+
+        # Every use must match a supported operation with a literal string key.
+        # 每次使用都必须匹配受支持操作及字符串字面量键。
         parent = parents.get(item)
         operation, key = None, None
         if isinstance(parent, ast.Subscript) and parent.value is item:
@@ -66,6 +74,9 @@ def footprints(analyzer, ref, node):
                                       'end_col_offset': parent.end_col_offset}})
     if not accesses:
         return []
+
+    # This is source evidence only; control flow and execution remain unproven.
+    # 这里只提供源码证据，控制流和实际执行仍未获证明。
     return [{'kind': 'mapping_key_access', 'status': 'key_local', 'parameter': name,
              'function': asdict(ref), 'protocol': 'keyword_capture',
              'keys': sorted({item['key'] for item in accesses}), 'accesses': accesses,

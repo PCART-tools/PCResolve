@@ -1,5 +1,6 @@
 ## @package pcresolve._module_getattr
 #  Bounded missing-name obligations for a source module's property dispatch.
+#  为源码模块的 property 分派建立有界的缺失名称义务。
 
 import ast
 from dataclasses import asdict
@@ -9,21 +10,45 @@ from ._property_namespace import _stable_builtin_namespace
 from .import_facts import import_facts
 
 
+## Remove an optional leading function docstring from a statement body.
+## 从语句体中移除可选的首个函数文档字符串。
+#
+#  @param node Function-like AST node whose body is inspected.
+#  @return Body statements excluding a leading string expression.
 def _body(node):
     return [statement for statement in node.body if not (
         isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
         and isinstance(statement.value.value, str))]
 
 
+## Check whether an expression is the exact requested name.
+## 检查表达式是否为指定名称。
+#
+#  @param node Candidate AST expression.
+#  @param name Expected identifier spelling.
+#  @return True only for a matching ast.Name node.
 def _name(node, name):
     return isinstance(node, ast.Name) and node.id == name
 
 
+## Compare an AST expression with a parsed canonical source expression.
+## 将 AST 表达式与解析得到的规范源码表达式比较。
+#
+#  @param left Expression from the analyzed source.
+#  @param source Canonical expression text used for structural comparison.
+#  @return True when both expressions have the same attribute-free AST shape.
 def _same(left, source):
     return ast.dump(left, include_attributes=False) == ast.dump(ast.parse(source, mode='eval').body,
                                                               include_attributes=False)
 
 
+## Check whether an exception expression can safely format a missing name.
+## 检查异常表达式是否能安全地格式化缺失名称。
+#
+#  @param node Candidate exception argument expression.
+#  @param receiver Name of the module-level receiver parameter.
+#  @param parameter Name of the requested attribute parameter.
+#  @return True for constants and the narrowly supported receiver/name expressions.
 def _failure(node, receiver, parameter):
     if isinstance(node, ast.Constant):
         return type(node.value) in (str, int, type(None))
@@ -38,10 +63,18 @@ def _failure(node, receiver, parameter):
     return False
 
 
+## Audit functools cache bindings used by source module property dispatch.
+## 审计源码模块 property 分派所使用的 functools 缓存绑定。
+#
+#  @param analyzer Analyzer containing module bodies and import bindings.
+#  @return Stability flag and source paths inspected for the premise.
 def _cache_namespace(analyzer):
     cached = getattr(analyzer, '_module_getattr_cache_premises', None)
     if cached is not None:
         return cached
+
+    # Cache results only after the whole snapshot scan completes successfully.
+    # 仅在完整扫描快照后缓存结果。
     paths, count, stable = set(), 0, 'functools' not in analyzer.module_bodies
     for bodies in analyzer.module_bodies.values():
         for path, body in bodies:
@@ -50,6 +83,9 @@ def _cache_namespace(analyzer):
             for statement in body:
                 for node in ast.walk(statement):
                     count += 1
+
+                    # Bound the snapshot-wide audit of cache imports and uses.
+                    # 限制对快照中缓存导入和用法的整体审计规模。
                     if count > 1000000:
                         raise _ClassEffectLimit()
                     if analyzer._analysis_budget is not None:
@@ -95,6 +131,8 @@ def _cache_namespace(analyzer):
 
 
 ## Prove one name misses a finite source property-based module getattr dispatch.
+## 证明某个名称在有限源码 property 模块级 getattr 分派中缺失。
+#
 #  @param analyzer Fixed source definitions/imports; no module is executed.
 #  @param module Package whose missing attribute may trigger a from-import.
 #  @param name Exact attribute being requested.
@@ -105,6 +143,9 @@ def missing(analyzer, module, name):
     bindings = analyzer.import_binding_facts.get(module, [])
     if (len(bindings) != 1 or bindings[0].get('__name__') or bindings[0].get('__builtins__')):
         return None
+
+    # Require one stable module namespace and one source-defined getattr class.
+    # 要求模块命名空间唯一且稳定，并且恰有一个源码定义的 getattr 类。
     classes = analyzer._definition_index.find(module, '__getattr__', kind='class')
     if len(classes) != 1:
         return None
@@ -140,6 +181,9 @@ def missing(analyzer, module, name):
         body = body[1:]
     if len(body) != 4:
         return None
+
+    # Match the dispatch table, helper instance, cached getter, and return as one fixed shape.
+    # 将分派表、辅助对象、缓存 getter 和返回语句匹配为一个固定结构。
     table, instance, getter, returned = body
     if (not isinstance(table, ast.Assign) or len(table.targets) != 1
             or not isinstance(table.targets[0], ast.Name) or not isinstance(table.value, ast.DictComp)
@@ -200,6 +244,9 @@ def missing(analyzer, module, name):
     if (not isinstance(raised, ast.Call) or not _name(raised.func, 'AttributeError')
             or raised.keywords or not all(_failure(arg, receiver, parameter) for arg in raised.args)):
         return None
+
+    # Confirm builtin names and reject class members outside the finite property table.
+    # 确认内建名称，并拒绝有限 property 表之外的类成员。
     if not all(analyzer._builtin_name_status(owner, function, builtin) == 'confirmed_builtin'
                for builtin in ('vars', 'isinstance', 'property', 'AttributeError')):
         return None
@@ -229,6 +276,9 @@ def missing(analyzer, module, name):
         property_names.add(statement.targets[0].id)
     if name in property_names or len(property_names) > 128:
         return None
+
+    # Return only conditional source evidence after builtin/cache namespace checks pass.
+    # 仅在内建和缓存命名空间检查通过后返回条件式源码证据。
     try:
         stable, paths = _stable_builtin_namespace(analyzer, ref,
             ('property', 'vars', 'isinstance', 'AttributeError'))

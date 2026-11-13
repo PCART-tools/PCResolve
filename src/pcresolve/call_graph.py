@@ -1,9 +1,6 @@
 ## @package pcresolve.call_graph
-#  Lightweight call-graph facts for Phase 7B-full return-object tracking.
-#
-#  PR1 (this module): read-only fact collection — FunctionSummary,
-#  ClassSummary, and CallEdge data structures plus collection helpers in
-#  SingleFileAnalyzer.  PR2+ will consume these facts for classification.
+#  Internal function, class, call-edge and iteration facts used by ownership analysis.
+#  归属分析使用的内部函数、类、调用边和迭代事实。
 
 from dataclasses import dataclass, field
 from .program_facts import FunctionSignature
@@ -12,6 +9,7 @@ from .fact_versions import FactStructure, VersionedDict, VersionedList
 
 
 ## Unique identifier for a function or method within the project.
+## 项目中函数或方法的逻辑标识。
 #
 #  Uses (module, qualname) rather than file path so that the same logical
 #  function can be referenced across analysis passes.
@@ -24,6 +22,7 @@ class FunctionId:
 
 
 ## Per-function summary collected during single-file analysis.
+## 单文件分析期间收集的函数摘要。
 #
 #  Captured after visiting the function body so that return_sources and
 #  local assignments reflect the full function.
@@ -62,6 +61,8 @@ class FunctionSummary:
     definition_span: object = field(default=None, repr=False, compare=False)
 
     ## Adapt collected source facts without caching mutable declaration defaults.
+    ## 将已收集来源事实转换为签名，不缓存可变的声明默认值。
+    #
     #  @return Shared signature, preserving the legacy positional fallback.
     @property
     def signature(self):
@@ -75,6 +76,7 @@ class FunctionSummary:
 
 
 ## Per-class summary collected during single-file analysis.
+## 单文件分析期间收集的类摘要。
 @dataclass
 class ClassSummary(FactStructure):
     _versioned_fields = {'methods': VersionedDict}
@@ -92,6 +94,7 @@ class ClassSummary(FactStructure):
 
 
 ## A single call edge in the intra-project call graph.
+## 项目内部调用关系中的一条调用边。
 @dataclass
 class CallEdge:
     ## Who is calling (the enclosing function/method/module).
@@ -151,6 +154,7 @@ class CallEdge:
 
 
 ## A loop target bound from a call expression that produces an iterator.
+## 由返回迭代器的调用表达式绑定的循环目标。
 @dataclass
 class IterationBinding:
     ## Enclosing caller function or module.
@@ -168,6 +172,7 @@ class IterationBinding:
 
 
 ## Full call-graph facts for a module.
+## 单个模块收集到的调用关系事实。
 @dataclass
 class ModuleCallGraph(FactStructure):
     _versioned_fields = {'functions': VersionedDict, 'classes': VersionedDict,
@@ -185,6 +190,7 @@ class ModuleCallGraph(FactStructure):
 
 
 ## Full call-graph facts for a project.
+## 项目中各模块收集到的调用关系事实。
 @dataclass
 class ProjectCallGraph(FactStructure):
     _versioned_fields = {'modules': VersionedDict}

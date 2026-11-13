@@ -1,14 +1,19 @@
 ## @package pcresolve.finite_dispatch
 #  Bounded source-only expansion of generated callable tables.
+#  对生成的可调用表进行有界、仅基于源码的展开。
 
 import ast
 
 
+## Generated dispatch expansion exceeded its explicit syntax budget.
+## 生成式分派展开超过显式语法预算。
 class DispatchLimit(ValueError):
     pass
 
 
 ## Expand one closed module-level comprehension without executing source.
+## 不执行源码，展开一个封闭的模块级推导式。
+#
 #  @param expression Dict comprehension over literal module dict keys.
 #  @param body Original module statements, including nested writes and escapes.
 #  @param bindings Module binding sites indexed by name.
@@ -46,6 +51,9 @@ def generated_dict(expression, body, bindings, stable_function):
         ast.literal_eval(source)
     except (ValueError, TypeError):
         return None
+
+    # Reject reflection and any other use that could mutate or leak the key set.
+    # 拒绝反射及其他可能修改或泄露键集合的使用方式。
     count = 0
     for statement in body:
         for parent in ast.walk(statement):
@@ -62,6 +70,13 @@ def generated_dict(expression, body, bindings, stable_function):
                     # No aliases, mutation, escape or unknown use of the key set.
                     return None
 
+    ## Evaluate a bounded string-concatenation key for one literal symbol.
+    ## 为单个字面量符号计算有界字符串拼接键。
+    #
+    #  @param node Key expression AST.
+    #  @param symbol Current literal symbol.
+    #  @param depth Current recursive expression depth.
+    #  @return Concrete key or None for unsupported expressions.
     def key_for(node, symbol, depth=0):
         if depth > 16:
             raise DispatchLimit('generated_dispatch_budget')
@@ -75,6 +90,8 @@ def generated_dict(expression, body, bindings, stable_function):
                 return left + right
         return None
 
+    # Every table entry must identify a stable function before expansion succeeds.
+    # 展开成功前，每个表项都必须指向稳定函数。
     keys, values = [], []
     for literal in source.keys:
         symbol = literal.value

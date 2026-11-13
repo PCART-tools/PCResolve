@@ -3,12 +3,14 @@
 #
 #  Provides frozen dataclasses to replace bare legacy tuples
 #  ("container_item", ...) etc., plus normalise/display/legacy adapters.
+#  提供类型化来源中间表示以及规范化、展示和旧格式适配工具。
 
 from dataclasses import dataclass
 from typing import Optional, Union
 
 
 ## Source for a simple name or module path.
+## 简单名称或模块路径的来源。
 @dataclass(frozen=True)
 class NameSource:
     ## Name or dotted module path.
@@ -16,6 +18,7 @@ class NameSource:
 
 
 ## Source for container item access, such as mapping["key"].
+## 容器元素访问的来源，例如 mapping["key"]。
 @dataclass(frozen=True)
 class ContainerItem:
     ## Container symbol (name or nested source).
@@ -25,6 +28,7 @@ class ContainerItem:
 
 
 ## Source for iteration over a container.
+## 遍历容器所得元素的来源。
 @dataclass(frozen=True)
 class ContainerIter:
     ## Container symbol (name or nested source).
@@ -32,6 +36,7 @@ class ContainerIter:
 
 
 ## Source for one homogeneous tuple/list element shape.
+## 同形元组或列表元素的字段来源。
 #
 #  This is an internal call-graph fact.  It preserves the field sources of a
 #  tuple appended to a local iterable, without claiming that the iterable
@@ -43,6 +48,7 @@ class TupleSource:
 
 
 ## Source for a method resolved through an instance or class.
+## 通过实例或类解析的方法来源。
 @dataclass(frozen=True)
 class InstanceMethod:
     ## Receiver symbol or source.
@@ -59,6 +65,7 @@ class InstanceMethod:
 
 
 ## Source for a value forwarded from a local function parameter.
+## 从本地函数参数转发的值的来源。
 @dataclass(frozen=True)
 class ParameterSource:
     ## Qualified local function or method scope.
@@ -75,6 +82,7 @@ class ParameterSource:
 
 
 ## Source for an instance field whose binding depends on runtime subclass.
+## 绑定取决于运行时子类的实例字段来源。
 #
 #  A base-class method may read ``self.payload`` even though only a local
 #  subclass assigns that field. Cross-file analysis resolves the field from
@@ -90,6 +98,7 @@ class InstanceAttribute:
 
 
 ## Concrete Python-provided value shape preserved across local call edges.
+## 跨本地调用边保留的具体 Python 值形态。
 #
 #  This is language-level evidence, not an import-library return contract.
 #  It lets parameter method resolution distinguish, for example, a string
@@ -103,6 +112,7 @@ class PythonShape:
 
 
 ## Source for a super().method() call, capturing enclosing class context.
+## 保存外层类上下文的 super().method() 调用来源。
 #
 #  Generated in single-file AST visit when _class_stack is available.
 #  Cross-file resolves the method owner from the class's base classes.
@@ -118,6 +128,7 @@ class SuperMethod:
 
 
 ## Source for the result of calling a function.
+## 函数调用结果的来源。
 @dataclass(frozen=True)
 class CallResult:
     ## Callee symbol or source.
@@ -144,6 +155,7 @@ class CallResult:
 
 
 ## Structured result-object source carrying operands for cross-file resolution.
+## 携带操作数供跨文件解析的结构化结果对象来源。
 #
 #  Used as CallResult.result_source for builtin calls whose return type
 #  depends on their arguments (e.g. next, getattr, type, __import__).
@@ -159,6 +171,7 @@ class DerivedResult:
 
 
 ## Unknown source that preserves display context.
+## 保留展示上下文的未知来源。
 @dataclass(frozen=True)
 class UnknownSource:
     ## Human-readable representation.
@@ -166,6 +179,7 @@ class UnknownSource:
 
 
 ## Ordered set of possible sources (for multi-value bindings).
+## 多值绑定可能来源的有序集合。
 @dataclass(frozen=True)
 class SourceSet:
     ## Tuple of possible sources.
@@ -180,8 +194,10 @@ SourceLike = Union[str, NameSource, ContainerItem, ContainerIter, InstanceMethod
                    TupleSource, ParameterSource, InstanceAttribute, PythonShape,
                    SuperMethod, CallResult, DerivedResult, SourceSet, UnknownSource]
 ## Build a SourceSet from an iterable of source values, deduplicating by display.
+## 根据来源值序列构造 SourceSet，并按展示形式去重。
 #
 #  @param values Iterable of source values.
+#  @param origin Optional provenance origin hint; mixed hints become mixed.
 #  @return SourceSet with deduplicated, stable-ordered sources.
 def make_source_set(values, origin=""):
     items = []
@@ -195,6 +211,8 @@ def make_source_set(values, origin=""):
                 origin = "mixed"
         elif norm is not None:
             items.append(norm)
+    # Preserve first-seen order while retaining the established display-based identity.
+    # 沿用基于展示形式的身份规则，并保留首次出现的顺序。
     seen = set()
     deduped = []
     for item in items:
@@ -206,6 +224,7 @@ def make_source_set(values, origin=""):
 
 
 ## Check whether a value is a structured source (dataclass or legacy tuple).
+## 判断值是否为结构化来源（数据类或旧格式元组）。
 #
 #  @param value Source value to test.
 #  @return True if the value is a structured (non-string) source.
@@ -221,6 +240,7 @@ def is_structured_source(value):
 
 
 ## Normalize legacy tuple/string source values into Source IR where possible.
+## 在可转换时将旧格式来源值规范化为来源中间表示。
 #
 #  @param value Legacy source value or Source IR object.
 #  @return Normalized source value.
@@ -275,6 +295,7 @@ def normalize_source(value):
 
 
 ## Convert Source IR back to legacy tuple form where needed.
+## 在需要时将来源中间表示转换回旧格式元组。
 #
 #  @param value Source value.
 #  @return Legacy-compatible source value.
@@ -327,8 +348,10 @@ def source_to_legacy(value):
 
 
 ## Return a stable human-readable representation of a source value.
+## 返回来源值稳定且可读的展示形式。
 #
 #  Recursively formats nested structures without leaking dataclass reprs.
+#
 #  @param value Source value.
 #  @return Display string.
 def source_display(value):

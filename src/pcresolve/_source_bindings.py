@@ -1,5 +1,6 @@
 ## @package pcresolve._source_bindings
 #  Conditional declaration references, separate from callable/body preservation.
+#  本模块在有界模块绑定路径中追踪条件式声明引用，不证明调用对象或函数体绑定。
 
 import ast
 import copy
@@ -13,8 +14,16 @@ from .source_snapshot import FLOW_SOURCE
 ## Select a source function declaration along bounded module-binding paths.
 #  No target module is imported. Decorators and execution fields need other proofs.
 class SourceBindingResolver(ExportListResolver):
+## 通过有界模块绑定路径选择源码函数声明；不会导入目标模块。
     def _span(self, module, node):
         return {'file_path': self.documents[module].file_path,
+    ## Capture syntax locations and declaration guards for source binding proofs.
+    ## 收集源码绑定证明所需的位置与声明防护信息。
+    #
+    #  @param self Resolver instance holding immutable source documents.
+    #  @param module Module name whose source snapshot is being inspected.
+    #  @param node AST node whose source span is requested.
+    #  @return Mapping containing the file path and AST source coordinates.
                 **{field: getattr(node, field) for field in
                    ('lineno', 'col_offset', 'end_lineno', 'end_col_offset')}}
 
@@ -27,6 +36,13 @@ class SourceBindingResolver(ExportListResolver):
                 parents[child] = node
             for fact in import_facts(node):
                 if fact.kind == 'import':
+    ## Reject namespace operations that can invalidate a static binding proof.
+    ## 拒绝可能使静态绑定证明失效的命名空间操作。
+    #
+    #  @param self Resolver instance holding source and analysis budgets.
+    #  @param module Module name whose namespace is guarded.
+    #  @param name Attribute whose source binding is being resolved.
+    #  @return None when the module uses only supported namespace operations.
                     qualified = fact.name if fact.asname else fact.python_binding
                 elif not fact.wildcard:
                     base = resolve_relative_module(module, document.file_path.endswith('__init__.py'),
@@ -55,6 +71,11 @@ class SourceBindingResolver(ExportListResolver):
                     and (len(assignment.targets) != 1 or assignment.targets[0] is not target)
                     or isinstance(assignment, ast.AnnAssign) and assignment.target is not target):
                 return False
+        ## Prove a bounded literal globals() write cannot touch the requested name.
+        ## 仅当有限字面量 globals() 写入不会触及目标名称时才予以忽略。
+        #
+        #  @param node Loaded AST name used as the globals() callee.
+        #  @return True only for a finite, statically disjoint key set.
             key = target.slice
             if not isinstance(key, ast.Name):
                 return False
@@ -75,6 +96,8 @@ class SourceBindingResolver(ExportListResolver):
                 return False
             keys = {item.value for item in loop.iter.elts}
             if name in keys:
+            # A matching key would invalidate the binding proof immediately.
+            # 若键集合可能包含目标名称，绑定证明立即失效。
                 return False
             # The loop target is the only permitted write to the key variable;
             # otherwise the finite literal set would not bound the subscript.
@@ -107,6 +130,11 @@ class SourceBindingResolver(ExportListResolver):
                                'importlib.import_module',
                                'builtins.globals', 'builtins.locals', 'builtins.vars',
                                'builtins.exec', 'builtins.eval', 'builtins.__import__'}:
+        ## Resolve an imported name or attribute to its canonical dotted path.
+        ## 将导入名称或属性解析为规范化点分路径。
+        #
+        #  @param node Loaded AST name or attribute expression.
+        #  @return Set of canonical paths supported by import aliases.
                     raise _OpenExports('source_binding_namespace_capability', module, node)
                 if node.id in ('exec', 'eval', 'locals', 'vars', '__import__', '__builtins__'):
                     raise _OpenExports('source_binding_dynamic_namespace', module, node)
@@ -121,6 +149,8 @@ class SourceBindingResolver(ExportListResolver):
                             and isinstance(use, ast.Call) and use.func is attribute
                             and not use.args and not use.keywords):
                         if not finite_global_write(node):
+        # Scan every syntax node because reflective access can escape ordinary bindings.
+        # 逐个检查语法节点，防止反射式访问绕过普通绑定分析。
                             raise _OpenExports('source_binding_namespace_escape', module, node)
             if isinstance(node, (ast.Name, ast.Attribute)) and isinstance(node.ctx, ast.Load):
                 parent = parents.get(node)
@@ -171,6 +201,12 @@ class SourceBindingResolver(ExportListResolver):
     def _touches(self, statement, name):
         if {name, '__getattr__'} & statement_scope_facts([statement]).bound:
             return True
+    ## Resolve and cache the export list while preserving snapshot consistency.
+    ## 解析并缓存导出列表，同时保持源码快照一致性。
+    #
+    #  @param self Resolver instance sharing module and node budgets.
+    #  @param module Imported module whose declared exports are requested.
+    #  @return Export facts, or None when a complete export proof is unavailable.
         return any(isinstance(node, ast.ImportFrom) and any(
             fact.wildcard for fact in import_facts(node)) for node in ast.walk(statement))
 
@@ -191,6 +227,7 @@ class SourceBindingResolver(ExportListResolver):
                 if str(error) in ('export_list_budget', 'export_module_budget',
                                   'source_binding_snapshot_changed'):
                     raise
+        # 导出列表证明失败意味着星号导入未知，不能据此断言名称不存在。
                 children = [{'value': False, 'fallback': True, 'conditions': [], 'imports': []}]
             result = []
             for state in states:
@@ -204,6 +241,13 @@ class SourceBindingResolver(ExportListResolver):
                         'conditions': state['conditions'] + child['conditions'],
                         'imports': state['imports'] + child['imports'] + [{
                             'module': module, 'imported_module': base,
+    ## Detect statements that may bind the target or dynamic module fallback.
+    ## 检测可能绑定目标名称或动态模块回退函数的语句。
+    #
+    #  @param self Resolver instance used to inspect import syntax.
+    #  @param statement Module-level statement to inspect.
+    #  @param name Target module attribute name.
+    #  @return True when the statement may change the tracked binding.
                             'binding_name': name,
                             'imported_name': imported_name, 'wildcard': wildcard,
                             'completion': 'normal_import_return_only',
@@ -217,6 +261,13 @@ class SourceBindingResolver(ExportListResolver):
                     break
                 if isinstance(statement, ast.Raise):
                     return []
+    ## Select declarations through bounded imports and conditional module paths.
+    ## 沿有界导入和条件模块路径选择声明。
+    #
+    #  @param self Resolver instance carrying path state and analysis limits.
+    #  @param module Source module being traversed.
+    #  @param name Module attribute whose declaration is selected.
+    #  @return Binding states with conditions, imports, and fallback status.
                 if isinstance(statement, ast.If) and self._touches(statement, name):
                     branches = []
                     for label, suite in (('if', statement.body), ('else', statement.orelse)):
@@ -234,6 +285,15 @@ class SourceBindingResolver(ExportListResolver):
                 elif isinstance(statement, (ast.Import, ast.ImportFrom)):
                     for fact in import_facts(statement):
                         if fact.kind == 'import':
+        ## Expand an imported declaration across each current lookup state.
+        ## 将导入声明扩展到当前每条查找状态。
+        #
+        #  @param states Current bounded binding states.
+        #  @param statement Import statement providing the evidence location.
+        #  @param base Resolved imported module name.
+        #  @param imported_name Imported attribute name.
+        #  @param wildcard Whether the import is a star import.
+        #  @return New states with child conditions and import evidence.
                             if fact.python_binding == name:
                                 states = [{**state, 'value': False} for state in states]
                             if fact.python_binding == '__getattr__':
@@ -269,6 +329,12 @@ class SourceBindingResolver(ExportListResolver):
                     states = [{**state, 'value': False,
                                'fallback': state['fallback'] or '__getattr__' in bound}
                               for state in states]
+        ## Evaluate module statements in order while keeping branch evidence.
+        ## 按顺序计算模块语句，并保留分支证据。
+        #
+        #  @param body Ordered module or branch statements to evaluate.
+        #  @param states Incoming binding states.
+        #  @return States remaining after normal completion of the statements.
                 if len(states) > 64:
                     raise _OpenExports('source_binding_path_budget', module, statement)
             return states
@@ -283,6 +349,8 @@ class SourceBindingResolver(ExportListResolver):
     #  @param module Explicit source module name under the configured import roots.
     #  @param name Single module attribute to trace, not a dotted runtime expression.
     #  @return Source reference or None; callable identity/body preservation are unproved.
+                    # Keep both branches: a declaration on only one path is conditional.
+                    # 两个分支都要保留；仅在单一路径声明的名称仍是条件绑定。
     def resolve(self, module, name):
         self.remaining = self.max_nodes
         self.documents, self.selected, self.selecting = {}, {}, set()
@@ -327,3 +395,8 @@ class SourceBindingResolver(ExportListResolver):
             'export_constructions': copy.deepcopy(self.export_facts),
             'source_hashes': hashes,
             'assumptions': sorted(assumptions)}
+    ## 在所有成功且有界的查找路径上捕获唯一声明。
+    #
+                # Bound path growth so nested conditionals cannot exhaust analysis.
+                # 限制路径数量，避免嵌套条件耗尽分析预算。
+                    # 循环、异常处理、模式绑定和任意赋值不能沿用输入中的源码声明。

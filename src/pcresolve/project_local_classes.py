@@ -1,5 +1,6 @@
 ## @package pcresolve.project_local_classes
 #  Local class identity, inheritance, and callable-instance evidence.
+#  提供项目本地类身份、继承关系和可调用实例证据。
 
 import ast
 
@@ -10,8 +11,11 @@ from .sources import (
 
 
 ## Project local-class reasoning mixed into ProjectAnalyzer.
+## 混入 ProjectAnalyzer 的项目本地类推理逻辑。
 class ProjectLocalClassesMixin:
     ## Index method spellings while retaining original class/method order.
+    ## 建立方法拼写索引，同时保留原始类和方法顺序。
+    #
     #  @return Records and qualified/local/import-alias candidate buckets.
     def _get_method_result_index(self):
         generation = self.project_cg.version
@@ -33,6 +37,8 @@ class ProjectLocalClassesMixin:
         return self._method_result_index
 
     ## Select possible spellings; the existing return proof remains authoritative.
+    ## 选择可能的方法拼写；已有的返回值证明仍是最终依据。
+    #
     #  @param module Caller module.
     #  @param callee Syntactic method spelling.
     #  @param caller_tracer Caller facts, including live alias bindings.
@@ -52,6 +58,8 @@ class ProjectLocalClassesMixin:
         return tuple(records[i] for i in sorted(ordinals))
 
     ## Find one instance-field binding on a local class or its local bases.
+    ## 在本地类或其本地基类中查找实例字段绑定。
+    #
     #  @param module Defining module of the candidate class.
     #  @param class_name Candidate class name.
     #  @param attribute Normalized ``self.<field>`` path.
@@ -89,6 +97,8 @@ class ProjectLocalClassesMixin:
         return self._dedupe_list(bindings)
 
     ## Identify a project-local class constructor source.
+    ## 识别指向项目本地类构造器的来源。
+    #
     #  @param module Module containing the source.
     #  @param source Source to inspect.
     #  @return (module, class name) or None.
@@ -118,6 +128,11 @@ class ProjectLocalClassesMixin:
     #  class from a method name or from a variable spelling. Every return
     #  branch must resolve to a project-local class; multiple classes remain
     #  ambiguous and are resolved conservatively by the caller.
+    ## 解析本地类或静态方法返回的本地类。
+    #  只沿显式返回摘要解析，不根据方法名或变量拼写推断类。
+    #  每个返回分支都必须解析为项目本地类；多个候选仍由调用者保守处理。
+    #
+    #
     #  @param module Module containing the call result.
     #  @param source CallResult representing a method call.
     #  @param tracers Dict of module name to analyzer.
@@ -189,6 +204,10 @@ class ProjectLocalClassesMixin:
     #  The function must have an explicit return summary whose every branch
     #  resolves to one project-local constructor.  This deliberately does not
     #  infer a class from a function name, argument type, or method spelling.
+    ## 解析项目本地函数返回的本地类。
+    #  所有显式返回分支都必须解析到项目本地构造器；不从函数名、参数类型或方法拼写推断类。
+    #
+    #
     #  @param module Module containing the call site.
     #  @param callee Callee spelling from a CallResult.
     #  @param tracers Dict of module name to analyzer.
@@ -249,6 +268,8 @@ class ProjectLocalClassesMixin:
         return self._dedupe_list(identities)
 
     ## Check whether a local class owns a method through local inheritance.
+    ## 检查本地类是否通过本地继承拥有指定方法。
+    #
     #  @param module Defining module of the class.
     #  @param class_name Local class name.
     #  @param method_name Method name.
@@ -283,6 +304,7 @@ class ProjectLocalClassesMixin:
         return False
 
     ## Resolve a project-local class through imports and package re-exports.
+    ## 通过导入和包重新导出解析项目本地类。
     #
     #  @param module Module where the class symbol is referenced.
     #  @param source Class symbol or constructor source.
@@ -312,6 +334,7 @@ class ProjectLocalClassesMixin:
         return None
 
     ## Return whether one project-local class derives from another.
+    ## 判断一个项目本地类是否派生自另一个本地类。
     #
     #  @param candidate_module Defining module of the candidate subclass.
     #  @param candidate_class Candidate subclass name.
@@ -350,6 +373,10 @@ class ProjectLocalClassesMixin:
     #  Explicit constructors and statically tracked container elements provide
     #  class-level dispatch evidence. An empty result means the source cannot
     #  constrain dispatch, not that the receiver is non-local.
+    ## 为接收者来源收集项目本地运行时类候选。
+    #  显式构造器和静态跟踪的容器元素可提供类级分派证据；空结果只表示无法约束分派，不表示接收者一定非本地。
+    #
+    #
     #  @param module Module where the source is evaluated.
     #  @param source Receiver source.
     #  @param tracers Dict of module name to analyzer.
@@ -419,6 +446,8 @@ class ProjectLocalClassesMixin:
         return []
 
     ## Resolve a constructor-injected callable field of a parameter object.
+    ## 解析参数对象中由构造器注入的可调用字段。
+    #
     #  @param module Module containing the field call.
     #  @param source Parameter-backed field-call source.
     #  @param tracers All project analyzers.
@@ -434,6 +463,7 @@ class ProjectLocalClassesMixin:
         if source.parameter_name not in params:
             return []
         # A write outside an initializer invalidates constructor-only evidence.
+        # 初始化方法之外的写入会使“仅由构造器赋值”的证据失效。
         run = self._ownership_run
         if run.constructor_only_fields is None:
             from .ast_facts import constructor_only_fields
@@ -486,6 +516,8 @@ class ProjectLocalClassesMixin:
             self._callable_field_in_progress.remove(key)
 
     ## Reject object escapes that could overwrite an injected callable field.
+    ## 排除可能覆盖已注入可调用字段的对象逃逸。
+    #
     #  @param module Field-call module.
     #  @param source Parameter-backed field-call source.
     #  @param arguments Concrete receiver constructor sources.
@@ -512,6 +544,12 @@ class ProjectLocalClassesMixin:
                     names.setdefault((origin, edge.caller.qualname), set()).update(
                         edge.assigned_to)
 
+        ## Check whether an expression contains a tracked variable reference.
+        ## 检查表达式是否包含被跟踪变量的引用。
+        #
+        #  @param node Expression to inspect recursively.
+        #  @param tracked Names whose escape must be detected.
+        #  @return True when the expression carries one of the tracked names.
         def carries_name(node, tracked):
             if isinstance(node, ast.Name):
                 return node.id in tracked
@@ -527,6 +565,7 @@ class ProjectLocalClassesMixin:
             # Alias assignments may hide an escape inside a container argument.
             # Keep this constructor-only path conservative until aliases carry
             # object mutation facts of their own.
+            # 别名赋值可能把逃逸藏在容器实参中；在别名具备独立对象变更事实前，此构造器专用路径保持保守。
             for node in facts.assignments:
                 if (isinstance(node, (ast.Assign, ast.AnnAssign))
                         and node.value is not None
@@ -570,6 +609,8 @@ class ProjectLocalClassesMixin:
         return False
 
     ## Check a local method for escapes of its constructor-only field owner.
+    ## 检查本地方法是否使仅由构造器赋值的字段所属对象发生逃逸。
+    #
     #  @param identity Project-local class identity.
     #  @param method Method invoked on the object.
     #  @param field Constructor-injected callable field.
@@ -590,6 +631,13 @@ class ProjectLocalClassesMixin:
         return result
 
     ## Complete one syntax-only proof under an explicit recursive context.
+    ## 在显式递归上下文中完成纯语法证明。
+    #
+    #  @param identity Project-local class identity being checked.
+    #  @param method Method whose receiver escapes are inspected.
+    #  @param field Constructor-injected field whose owner must remain local.
+    #  @param tracers Project analyzers providing source and call facts.
+    #  @param seen Recursive method context used for cycle detection.
     #  @return True only after checking every relevant method node.
     def _prove_constructor_field_readonly(
             self, identity, method, field, tracers, seen=None):
@@ -646,6 +694,10 @@ class ProjectLocalClassesMixin:
     #  CallEdge.callee_name.  CallResult sources carry the same spelling in
     #  display_name.  Reconstruct the class only from that existing evidence
     #  and the caller's import bindings.
+    ## 解析由可调用对象构造调用表示的本地类。
+    #  CallEdge 和 CallResult 保留定义模块与导入拼写；仅凭这些现有证据及调用者导入绑定重建类身份。
+    #
+    #
     #  @param module Module containing the callable-object call.
     #  @param source Callable source or SourceSet of callable sources.
     #  @param tracer Analyzer for the caller module.
@@ -733,6 +785,7 @@ class ProjectLocalClassesMixin:
         return [identity] if identity is not None else []
 
     ## Return whether an edge receiver may have one required local class.
+    ## 判断调用边接收者是否可能属于指定的本地类。
     #
     #  @param edge Project call-graph edge.
     #  @param caller_module Module containing the edge.

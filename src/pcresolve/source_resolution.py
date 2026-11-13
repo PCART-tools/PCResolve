@@ -7,12 +7,14 @@
 #
 #  The class receives callbacks for the bits that still live
 #  on ProjectAnalyzer so we avoid a circular import.
+#  收敛来源集合的首要库候选；通过注入回调避免循环导入。
 
 from pcresolve.sources import (normalize_source, CallResult, PythonShape,
                                is_structured_source)
 
 
 ## Resolves a SourceSet to a primary top-library candidate.
+## 将来源集合解析为首要顶层库候选。
 #
 #  Uses origin-aware rules:
 #  - "return": accepts local + single import-backed library convergence.
@@ -21,12 +23,16 @@ from pcresolve.sources import (normalize_source, CallResult, PythonShape,
 #
 #  Callbacks are injected so this module does not import ProjectAnalyzer.
 class SourceSetResolver:
-    ## @param top_source_cb fn(module, symbol, tracers, _seen=None) -> str|None
-    ## @param cg_return_cb  fn(module, callee) -> str|None
-    ## @param known_local_cb fn(tracer, symbol) -> bool
-    ## @param resolve_structured_cb fn(module, source, tracers, _seen=None) -> tuple|None
-    ## @param dedupe_cb fn(items) -> list
-    ## @param is_import_origin_cb fn(tracer, symbol) -> bool
+    ## Initialize callbacks used to resolve and classify source candidates.
+    ## 初始化解析和分类来源候选所需的回调。
+    #
+    #  @param top_source_cb Resolve a symbol to a top-level source.
+    #  @param cg_return_cb Look up a callee's collected return source.
+    #  @param known_local_cb Test whether a symbol is known to be local.
+    #  @param resolve_structured_cb Resolve a structured source to its target.
+    #  @param dedupe_cb Deduplicate candidates while preserving consumer policy.
+    #  @param is_import_origin_cb Optional test for import-backed origin.
+    #  @return None
     def __init__(self, top_source_cb, cg_return_cb, known_local_cb,
                  resolve_structured_cb, dedupe_cb,
                  is_import_origin_cb=None):
@@ -40,6 +46,7 @@ class SourceSetResolver:
     # ── public API ──────────────────────────────────────────────────────
 
     ## Resolve a SourceSet to a primary top library, or None.
+    ## 将来源集合解析为首要顶层库；无法收敛时返回 None。
     #
     #  @param module   Current module name.
     #  @param sourceset SourceSet to resolve.
@@ -63,7 +70,8 @@ class SourceSetResolver:
                 return tops[0]
             return None
 
-        ## Default conservative: no local/unknown, single import-backed library.
+        # Default convergence rejects local and unknown alternatives.
+        # 默认收敛规则拒绝包含本地或未知来源的候选集合。
         if len(tops) == 1 and not has_local and not has_unknown:
             return tops[0]
         return None
@@ -71,7 +79,14 @@ class SourceSetResolver:
     # ── internal helpers ────────────────────────────────────────────────
 
     ## Collect import-backed-library top candidates and local/unknown flags
+    ## 收集来源集合中的顶层库候选以及本地、未知标记。
     #  from every source inside a SourceSet.
+    #
+    #  @param module Current module name.
+    #  @param sourceset Source alternatives to inspect.
+    #  @param tracers Module analyzers used for lookup.
+    #  @param _seen Shared cycle-detection set.
+    #  @return Deduplicated top candidates and local/unknown flags.
     def _collect_tops(self, module, sourceset, tracers, _seen=None):
         if _seen is None:
             _seen = set()
@@ -91,11 +106,18 @@ class SourceSetResolver:
         return self._dedupe_list(tops), has_local, has_unknown
 
     ## Resolve a single source to its top-library candidate.
+    ## 将单个来源解析为顶层库候选。
     #
     #  CallResult resolution is restricted to import-backed callees
     #  to avoid recursive SourceSet loops: a local symbol whose
     #  direct binding is itself a SourceSet would re-enter
     #  convergence resolution and overflow the stack.
+    #
+    #  @param module Current module name.
+    #  @param source Source value to resolve.
+    #  @param tracers Module analyzers used for lookup.
+    #  @param _seen Shared cycle-detection set.
+    #  @return Top candidate or None when unresolved or cyclic.
     def _to_top_candidate(self, module, source, tracers, _seen=None):
         if _seen is None:
             _seen = set()
@@ -143,6 +165,7 @@ class SourceSetResolver:
                 # even when the first component is not itself an alias.
                 # Accept this only when the tracer independently records
                 # import-backed evidence for the complete symbol.
+                # 只有完整符号具备独立导入来源证据时才接受限定调用结果。
                 if (self._is_import_origin is not None
                         and self._is_import_origin(
                             tracer, source.callee)):

@@ -1,5 +1,6 @@
 ## @package pcresolve._caller_inputs
 #  Bounded caller literals, independent of library policy and runtime execution.
+#  与库策略和运行时执行无关的有界调用方字面量事实。
 
 import ast
 import math
@@ -11,6 +12,13 @@ from .source_snapshot import FLOW_SOURCE, SourceStore
 from ._stub_iterability import iterable_return_fact
 
 
+## Copy a literal fact subject to shared item and nesting limits.
+## 在共享元素数和嵌套深度限制下复制字面量事实。
+#
+#  @param value Literal fact to copy.
+#  @param remaining Mutable remaining item budget.
+#  @param depth Current nesting depth.
+#  @return Copied fact or None when a limit is exceeded.
 def _copy_literal(value, remaining, depth):
     remaining[0] -= 1
     if remaining[0] < 0 or depth > 16:
@@ -21,6 +29,15 @@ def _copy_literal(value, remaining, depth):
     return dict(value, items=items) if all(item is not None for item in items) else None
 
 
+## Extract a finite literal or previously known literal binding.
+## 提取有限字面量或先前已知的字面量绑定。
+#
+#  @param node Expression AST.
+#  @param environment Known name bindings and their evidence.
+#  @param remaining Mutable remaining item budget.
+#  @param evidence List receiving binding evidence.
+#  @param depth Current nesting depth.
+#  @return Literal fact or None when unsupported or bounded out.
 def _literal(node, environment, remaining, evidence, depth=0):
     remaining[0] -= 1
     if remaining[0] < 0 or depth > 16:
@@ -53,6 +70,11 @@ def _literal(node, environment, remaining, evidence, depth=0):
     return None
 
 
+## Check for expression syntax whose evaluation requires additional proof.
+## 检查求值需要额外证明的表达式语法。
+#
+#  @param node Expression AST.
+#  @return True if any unsupported potentially effectful syntax occurs.
 def _has_effectful_syntax(node):
     return any(isinstance(child, (ast.Call, ast.Attribute, ast.Subscript,
                                  ast.Await, ast.Yield, ast.YieldFrom,
@@ -62,6 +84,13 @@ def _has_effectful_syntax(node):
                for child in ast.walk(node))
 
 
+## Resolve a name or module attribute chain through known import origins.
+## 根据已知导入来源解析名称或模块属性链。
+#
+#  @param node Callable or alias expression.
+#  @param origins Known imported names and their qualified origins.
+#  @param module_origins Names proven to refer to imported modules.
+#  @return Qualified target or None when not established.
 def _target(node, origins, module_origins):
     parts = []
     while isinstance(node, ast.Attribute):
@@ -75,6 +104,13 @@ def _target(node, origins, module_origins):
     return '.'.join([head] + list(reversed(parts)))
 
 
+## Recognize an imported-module call whose arguments have bounded syntax.
+## 识别实参语法受限的导入模块调用。
+#
+#  @param node Candidate expression.
+#  @param origins Known imported names and their qualified origins.
+#  @param module_origins Names proven to refer to imported modules.
+#  @return True if the call may be retained as an unknown result.
 def _module_call_assignment(node, origins, module_origins):
     """Skip a bounded imported-module call assigned to a name as an unknown value."""
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
@@ -92,6 +128,8 @@ def _module_call_assignment(node, origins, module_origins):
 
 
 ## Find a module-level call and its enclosing context-manager statements
+## 查找模块级调用及其外层上下文管理语句。
+#
 #  @param document Parsed caller source document.
 #  @param call Exact call node selected by its source span.
 #  @return Top-level owner, enclosing managers, and direct expression owner.
@@ -123,10 +161,13 @@ def _call_scope(document, call):
 
 
 ## Read finite literals and bounded return protocols at a module-level call site.
+## 在模块级调用点读取有限字面量和有界返回协议。
+#
 #  @param callsite Full SourceSpan, never a line-only or terminal-name selection.
 #  @param store Optional source cache that rereads content for each query.
 #  @param max_nodes Finite source-walk bound.
 #  @param max_items Finite literal construction bound across the query.
+#  @param import_roots Roots used to locate supporting protocol stubs.
 #  @return Source literal records or explicit boundaries; no execution/reachability assertion.
 def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import_roots=()):
     if (type(max_nodes) is not int or type(max_items) is not int
@@ -139,6 +180,11 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
         'assumptions': ['source_snapshot_bindings_hold', 'standard_module_global_lookup',
                         'no_external_module_global_mutation']}
 
+    ## Add an explicit boundary and return the incomplete result.
+    ## 添加显式边界并返回不完整结果。
+    #
+    #  @param reason Boundary reason code.
+    #  @return Current result with the boundary appended.
     def fail(reason):
         result['boundaries'].append({'reason': reason})
         return result
@@ -175,6 +221,11 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
     module_origins, module_bindings, remaining = set(), set(), [max_items]
     protocols, protocol_evidence = {}, {}
 
+    ## Convert a source node into its complete location dictionary.
+    ## 将源码节点转换为完整位置字典。
+    #
+    #  @param node AST node with source positions.
+    #  @return Source span dictionary.
     def span(node):
         return asdict(SourceSpan.from_ast(path, node))
 
@@ -220,6 +271,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
                 # Call results are never executed. A result receives a narrow
                 # protocol fact only when every overload in a bounded installed
                 # stub returns a declared iterable type.
+                # 不执行调用；仅当有界存根的所有重载声明可迭代返回类型时记录协议。
                 for target in targets:
                     module_bindings.add(target.id)
                     environment.pop(target.id, None)
@@ -271,6 +323,8 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
             continue
         return fail('caller_prefix_effect_unconfirmed')
 
+    # Preserve manager bindings separately from ordinary module prefix values.
+    # 将上下文管理器绑定与普通模块前缀值分开记录。
     context_managers, context_bindings = [], {}
     for depth, manager_node in enumerate(with_path):
         expected_body = (with_path[depth + 1] if depth + 1 < len(with_path)
@@ -339,6 +393,7 @@ def literal_inputs(callsite, store=None, max_nodes=50000, max_items=2000, import
         # opaque factory. Preserve argument facts without claiming its runtime
         # target; the consumer must match this exact function expression to an
         # independently supplied API identity.
+        # 保留精确接收者表达式和实参事实；目标身份须由使用方独立证明。
         if not (isinstance(call.func, ast.Attribute)
                 and isinstance(call.func.value, ast.Name)):
             return fail('caller_target_binding_unconfirmed')

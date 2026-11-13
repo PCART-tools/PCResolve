@@ -1,5 +1,6 @@
 ## @package pcresolve._metadata_entry
 #  Shared source declaration and member-lookup obligations for metadata helpers.
+#  元数据辅助分析共享的源码声明及成员查找证据要求。
 
 import ast
 from dataclasses import asdict
@@ -9,6 +10,12 @@ from ._runtime_namespace import unmodified
 from .scope_facts import statement_scope_facts
 
 
+## Capture a source declaration's location.
+## 捕获源码声明的位置。
+#
+#  @param ref Source identity.
+#  @param node AST node with source positions.
+#  @return Source location dictionary.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
@@ -16,6 +23,8 @@ def _span(ref, node):
 
 
 ## Describe a source helper's declaration or independently guarded member binding.
+## 描述源码辅助函数的声明或独立守卫的成员绑定。
+#
 #  @param analyzer Fixed source snapshot and namespace machinery.
 #  @param selected Exact source member reference and definition.
 #  @param declaration_only Keep lookup integrity as an explicit input obligation.
@@ -53,6 +62,8 @@ def entry(analyzer, selected, declaration_only=False, private_result_reader=None
             return None
     projections = []
     if not declaration_only:
+        # Visible class escapes require a separate private-result lifetime proof.
+        # 可见类逃逸需要单独证明私有查询结果的生命周期。
         writes, truncated = analyzer._class_binding_writes(include_escapes=True)
         affected = [item for item in writes if item[0] == owner]
         if truncated or any(item[2] != 'visible_class_escape' for item in affected):
@@ -63,6 +74,8 @@ def entry(analyzer, selected, declaration_only=False, private_result_reader=None
             projections = private_result_reader(analyzer, owners[0])
             if projections is None:
                 return None
+    # Declaration-only evidence deliberately leaves lookup binding as an obligation.
+    # 仅声明证据有意将查找绑定保留为待证明条件。
     assumptions = set()
     if namespace_issues(analyzer, [owners[0]], assumptions=assumptions):
         return None

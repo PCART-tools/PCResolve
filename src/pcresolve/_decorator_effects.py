@@ -1,5 +1,6 @@
 ## @package pcresolve._decorator_effects
 #  Private, bounded flow-adapter proof for one source decoration, not ownership.
+#  对单个源码装饰执行私有、有界的 flow adapter 证明，不分析归属。
 
 import ast
 import copy
@@ -17,6 +18,12 @@ from ._decorator_exceptions import builtin_raise, translate as translate_excepti
 from ._runtime_namespace import unmodified as namespace_unmodified
 
 
+## Construct one abstract data value with optional known literal content.
+## 构造可选包含已知字面量内容的抽象数据值。
+#
+#  @param value Concrete literal when known.
+#  @param known Whether value is statically known.
+#  @return Abstract data mapping with its supported Python shape.
 def _data(value=None, known=False):
     result = {'kind': 'data', 'value': value, 'known': known}
     if known and type(value) in (str, int, bool, float, type(None)):
@@ -24,6 +31,11 @@ def _data(value=None, known=False):
     return result
 
 
+## Deduplicate values while preserving their first-seen order.
+## 按首次出现顺序去重。
+#
+#  @param items Candidate values.
+#  @return Ordered list of unique values.
 def _unique(items):
     result = []
     for item in items:
@@ -32,6 +44,11 @@ def _unique(items):
     return result
 
 
+## Return the possible Python scalar shapes represented by an abstract value.
+## 返回抽象值可能表示的 Python 标量结构类型。
+#
+#  @param value Abstract data mapping.
+#  @return Set of supported Python shape names.
 def _data_shapes(value):
     if value['kind'] != 'data':
         return set()
@@ -45,6 +62,11 @@ def _data_shapes(value):
     return set(value.get('python_shapes', ()))
 
 
+## Construct an abstract unknown value constrained to the supplied shapes.
+## 构造受给定结构类型约束的抽象未知值。
+#
+#  @param shapes Possible Python shape names.
+#  @return Abstract data mapping constrained to those shapes.
 def _shaped_data(shapes):
     value = _data()
     if len(shapes) == 1:
@@ -56,6 +78,11 @@ def _shaped_data(shapes):
     return value
 
 
+## Resolve known truthiness without invoking an unknown user protocol.
+## 在不调用未知用户协议的前提下解析已知真值。
+#
+#  @param value Abstract scalar value.
+#  @return Boolean truth value, or None when truthiness is unresolved.
 def _truth(value):
     if not _data_shapes(value):
         return None
@@ -64,6 +91,11 @@ def _truth(value):
     return value.get('truthiness')
 
 
+## Join alternative abstract values while retaining only common facts.
+## 合并备选抽象值，并仅保留共同事实。
+#
+#  @param values Abstract values from reachable branches.
+#  @return Conservative joined abstract value.
 def _join_values(values):
     if values and all(value == values[0] for value in values):
         return values[0]
@@ -76,7 +108,17 @@ def _join_values(values):
 
 
 ## A finite syntax proof of function-object effects for a single decoration.
+## 对单个装饰执行有限语法范围内的函数对象效果证明。
 class _DecoratorEffects:
+    ## Initialize source, evidence, and bounded proof state.
+    ## 初始化源码、证据和有界证明状态。
+    #
+    #  @param self Decorator effect proof state.
+    #  @param analyzer Source analyzer providing definitions and namespaces.
+    #  @param definition Exact decorated source definition pair.
+    #  @param evidence Callback producing source evidence records.
+    #  @param limit Maximum proof operations.
+    #  @return None.
     def __init__(self, analyzer, definition, evidence, limit):
         self.analyzer = analyzer
         self.ref, self.node = definition
@@ -94,17 +136,41 @@ class _DecoratorEffects:
         self.extra_assumptions = []
         self.dependency_paths = set()
 
+    ## Record a conservative boundary with its source location and conditions.
+    ## 记录保守边界及其源码位置和条件。
+    #
+    #  @param self Current decorator proof state.
+    #  @param reason Boundary reason identifier.
+    #  @param ref Source definition reference.
+    #  @param node AST node supporting the boundary.
+    #  @param details Additional structured boundary fields.
+    #  @return None; appends the boundary in place.
     def issue(self, reason, ref, node, **details):
         self.boundaries.append({'reason': reason, 'function': asdict(ref),
                                 'evidence': self.evidence_at(ref, node),
                                 'conditions': copy.deepcopy(self.conditions), **details})
 
+    ## Confirm a name resolves to an unmodified builtin in its source scope.
+    ## 确认名称在源码作用域中解析为未修改的内建对象。
+    #
+    #  @param self Decorator proof state.
+    #  @param name Builtin identifier to check.
+    #  @param ref Scope source reference.
+    #  @param node Scope AST node used for shadowing checks.
+    #  @return True when builtin identity is confirmed.
     def builtin(self, name, ref, node):
         return (namespace_unmodified(self.analyzer, ref.module + '.' + name)
                 and name not in self.analyzer._scope_facts(node).bound
                 and not any(name in bindings for bindings in
                             self.analyzer.import_binding_facts.get(ref.module, [])))
 
+    ## Require stable builtin bindings for scalar decorator operations.
+    ## 要求标量装饰操作使用稳定的内建绑定。
+    #
+    #  @param self Decorator proof state and dependency collector.
+    #  @param ref Source reference whose namespace is checked.
+    #  @param node AST node supporting the namespace proof.
+    #  @return True when the required builtin namespace is stable.
     def scalar_builtin_namespace(self, ref, node):
         if self.analyzer.index_boundaries:
             self.issue('decorator_builtin_namespace_unproven', ref, node)
@@ -125,6 +191,8 @@ class _DecoratorEffects:
         return True
 
     ## Read documentation only from a unique, undecorated source function binding.
+    ## 仅从唯一且未装饰的源码函数绑定读取文档字符串。
+    #
     #  @param expression Constructor/factory argument in its defining scope.
     #  @param caller Source scope containing the argument.
     #  @return Builtin str-or-None data and source provenance, or None.
@@ -153,6 +221,15 @@ class _DecoratorEffects:
             'kind': 'source_function_documentation', 'function': asdict(ref),
             'python_shape': 'str_or_none', 'evidence': self.evidence_at(caller, expression)})
 
+    ## Bind call arguments to source parameters and retain only proven values.
+    ## 将调用实参绑定到源码形参，并仅保留已证明的值。
+    #
+    #  @param self Decorator proof state.
+    #  @param target Resolved source function pair.
+    #  @param call Call expression being bound.
+    #  @param receiver Whether the first parameter is the receiver.
+    #  @param call_ref Source scope where the call occurs.
+    #  @return Parameter-name environment containing abstract argument values.
     def binding(self, target, call, receiver=False, call_ref=None):
         ref, node = target
         call_ref = call_ref or self.ref
@@ -192,6 +269,15 @@ class _DecoratorEffects:
                 for item in records]
         return env
 
+    ## Analyze one decorator instance constructed from a source class.
+    ## 分析由源码类构造的装饰器实例。
+    #
+    #  @param self Decorator proof state.
+    #  @param class_target Resolved class source pair.
+    #  @param constructor Constructor call expression.
+    #  @param module_ref Optional module reference for shared instances.
+    #  @param assignment Optional module assignment creating the instance.
+    #  @return Resolved __call__ method pair, or None when unavailable.
     def instance(self, class_target, constructor, module_ref=None, assignment=None):
         class_ref, cls = class_target
         previous_issues = len(self.boundaries)
@@ -250,6 +336,12 @@ class _DecoratorEffects:
         self.dispatch_unconfirmed = len(self.boundaries) != previous_issues
         return target
 
+    ## Resolve a decorator expression to a source function or class instance.
+    ## 将装饰器表达式解析为源码函数或类实例。
+    #
+    #  @param self Decorator proof state.
+    #  @param expression Decorator AST expression.
+    #  @return Target pair and captured values, or None with an empty capture map.
     def resolve(self, expression):
         probe = copy.copy(self.node)
         probe.decorator_list = [expression.func if isinstance(expression, ast.Call) else expression]
@@ -317,6 +409,13 @@ class _DecoratorEffects:
         self.issue('decorator_target_unresolved', self.ref, expression)
         return None, {}
 
+    ## Prove binding of one builtin-compatible method in a class hierarchy.
+    ## 证明类继承层次中一个内建兼容方法的绑定。
+    #
+    #  @param self Decorator proof state.
+    #  @param class_ref Source reference for the class.
+    #  @param method Method name to validate.
+    #  @return Method binding proof, or None when it is not closed.
     def method_proof(self, class_ref, method):
         proof = self.analyzer._dict_method_binding(class_ref, method)
         if proof is None:
@@ -330,6 +429,14 @@ class _DecoratorEffects:
         self.evidence.extend(proof['evidence'])
         return proof
 
+    ## Model construction of a bounded documentation-cache instance.
+    ## 对有界文档缓存实例的构造进行建模。
+    #
+    #  @param self Decorator proof state.
+    #  @param selected Selected data class and source node.
+    #  @param node Constructor expression.
+    #  @param target Decorated function reference and node.
+    #  @return Abstract data-instance value.
     def data_instance(self, selected, node, target):
         ref, cls = selected
         proof = self.method_proof(ref, 'setdefault')
@@ -357,6 +464,16 @@ class _DecoratorEffects:
         self.extra_assumptions.append('documentation_cache_not_externally_mutated')
         return value
 
+    ## Analyze a direct source-function call and its bounded effects.
+    ## 分析直接源码函数调用及其有界效果。
+    #
+    #  @param self Decorator proof state collecting effects and boundaries.
+    #  @param selected Resolved source function pair.
+    #  @param node Call expression.
+    #  @param arguments Abstract argument values.
+    #  @param receiver Optional abstract receiver value.
+    #  @param initializing Whether the call initializes a decorator receiver.
+    #  @return Abstract return value, or None for unresolved argument binding.
     def source_call(self, selected, node, arguments, receiver=None, initializing=False):
         ref, definition = selected
         if not namespace_unmodified(self.analyzer, ref.module + '.' + ref.qualname):
@@ -395,6 +512,15 @@ class _DecoratorEffects:
         shapes = {value.get('python_shape') for value in values}
         return dict(_data(), python_shape=next(iter(shapes))) if len(shapes) == 1 and None not in shapes else _data()
 
+    ## Model a bounded documentation-cache lookup during string formatting.
+    ## 建模字符串格式化期间对有界文档缓存的查找。
+    #
+    #  @param self Decorator proof state collecting mapping effects.
+    #  @param node Formatting expression or lookup node.
+    #  @param left Abstract format key value.
+    #  @param mapping Abstract documentation-cache instance.
+    #  @param target Source function reference and AST node.
+    #  @return Abstract formatted value.
     def format_mapping(self, node, left, mapping, target):
         ref, _ = target
         proof = self.method_proof(mapping['class_ref'], '__getitem__')
@@ -438,6 +564,8 @@ class _DecoratorEffects:
         return dict(_data(), python_shape='str')
 
     ## Split only proved builtin scalar shapes by their short-circuit truth value.
+    ## 仅按已证明的内建标量结构类型拆分短路真值路径。
+    #
     #  @param value Operand value; unknown protocols retain a boundary.
     #  @param ref Source function containing the operand.
     #  @param node Operand source expression.
@@ -457,9 +585,12 @@ class _DecoratorEffects:
         return cases
 
     ## Refine direct local/documentation reads within a reachable expression path.
+    ## 在可达表达式路径中收窄直接局部值或文档读取。
+    #
     #  @param node Operand expression being tested.
     #  @param value Truth-refined value, not a runtime object identity.
     #  @param env Path-local name bindings.
+    #  @return None; updates path-local bindings or receiver metadata in place.
     def refine_truth(self, node, value, env):
         if isinstance(node, ast.Name) and node.id in env:
             env[node.id] = value
@@ -471,6 +602,8 @@ class _DecoratorEffects:
                 self.state[node.attr] = value
 
     ## Join short-circuit results and object states without evaluating skipped calls.
+    ## 合并短路结果与对象状态，不会求值被跳过的调用。
+    #
     #  @param node Boolean expression.
     #  @param env Incoming name bindings.
     #  @param target Source definition being analyzed.
@@ -511,6 +644,15 @@ class _DecoratorEffects:
                       for name in set().union(*(state.keys() for _, state in states))}
         return _join_values(results)
 
+    ## Evaluate one supported expression and record effects or proof boundaries.
+    ## 求值一个受支持的表达式并记录效果或证明边界。
+    #
+    #  @param self Decorator effect proof state.
+    #  @param node Expression AST node.
+    #  @param env Current abstract name bindings.
+    #  @param target Source definition being analyzed.
+    #  @param initializing Whether receiver initialization is in progress.
+    #  @return Abstract data value for the expression.
     def expression(self, node, env, target, initializing=False):
         ref, definition = target
         if node is None:
@@ -787,6 +929,16 @@ class _DecoratorEffects:
         self.issue('decorator_expression_unsupported', ref, node)
         return _data()
 
+    ## Apply a supported assignment to local or receiver abstract state.
+    ## 将受支持的赋值应用于局部或接收者抽象状态。
+    #
+    #  @param self Decorator effect proof state.
+    #  @param node Assignment AST node.
+    #  @param value Abstract value being assigned.
+    #  @param env Mutable path-local name bindings.
+    #  @param target Source definition being analyzed.
+    #  @param initializing Whether receiver initialization is in progress.
+    #  @return None; updates the abstract environment and effects in place.
     def assign(self, node, value, env, target, initializing):
         ref, _ = target
         if isinstance(node, ast.Name):
@@ -849,6 +1001,15 @@ class _DecoratorEffects:
         if value['kind'] in ('function', 'closure', 'receiver'):
             self.issue('decorator_object_escape', ref, node)
 
+    ## Interpret a statement sequence while preserving bounded control paths.
+    ## 解释语句序列并保留有界控制流路径。
+    #
+    #  @param self Decorator effect proof state.
+    #  @param body Ordered source statements.
+    #  @param env Mutable path-local name bindings.
+    #  @param target Source definition being analyzed.
+    #  @param initializing Whether receiver initialization is in progress.
+    #  @return Return abstract values and normal-fallthrough status.
     def statements(self, body, env, target, initializing):
         ref, definition = target
         returns = []
@@ -963,6 +1124,14 @@ class _DecoratorEffects:
                 return returns + [_data()], True
         return returns, True
 
+    ## Analyze one source function body with recursion and path limits.
+    ## 在递归与路径预算约束下分析一个源码函数体。
+    #
+    #  @param self Decorator proof state tracking active functions.
+    #  @param target Selected source function pair.
+    #  @param env Parameter bindings at function entry.
+    #  @param initializing Whether the function constructs receiver state.
+    #  @return Return abstract values and normal-fallthrough status.
     def run(self, target, env, initializing=False):
         ref, node = target
         if ref in self.stack or len(self.stack) >= 8:
@@ -984,6 +1153,13 @@ class _DecoratorEffects:
         finally:
             self.stack.pop()
 
+    ## Build the final source-bound effect fact for a decorator expression.
+    ## 为装饰器表达式构建最终源码绑定效果事实。
+    #
+    #  @param self Decorator proof state and collected evidence.
+    #  @param expression Decorator expression at the source site.
+    #  @param multiple Whether more than one decoration is being summarized.
+    #  @return Structured decorator effect fact.
     def fact(self, expression, multiple=False):
         target, captures = self.resolve(expression)
         returns, falls = [], True

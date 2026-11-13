@@ -1,10 +1,16 @@
 ## @package pcresolve.keyword_validation
 #  Source obligations for mapping-key attribute validation, never runtime facts.
+#  提供映射键属性验证的源码义务，不表示运行时事实。
 
 import ast
 from dataclasses import asdict
 
 
+## Walk a syntax subtree without entering nested definitions.
+## 遍历语法子树，但不进入嵌套定义。
+#
+#  @param root Root AST node of the subtree.
+#  @return Nodes in source order, excluding nested function/class/lambda bodies.
 def _nodes(root):
     pending = [root]
     while pending:
@@ -16,6 +22,12 @@ def _nodes(root):
         pending.extend(reversed(list(ast.iter_child_nodes(item))))
 
 
+## Build a source span record for a matched validation fact.
+## 为匹配到的验证事实构造源码范围记录。
+#
+#  @param ref Source function identity carrying the path.
+#  @param node AST node carrying the source coordinates.
+#  @return Dictionary containing the node's start and end positions.
 def _span(ref, node):
     return {'file_path': ref.file_path, 'lineno': node.lineno,
             'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
@@ -23,6 +35,8 @@ def _span(ref, node):
 
 
 ## Describe bounded source guards requiring independently observed lookup values.
+## 描述要求独立观测查找值的有限源码保护条件。
+#
 #  @param analyzer Fixed source analyzer, used only for lexical builtin binding.
 #  @param ref Source function identity.
 #  @param node Source function AST.
@@ -31,6 +45,9 @@ def checks(analyzer, ref, node):
     nodes = []
     for item in _nodes(node):
         nodes.append(item)
+
+        # Bound the structural search before inspecting candidate branches.
+        # 检查候选分支前先限制结构搜索规模。
         if len(nodes) > 2000:
             break
     if len(nodes) > 2000:
@@ -40,6 +57,9 @@ def checks(analyzer, ref, node):
                for name in ('getattr', 'callable', 'AttributeError')):
         return []
     result = []
+
+    # Match only a narrow mapping-items loop and its adjacent lookup guard.
+    # 仅匹配有限形式的 mapping.items() 循环及其相邻查找保护条件。
     for loop in nodes:
         if not (isinstance(loop, ast.For) and isinstance(loop.target, (ast.Tuple, ast.List))
                 and len(loop.target.elts) == 2
@@ -92,6 +112,9 @@ def checks(analyzer, ref, node):
                         and raised.exc.func.id == 'AttributeError'):
                     continue
                 position = template.values.index(fields[0])
+
+                # Record source obligations without claiming rejection occurred at runtime.
+                # 记录源码义务，但不声称运行时实际发生了拒绝。
                 result.append({'kind': 'mapping_member_validation', 'status': 'requires_observation',
                     'function': asdict(ref), 'mapping_parameter': loop.iter.func.value.id,
                     'key_variable': key, 'value_variable': value, 'lookup_variable': lookup,
