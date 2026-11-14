@@ -236,6 +236,8 @@ class SourceIndexMixin:
         tree = document.tree
         definitions, classes, definition_conditions = [], [], []
         bindings = {}
+        contains_global_statement = any(
+            isinstance(node, ast.Global) for node in ast.walk(tree))
         for statement in tree.body:
             names = (list(fact.python_binding for fact in import_facts(statement))
                      if isinstance(statement, (ast.Import, ast.ImportFrom))
@@ -243,7 +245,9 @@ class SourceIndexMixin:
                      | _attribute_write_roots(statement))
             for name in names:
                 bindings.setdefault(name, []).append(statement)
-            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if (contains_global_statement
+                    and isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                               ast.ClassDef))):
                 for scope in ast.walk(statement):
                     if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                         continue

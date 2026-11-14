@@ -67,19 +67,23 @@ def run_paired_benchmarks(before_script, after_script, output_dir,
 
 
 def medians(report):
-    by_size = {}
+    grouped = {}
     for sample in report['samples']:
-        times = {}
-        peaks = []
+        data = grouped.setdefault(sample['modules'],
+                                  dict(wall={}, peak_rss_bytes=[], outputs_equal=[]))
+        data['outputs_equal'].append(sample['outputs_equal'])
         for run in sample['runs']:
-            peaks.append(run['peak_rss_bytes'])
+            data['peak_rss_bytes'].append(run['peak_rss_bytes'])
             for row in run['rows']:
-                times.setdefault(row['variant'], []).append(row['wall'])
-        by_size[sample['modules']] = dict(
-            wall={key: statistics.median(values) for key, values in times.items()},
-            peak_rss_bytes=statistics.median(peaks),
-            outputs_equal=sample['outputs_equal'])
-    return by_size
+                data['wall'].setdefault(row['variant'], []).append(row['wall'])
+    return {
+        modules: dict(
+            wall={key: statistics.median(values)
+                  for key, values in data['wall'].items()},
+            peak_rss_bytes=statistics.median(data['peak_rss_bytes']),
+            outputs_equal=all(data['outputs_equal']))
+        for modules, data in grouped.items()
+    }
 
 
 def main():
