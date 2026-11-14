@@ -37,6 +37,7 @@ def test_cached_facts_detach_collector_closures_and_isolate_clone_notifications(
         collector = SingleFileAnalyzer(module_name='main', file_path='main.py')
         collector.visit(tree)
         collector.transient_callback = lambda: collector
+        collector.nested_metadata = {'items': [collector.module_cg, lambda: collector]}
         return collector
 
     collector = make_collector()
@@ -50,6 +51,9 @@ def test_cached_facts_detach_collector_closures_and_isolate_clone_notifications(
     left = clone_source_facts(facts, document)
     right = clone_source_facts(facts, document)
     assert left.transient_callback is None and right.transient_callback is None
+    assert left.nested_metadata['items'][0] is left.module_cg
+    assert left.nested_metadata['items'][1] is None
+    assert right.nested_metadata['items'][0] is right.module_cg
     left_version, right_version = left.version, right.version
     left.module_cg.functions['probe'] = object()
     assert left.version > left_version

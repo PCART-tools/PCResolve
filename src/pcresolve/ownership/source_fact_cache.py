@@ -53,6 +53,24 @@ def _detach_visitor_callbacks(values, tracer, memo):
     fact_structure_ids = set()
     while pending:
         value, owner = pending.pop()
+        # Plain containers cannot have listeners of their own. Avoid the
+        # versioned-container checks for these common traversal nodes.
+        kind = type(value)
+        if kind is dict:
+            identity = id(value)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            pending.extend((child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES)
+            pending.extend((child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES)
+            continue
+        if kind in (list, tuple, set, frozenset):
+            identity = id(value)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            pending.extend((child, owner) for child in value if type(child) not in _ATOMIC_TYPES)
+            continue
         if isinstance(value, FactStructure):
             if id(value) not in fact_structure_ids:
                 fact_structure_ids.add(id(value))
