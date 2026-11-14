@@ -61,15 +61,15 @@ def _detach_visitor_callbacks(values, tracer, memo):
             if identity in seen:
                 continue
             seen.add(identity)
-            pending.extend((child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES)
-            pending.extend((child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES)
+            pending.extend([(child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES])
+            pending.extend([(child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES])
             continue
         if kind in (list, tuple, set, frozenset):
             identity = id(value)
             if identity in seen:
                 continue
             seen.add(identity)
-            pending.extend((child, owner) for child in value if type(child) not in _ATOMIC_TYPES)
+            pending.extend([(child, owner) for child in value if type(child) not in _ATOMIC_TYPES])
             continue
         if isinstance(value, FactStructure):
             if id(value) not in fact_structure_ids:
@@ -113,14 +113,14 @@ def _detach_visitor_callbacks(values, tracer, memo):
                 pass
             continue
         if isinstance(value, dict):
-            pending.extend((child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES)
-            pending.extend((child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES)
+            pending.extend([(child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES])
+            pending.extend([(child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES])
         elif isinstance(value, (list, tuple, set, frozenset)):
-            pending.extend((child, owner) for child in value if type(child) not in _ATOMIC_TYPES)
+            pending.extend([(child, owner) for child in value if type(child) not in _ATOMIC_TYPES])
         elif hasattr(value, '__dict__') and not isinstance(value, type):
             child_owner = value if isinstance(value, FactStructure) else owner
-            pending.extend((child, child_owner) for child in value.__dict__.values()
-                           if type(child) not in _ATOMIC_TYPES)
+            pending.extend([(child, child_owner) for child in value.__dict__.values()
+                            if type(child) not in _ATOMIC_TYPES])
     return tuple(fact_structures), tuple(fact_edges), tuple(versioned_edges)
 
 
