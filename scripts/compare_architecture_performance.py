@@ -28,6 +28,44 @@ def run_benchmark(script, output, sizes, repeats, samples):
     return json.loads(output.read_text(encoding='utf-8'))
 
 
+def run_paired_benchmarks(before_script, after_script, output_dir,
+                          sizes, repeats, samples):
+    """Measure baseline and candidate in alternating, paired worker runs."""
+    before_report = dict(samples=[])
+    after_report = dict(samples=[])
+    before_report_path = output_dir / 'performance-before.json'
+    after_report_path = output_dir / 'performance-after.json'
+    with tempfile.TemporaryDirectory(prefix='pcresolve-perf-pairs-') as temp:
+        sample_dir = Path(temp)
+        for size in sizes:
+            for sample_index in range(samples):
+                order = (('before', before_script), ('after', after_script))
+                if sample_index % 2:
+                    order = tuple(reversed(order))
+                for label, script in order:
+                    output = sample_dir / ('%s-%s-%s.json' %
+                                           (label, size, sample_index))
+                    result = run_benchmark(script, output, [size], repeats, 1)
+                    report = before_report if label == 'before' else after_report
+                    if 'python' not in report:
+                        report.update({key: result[key] for key in
+                                       ('python', 'platform', 'analyzer_sha256',
+                                        'repeats', 'independent_samples')
+                                       if key in result})
+                    sample = result['samples'][0]
+                    report['samples'].append(sample)
+                # Keep complete partial evidence if a later worker fails.
+                completed = len(before_report['samples'])
+                for report in (before_report, after_report):
+                    report['independent_samples'] = samples
+                    report['samples_completed'] = completed
+                before_report_path.write_text(
+                    json.dumps(before_report, indent=2), encoding='utf-8')
+                after_report_path.write_text(
+                    json.dumps(after_report, indent=2), encoding='utf-8')
+    return before_report, after_report
+
+
 def medians(report):
     by_size = {}
     for sample in report['samples']:
@@ -57,8 +95,6 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     before_path = output_dir / 'performance-before.json'
     after_path = output_dir / 'performance-after.json'
-    after = run_benchmark(ROOT / 'scripts' / 'perf_scalability.py', after_path,
-                          args.sizes, args.repeats, args.independent_samples)
     with tempfile.TemporaryDirectory(prefix='pcresolve-perf-baseline-') as directory:
         archive = subprocess.run(['git', 'archive', '--format=tar', args.baseline_ref],
                                  cwd=ROOT, check=True, capture_output=True).stdout
@@ -71,8 +107,9 @@ def main():
         baseline_script = baseline_root / 'scripts' / 'perf_scalability.py'
         baseline_script.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / 'scripts' / 'perf_scalability.py', baseline_script)
-        before = run_benchmark(baseline_script, before_path, args.sizes,
-                               args.repeats, args.independent_samples)
+        before, after = run_paired_benchmarks(
+            baseline_script, ROOT / 'scripts' / 'perf_scalability.py',
+            output_dir, args.sizes, args.repeats, args.independent_samples)
     old, new = medians(before), medians(after)
     comparisons = []
     for size in args.sizes:
@@ -96,6 +133,7 @@ def main():
     report = dict(baseline_ref=args.baseline_ref, python=sys.version,
                   sizes=args.sizes, repeats=args.repeats,
                   independent_samples=args.independent_samples,
+                  sampling_strategy='alternating paired isolated-process samples',
                   before=str(before_path), after=str(after_path),
                   passed=all(row['passed'] for row in comparisons), comparisons=comparisons)
     comparison_path = output_dir / 'performance-comparison.json'
