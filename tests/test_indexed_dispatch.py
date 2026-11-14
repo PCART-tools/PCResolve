@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.sources import SourceSet
+from pcresolve.ownership.sources import SourceSet
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'indexed_dispatch'

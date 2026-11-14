@@ -5,7 +5,10 @@ import runpy
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef, flow
+from pcresolve import FlowAnalyzer, FunctionRef
+from tests.flow_test_support import set_class_binding_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_class_escape_aliases'
 ESCAPED = ['ListEscape', 'DictEscape', 'TupleAliasEscape', 'BranchContainerEscape',
@@ -64,7 +67,7 @@ def test_escape_index_budget_and_query_order_remain_conservative(monkeypatch):
     for name in reversed(ESCAPED):
         analyzer.analyze(FunctionRef('cases', name))
     assert analyzer.analyze(FunctionRef('cases', 'DormantContainer')).to_dict() == before
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 10)
+    set_class_binding_limit(monkeypatch, 10)
     bounded = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'DormantContainer'))
     assert not any(binding['status'] == 'source_bound' for call in bounded.calls
                    for binding in call.class_metadata_bindings)

@@ -32,8 +32,8 @@ def setup(root, text=SOURCE):
 
 
 def specialized(analyzer):
-    from pcresolve._class_partial import bind_partial
-    from pcresolve._class_literal_loops import specialize
+    from pcresolve.flow.proofs._class_partial import bind_partial
+    from pcresolve.flow.proofs._class_literal_loops import specialize
     target = analyzer._definition_index.find('example', 'Public', kind='class')[0]
     partial = bind_partial(analyzer, target, target[1].decorator_list[0])
     assert partial is not None
@@ -95,8 +95,8 @@ def test_unrolling_cannot_hide_constructor_slot_writes(tmp_path):
 
 def test_expansion_is_bounded_by_generated_syntax_not_just_input_size(tmp_path):
     analyzer, _ = setup(tmp_path)
-    from pcresolve._class_partial import bind_partial
-    from pcresolve._class_literal_loops import specialize
+    from pcresolve.flow.proofs._class_partial import bind_partial
+    from pcresolve.flow.proofs._class_literal_loops import specialize
     target = analyzer._definition_index.find('example', 'Public', kind='class')[0]
     partial = bind_partial(analyzer, target, target[1].decorator_list[0])
     assert specialize(analyzer, partial[0], partial[3], max_nodes=5) is None
@@ -135,8 +135,8 @@ def test_empty_iterations_do_not_rebind_the_target_names(tmp_path):
 
 def test_the_real_alias_table_expands_without_discarding_its_closure():
     from pathlib import Path
-    from pcresolve._class_partial import bind_partial
-    from pcresolve._class_literal_loops import specialize
+    from pcresolve.flow.proofs._class_partial import bind_partial
+    from pcresolve.flow.proofs._class_literal_loops import specialize
     root = Path('C:/GitHub/VPPDetector/tmp/runtime_matplotlib370/matplotlib')
     if not root.is_dir():
         pytest.skip('Optional real source snapshot is unavailable')

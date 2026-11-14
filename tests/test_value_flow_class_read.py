@@ -6,6 +6,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+import pcresolve.flow.transfer.summary_class_effects as class_effects
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_class_read'
 POSITIVE = ['Fresh', 'Preloaded', 'Inherited', 'PositiveGuard', 'Alias', 'ReadOnly', 'PrivatePlain']
@@ -56,7 +57,7 @@ def test_runtime_guarded_reads_and_descriptors_have_different_targets(monkeypatc
 
 
 def test_read_facts_are_query_local_and_budget_failures_stay_explicit(monkeypatch):
-    from pcresolve import flow
+    import pcresolve.flow.analyzer as flow
     analyzer = FlowAnalyzer(project_root=ROOT)
     snapshot = analyzer.analyze(FunctionRef('cases', 'Fresh')).to_dict()
     analyzer.analyze(FunctionRef('cases', 'Descriptor'))
@@ -65,6 +66,6 @@ def test_read_facts_are_query_local_and_budget_failures_stay_explicit(monkeypatc
     def exhausted(*args):
         raise flow._ClassEffectLimit()
 
-    monkeypatch.setattr(flow, 'source_class_read_binding', exhausted)
+    monkeypatch.setattr(class_effects, 'source_class_read_binding', exhausted)
     result = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'Fresh'))
     assert any(b['reason'] == 'class_attribute_effect_budget' for b in result.boundaries)

@@ -1,8 +1,8 @@
 ## @package tests.test_dependency_recomputation
 #  Dirty-summary scheduling must preserve synchronous fixed-point semantics.
 
-import pcresolve.return_resolution as resolution
-from pcresolve.return_resolution import CallBinding, ReturnCall, resolve_return_dependencies
+import pcresolve.facts.return_resolution as resolution
+from pcresolve.facts.return_resolution import CallBinding, ReturnCall, resolve_return_dependencies
 
 
 def value(kind, source):

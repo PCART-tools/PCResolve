@@ -12,7 +12,7 @@ import sys
 import time
 
 from pcresolve import FlowAnalyzer, FunctionRef, analyze_project
-from pcresolve.views import build_full_view
+from pcresolve.ownership.views import build_full_view
 from evaluate_value_flow_matrix import load_cases
 
 
@@ -24,11 +24,47 @@ def _fingerprint(payload):
     return hashlib.sha256(data).hexdigest()
 
 
+## Validate corpus availability and inventory before producing any baseline.
+#  @param root Repository root.
+#  @param projects Ownership project manifest.
+#  @param cases Loaded flow cases and their fixture directories.
+#  @param expected_ownership Required ownership project count.
+#  @param expected_flow Required flow entry count.
+#  @return None; incomplete inputs raise ValueError.
+def validate_inputs(root, projects, cases, expected_ownership=42, expected_flow=83):
+    for name, project in projects.items():
+        path = root / project['path']
+        if not path.is_dir() or not any(path.rglob('*.py')):
+            raise ValueError('Missing or empty ownership corpus: %s' % name)
+    for directory, case in cases:
+        if not directory.is_dir():
+            raise ValueError('Missing flow corpus: %s' % case['id'])
+        files = case.get('files')
+        if files is not None:
+            for name in files:
+                if not (directory / name).is_file():
+                    raise ValueError('Missing flow source: %s: %s' % (case['id'], name))
+        elif not any(directory.rglob('*.py')):
+            raise ValueError('Missing flow source: %s' % case['id'])
+    if len(projects) != expected_ownership or len(cases) != expected_flow:
+        raise ValueError('Incomplete baseline inventory: ownership=%s flow=%s' %
+                         (len(projects), len(cases)))
+
+
 ## Capture ownership and flow outputs on the established regression corpora.
 #  @return Output fingerprints, inventory counts, and separately measured timings.
 def capture_baseline():
     outputs, counts, timings = {}, {}, {}
+    package = ROOT / 'src' / 'pcresolve'
+    source_hash = hashlib.sha256()
+    for path in sorted(package.rglob('*.py')):
+        source_hash.update(path.relative_to(package).as_posix().encode('utf-8'))
+        source_hash.update(path.read_bytes())
+    revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT,
+                              capture_output=True, text=True)
     manifest = json.loads((ROOT / 'ground_truth/projects.json').read_text(encoding='utf-8'))
+    cases = load_cases()
+    validate_inputs(ROOT, manifest['projects'], cases)
     for name, project in sorted(manifest['projects'].items()):
         start = time.perf_counter()
         result = analyze_project(str(ROOT / project['path']))
@@ -36,7 +72,7 @@ def capture_baseline():
         outputs[key] = _fingerprint(build_full_view(result))
         counts[key] = len(result.all_api_calls)
         timings[key] = time.perf_counter() - start
-    for project, case in load_cases():
+    for project, case in cases:
         contracts = ({case['module'] + '.' + case['entry']: {
             'parameters': case['parameter_shapes'],
             'provenance': 'Reviewed matrix contract: ' + case['id']}}
@@ -58,6 +94,7 @@ def capture_baseline():
         counts[key] = len(result.calls)
         timings[key] = time.perf_counter() - start
     return {'python': platform.python_version(), 'hash_seed': os.environ.get('PYTHONHASHSEED'),
+            'revision': revision.stdout.strip(), 'source_sha256': source_hash.hexdigest(),
             'outputs': outputs,
             'call_counts': counts, 'seconds': timings}
 

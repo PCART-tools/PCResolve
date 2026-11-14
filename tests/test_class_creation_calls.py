@@ -4,8 +4,13 @@ import runpy
 
 import pytest
 
+
+def test_written_attributes_is_available_without_creation_orchestration():
+    from pcresolve.flow.proofs._class_effect_attributes import written_attributes
+    assert written_attributes([{'attributes': ['a', 'b']}, {'attributes': ['a']}]) == {'a', 'b'}
+
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_creation_calls import creation_calls
+from pcresolve.flow.proofs._class_creation_calls import creation_calls
 
 
 SOURCE = '''def fixed(allowed=0): return allowed

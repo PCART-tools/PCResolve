@@ -9,8 +9,8 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from pcresolve import analyze_project
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.sources import ContainerItem, ContainerIter
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.sources import ContainerItem, ContainerIter
 
 
 def _analyze(code):

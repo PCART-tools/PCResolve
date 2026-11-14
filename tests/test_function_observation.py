@@ -3,7 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._function_observation import nonobserving_source
+from pcresolve.flow.proofs._function_observation import nonobserving_source
 
 
 SOURCE = '''import sys

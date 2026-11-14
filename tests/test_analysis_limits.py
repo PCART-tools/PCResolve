@@ -4,7 +4,8 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef, ProjectAnalyzer
-from pcresolve.analysis_limits import AnalysisLimits, AnalysisBudget, AnalysisLimitExceeded
+import pcresolve.flow.runtime.analysis_run as flow_run
+from pcresolve.runtime.limits import AnalysisLimits, AnalysisBudget, AnalysisLimitExceeded
 from pcresolve.cli import main
 import sys
 
@@ -44,9 +45,9 @@ def test_flow_checks_limits_before_returning_completed_output(tmp_path, monkeypa
     (tmp_path / 'main.py').write_text('def entry(value): return value\n', encoding='utf-8')
     analyzer = FlowAnalyzer(project_root=tmp_path,
                             analysis_limits=AnalysisLimits(max_memory_mb=1))
-    import pcresolve.flow as flow_module
+    import pcresolve.flow.analyzer as flow_module
     usage = [0]
-    monkeypatch.setattr(flow_module, 'AnalysisBudget', lambda limits: AnalysisBudget(
+    monkeypatch.setattr(flow_run, 'AnalysisBudget', lambda limits: AnalysisBudget(
         limits, memory=lambda: usage[0]))
     original = analyzer._walk
     def finish(*args, **kwargs):

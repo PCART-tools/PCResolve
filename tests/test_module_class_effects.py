@@ -3,7 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._module_class_effects import module_class_effects
+from pcresolve.flow.proofs._module_class_effects import module_class_effects
 
 SOURCE = '''class Root:
     @classmethod

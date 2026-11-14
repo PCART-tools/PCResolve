@@ -46,8 +46,8 @@ def test_value_get_has_multi_source(result):
 def test_return_sources_is_sourceset():
     """SingleFileAnalyzer must produce a SourceSet for make() with two returns."""
     import ast
-    from pcresolve.single_file import SingleFileAnalyzer
-    from pcresolve.sources import SourceSet
+    from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+    from pcresolve.ownership.sources import SourceSet
     code = "import requests\nimport numpy as np\n"
     code += "def make(flag):\n"
     code += "    if flag:\n        return requests.Session()\n"
@@ -57,7 +57,7 @@ def test_return_sources_is_sourceset():
     rs = tracer.return_sources.get("make")
     assert isinstance(rs, SourceSet), f"Expected SourceSet, got {type(rs)}: {rs}"
     displays = []
-    from pcresolve.sources import source_display
+    from pcresolve.ownership.sources import source_display
     for src in rs.sources:
         displays.append(source_display(src))
     assert any("Session" in d for d in displays), displays
@@ -67,7 +67,7 @@ def test_return_sources_is_sourceset():
 def test_chained_call_through_return():
     """make(True).get() must resolve through SourceSet return_sources."""
     import ast
-    from pcresolve.single_file import SingleFileAnalyzer
+    from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
     code = "import requests\nimport numpy as np\n"
     code += "def make(flag):\n"
     code += "    if flag:\n        return requests.Session()\n"

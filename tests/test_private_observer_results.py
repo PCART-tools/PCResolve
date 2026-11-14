@@ -5,7 +5,7 @@ import ast
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._metadata_calls import _entry
+from pcresolve.flow.proofs._metadata_calls import _entry
 
 
 SOURCE = '''import inspect

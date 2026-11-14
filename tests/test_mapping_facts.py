@@ -3,9 +3,9 @@
 
 import ast
 
-from pcresolve.call_graph import FunctionId
-from pcresolve.mapping_facts import MappingFacts, bound_names
-from pcresolve.scope import Binding
+from pcresolve.ownership.call_graph import FunctionId
+from pcresolve.ownership.mapping_facts import MappingFacts, bound_names
+from pcresolve.ownership.scope import Binding
 
 
 def _facts():

@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow
+from tests.flow_test_support import set_decorator_effect_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_decorator_documents'
@@ -52,7 +54,7 @@ def test_document_proof_budget_and_queries_do_not_leak_source_values(monkeypatch
     saved = decoration('source_method', analyzer)
     assert saved['body_binding_status'] == 'preserved'
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_DECORATOR_EFFECT_NODE_LIMIT', 1)
+        set_decorator_effect_limit(patch, 1)
         assert decoration('source_method', analyzer)['body_binding_status'] == 'unknown'
     assert decoration('reachable_helper', analyzer)['body_binding_status'] != 'preserved'
     assert decoration('source_method', analyzer) == saved

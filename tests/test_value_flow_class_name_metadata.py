@@ -7,9 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef, flow
-from pcresolve import _class_name_binding
-from pcresolve._class_name_binding import _global_calls
+from pcresolve import FlowAnalyzer, FunctionRef
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.transfer.summary_class_effects as class_effects
+from pcresolve.flow.proofs import _class_name_binding
+from pcresolve.flow.proofs._class_name_binding import _global_calls
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_class_name_metadata'
 
@@ -87,7 +89,7 @@ def test_metadata_budget_is_explicit_and_query_results_remain_isolated(monkeypat
     def exhausted(*args, **kwargs):
         raise flow._ClassEffectLimit()
 
-    monkeypatch.setattr(flow, 'source_class_name_binding', exhausted)
+    monkeypatch.setattr(class_effects, 'source_class_name_binding', exhausted)
     result = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'Fresh'))
     assert any(b['reason'] == 'class_attribute_effect_budget' for b in result.boundaries)
     assert not any(f['status'] == 'source_bound' for c in result.calls

@@ -5,7 +5,9 @@ import runpy
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef, flow
+from pcresolve import FlowAnalyzer, FunctionRef
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.transfer.summary_class_effects as class_effects
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_class_lookup_effects'
 
@@ -58,7 +60,7 @@ def test_lookup_effect_budget_is_explicit_and_cannot_prove_a_preserved_target(mo
     def exhausted(*args, **kwargs):
         raise flow._ClassEffectLimit()
 
-    monkeypatch.setattr(flow, 'class_attribute_writes', exhausted)
+    monkeypatch.setattr(class_effects, 'class_attribute_writes', exhausted)
     result = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'CacheOnly'))
     assert any(b['reason'] == 'class_attribute_effect_budget' for b in result.boundaries)
     call = result.find_calls(callee_name='cls.fixed')[0]

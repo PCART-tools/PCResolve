@@ -57,7 +57,7 @@ def test_alias_budget_is_explicit(tmp_path):
 
 
 def test_large_module_without_requested_alias_skips_alias_audit(tmp_path, monkeypatch):
-    from pcresolve import entry_alias
+    from pcresolve.flow.proofs import entry_alias
     (tmp_path / 'cases.py').write_text('def original(**kwargs): return kwargs\n'
                                      'public = original\n' + '0\n' * 100)
     analyzer = FlowAnalyzer(project_root=tmp_path)

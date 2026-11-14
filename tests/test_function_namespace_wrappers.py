@@ -5,8 +5,8 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_definition import namespace_issues
-from pcresolve._function_namespace import wrapper_creation
+from pcresolve.flow.proofs._class_definition import namespace_issues
+from pcresolve.flow.proofs._function_namespace import wrapper_creation
 
 
 SOURCE = '''from functools import wraps

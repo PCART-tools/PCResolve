@@ -6,7 +6,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 def _calls_by_expr(result, expr_substring):

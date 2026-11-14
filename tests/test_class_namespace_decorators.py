@@ -1,8 +1,8 @@
 import ast
 
 from pcresolve import FlowAnalyzer
-from pcresolve._class_definition import namespace_issues
-from pcresolve._source_callable_metadata import wrapper_metadata
+from pcresolve.flow.proofs._class_definition import namespace_issues
+from pcresolve.flow.proofs._source_callable_metadata import wrapper_metadata
 
 
 DOCSTRING = '''import inspect

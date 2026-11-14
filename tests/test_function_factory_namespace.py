@@ -5,9 +5,9 @@ import ast
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_definition import namespace_issues
-from pcresolve._constructor_entry import binding as constructor_binding
-from pcresolve._function_factory import factory_wrapper
+from pcresolve.flow.proofs._class_definition import namespace_issues
+from pcresolve.flow.proofs._constructor_entry import binding as constructor_binding
+from pcresolve.flow.proofs._function_factory import factory_wrapper
 
 
 SOURCE = '''import functools

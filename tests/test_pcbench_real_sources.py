@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef, SourceSpan
-from pcresolve._class_definition import source_identity_factory_wrapper_chain
-from pcresolve._constructor_entry import source_member
-from pcresolve._class_decoration import constructor_decorations
-from pcresolve._source_protocols import SourceProtocolResolver
-from pcresolve._native_class_protocol import _public_helper_export
+from pcresolve.flow.proofs._class_definition import source_identity_factory_wrapper_chain
+from pcresolve.flow.proofs._constructor_entry import source_member
+from pcresolve.flow.proofs._class_decoration import constructor_decorations
+from pcresolve.flow.proofs._source_protocols import SourceProtocolResolver
+from pcresolve.flow.proofs._native_class_protocol import _public_helper_export
 
 
 INVENTORY = Path('C:/GitHub/VPPDetector/tmp/pcbench_sources/sources.json')

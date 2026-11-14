@@ -3,9 +3,9 @@
 import ast
 import builtins
 
-from pcresolve.program_facts import SourceSpan
-from pcresolve._caller_inputs import literal_inputs
-from pcresolve.source_snapshot import SourceStore
+from pcresolve.facts.program_facts import SourceSpan
+from pcresolve.flow.proofs._caller_inputs import literal_inputs
+from pcresolve.frontend.source_snapshot import SourceStore
 
 
 def query(tmp_path, source, *, which=-1, **options):

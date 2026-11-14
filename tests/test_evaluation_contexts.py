@@ -2,7 +2,7 @@
 
 import ast
 
-from pcresolve.effect_facts import evaluation_contexts
+from pcresolve.facts.effect_facts import evaluation_contexts
 
 
 def contexts(source):

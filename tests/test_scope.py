@@ -6,9 +6,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import ast
-from pcresolve.scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION,
+from pcresolve.ownership.scope import (Scope, Binding, SCOPE_MODULE, SCOPE_FUNCTION,
                                SCOPE_CLASS, SCOPE_COMPREHENSION, merge_snapshots)
-from pcresolve.single_file import SingleFileAnalyzer, analyze_source
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer, analyze_source
 
 
 # ── Scope unit tests ────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ def test_merge_both_unchanged():
 def test_merge_one_changed():
     """When one branch changes and the other stays at base, merge should
     produce a SourceSet containing both the base and changed values."""
-    from pcresolve.sources import SourceSet
+    from pcresolve.ownership.sources import SourceSet
     base = {"x": Binding("x", "a")}
     left = {"x": Binding("x", "b")}
     right = {"x": Binding("x", "a")}
@@ -104,7 +104,7 @@ def test_merge_one_changed():
 
 
 def test_merge_both_changed_different():
-    from pcresolve.sources import SourceSet
+    from pcresolve.ownership.sources import SourceSet
     base = {"x": Binding("x", "a")}
     left = {"x": Binding("x", "b")}
     right = {"x": Binding("x", "c")}
@@ -246,7 +246,7 @@ def test_symbol_refs_collected():
 def test_symbol_provenance_in_project_mode():
     """ProjectAnalyzer generates symbol_provenance records."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\ns = requests.Session()\ns.get('')\n")
@@ -276,7 +276,7 @@ def f():
 def test_library_usage_groups_by_top():
     """Library usage aggregates calls and symbols by top-level library."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\nimport numpy as np\n"
@@ -291,7 +291,7 @@ def test_library_usage_groups_by_top():
 def test_library_usage_skips_local_and_python():
     """Library usage must not include local/python entries."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\ndef f():\n    return range(2)\n"
@@ -305,7 +305,7 @@ def test_library_usage_skips_local_and_python():
 def test_library_usage_files_deduplicated():
     """LibraryUsage.files must be deduplicated and sorted."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "a.py"), "w") as f:
             f.write("import requests\nrequests.get('')\n")
@@ -322,7 +322,7 @@ def test_library_usage_files_deduplicated():
 def test_local_var_not_in_library_usage():
     """Local variable 's' must not appear as a library in usage."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\n"
@@ -338,7 +338,7 @@ def test_local_var_not_in_library_usage():
 def test_param_shadow_not_in_library_usage():
     """A parameter shadowing an import must not contribute library usage."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\n"
@@ -360,7 +360,7 @@ def test_param_shadow_not_in_library_usage():
 def test_parameter_provenance_keeps_same_name_scopes_distinct():
     """Same-named parameters must retain their defining function scopes."""
     import tempfile
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
 
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
@@ -388,7 +388,7 @@ def test_parameter_provenance_keeps_same_name_scopes_distinct():
 def test_module_level_reassignment_provenance_distinct():
     """x = requests.Session() then x = np.array([]): each x must keep its own provenance."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\nimport numpy as np\n"
@@ -404,7 +404,7 @@ def test_module_level_reassignment_provenance_distinct():
 def test_session_provenance_is_requests():
     """Local s = requests.Session() must have top_library='requests'."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import requests\n"
@@ -421,7 +421,7 @@ def test_session_provenance_is_requests():
 def test_alias_call_result_provenance_keeps_external_origin():
     """x = np.array(...) must attribute x to numpy, not the local module."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("import numpy as np\n"
@@ -439,7 +439,7 @@ def test_alias_call_result_provenance_keeps_external_origin():
 def test_local_function_call_result_uses_return_source():
     """x = local_func() must keep the callee name for return tracing."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("from scipy.sparse import dia_matrix\n"
@@ -455,7 +455,7 @@ def test_local_function_call_result_uses_return_source():
 def test_constructor_arg_flows_to_self_attribute_methods():
     """Constructor parameters stored on self should trace across methods."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "m.py"), "w") as f:
             f.write("from ext.api import Client\n"
@@ -524,7 +524,7 @@ def test_nonlocal_does_not_crash():
 def test_library_usage_same_filename_different_dirs():
     """Same-named files in different directories must not be merged."""
     import tempfile, os
-    from pcresolve.cross_file import analyze_project
+    from pcresolve.ownership.analyzer import analyze_project
     with tempfile.TemporaryDirectory() as td:
         pkg1 = os.path.join(td, "pkg1")
         pkg2 = os.path.join(td, "pkg2")

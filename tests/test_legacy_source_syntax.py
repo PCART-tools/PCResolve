@@ -5,8 +5,8 @@ import hashlib
 
 import pytest
 
-from pcresolve.source_syntax import parse_python_source
-from pcresolve.source_snapshot import SourceStore, FLOW_SOURCE, OWNERSHIP_SOURCE
+from pcresolve.frontend.source_syntax import parse_python_source
+from pcresolve.frontend.source_snapshot import SourceStore, FLOW_SOURCE, OWNERSHIP_SOURCE
 
 
 def test_legacy_attributes_preserve_original_names_and_byte_coordinates():

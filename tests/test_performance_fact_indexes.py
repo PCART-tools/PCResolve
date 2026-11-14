@@ -7,10 +7,10 @@ from dataclasses import replace
 import pytest
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.cross_file import _is_import_origin
-from pcresolve.ir import SymbolRef
-from pcresolve.single_file import SingleFileAnalyzer
-from pcresolve.sources import CallResult, SourceSet
+from pcresolve.ownership.analyzer import _is_import_origin
+from pcresolve.ownership.ir import SymbolRef
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+from pcresolve.ownership.sources import CallResult, SourceSet
 
 
 def project(tmp_path):

@@ -117,7 +117,7 @@ def test_namespace_cache_is_rebuilt_when_source_changes(tmp_path):
 
 
 def test_namespace_budget_cannot_reuse_a_previous_complete_proof(tmp_path, monkeypatch):
-    from pcresolve import _decorator_imports
+    from pcresolve.flow.proofs import _decorator_imports
 
     setup(tmp_path)
     analyzer = FlowAnalyzer(project_root=tmp_path)

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef, ProjectAnalyzer, analyze_project
-from pcresolve.sources import PythonShape, SourceSet
+from pcresolve.ownership.sources import PythonShape, SourceSet
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'recursive_method_dispatch'

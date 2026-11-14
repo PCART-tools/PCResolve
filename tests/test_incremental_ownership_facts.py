@@ -2,13 +2,16 @@
 #  Reused visitor facts are pristine and detached from mutable analysis state.
 
 from pathlib import Path
+import ast
 import os
 
 import pytest
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.single_file import SingleFileAnalyzer
-from pcresolve.views import build_full_view
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+from pcresolve.ownership.source_fact_cache import SingleFileFacts
+from pcresolve.frontend.source_snapshot import SourceDocument
+from pcresolve.ownership.views import build_full_view
 
 
 @pytest.mark.parametrize('fixture', ['indexed_callable_dispatch', 'branch_callable_field',
@@ -47,11 +50,15 @@ def test_file_edit_revisits_only_changed_module_and_does_not_reuse_query_state(t
     assert analyzer._ownership_run.source_facts_reused == 1
     assert build_full_view(current) == build_full_view(ProjectAnalyzer(str(tmp_path)).analyze())
     cached = analyzer._source_fact_cache[str(main)][-1]
-    assert cached._mapping_facts.lookup.__self__ is cached
+    assert isinstance(cached, SingleFileFacts)
+    assert not hasattr(cached, '_mapping_facts')
     live = analyzer._ownership_run.program.module_tracers['main']
     assert live._mapping_facts.lookup.__self__ is live
-    assert live.symbols.direct is not cached.symbols.direct
-    assert live.module_cg is not cached.module_cg
+    assert live.symbols.direct is not cached.values['symbols'].direct
+    assert live.module_cg is not cached.values['module_cg']
+    version = live.version
+    live.module_cg.functions['__cache_listener_probe__'] = object()
+    assert live.version > version
 
 
 def test_syntax_failure_and_recovery_drop_stale_visitor_facts(tmp_path):

@@ -7,14 +7,56 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import statistics
+import subprocess
 import sys
 import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from pcresolve import ProjectAnalyzer, FlowAnalyzer, FunctionRef
-from pcresolve.analysis_limits import resident_memory
-from pcresolve.views import build_full_view
+try:
+    from pcresolve.runtime.limits import resident_memory
+except ImportError:
+    from pcresolve.analysis_limits import resident_memory
+try:
+    from pcresolve.ownership.views import build_full_view
+except ImportError:
+    from pcresolve.views import build_full_view
+
+
+## Return this process's peak resident set size in bytes, on Windows and Unix.
+def peak_rss_bytes():
+    if sys.platform == 'win32':
+        import ctypes
+        from ctypes import wintypes
+        class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+            _fields_ = [('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD),
+                        ('PeakWorkingSetSize', ctypes.c_size_t),
+                        ('WorkingSetSize', ctypes.c_size_t),
+                        ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaNonPagedPoolUsage', ctypes.c_size_t),
+                        ('PagefileUsage', ctypes.c_size_t),
+                        ('PeakPagefileUsage', ctypes.c_size_t)]
+        counters = PROCESS_MEMORY_COUNTERS()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        psapi = ctypes.WinDLL('psapi', use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(PROCESS_MEMORY_COUNTERS), wintypes.DWORD]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+        handle = kernel32.GetCurrentProcess()
+        ok = psapi.GetProcessMemoryInfo(
+            handle, ctypes.byref(counters), counters.cb)
+        if not ok:
+            raise OSError('GetProcessMemoryInfo failed')
+        return int(counters.PeakWorkingSetSize)
+    import resource
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return int(peak if sys.platform == 'darwin' else peak * 1024)
 
 
 ## Generate independent modules exercising imports, factory returns and entry flows.
@@ -85,27 +127,41 @@ def main():
     parser.add_argument('--sizes', type=int, nargs='+', default=[10, 100, 500])
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--independent-samples', type=int, default=5)
+    parser.add_argument('--worker-size', type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if min(args.sizes + [args.repeats]) < 1:
-        parser.error('Sizes and repeats must be positive')
-    code = Path(__file__).resolve().parents[1] / 'src' / 'pcresolve'
-    identity = hashlib.sha256(b''.join(path.name.encode()+path.read_bytes()
-                                     for path in sorted(code.glob('*.py')))).hexdigest()
-    report = dict(python=sys.version, platform=platform.platform(),
-                  analyzer_sha256=identity, repeats=args.repeats, samples=[])
-    with tempfile.TemporaryDirectory(prefix='pcresolve-scale-') as directory:
-        scratch = Path(directory).resolve()
-        for size in args.sizes:
-            root = (scratch / str(size)).resolve()
-            assert scratch in root.parents
-            generate(root, size)
+    if args.worker_size is not None:
+        with tempfile.TemporaryDirectory(prefix='pcresolve-scale-worker-') as directory:
+            root = Path(directory).resolve() / 'project'
+            generate(root, args.worker_size)
             rows = run_sample(root, args.repeats)
-            sample = dict(modules=size+1, rows=rows, outputs_equal=True)
-            report['samples'].append(sample)
-            print(json.dumps(sample), flush=True)
-            if args.output:
-                args.output.parent.mkdir(parents=True, exist_ok=True)
-                args.output.write_text(json.dumps(report, indent=2), encoding='utf-8')
+        print(json.dumps(dict(modules=args.worker_size + 1, rows=rows,
+                              peak_rss_bytes=peak_rss_bytes(), outputs_equal=True)))
+        return
+    if min(args.sizes + [args.repeats, args.independent_samples]) < 1:
+        parser.error('Sizes, repeats and independent samples must be positive')
+    code = Path(__file__).resolve().parents[1] / 'src' / 'pcresolve'
+    identity = hashlib.sha256(b''.join(path.relative_to(code).as_posix().encode()+path.read_bytes()
+                                     for path in sorted(code.rglob('*.py')))).hexdigest()
+    report = dict(python=sys.version, platform=platform.platform(),
+                  analyzer_sha256=identity, repeats=args.repeats,
+                  independent_samples=args.independent_samples, samples=[])
+    for size in args.sizes:
+        runs = []
+        for _ in range(args.independent_samples):
+            command = [sys.executable, str(Path(__file__).resolve()),
+                       '--worker-size', str(size), '--repeats', str(args.repeats)]
+            completed = subprocess.run(command, check=True, capture_output=True, text=True)
+            runs.append(json.loads(completed.stdout.strip().splitlines()[-1]))
+        peaks = [run['peak_rss_bytes'] for run in runs]
+        sample = dict(modules=size+1, runs=runs, outputs_equal=all(r['outputs_equal'] for r in runs),
+                      peak_rss_bytes_median=int(statistics.median(peaks)),
+                      peak_rss_bytes_min=min(peaks), peak_rss_bytes_max=max(peaks))
+        report['samples'].append(sample)
+        print(json.dumps(sample), flush=True)
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(report, indent=2), encoding='utf-8')
 
 
 if __name__ == '__main__':

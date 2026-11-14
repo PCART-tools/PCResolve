@@ -71,3 +71,24 @@ def test_incompatible_baseline_is_rejected_without_writing_output(runner, monkey
         runner.main()
     assert error.value.code == 2
     assert not after.exists()
+
+
+def test_missing_corpus_is_rejected_before_analysis(runner, monkeypatch, tmp_path):
+    manifest = tmp_path / 'ground_truth' / 'projects.json'
+    manifest.parent.mkdir()
+    manifest.write_text(json.dumps({'projects': {'missing': {'path': 'absent'}}}), encoding='utf-8')
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    monkeypatch.setattr(runner, 'load_cases', lambda: [])
+    with pytest.raises(ValueError, match='ownership corpus'):
+        runner.capture_baseline()
+
+
+def test_missing_explicit_flow_source_is_rejected(runner, tmp_path):
+    with pytest.raises(ValueError, match='flow source'):
+        runner.validate_inputs(tmp_path, {}, [(tmp_path, {'id': 'case', 'files': ['missing.py']})],
+                               expected_ownership=0, expected_flow=1)
+
+
+def test_incomplete_corpus_inventory_is_rejected(runner, tmp_path):
+    with pytest.raises(ValueError, match='inventory'):
+        runner.validate_inputs(tmp_path, {}, [], expected_ownership=42, expected_flow=83)

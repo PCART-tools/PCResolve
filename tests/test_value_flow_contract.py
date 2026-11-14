@@ -7,6 +7,18 @@ import pytest
 from pcresolve import FlowAnalyzer, FunctionRef
 
 
+def test_flow_result_models_are_shared_with_analyzer():
+    import pickle
+    from pcresolve.flow import analyzer
+    from pcresolve.flow.model import FlowAnalysis, FlowCall, FunctionRef as ModelFunctionRef
+    assert analyzer.FlowAnalysis is FlowAnalysis
+    assert analyzer.FlowCall is FlowCall
+    assert analyzer.FunctionRef is ModelFunctionRef is FunctionRef
+    original = FunctionRef(module='example', qualname='entry')
+    assert pickle.loads(pickle.dumps(original)) == original
+    assert original.__class__.__module__ == 'pcresolve.flow.analyzer'
+
+
 @pytest.fixture
 def project(tmp_path):
     (tmp_path / 'entry.py').write_text(

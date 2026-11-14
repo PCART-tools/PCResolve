@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow
+from tests.flow_test_support import set_decorator_effect_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_decorator_effects'
@@ -124,7 +126,7 @@ def test_budget_recursion_and_repeated_queries_do_not_leak_proofs(monkeypatch):
     assert any(boundary['reason'] == 'decorator_effect_recursion'
                for boundary in decoration(analyze('recursive_entry', analyzer))['boundaries'])
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_DECORATOR_EFFECT_NODE_LIMIT', 1)
+        set_decorator_effect_limit(patch, 1)
         fact = decoration(analyze('documented', analyzer))
         assert fact['body_binding_status'] == 'unknown'
         assert any(item['reason'] == 'decorator_effect_budget' for item in fact['boundaries'])

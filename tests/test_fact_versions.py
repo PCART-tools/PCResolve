@@ -5,8 +5,8 @@ from copy import deepcopy
 
 import pytest
 
-from pcresolve.call_graph import ClassSummary, FunctionId, ModuleCallGraph, ProjectCallGraph
-from pcresolve.fact_versions import VersionedDict, VersionedList
+from pcresolve.ownership.call_graph import ClassSummary, FunctionId, ModuleCallGraph, ProjectCallGraph
+from pcresolve.ownership.fact_versions import VersionedDict, VersionedList
 
 
 @pytest.mark.parametrize('operation', [

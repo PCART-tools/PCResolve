@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.sources import ContainerItem, InstanceAttribute, InstanceMethod, ParameterSource
+from pcresolve.ownership.sources import ContainerItem, InstanceAttribute, InstanceMethod, ParameterSource
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'indexed_parameter_reads'

@@ -3,8 +3,8 @@
 
 import os
 
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.sources import DerivedResult, ParameterSource
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.sources import DerivedResult, ParameterSource
 
 
 FIXTURE = os.path.join(

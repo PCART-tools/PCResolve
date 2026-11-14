@@ -128,7 +128,7 @@ def client(**kwargs): return Public(**kwargs)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     analyzer._index()
     target, cls = analyzer._definition_index.find('example', 'Public', kind='class')[0]
-    from pcresolve._class_decoration import constructor_decorations
+    from pcresolve.flow.proofs._class_decoration import constructor_decorations
     decorations = constructor_decorations(analyzer, (target, cls))
     assert decorations is not None
     decoration = decorations[0]

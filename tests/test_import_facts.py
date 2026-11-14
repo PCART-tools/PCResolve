@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from pcresolve.import_facts import import_facts, resolve_relative_module
+from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 
 
 def test_plain_import_retains_python_and_ownership_compatibility_bindings():

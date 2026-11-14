@@ -5,7 +5,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._module_getattr import missing
+from pcresolve.flow.proofs._module_getattr import missing
 
 
 FACTORY = '''import functools as memo

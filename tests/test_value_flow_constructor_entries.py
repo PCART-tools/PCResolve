@@ -6,7 +6,9 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve import flow
+from tests.flow_test_support import set_class_binding_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_constructor_bindings'
 
@@ -64,7 +66,7 @@ def test_class_entry_and_generic_method_queries_keep_separate_contexts():
 
 
 def test_class_entry_binding_budget_is_explicit(monkeypatch):
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+    set_class_binding_limit(monkeypatch, 1)
     result = FlowAnalyzer(project_root=ROOT).analyze(FunctionRef('cases', 'FixedNew'))
     assert result.inputs['entry_binding']['status'] == 'unconfirmed'
     assert any(issue['reason'] == 'constructor_binding_budget'

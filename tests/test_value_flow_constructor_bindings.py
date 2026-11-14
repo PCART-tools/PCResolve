@@ -6,7 +6,9 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve import flow
+from tests.flow_test_support import set_class_binding_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_constructor_bindings'
 
@@ -157,7 +159,7 @@ def test_constructor_proof_budget_and_receiver_query_order_do_not_contaminate_a_
     analyze('inherited', analyzer)
     assert analyze('direct', analyzer).to_dict() == before
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+        set_class_binding_limit(patch, 1)
         limited = analyze('direct', analyzer)
         call = next(c for c in limited.calls if c.callee_name == 'FixedNew')
         assert call.constructor_bindings[0]['status'] == 'unconfirmed'
@@ -220,7 +222,7 @@ def test_source_allocation_does_not_yet_establish_later_initializer_execution():
 
 
 def test_initializer_selection_budget_is_unknown_rather_than_no_flow(monkeypatch):
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+    set_class_binding_limit(monkeypatch, 1)
     result = analyze('ordinary_init')
     call = next(c for c in result.calls if c.callee_name == 'OrdinaryInit')
     assert call.target is None

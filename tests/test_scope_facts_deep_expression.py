@@ -1,7 +1,7 @@
 import ast
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.scope_facts import FLOW_SCOPE, MAPPING_SCOPE, function_scope_facts
+from pcresolve.facts.scope_facts import FLOW_SCOPE, MAPPING_SCOPE, function_scope_facts
 
 
 def test_lexical_fact_collection_does_not_use_python_expression_recursion():

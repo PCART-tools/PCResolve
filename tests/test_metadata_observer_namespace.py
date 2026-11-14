@@ -6,7 +6,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_definition import namespace_issues
+from pcresolve.flow.proofs._class_definition import namespace_issues
 
 
 SOURCE = '''import inspect

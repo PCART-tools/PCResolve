@@ -6,7 +6,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._metadata_observer import observer_query
+from pcresolve.flow.proofs._metadata_observer import observer_query
 
 
 SOURCE = '''import inspect

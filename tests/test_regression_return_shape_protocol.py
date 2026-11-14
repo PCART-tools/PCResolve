@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from pcresolve import analyze_project
-from pcresolve.single_file import SingleFileAnalyzer
-from pcresolve.sources import PythonShape, SourceSet
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+from pcresolve.ownership.sources import PythonShape, SourceSet
 
 
 FACTORIES = Path(__file__).parent / 'fixtures' / 'mixed_return_shapes' / 'factories.py'

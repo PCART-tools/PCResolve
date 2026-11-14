@@ -1,0 +1,45 @@
+name: Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.9', '3.13.9']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Build and verify release artifacts
+        run: python scripts/verify_release_artifacts.py
+      - name: Check typed flow component contracts
+        run: python -m mypy
+      - name: Run tests including unresolved architecture gates
+        run: python -m pytest -q --runxfail
+      - name: Check ownership ground truth coverage
+        run: python scripts/verify_ground_truth_calls.py --coverage-only
+      - name: Check ownership release dispositions
+        run: python scripts/classify_ground_truth_failures.py --release-check
+      - name: Check value-flow matrix
+        run: python scripts/evaluate_value_flow_matrix.py --strict
+      - name: Compare frozen API and complete output baseline
+        if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
+        run: |
+          python scripts/compare_public_api.py --baseline reports/architecture-1.0.8/api-before.json --output reports/architecture-1.0.8/api-after.json
+          python scripts/compare_analysis_baseline.py --compare reports/architecture-1.0.8/before.json --output reports/architecture-1.0.8/after.json
+      - name: Compare isolated-process performance thresholds
+        if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
+        run: python scripts/compare_architecture_performance.py --baseline-ref HEAD^1 --sizes 10 100 500 --repeats 5 --independent-samples 5

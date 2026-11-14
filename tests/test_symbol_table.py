@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pcresolve.symbol_table import SymbolTable
+from pcresolve.ownership.symbol_table import SymbolTable
 
 
 def test_basic_add_and_trace():

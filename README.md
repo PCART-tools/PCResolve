@@ -12,6 +12,10 @@ supported mutation effects. This release also supports single-file ownership
 analysis and keeps the ownership implementation aligned with the documented
 shared-facts architecture.
 
+Existing Python callers can keep their package-level imports and earlier flat
+module paths such as `pcresolve.cross_file`. See the
+[Python API contract](docs/output-contract.md#python-api).
+
 The experimental `flow-0.2` API includes bounded source constructor/lookup,
 incoming-call context, generated-dispatch, scalar-truth and entry-alias facts.
 These additions retain explicit source assumptions and unsupported-operation
@@ -156,8 +160,10 @@ state for each run and still recomputes cross-file semantics. It trades addition
 memory and first-run copying for reduced visitor work; it is disabled by default.
 Flow automatically reuses unchanged file-index facts while resetting query state.
 
-Run `python scripts/perf_scalability.py --sizes 10 100 500 --repeats 3` to measure
-cold queries, unchanged queries and single-file edits on generated projects.
+Run `python scripts/perf_scalability.py --sizes 10 100 500 --repeats 5
+--independent-samples 5 --output reports/performance.json` to measure cold,
+cached, unchanged and single-file-edit analysis. Each sample runs in an isolated
+process and records peak RSS alongside raw timing and output fingerprints.
 
 ## Output
 

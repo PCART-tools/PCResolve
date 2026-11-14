@@ -7,7 +7,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve import flow
+import pcresolve.flow.analyzer as flow
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_membership_order'
 

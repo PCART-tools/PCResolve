@@ -7,12 +7,12 @@ import weakref
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve.analysis_limits import AnalysisBudget, AnalysisLimits, AnalysisLimitExceeded
-from pcresolve.import_facts import import_facts
-from pcresolve import syntax_facts
-from pcresolve._property_namespace import _stable_builtin_namespace
-from pcresolve._class_partial import _namespace as partial_namespace
-from pcresolve._class_type_tests import _namespace as type_namespace
+from pcresolve.runtime.limits import AnalysisBudget, AnalysisLimits, AnalysisLimitExceeded
+from pcresolve.facts.import_facts import import_facts
+from pcresolve.flow.proofs import syntax_facts
+from pcresolve.flow.proofs._property_namespace import _stable_builtin_namespace
+from pcresolve.flow.proofs._class_partial import _namespace as partial_namespace
+from pcresolve.flow.proofs._class_type_tests import _namespace as type_namespace
 
 
 SOURCE = '''import functools

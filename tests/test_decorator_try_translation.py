@@ -7,7 +7,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.effect_facts import builtin_exception_translation
+from pcresolve.facts.effect_facts import builtin_exception_translation
 
 
 SOURCE = (Path(__file__).parent / 'fixtures' /

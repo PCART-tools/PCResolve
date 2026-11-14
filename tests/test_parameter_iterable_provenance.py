@@ -1,6 +1,6 @@
 import os
 
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 FIXTURE = os.path.join(

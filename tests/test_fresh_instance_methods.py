@@ -7,7 +7,7 @@ import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
 from pcresolve.flow import FlowAnalysis
-from pcresolve._function_factory import factory_wrapper
+from pcresolve.flow.proofs._function_factory import factory_wrapper
 
 
 SOURCE = (Path(__file__).parent / 'fixtures' / 'value_flow_fresh_instance_methods'

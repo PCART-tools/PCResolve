@@ -255,9 +255,14 @@ def evaluate(root=FIXTURES):
     revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
     hashes = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
               for p in sorted(root.rglob('*')) if p.suffix in ('.py', '.json') and '__pycache__' not in p.parts}
+    package = ROOT / 'src/pcresolve'
+    analyzer_hash = hashlib.sha256()
+    for path in sorted(package.rglob('*.py')):
+        analyzer_hash.update(path.relative_to(package).as_posix().encode())
+        analyzer_hash.update(path.read_bytes())
     return {'schema_version': 'flow-eval-1', 'case_count': len(cases),
             'revision': revision.stdout.strip(), 'python': platform.python_version(),
-            'analyzer_sha256': hashlib.sha256((ROOT / 'src/pcresolve/flow.py').read_bytes()).hexdigest(),
+            'analyzer_sha256': analyzer_hash.hexdigest(),
             'evaluator_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             'input_sha256': hashes, 'dimensions': summarize(results), 'results': results}
 

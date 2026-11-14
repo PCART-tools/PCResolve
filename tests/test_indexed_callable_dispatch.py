@@ -5,7 +5,7 @@ from pathlib import Path
 from dataclasses import replace
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.sources import CallResult
+from pcresolve.ownership.sources import CallResult
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'indexed_callable_dispatch'

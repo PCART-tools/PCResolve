@@ -2,7 +2,7 @@
 
 import pytest
 
-from pcresolve._source_bindings import SourceBindingResolver
+from pcresolve.flow.proofs._source_bindings import SourceBindingResolver
 
 
 def put(root, name, text):

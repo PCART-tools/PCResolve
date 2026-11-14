@@ -6,7 +6,7 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve import _class_definition
+from pcresolve.flow.proofs import _class_definition
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_class_creation'
 REPLACED = [('Hidden', 'hidden'), ('DescriptorEntry', 'descriptor'),

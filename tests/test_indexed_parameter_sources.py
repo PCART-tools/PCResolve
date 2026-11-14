@@ -4,7 +4,7 @@
 import ast
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.single_file import SingleFileAnalyzer
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
 
 
 def _tracer(source):

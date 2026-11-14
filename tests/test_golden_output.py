@@ -9,9 +9,9 @@ import os
 import subprocess
 import sys
 
-from pcresolve.sources import UnknownSource
-from pcresolve.types import FileAnalysis, ProjectAnalysis
-from pcresolve.views import build_full_view
+from pcresolve.ownership.sources import UnknownSource
+from pcresolve.ownership.types import FileAnalysis, ProjectAnalysis
+from pcresolve.ownership.views import build_full_view
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(__file__))
 GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "golden")

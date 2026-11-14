@@ -1,7 +1,7 @@
 """Test builtin function and container method classification (1.0.5 P0/P1)."""
 
 import pytest
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 import os
 
 FIXTURE = os.path.join(os.path.dirname(__file__),

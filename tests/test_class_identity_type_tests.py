@@ -6,8 +6,8 @@ import runpy
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_identity import identity_decorations
-from pcresolve._class_type_tests import native_class_operand
+from pcresolve.flow.proofs._class_identity import identity_decorations
+from pcresolve.flow.proofs._class_type_tests import native_class_operand
 
 
 SOURCE = '''def decorate(cls):

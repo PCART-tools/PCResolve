@@ -1,7 +1,7 @@
 ## @package tests.test_ownership_contracts
 #  Characterization tests for evidence-backed ownership result contracts.
 
-from pcresolve.ownership_contracts import (
+from pcresolve.ownership.ownership_contracts import (
     _has_result_owner_contract,
     _is_verified_result_owner,
     _match_attribute_python_shape,
@@ -12,7 +12,7 @@ from pcresolve.ownership_contracts import (
     _match_result_owner,
     _match_result_python_shape,
 )
-from pcresolve.sources import PythonShape
+from pcresolve.ownership.sources import PythonShape
 
 
 def test_result_contract_requires_matching_import_backed_prefix():

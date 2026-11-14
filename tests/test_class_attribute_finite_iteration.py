@@ -4,7 +4,7 @@ import ast
 
 import pytest
 
-from pcresolve.class_attribute_effects import class_attribute_writes, _ClassEffectLimit
+from pcresolve.flow.proofs.class_attribute_effects import class_attribute_writes, _ClassEffectLimit
 
 
 def writes(body, max_nodes=2000, charge=None):

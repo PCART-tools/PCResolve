@@ -5,9 +5,9 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.ownership_model import OwnershipRun, ProgramIndex, ProjectSnapshot
-from pcresolve.source_snapshot import OWNERSHIP_SOURCE, SourceStore
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.ownership_model import OwnershipRun, ProgramIndex, ProjectSnapshot
+from pcresolve.frontend.source_snapshot import OWNERSHIP_SOURCE, SourceStore
 
 
 def test_ownership_run_models_keep_snapshot_fixed_and_mutable_state_isolated(tmp_path):

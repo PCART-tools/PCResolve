@@ -5,7 +5,7 @@ import ast
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._module_class_prefix import module_class_prefix
+from pcresolve.flow.proofs._module_class_prefix import module_class_prefix
 
 SOURCE = '''class Root:
     values = ['hidden']

@@ -1,7 +1,7 @@
 ## @package tests.test_cross_file_instance_method_resolution
 #  Characterize instance-method ownership before extracting its resolver.
 
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 def test_instance_method_resolution_preserves_receiver_evidence(tmp_path):

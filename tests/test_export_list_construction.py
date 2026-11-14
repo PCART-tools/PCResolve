@@ -2,7 +2,7 @@
 
 import pytest
 
-from pcresolve._export_lists import ExportListResolver
+from pcresolve.flow.proofs._export_lists import ExportListResolver
 
 
 def put(root, relative, text):

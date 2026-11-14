@@ -31,7 +31,7 @@ def setup(root, text=SOURCE):
 
 
 def binding(analyzer):
-    from pcresolve._class_partial import bind_partial
+    from pcresolve.flow.proofs._class_partial import bind_partial
     target = analyzer._definition_index.find('example', 'Public', kind='class')[0]
     return bind_partial(analyzer, target, target[1].decorator_list[0])
 
@@ -135,7 +135,7 @@ def test_real_alias_factory_can_be_bound_without_approving_its_effects():
     analyzer = FlowAnalyzer(source_files=[root / 'patches.py', root / '_api/__init__.py',
                                         root / 'artist.py'], import_roots=[root.parent])
     analyzer._index()
-    from pcresolve._class_partial import bind_partial
+    from pcresolve.flow.proofs._class_partial import bind_partial
     target = analyzer._definition_index.find('matplotlib.patches', 'Patch', kind='class')[0]
     expression = next(item for item in target[1].decorator_list if isinstance(item, ast.Call))
     selected = bind_partial(analyzer, target, expression)

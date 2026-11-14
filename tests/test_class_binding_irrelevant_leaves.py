@@ -2,7 +2,10 @@
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef, flow
+from pcresolve import FlowAnalyzer, FunctionRef
+from tests.flow_test_support import set_class_binding_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
 
 
 def project(tmp_path, tail=''):
@@ -15,7 +18,7 @@ def project(tmp_path, tail=''):
 
 def test_literal_leaves_do_not_exhaust_class_binding_proof_work(tmp_path, monkeypatch):
     project(tmp_path)
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 80)
+    set_class_binding_limit(monkeypatch, 80)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     result = analyzer.analyze(FunctionRef('entry', 'Entry'))
     assert result.inputs['entry_binding']['status'] == 'source_bound'
@@ -32,7 +35,7 @@ def test_literal_leaves_do_not_exhaust_class_binding_proof_work(tmp_path, monkey
 ])
 def test_late_writes_and_escapes_survive_large_literal_data(tmp_path, monkeypatch, tail, reason):
     project(tmp_path, tail)
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 120)
+    set_class_binding_limit(monkeypatch, 120)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     result = analyzer.analyze(FunctionRef('entry', 'Entry'))
     writes, truncated = analyzer._class_binding_writes(include_escapes=True)
@@ -43,7 +46,7 @@ def test_late_writes_and_escapes_survive_large_literal_data(tmp_path, monkeypatc
 
 def test_relevant_work_still_exhausts_the_explicit_budget(tmp_path, monkeypatch):
     project(tmp_path, 'external([Entry])\n' * 100)
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 80)
+    set_class_binding_limit(monkeypatch, 80)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     analyzer._index()
     assert analyzer._class_binding_writes(include_escapes=True)[1]
@@ -61,7 +64,7 @@ def test_class_binding_reuses_flow_scope_facts_across_scans(tmp_path, monkeypatc
         calls[key] = calls.get(key, 0) + 1
         return original(node, policy)
 
-    monkeypatch.setattr(flow, 'function_scope_facts', counted)
+    monkeypatch.setattr(flow_definitions, 'function_scope_facts', counted)
     writes = analyzer._class_binding_writes()
     escaped_writes = analyzer._class_binding_writes(include_escapes=True)
 

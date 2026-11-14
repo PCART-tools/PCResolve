@@ -7,7 +7,7 @@ from pcresolve import FlowAnalyzer, FunctionRef
 
 def test_no_top_level_wildcards_need_no_namespace_tree_scan(monkeypatch):
     import ast
-    from pcresolve.star_imports import static_star_imports
+    from pcresolve.facts.star_imports import static_star_imports
     tree = ast.parse('import dependency\ndef api():\n    return dependency.run()\n')
     def unexpected(*args):
         raise AssertionError('No wildcard binding can be introduced')

@@ -3,8 +3,8 @@
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._source_protocols import SourceProtocolResolver
-from pcresolve.source_snapshot import FLOW_SOURCE, SourceStore
+from pcresolve.flow.proofs._source_protocols import SourceProtocolResolver
+from pcresolve.frontend.source_snapshot import FLOW_SOURCE, SourceStore
 
 
 PROBE = '''def probe(value):

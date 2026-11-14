@@ -1,9 +1,9 @@
 ## @package tests.test_native_class_protocol
 
-from pcresolve._native_class_protocol import _public_helper_export
-from pcresolve._source_protocols import SourceProtocolResolver
+from pcresolve.flow.proofs._native_class_protocol import _public_helper_export
+from pcresolve.flow.proofs._source_protocols import SourceProtocolResolver
 from pcresolve import FlowAnalyzer
-from pcresolve._native_class_protocol import iterability_query
+from pcresolve.flow.proofs._native_class_protocol import iterability_query
 import ast
 import pytest
 

@@ -3,8 +3,8 @@
 import pytest
 
 from pcresolve import FlowAnalyzer
-from pcresolve._function_metadata_formation import metadata_formation
-from pcresolve.class_attribute_effects import _ClassEffectLimit
+from pcresolve.flow.proofs._function_metadata_formation import metadata_formation
+from pcresolve.flow.proofs.class_attribute_effects import _ClassEffectLimit
 
 
 SOURCE = '''def document(fn):

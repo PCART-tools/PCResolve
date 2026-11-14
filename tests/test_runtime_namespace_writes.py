@@ -3,7 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.analysis_limits import AnalysisLimits
+from pcresolve.runtime.limits import AnalysisLimits
 
 
 SOURCE = '''def fixed(allowed=0): return allowed

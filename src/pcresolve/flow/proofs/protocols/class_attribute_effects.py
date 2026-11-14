@@ -1,0 +1,422 @@
+## @package pcresolve.flow.proofs.protocols.class_attribute_effects
+#  Bounded attribute write sets for one explicitly bound source class object.
+#  为显式绑定的源码类对象计算有界属性写入集合。
+
+import ast
+from dataclasses import dataclass
+
+
+## Signal that bounded class-effect inspection exceeds its node budget.
+## 表示有界类效果检查超出节点预算。
+class _ClassEffectLimit(RuntimeError):
+    pass
+
+
+## A partial effect: only the attributes of the protected class are bounded.
+## 表示部分效果，仅对受保护类的属性进行有界建模。
+@dataclass(frozen=True)
+class ClassAttributeWrites:
+    ## Possible written/deleted attribute names, with source private-name mangling.
+    attributes: tuple
+    ## Source statements establishing those operations.
+    evidence: tuple
+    ## Inspected AST size including finite-loop expansion, charged to the query budget.
+    nodes: int
+    ## Source metadata reads whose entry literals participated in this proof.
+    metadata_evidence: tuple = ()
+    ## Attribute/probe pairs relying on an entry read invariant.
+    read_evidence: tuple = ()
+
+
+## Bound a class parameter's direct writes without asserting whole-function effects.
+## 对类参数的直接属性写入进行有界分析，不推断整个函数的效果。
+#
+#  @param node Synchronous source helper; descriptor binding is checked by the caller.
+#  @param parameter Exactly bound ordinary class parameter.
+#  @param builtin Predicate confirming an unshadowed builtin in this source scope.
+#  @param protected Predicate identifying additional source references to this class.
+#  @param owner Lexical class name used for private attribute mangling, or empty.
+#  @param max_nodes Maximum AST nodes inspected in this proof.
+#  @param charge Optional callback charging every attempted inspection, including failures.
+#  @param string_literals Exact incoming ordinary string arguments, without assumed defaults.
+#  @param class_name Optional guarded provider for a protected class's entry name.
+#  @param class_read Optional guarded predicate for an absent-or-builtin attribute.
+#  @param class_calls Optional method names in an independently checked closed invariant.
+#  @return ClassAttributeWrites, or None for escaping/reflective/unknown class use.
+def class_attribute_writes(node, parameter, builtin, protected, owner='', max_nodes=2000,
+                           charge=None, string_literals=None, class_name=None, class_read=None,
+                           class_calls=None):
+    if not isinstance(node, ast.FunctionDef):
+        return None
+    nodes = []
+    for item in ast.walk(node):
+        if len(nodes) >= max_nodes:
+            if charge is not None:
+                charge(len(nodes))
+            raise _ClassEffectLimit()
+        nodes.append(item)
+    if charge is not None:
+        charge(len(nodes))
+    inspected = len(nodes)
+
+    ## Charge nodes introduced by bounded literal-loop expansion.
+    ## 为有限字面量循环展开产生的节点计费。
+    #
+    #  @param statements Statements whose AST size is charged.
+    #  @return None; raises _ClassEffectLimit when expansion exceeds the budget.
+    def expand(statements):
+        nonlocal inspected
+        count = sum(1 for statement in statements for _ in ast.walk(statement))
+        available = max_nodes - inspected
+        spent = min(count, available)
+        inspected += spent
+        if charge is not None:
+            charge(spent)
+        if count > available:
+            raise _ClassEffectLimit()
+
+    if any(isinstance(item, (ast.Global, ast.Nonlocal, ast.Yield, ast.YieldFrom,
+                             ast.Await, ast.NamedExpr)) for item in nodes):
+        return None
+    attributes, evidence, metadata_evidence, read_evidence = [], [], [], []
+
+    ## Apply Python private-name mangling for the owning class.
+    ## 根据所属类应用 Python 私有名称改写。
+    #
+    #  @param name Source attribute name.
+    #  @return Effective attribute name used in the class namespace.
+    def attribute_name(name):
+        private_owner = owner.lstrip('_')
+        if private_owner and name.startswith('__') and not name.endswith('__'):
+            return '_' + private_owner + name
+        return name
+
+    ## Resolve an entry-time class __name__ literal through known aliases.
+    ## 通过已知别名解析类入口处的 __name__ 字面量。
+    #
+    #  @param value Candidate attribute expression.
+    #  @param aliases Local names proven to refer to the class parameter.
+    #  @return Literal class name, or None when it is not proven.
+    def metadata_literal(value, aliases):
+        if (class_name is not None and isinstance(value, ast.Attribute)
+                and isinstance(value.ctx, ast.Load) and value.attr == '__name__'
+                and isinstance(value.value, ast.Name) and value.value.id in aliases):
+            name = class_name(value)
+            if type(name) is str:
+                if value not in metadata_evidence:
+                    metadata_evidence.append(value)
+                return name
+        return None
+
+    ## Evaluate a bounded string name expression from literals and aliases.
+    ## 根据字面量和别名求值有界字符串名称表达式。
+    #
+    #  @param value Candidate source expression.
+    #  @param names Known local string values.
+    #  @param aliases Names bound to the protected class object.
+    #  @param depth Recursive expression depth.
+    #  @return String value within the size limit, or None.
+    def literal_name(value, names, aliases, depth=0):
+        if depth > 64:
+            raise _ClassEffectLimit()
+        if isinstance(value, ast.Constant) and type(value.value) is str:
+            result = value.value
+        elif isinstance(value, ast.Name):
+            result = names.get(value.id)
+        elif isinstance(value, ast.Attribute):
+            result = metadata_literal(value, aliases)
+        elif isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+            left, right = (literal_name(value.left, names, aliases, depth + 1),
+                           literal_name(value.right, names, aliases, depth + 1))
+            result = left + right if left is not None and right is not None else None
+        else:
+            result = None
+        return result if result is not None and len(result) <= 2000 else None
+
+    ## Collect a literal payload's source witnesses without executing calls.
+    ## 不执行调用并收集字面量载荷的源码证据。
+    #
+    #  @param value Candidate literal expression.
+    #  @param payloads Known local payload evidence.
+    #  @return Evidence tuple, or None for unsupported expressions.
+    def literal_payload(value, payloads):
+        if isinstance(value, ast.Name):
+            return payloads.get(value.id)
+        # literal_eval also accepts set(), whose source spelling may be shadowed.
+        if value is None or any(isinstance(item, ast.Call) for item in ast.walk(value)):
+            return None
+        try:
+            ast.literal_eval(value)
+            return ()
+        except (ValueError, TypeError, RecursionError):
+            return None
+
+    ## Update the set of locally proven plain attributes after a write.
+    ## 属性写入后更新本地已证明的普通属性集合。
+    #
+    #  @param name Effective attribute name.
+    #  @param value Assigned expression, if any.
+    #  @param plain Mutable set of plain attribute names.
+    #  @param payloads Known literal payload witnesses.
+    #  @return None; updates the proof sets in place.
+    def plain_write(name, value, plain, payloads):
+        plain.discard(name)
+        proof = literal_payload(value, payloads)
+        if proof is not None:
+            plain.add(name)
+            for source in proof:
+                if source not in evidence:
+                    evidence.append(source)
+
+    ## Recognize a safe hasattr probe for an already plain class attribute.
+    ## 识别针对已证明普通类属性的安全 hasattr 探测。
+    #
+    #  @param value Candidate probe expression.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param names Known local string values.
+    #  @param plain Proven ordinary class attribute names.
+    #  @return Probed attribute name, or None when the guard is unsupported.
+    def guarded_probe(value, aliases, names, plain):
+        if (not isinstance(value, ast.Call) or not isinstance(value.func, ast.Name)
+                or value.func.id != 'hasattr' or not builtin('hasattr') or value.keywords
+                or len(value.args) != 2 or not isinstance(value.args[0], ast.Name)
+                or value.args[0].id not in aliases):
+            return None
+        name = literal_name(value.args[1], names, aliases)
+        if name is not None and (name in plain or class_read is not None and class_read(name)):
+            if name not in plain and (name, value) not in read_evidence:
+                read_evidence.append((name, value))
+            return name
+        return None
+
+    ## Reject expressions that expose or perform unsupported class operations.
+    ## 拒绝暴露类对象或执行不受支持类操作的表达式。
+    #
+    #  @param value Expression to validate.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param names Known local string names.
+    #  @param plain Proven ordinary class attributes.
+    #  @param depth Recursive expression depth.
+    #  @return True only when the expression is within the supported grammar.
+    def safe(value, aliases, names, plain, depth=0):
+        if depth > 64:
+            raise _ClassEffectLimit()
+        if value is None:
+            return True
+        if isinstance(value, (ast.Lambda, ast.GeneratorExp, ast.ListComp, ast.SetComp, ast.DictComp)):
+            if any(isinstance(item, ast.Name) and (item.id in aliases or protected(item))
+                   for item in ast.walk(value)):
+                return False
+        if isinstance(value, ast.Name):
+            return value.id not in aliases and (value.id in names or not protected(value))
+        if (class_calls is not None and isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Attribute) and isinstance(value.func.value, ast.Name)
+                and value.func.value.id in aliases and attribute_name(value.func.attr) in class_calls):
+            if not all(safe(item, aliases, names, plain, depth + 1)
+                       for item in list(value.args) + [keyword.value for keyword in value.keywords]):
+                return False
+            # A closed sibling can delete or replace prior local reads. Only its
+            # separately checked invariant survives, never the local presence set.
+            # 封闭兄弟方法可能删除或替换既有读取；这里只保留其独立验证的不变量。
+            plain.clear()
+            return True
+        if isinstance(value, ast.Attribute):
+            if value.attr == '__dict__':
+                return False
+            if isinstance(value.value, ast.Name) and value.value.id in aliases:
+                if metadata_literal(value, aliases) is not None:
+                    return True
+                if not isinstance(value.ctx, ast.Load) or attribute_name(value.attr) not in plain:
+                    return False
+                if value not in evidence:
+                    evidence.append(value)
+                return True
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            name = value.func.id
+            if name in ('getattr', 'hasattr') and value.args and isinstance(
+                    value.args[0], ast.Name) and value.args[0].id in aliases:
+                if (not builtin(name) or value.keywords or len(value.args) not in (
+                        (2, 3) if name == 'getattr' else (2,))
+                        or literal_name(value.args[1], names, aliases) not in plain
+                        and guarded_probe(value, aliases, names, plain) is None
+                        or not all(safe(arg, aliases, names, plain, depth + 1)
+                                   for arg in value.args[2:])):
+                    return False
+                if value not in evidence:
+                    evidence.append(value)
+                return True
+            if name in (
+                    'globals', 'locals', 'vars', 'eval', 'exec', 'compile', '__import__'):
+                return False
+        return all(safe(item, aliases, names, plain, depth + 1)
+                   for item in ast.iter_child_nodes(value))
+
+    ## Record one supported write to the protected class object.
+    ## 记录一次对受保护类对象的受支持写入。
+    #
+    #  @param name Effective attribute name being written or deleted.
+    #  @param statement Source statement establishing the operation.
+    #  @return True when the attribute is within the modeled write set.
+    def write(name, statement):
+        if name == 'mro' or name.startswith('__') and name.endswith('__'):
+            return False
+        if name not in attributes:
+            attributes.append(name)
+        if statement not in evidence:
+            evidence.append(statement)
+        return True
+
+    ## Validate and record an attribute assignment target on the class alias.
+    ## 校验并记录类别名上的属性赋值目标。
+    #
+    #  @param value Candidate assignment target.
+    #  @param aliases Local aliases of the protected class object.
+    #  @param statement Source statement containing the target.
+    #  @param plain Mutable set of plain attributes.
+    #  @param payloads Known literal payload evidence.
+    #  @param payload Assigned expression used for plainness checks.
+    #  @return True when the target is a supported class attribute.
+    def target(value, aliases, statement, plain, payloads, payload=None):
+        if (not isinstance(value, ast.Attribute) or not isinstance(value.value, ast.Name)
+                or value.value.id not in aliases):
+            return False
+        name = attribute_name(value.attr)
+        if not write(name, statement):
+            return False
+        plain_write(name, payload, plain, payloads)
+        return True
+
+    ## Interpret supported class writes across assignments and bounded branches.
+    ## 在赋值与有界分支中解释受支持的类属性写入。
+    #
+    #  @param statements Ordered statements to inspect.
+    #  @param aliases Mutable aliases of the protected class object.
+    #  @param names Mutable known literal names.
+    #  @param plain Mutable proven plain-attribute names.
+    #  @param payloads Mutable source witnesses for literal payloads.
+    #  @return True when every statement is supported; otherwise False.
+    def block(statements, aliases, names, plain, payloads):
+        for statement in statements:
+            if isinstance(statement, ast.Assign):
+                if isinstance(statement.value, ast.Name) and statement.value.id in aliases:
+                    if not all(isinstance(item, ast.Name) for item in statement.targets):
+                        return False
+                    aliases.update(item.id for item in statement.targets)
+                    for item in statement.targets:
+                        names.pop(item.id, None)
+                        payloads.pop(item.id, None)
+                    continue
+                if not safe(statement.value, aliases, names, plain):
+                    return False
+                name = literal_name(statement.value, names, aliases)
+                payload = literal_payload(statement.value, payloads)
+                for item in statement.targets:
+                    if isinstance(item, ast.Name):
+                        aliases.discard(item.id)
+                        names.pop(item.id, None)
+                        payloads.pop(item.id, None)
+                        if name is not None:
+                            names[item.id] = name
+                        if payload is not None:
+                            payloads[item.id] = payload + (statement,)
+                    elif not target(item, aliases, statement, plain, payloads, statement.value):
+                        return False
+            elif isinstance(statement, ast.AnnAssign):
+                if not safe(statement.annotation, aliases, names, plain) or not safe(
+                        statement.value, aliases, names, plain):
+                    return False
+                if isinstance(statement.target, ast.Name):
+                    if statement.value is None:
+                        continue
+                    payload = literal_payload(statement.value, payloads)
+                    aliases.discard(statement.target.id)
+                    name = literal_name(statement.value, names, aliases)
+                    names.pop(statement.target.id, None)
+                    payloads.pop(statement.target.id, None)
+                    if name is not None:
+                        names[statement.target.id] = name
+                    if payload is not None:
+                        payloads[statement.target.id] = payload + (statement,)
+                elif not target(statement.target, aliases, statement, plain, payloads, statement.value):
+                    return False
+            elif isinstance(statement, ast.Delete):
+                if not all(target(item, aliases, statement, plain, payloads) for item in statement.targets):
+                    return False
+            elif isinstance(statement, ast.If):
+                if not safe(statement.test, aliases, names, plain):
+                    return False
+                left, right = set(aliases), set(aliases)
+                left_names, right_names = dict(names), dict(names)
+                left_plain, right_plain = set(plain), set(plain)
+                test = statement.test
+                inverted = isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
+                probe = guarded_probe(test.operand if inverted else test, aliases, names, plain)
+                if probe is not None:
+                    (right_plain if inverted else left_plain).add(probe)
+                left_payloads, right_payloads = dict(payloads), dict(payloads)
+                if not block(statement.body, left, left_names, left_plain, left_payloads) or not block(
+                        statement.orelse, right, right_names, right_plain, right_payloads):
+                    return False
+                aliases.update(left | right)
+                names.clear()
+                names.update({name: value for name, value in left_names.items()
+                              if right_names.get(name) == value})
+                plain.clear()
+                plain.update(left_plain & right_plain)
+                payloads.clear()
+                payloads.update({name: tuple(dict.fromkeys(proof + right_payloads[name]))
+                                 for name, proof in left_payloads.items() if name in right_payloads})
+            elif isinstance(statement, ast.For):
+                # Only a fresh builtin literal sequence is exact here. Iterating
+                # a caller object, a local alias or a comprehension needs its own
+                # binding/mutation proof and must not acquire one by unrolling.
+                # 这里只展开新建的内建字面量序列；调用方对象等需要独立绑定和变更证明。
+                if (not isinstance(statement.target, ast.Name)
+                        or not isinstance(statement.iter, (ast.List, ast.Tuple))
+                        or len(statement.iter.elts) > 64
+                        or any(not isinstance(item, ast.Constant)
+                               or type(item.value) is not str or len(item.value) > 2000
+                               for item in statement.iter.elts)):
+                    return False
+                if statement not in evidence:
+                    evidence.append(statement)
+                for item in statement.iter.elts:
+                    expand(statement.body)
+                    variable = statement.target.id
+                    aliases.discard(variable)
+                    names[variable] = item.value
+                    payloads[variable] = (statement,)
+                    if not block(statement.body, aliases, names, plain, payloads):
+                        return False
+                if not block(statement.orelse, aliases, names, plain, payloads):
+                    return False
+            elif isinstance(statement, ast.Expr):
+                call = statement.value
+                if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                        and call.func.id in ('setattr', 'delattr') and call.args
+                        and isinstance(call.args[0], ast.Name) and call.args[0].id in aliases):
+                    count = 3 if call.func.id == 'setattr' else 2
+                    name = literal_name(call.args[1], names, aliases) if len(call.args) >= 2 else None
+                    if (not builtin(call.func.id) or len(call.args) != count or call.keywords
+                            or name is None
+                            or not all(safe(arg, aliases, names, plain) for arg in call.args[2:])
+                            or not write(name, statement)):
+                        return False
+                    plain_write(name, call.args[2] if call.func.id == 'setattr' else None,
+                                plain, payloads)
+                elif not safe(call, aliases, names, plain):
+                    return False
+            elif isinstance(statement, ast.Return):
+                if not safe(statement.value, aliases, names, plain):
+                    return False
+            elif not isinstance(statement, ast.Pass):
+                return False
+        return True
+
+    ordinary = {arg.arg for arg in node.args.posonlyargs + node.args.args + node.args.kwonlyargs}
+    names = {name: value for name, value in (string_literals or {}).items()
+             if name in ordinary and name != parameter and type(value) is str and len(value) <= 2000}
+    if not block(node.body, {parameter}, names, set(), {}):
+        return None
+    return ClassAttributeWrites(tuple(attributes), tuple(evidence), inspected,
+                                tuple(metadata_evidence), tuple(read_evidence))

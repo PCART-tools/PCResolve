@@ -15,9 +15,9 @@ import argparse
 import json
 import os
 import sys
-from .cross_file import analyze_project
-from .analysis_limits import AnalysisLimits, AnalysisLimitExceeded
-from .views import (build_summary_view, build_full_view,
+from pcresolve.ownership.analyzer import analyze_project
+from pcresolve.runtime.limits import AnalysisLimits, AnalysisLimitExceeded
+from pcresolve.ownership.views import (build_summary_view, build_full_view,
                      build_explain_library_view, build_explain_symbol_view,
                      build_explain_call_view)
 
@@ -404,7 +404,7 @@ def _flow_text(result):
 #  @param input_path Resolved project or source path, if supplied.
 #  @return None; parser errors terminate invalid invocations.
 def _run_value_flow(parser, args, input_path):
-    from .flow import FlowAnalyzer, FunctionRef
+    from pcresolve.flow.analyzer import FlowAnalyzer, FunctionRef
 
     module, qualname = args.entry.split(':')
     if input_path and args.source_file:

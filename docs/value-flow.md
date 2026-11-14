@@ -174,11 +174,11 @@ For a method, put the class-qualified name after the colon. For example, from
 this repository root:
 
 ```bash
-pcresolve src --value-flow --entry pcresolve.cross_file:ProjectAnalyzer.trace_symbol --depth 1
+pcresolve src --value-flow --entry pcresolve.ownership.resolve.project_source_tracing:ProjectSourceTracingMixin.trace_symbol --depth 1
 ```
 
 The module name is derived from the supplied project/import root, so `src` maps
-`src/pcresolve/cross_file.py` to `pcresolve.cross_file`. The spelling must match
+`src/pcresolve/ownership/resolve/project_source_tracing.py` to `pcresolve.ownership.resolve.project_source_tracing`. The spelling must match
 the definition exactly; `trace_symble` and a module name such as `cross_file`
 do not select that method.
 
@@ -389,7 +389,7 @@ and budgets. Source or import-root changes rebuild the index; changing depth,
 budgets, or contracts always produces a new analysis snapshot.
 
 Consumers preparing source syntax before value-flow analysis may explicitly pass
-a run-local `pcresolve.source_snapshot.SourceStore` as `source_store=store` to
+a run-local `pcresolve.frontend.source_snapshot.SourceStore` as `source_store=store` to
 `FlowAnalyzer`. `store.read_document(path, SourceReadPolicy(...))` reads one
 document without discovering or selecting additional analysis files. The
 `'tokenize'` encoding policy honors Python source encoding declarations; flow
@@ -2255,8 +2255,8 @@ For the repository example:
 
 ```python
 analysis = FlowAnalyzer(project_root="src").analyze(
-    FunctionRef(module="pcresolve.cross_file",
-                qualname="ProjectAnalyzer.trace_symbol"),
+    FunctionRef(module="pcresolve.ownership.resolve.project_source_tracing",
+                qualname="ProjectSourceTracingMixin.trace_symbol"),
     max_depth=1,
 )
 for call in analysis.find_calls(

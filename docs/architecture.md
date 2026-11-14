@@ -26,35 +26,88 @@ inspector, call graph, security scanner, or license scanner.
 ## Pipeline
 
 ```text
-scanner.py / module_mapper.py
+frontend/ scanner, module mapper and source snapshot
               ↓
-source_snapshot.py
-              ↓
-shared facts
-  program_facts.py       call_resolution.py       scope_facts.py
-  import_facts.py        return_resolution.py     effect_facts.py
+facts/ signatures, scopes, imports, calls, returns and effects
               ↓                                  ↓
-ownership adapter                           value-flow adapter
-single_file.py → cross_file.py              flow.py
+ownership/collect → ownership/resolve       flow/analyzer.py
               ↓                                  ↓
-types.py / views.py / cli.py                flow-0.2 / cli.py
+ownership/types.py and views.py             flow-0.2
+                         ↓
+                       cli.py
 ```
 
 The shared layer describes syntax, locations, definitions, bindings, return
 dependencies, and supported effects. Ownership and value flow decide how those
 facts are interpreted.
 
+## Source navigation
+
+- Module naming and source selection start in `frontend/module_mapper.py`,
+  `ModuleMapper.scan_project()`, and `frontend/source_snapshot.py`,
+  `module_name_for_path()`.
+- Missing assignment or call facts start in `ownership/collect/single_file_assignment.py`
+  and `ownership/collect/single_file_call_collection.py`.
+- A wrapper's returned ownership starts in
+  `ownership/resolve/project_result_binding.py`, `_bind_bounded_local_call_results()`,
+  and `ownership/resolve/project_source_tracing.py`.
+- Dependencies across `with` exits start in `flow/transfer/summary.py`,
+  `_Summary.with_statement()` and `_Summary.execute_context_exit()`.
+
+Implementation modules reside in `frontend/`, `facts/`, `ownership/`, and
+`flow/`. The flow proof root is a package boundary; implementations are grouped
+by the source construct they model:
+
+| Package | Responsibility |
+|---|---|
+| `flow/analyzer.py` | Public entry point, configuration and flow analysis orchestration |
+| `flow/index/source.py` | Source generation and definition index construction |
+| `flow/index/definitions.py` | Class hierarchy, scope and bounded definition facts |
+| `flow/analysis/proof_context.py` | Source proof preparation and semantic queries |
+| `flow/runtime/analysis_run.py` | Per-run entry traversal and summary merging |
+| `flow/transfer/call_expression.py` | Ordered call-resolution, record, binding, effect and result phases |
+| `flow/transfer/summary.py` | Query-local summary state and transfer-component composition |
+| `flow/transfer/summary_values.py` | Literal, callable and source-class value facts |
+| `flow/transfer/summary_class_effects.py` | Class lookup and receiver invalidation effects |
+| `flow/transfer/summary_call_evidence.py` | Call evidence, boundaries and argument binding |
+| `flow/transfer/summary_expressions.py` | Syntax-specific expression handlers and preflight boundaries |
+| `flow/transfer/summary_containers.py` | Container projection, construction and operations |
+| `flow/transfer/summary_effects.py` | Function effects and mapping remainder transfer |
+| `flow/transfer/summary_context_managers.py` | Context entry/exit and cleanup control flow |
+| `flow/transfer/summary_statements.py` | Statement transfer, guards, exception flow and run entry |
+| `flow/transfer/environment.py` | Environment merging and source propagation |
+| `flow/proofs/classes/` | Class creation, binding, decoration, and class reads |
+| `flow/proofs/containers/` | Container predicates, mapping reads, and transfers |
+| `flow/proofs/callables/` | Callable construction, binding, retention, and observation |
+| `flow/proofs/callables/decorators/` | Decorator effects, imports, exceptions, and text |
+| `flow/proofs/callables/dispatch/` | Finite dispatch and call argument validation |
+| `flow/proofs/namespaces/` | Function and module namespace proofs |
+| `flow/proofs/namespaces/metadata/` | Signature and metadata construction and observation |
+| `flow/proofs/namespaces/modules/` | Module attributes, exports, and class effects |
+| `flow/proofs/namespaces/source/` | Source binding and source dependency facts |
+| `flow/proofs/protocols/` | Context manager, class, import, and stub protocols |
+
+The flow analyzer coordinates proofs through narrow callbacks where needed;
+proof modules do not import the analyzer to construct their execution context.
+The architecture test checks static imports, supported literal dynamic imports,
+unresolved dynamic imports, dependency cycles, and the ownership/flow boundary.
+`runtime/limits.py` holds the resource limits shared by both analyzers.
+`runtime/_legacy_imports.py` installs a lazy import finder for flat paths from
+earlier releases; requesting a legacy path returns the same implementation
+module object. Importing `pcresolve` for ownership use does not load value-flow
+proofs. Internal code imports implementation paths directly.
+
 ## Analysis state
 
 `SourceStore` creates a `SourceSnapshot` containing the exact decoded sources,
 ASTs, hashes, module names, and read errors observed by one run.
 
-`source_syntax.py` supports historical `async` and `await` attribute names for
+`frontend/source_syntax.py` supports historical `async` and `await` attribute names for
 the value-flow read policy. Token-local normalization retains original names,
 source text, byte spans and hashes; unrelated syntax errors remain boundaries.
 The ownership read policy keeps its existing parser behavior.
 
-`star_imports.py` supplies source witnesses for wildcard imports whose exporting
+`facts/star_imports.py` supplies source witnesses for wildcard imports whose exporting
 modules declare literal `__all__` lists or tuples. It requires unique, stable
 source definitions and bounds traversal. Open exports, rebinding, observable
 module mutation, import cycles and exhausted budgets supply no resolved alias.
@@ -76,13 +129,13 @@ must not assume that one invocation shares caches with the other.
 
 | Module | Final responsibility |
 |---|---|
-| `source_snapshot.py` | Immutable source documents, hashes, ASTs, module index, and snapshot validation |
-| `program_facts.py` | Source spans, function signatures, AST call binding, and opaque parameter-source projection |
-| `call_resolution.py` | Definition candidates and parent-linked call contexts |
-| `scope_facts.py` | Immutable loaded, bound, global, nonlocal, and capture-name facts |
-| `import_facts.py` | Import aliases and relative-import resolution |
-| `return_resolution.py` | Bounded substitution and composition of return dependencies |
-| `effect_facts.py` | Proven builtin container protocols and complete straight-line function effects |
+| `frontend/source_snapshot.py` | Immutable source documents, hashes, ASTs, module index, and snapshot validation |
+| `facts/program_facts.py` | Source spans, function signatures, AST call binding, and opaque parameter-source projection |
+| `facts/call_resolution.py` | Definition candidates and parent-linked call contexts |
+| `facts/scope_facts.py` | Immutable loaded, bound, global, nonlocal, and capture-name facts |
+| `facts/import_facts.py` | Import aliases and relative-import resolution |
+| `facts/return_resolution.py` | Bounded substitution and composition of return dependencies |
+| `facts/effect_facts.py` | Proven builtin container protocols and complete straight-line function effects |
 
 Shared facts follow these invariants:
 
@@ -93,10 +146,19 @@ Shared facts follow these invariants:
   representations;
 - uncertain expansions and unsupported constructs remain explicit;
 - source positions and collection order are deterministic;
-- internal package imports are acyclic.
+- statically declared internal package imports are acyclic.
 
-`tests/test_shared_layer_boundaries.py` protects the dependency direction and
-the package-wide no-cycle invariant.
+`tests/test_shared_layer_boundaries.py` protects the shared-layer dependency
+direction and the complete statically recoverable import graph. It detects
+package-relative dynamic imports, unresolved dynamic imports, cycles, and
+reverse dependencies on the legacy compatibility layer. The current internal
+graph is acyclic under this checker.
+The check recognizes `importlib.import_module` (including direct import aliases)
+and `__import__` with literal names or `__package__` plus a literal suffix.
+Other recognized calls are rejected as unresolved, except for the legacy
+compatibility registry, whose explicit mapping is enumerated as dependencies.
+It does not perform general data-flow analysis of reassigned import functions
+or computed import names.
 
 ## Ownership adapter
 
@@ -109,19 +171,19 @@ so AST order and binding time remain explicit and unchanged.
 
 | Module | Responsibility |
 |---|---|
-| `single_file_definitions.py` | Function, lambda, class, decorator, inheritance, and constructor facts |
-| `single_file_assignment.py` | Assignment visitors, container metadata, and right-hand-side staging |
-| `single_file_binding_resolution.py` | Target, iterator, decorator, and finite guard bindings |
-| `single_file_control_flow.py` | Branch joins, loops, comprehensions, generators, and scope declarations |
-| `single_file_returns.py` | Return provenance, tuple-aware summaries, and protocol return values |
-| `single_file_container_shapes.py` | Builtin container and item-shape facts |
-| `single_file_source_resolution.py` | Expression-to-source dispatch |
-| `single_file_parameter_dependency.py` | Parameter-derived expression evidence |
-| `single_file_receiver_resolution.py` | Callable, receiver, operator, conversion, and bounded result-owner resolution |
-| `single_file_method_resolution.py` | Method receiver/source collection |
-| `single_file_call_collection.py` | Call-edge snapshots, API-call visitors, and ordered call records |
-| `single_file_argparse.py` | Conservative argparse Namespace field shapes |
-| `single_file_builtins.py` | Shared unshadowed-builtin predicate |
+| `ownership/collect/single_file_definitions.py` | Function, lambda, class, decorator, inheritance, and constructor facts |
+| `ownership/collect/single_file_assignment.py` | Assignment visitors, container metadata, and right-hand-side staging |
+| `ownership/collect/single_file_binding_resolution.py` | Target, iterator, decorator, and finite guard bindings |
+| `ownership/collect/single_file_control_flow.py` | Branch joins, loops, comprehensions, generators, and scope declarations |
+| `ownership/collect/single_file_returns.py` | Return provenance, tuple-aware summaries, and protocol return values |
+| `ownership/collect/single_file_container_shapes.py` | Builtin container and item-shape facts |
+| `ownership/collect/single_file_source_resolution.py` | Expression-to-source dispatch |
+| `ownership/collect/single_file_parameter_dependency.py` | Parameter-derived expression evidence |
+| `ownership/collect/single_file_receiver_resolution.py` | Callable, receiver, operator, conversion, and bounded result-owner resolution |
+| `ownership/collect/single_file_method_resolution.py` | Method receiver/source collection |
+| `ownership/collect/single_file_call_collection.py` | Call-edge snapshots, API-call visitors, and ordered call records |
+| `ownership/collect/single_file_argparse.py` | Conservative argparse Namespace field shapes |
+| `ownership/collect/single_file_builtins.py` | Shared unshadowed-builtin predicate |
 
 All mixins operate on `SingleFileAnalyzer` state. They are internal
 organization boundaries, not independent analyzer instances.
@@ -135,26 +197,26 @@ index, performs bounded cross-file propagation, classifies calls, and assembles
 
 | Module | Responsibility |
 |---|---|
-| `project_call_context.py` | Exact local targets, call contexts, argument binding, and parameter substitution |
-| `project_result_binding.py` | Assigned results, callbacks, iterators, and proven method-result rewrites |
-| `project_source_tracing.py` | Cross-module source chains, return summaries, wildcard fallback, and final source lookup |
-| `project_method_ownership.py` | Structured receivers, inherited methods, parameter/container propagation, and instance fields |
-| `project_local_classes.py` | Local class identities, inheritance, constructor fields, and callable-instance evidence |
-| `project_call_classification.py` | Call-record assembly, owner convergence, reasons, confidence, alternatives, and resolved names |
-| `call_result_resolution.py` | Bounded `CallResult` state resolution |
-| `instance_method_resolution.py` | `InstanceMethod` receiver resolution |
-| `container_resolution.py` | Item, iteration, returned-element, and Python-shape resolution |
+| `ownership/resolve/project_call_context.py` | Exact local targets, call contexts, argument binding, and parameter substitution |
+| `ownership/resolve/project_result_binding.py` | Assigned results, callbacks, iterators, and proven method-result rewrites |
+| `ownership/resolve/project_source_tracing.py` | Cross-module source chains, return summaries, wildcard fallback, and final source lookup |
+| `ownership/resolve/project_method_ownership.py` | Structured receivers, inherited methods, parameter/container propagation, and instance fields |
+| `ownership/resolve/project_local_classes.py` | Local class identities, inheritance, constructor fields, and callable-instance evidence |
+| `ownership/resolve/project_call_classification.py` | Call-record assembly, owner convergence, reasons, confidence, alternatives, and resolved names |
+| `ownership/resolve/call_result_resolution.py` | Bounded `CallResult` state resolution |
+| `ownership/resolve/instance_method_resolution.py` | `InstanceMethod` receiver resolution |
+| `ownership/resolve/container_resolution.py` | Item, iteration, returned-element, and Python-shape resolution |
 
 Ownership policy is kept separate from traversal:
 
 | Module | Responsibility |
 |---|---|
-| `builtin_ownership.py` | Proven builtin receiver and result-shape rules |
-| `ownership_contracts.py` | Verified import-backed result and callback contracts |
-| `source_resolution.py` | `SourceSet` primary convergence |
-| `classification.py` | Final ownership reason, confidence, and alternatives |
-| `decorator_provenance.py` | Decorator evidence lookup |
-| `library_usage.py` | Per-library aggregation |
+| `ownership/builtin_ownership.py` | Proven builtin receiver and result-shape rules |
+| `ownership/ownership_contracts.py` | Verified import-backed result and callback contracts |
+| `ownership/source_resolution.py` | `SourceSet` primary convergence |
+| `ownership/classification.py` | Final ownership reason, confidence, and alternatives |
+| `ownership/decorator_provenance.py` | Decorator evidence lookup |
+| `ownership/library_usage.py` | Per-library aggregation |
 
 ### Ownership sequence
 
@@ -288,14 +350,15 @@ failed or cyclic proofs are not retained. Return dependencies use reverse
 dependencies to schedule changed summaries, preserving synchronous rounds,
 original path ordering, iteration counts and limits.
 
-`ProjectAnalyzer(root, reuse_source_facts=True)` optionally retains pristine
-single-file visitor facts captured before project propagation. Repeated calls
-copy these facts for unchanged source documents, sharing only read-only ASTs
-and rebinding visitor callbacks. File edits, additions, deletions and parse
-failures update the cache. Every run still performs cross-file propagation,
-classification and provenance construction. This mode increases memory and
-first-run copying cost and is disabled by default; it is not persistent storage
-or an incremental cache of semantic answers.
+`ProjectAnalyzer(root, reuse_source_facts=True)` optionally retains a
+`SingleFileFacts` record captured before project propagation, not a visitor
+instance. Repeated calls create a fresh visitor, restore source-derived facts
+for unchanged documents, share only the read-only AST, and rebind callbacks to
+the new visitor. File edits, additions, deletions and parse failures update the
+cache. Every run still performs cross-file propagation, classification and
+provenance construction. This mode increases memory and first-run copying cost
+and is disabled by default; it is not persistent storage or an incremental
+cache of semantic answers.
 
 `AnalysisLimits` provides optional time, work and resident-memory checks for one
 `analyze()` call. Ownership and Flow maintain separate resource counters. A
@@ -308,12 +371,14 @@ uses current RSS on Windows/Linux and peak RSS on the resource fallback.
 Output serialization and later queries on a returned result are outside these
 analysis limits.
 
-`scripts/perf_scalability.py` measures synthetic projects at multiple sizes,
-unchanged queries and single-file edits, including cold ownership with and
-without the optional fact cache. It checks reused results against complete fresh
-outputs and records wall/CPU time, current RSS and implementation identity.
-RSS readings are not isolated per-run peaks; generated workloads supplement
-real-project measurements rather than establishing a universal complexity bound.
+`scripts/perf_scalability.py` runs each sample in a fresh process, measures
+synthetic projects at multiple sizes, unchanged queries and single-file edits,
+including cold ownership with and without the optional fact cache. It checks
+reused results against complete fresh outputs and records wall/CPU time,
+post-analysis RSS, process peak RSS, raw per-process samples and implementation
+identity. Five independent processes are the default. These generated workloads
+supplement real-project measurements rather than establishing a universal
+complexity bound.
 
 Value flow is additionally bounded by the selected source set, call depth,
 function budget, call-context budget, supported control flow, and modeled

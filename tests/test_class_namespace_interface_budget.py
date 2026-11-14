@@ -3,8 +3,8 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._constructor_entry import _definition_issues
-from pcresolve.class_attribute_effects import _ClassEffectLimit
+from pcresolve.flow.proofs._constructor_entry import _definition_issues
+from pcresolve.flow.proofs.class_attribute_effects import _ClassEffectLimit
 
 
 def source(tmp_path, signature='', decorator='', tail=''):

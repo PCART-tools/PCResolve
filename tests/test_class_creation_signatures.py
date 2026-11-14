@@ -183,7 +183,7 @@ def test_native_kind_comparisons_follow_a_fresh_source_signature(tmp_path):
     analyzer, _ = prepare(tmp_path, KIND_DECORATOR + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -193,7 +193,7 @@ def test_native_kind_comparisons_survive_a_stack_of_the_same_signature_decorator
     analyzer, _ = prepare(tmp_path, source)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -205,7 +205,7 @@ def test_curried_signature_decorator_can_bind_its_keyword_options(tmp_path):
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -218,7 +218,7 @@ def test_curried_signature_factory_can_extract_a_local_keyword_default(tmp_path)
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -231,7 +231,7 @@ def test_curried_signature_decorator_rejects_effects_before_early_return(tmp_pat
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert not _kind_aliases_closed(analyzer, caller)
 
 
@@ -246,7 +246,7 @@ def test_signature_source_can_pass_through_a_documentation_only_decorator(tmp_pa
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -266,7 +266,7 @@ def test_signature_source_survives_unresolved_documentation_formatting_on_normal
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert _kind_aliases_closed(analyzer, caller)
 
 
@@ -301,8 +301,8 @@ def test_signature_source_uses_fresh_function_proof_for_lower_doc_formatter(
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._decorator_effects import _DecoratorEffects
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._decorator_effects import _DecoratorEffects
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     original_fact = _DecoratorEffects.fact
 
     def unresolved_ordinary_effect(self, expression, *args, **kwargs):
@@ -336,7 +336,7 @@ def test_kind_comparisons_do_not_accept_a_replaced_input_signature(tmp_path):
     analyzer, _ = prepare(tmp_path, source + SOURCE)
     analyzer._index()
     caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
-    from pcresolve._metadata_signature import _kind_aliases_closed
+    from pcresolve.flow.proofs._metadata_signature import _kind_aliases_closed
     assert not _kind_aliases_closed(analyzer, caller)
 
 

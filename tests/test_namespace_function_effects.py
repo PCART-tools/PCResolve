@@ -3,7 +3,9 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow
+from tests.flow_test_support import set_decorator_effect_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 def analyze(tmp_path, decorator_body, *, member_prefix='', class_prefix=''):
@@ -68,7 +70,7 @@ def test_preservation_does_not_survive_an_exhausted_query_or_changed_source(tmp_
     entry = FunctionRef('sample', 'Entry')
     assert analyzer.analyze(entry).inputs['entry_binding']['status'] == 'source_bound'
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_DECORATOR_EFFECT_NODE_LIMIT', 0)
+        set_decorator_effect_limit(patch, 0)
         assert analyzer.analyze(entry).inputs['entry_binding']['status'] == 'unconfirmed'
     assert analyzer.analyze(entry).inputs['entry_binding']['status'] == 'source_bound'
     analyze(tmp_path, '    opaque(fn)\n    return fn\n')

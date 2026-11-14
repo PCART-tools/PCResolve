@@ -1,14 +1,14 @@
 ## @package tests.test_builtin_ownership_rules
 #  Characterization tests for shared ownership builtin policies.
 
-from pcresolve.builtin_ownership import (
+from pcresolve.ownership.builtin_ownership import (
     _BUILTIN_CONTAINER_METHODS,
     _builtin_method_return_shape,
     _builtin_shape_type,
     _has_builtin_shape_method,
     _is_builtin,
 )
-from pcresolve.sources import PythonShape
+from pcresolve.ownership.sources import PythonShape
 
 
 def test_builtin_names_include_legacy_python_names_without_guessing():

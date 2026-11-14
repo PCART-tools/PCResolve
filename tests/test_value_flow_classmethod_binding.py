@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow
+from tests.flow_test_support import set_class_binding_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_classmethod_binding'
@@ -167,7 +169,7 @@ def test_large_unrelated_source_does_not_hide_a_later_visible_write(tmp_path, vi
 def test_scan_budget_exhaustion_stays_unconfirmed_and_query_cache_resets(monkeypatch):
     analyzer = FlowAnalyzer(project_root=ROOT)
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+        set_class_binding_limit(patch, 1)
         result = analyze('direct', analyzer)
         call = generate(result)
         assert call.class_method_bindings[0]['status'] == 'unconfirmed'

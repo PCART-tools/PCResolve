@@ -3,7 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve._cached_imports as cached
+import pcresolve.flow.proofs._cached_imports as cached
 
 
 def analyze(tmp_path, prefix='from dependency import ready\n', export='def value(): return 7\n'):

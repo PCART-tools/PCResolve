@@ -1,5 +1,5 @@
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._class_definition import _source_callable_object_identity
+from pcresolve.flow.proofs._class_definition import _source_callable_object_identity
 import pytest
 
 

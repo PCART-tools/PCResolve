@@ -91,6 +91,12 @@ implementation owner.
 
 ## Python API
 
+Import the analysis entry points and result types from `pcresolve` for new
+code. In 1.0.8, existing Python imports such as
+`from pcresolve.cross_file import analyze_project` and
+`from pcresolve.single_file import analyze_source` still work at runtime
+through module aliases.
+
 The stable entry points use these signatures:
 
 ```python

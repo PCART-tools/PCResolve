@@ -9,16 +9,16 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.module_mapper import ModuleMapper
-from pcresolve.source_snapshot import (SourceStore, ModuleIndex, module_name_for_path,
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.frontend.module_mapper import ModuleMapper
+from pcresolve.frontend.source_snapshot import (SourceStore, ModuleIndex, module_name_for_path,
                                       OWNERSHIP_SOURCE, FLOW_SOURCE,
                                       OWNERSHIP_MODULES, FLOW_MODULES)
 
 
 def test_incremental_documents_share_parse_with_flow_without_skipping_refresh(tmp_path, monkeypatch):
-    from pcresolve.source_snapshot import SourceReadPolicy
-    import pcresolve.source_snapshot as sources
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
+    import pcresolve.frontend.source_snapshot as sources
     path = tmp_path / 'module.py'
     path.write_text('def entry(x): return x\n', encoding='utf-8')
     store = SourceStore()
@@ -40,7 +40,7 @@ def test_incremental_documents_share_parse_with_flow_without_skipping_refresh(tm
 
 
 def test_declared_encoding_does_not_make_flow_accept_non_utf8(tmp_path):
-    from pcresolve.source_snapshot import SourceReadPolicy
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
     path = str(tmp_path / 'latin.py')
     Path(path).write_bytes(b'# coding: latin-1\nvalue = "\xe9"\n')
     store = SourceStore()
@@ -74,7 +74,7 @@ def test_shared_reader_preserves_analysis_limits(tmp_path):
 
 
 def test_strict_syntax_query_does_not_evict_compatible_historical_ast(tmp_path):
-    from pcresolve.source_snapshot import SourceReadPolicy
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
     path = str(tmp_path / 'legacy.py')
     Path(path).write_text('x.async()\n', encoding='utf-8')
     store = SourceStore()
@@ -150,7 +150,7 @@ def test_cache_recovers_from_syntax_error_and_preserves_old_error_snapshot(tmp_p
 
 
 def test_new_snapshot_rereads_content_but_does_not_reparse_unchanged_source(monkeypatch):
-    import pcresolve.source_snapshot as snapshots
+    import pcresolve.frontend.source_snapshot as snapshots
     path = str(ROOT / 'pkg/helpers.py')
     parser = snapshots.ast.parse
     calls = []

@@ -12,7 +12,7 @@ def facts(tmp_path, source):
 
 
 def test_retention_records_generic_decorator_source_and_assumptions(tmp_path, monkeypatch):
-    from pcresolve import _constructor_retention
+    from pcresolve.flow.proofs import _constructor_retention
     original = _constructor_retention._source_callable_object_identity
     def identity_with_extra_premise(analyzer, owner, method, dependencies, assumptions):
         result = original(analyzer, owner, method, dependencies, assumptions)

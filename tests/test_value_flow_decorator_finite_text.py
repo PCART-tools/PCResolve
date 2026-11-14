@@ -3,7 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve._decorator_text as text_protocol
+import pcresolve.flow.proofs._decorator_text as text_protocol
 
 
 SOURCE = '''TEXT = 'Input description'

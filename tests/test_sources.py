@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pcresolve.sources import (
+from pcresolve.ownership.sources import (
     ContainerItem, ContainerIter, InstanceMethod, SuperMethod, CallResult,
     DerivedResult, InstanceAttribute, NameSource, ParameterSource, PythonShape,
     SourceSet, TupleSource, UnknownSource,
