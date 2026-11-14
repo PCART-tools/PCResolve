@@ -61,5 +61,3 @@ def trace_parameter(result, parameter, function_type=None):
             'summary_status': resolution.status,
             'summary_iterations': resolution.iterations,
             'boundaries': boundaries}
-
-\n

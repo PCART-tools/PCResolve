@@ -1457,5 +1457,3 @@ class _CreationCallsRun:
 def creation_calls(analyzer, target, hook, prior_attributes=(), ancestor_hooks=None, module_prefix=None):
     return _CreationCallsRun(analyzer, target, hook, prior_attributes,
                              ancestor_hooks, module_prefix).run()
-
-\n

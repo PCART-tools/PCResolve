@@ -50,6 +50,3 @@ def merge_environments(environments):
                       for value in values]
         merged[key] = values
     return merged
-
-
-\n
