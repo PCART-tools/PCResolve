@@ -3,13 +3,15 @@
 
 from pathlib import Path
 import ast
+import gc
 import os
+import weakref
 
 import pytest
 
 from pcresolve import ProjectAnalyzer
 from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
-from pcresolve.ownership.source_fact_cache import SingleFileFacts
+from pcresolve.ownership.source_fact_cache import SingleFileFacts, capture_source_facts, clone_source_facts
 from pcresolve.frontend.source_snapshot import SourceDocument
 from pcresolve.ownership.views import build_full_view
 
@@ -25,6 +27,34 @@ def test_reused_visitor_facts_equal_fresh_analysis(fixture):
     after = build_full_view(analyzer.analyze())
     assert before == after == build_full_view(ProjectAnalyzer(str(root)).analyze())
     assert analyzer._ownership_run.source_facts_reused > 0
+
+
+def test_cached_facts_detach_collector_closures_and_isolate_clone_notifications():
+    tree = ast.parse('class Factory:\n def build(self): return 1\n')
+    document = SourceDocument('main.py', tree=tree)
+
+    def make_collector():
+        collector = SingleFileAnalyzer(module_name='main', file_path='main.py')
+        collector.visit(tree)
+        collector.transient_callback = lambda: collector
+        return collector
+
+    collector = make_collector()
+    original = weakref.ref(collector)
+    facts = capture_source_facts(collector, document)
+    assert any(is_root for _, is_root, _ in facts.versioned_edges)
+    assert all(owner is None for _, is_root, owner in facts.versioned_edges if is_root)
+    del collector
+    gc.collect()
+    assert original() is None
+    left = clone_source_facts(facts, document)
+    right = clone_source_facts(facts, document)
+    assert left.transient_callback is None and right.transient_callback is None
+    left_version, right_version = left.version, right.version
+    left.module_cg.functions['probe'] = object()
+    assert left.version > left_version
+    assert right.version == right_version
+    assert 'probe' not in right.module_cg.functions
 
 
 def test_file_edit_revisits_only_changed_module_and_does_not_reuse_query_state(tmp_path, monkeypatch):

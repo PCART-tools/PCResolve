@@ -29,6 +29,9 @@ _RUN_STATE = frozenset((
     '_class_receiver_stack', '_caller_stack', '_mapping_blocked_names',
     '_finite_name_guards', '_listeners', '_version', '_mapping_facts',
 ))
+# Exact built-in scalar types cannot hold fact structures or bound callbacks.
+# Subclasses follow the existing visitor logic, including fact-edge registration.
+_ATOMIC_TYPES = frozenset((type(None), str, bytes, int, float, bool))
 
 
 def _ast_memo(document, budget):
@@ -44,7 +47,7 @@ def _detach_visitor_callbacks(values, tracer, memo):
     """Keep cached values from retaining the collector through bound callbacks."""
     from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
 
-    pending = [(value, tracer) for value in values.values()]
+    pending = [(value, tracer) for value in values.values() if type(value) not in _ATOMIC_TYPES]
     seen = set()
     fact_structures, fact_edges, versioned_edges = [], [], []
     fact_structure_ids = set()
@@ -59,8 +62,10 @@ def _detach_visitor_callbacks(values, tracer, memo):
             elif isinstance(owner, FactStructure):
                 fact_edges.append((False, owner, value))
         elif isinstance(value, (VersionedDict, VersionedList)):
-            versioned_edges.append((value, owner is tracer,
-                                    owner if isinstance(owner, FactStructure) else None))
+            is_root = owner is tracer
+            # Root ownership is represented by the flag, never by the visitor.
+            parent = owner if not is_root and isinstance(owner, FactStructure) else None
+            versioned_edges.append((value, is_root, parent))
         if value is tracer:
             continue
         if value is None or id(value) in seen or isinstance(value, (str, bytes, int, float, bool, ast.AST)):
@@ -90,13 +95,14 @@ def _detach_visitor_callbacks(values, tracer, memo):
                 pass
             continue
         if isinstance(value, dict):
-            pending.extend((child, owner) for child in value.keys())
-            pending.extend((child, owner) for child in value.values())
+            pending.extend((child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES)
+            pending.extend((child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES)
         elif isinstance(value, (list, tuple, set, frozenset)):
-            pending.extend((child, owner) for child in value)
+            pending.extend((child, owner) for child in value if type(child) not in _ATOMIC_TYPES)
         elif hasattr(value, '__dict__') and not isinstance(value, type):
             child_owner = value if isinstance(value, FactStructure) else owner
-            pending.extend((child, child_owner) for child in value.__dict__.values())
+            pending.extend((child, child_owner) for child in value.__dict__.values()
+                           if type(child) not in _ATOMIC_TYPES)
     return tuple(fact_structures), tuple(fact_edges), tuple(versioned_edges)
 
 
