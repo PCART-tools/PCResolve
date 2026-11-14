@@ -3,6 +3,7 @@
 #  Compare the current public exports and legacy paths with a frozen manifest.
 
 import argparse
+import importlib
 import inspect
 import json
 from pathlib import Path
@@ -33,6 +34,54 @@ def manifest():
     return dict(exports=exports, legacy_modules=legacy)
 
 
+def compare(before, current):
+    """Compare pre-refactor exports and verify actual legacy module identities."""
+    differences = {}
+    old_exports, new_exports = before['exports'], current['exports']
+    missing = sorted(set(old_exports) - set(new_exports))
+    added = sorted(set(new_exports) - set(old_exports))
+    changed = {}
+    for name in sorted(set(old_exports) & set(new_exports)):
+        old, new = old_exports[name], new_exports[name]
+        issues = []
+        if old['qualname'] != new['qualname']:
+            issues.append('qualname')
+        old_signature, new_signature = old['signature'], new['signature']
+        if new_signature is not None:
+            new_signature = new_signature.replace('pcresolve.flow.analyzer.FunctionRef',
+                                                  'pcresolve.flow.FunctionRef')
+        if old_signature != new_signature:
+            issues.append('signature')
+        try:
+            original = importlib.import_module(old['module'])
+            for part in old['qualname'].split('.'):
+                original = getattr(original, part)
+            if original is not getattr(pcresolve, name):
+                issues.append('legacy export identity')
+        except (ImportError, AttributeError, TypeError):
+            issues.append('legacy export unavailable')
+        if issues:
+            changed[name] = dict(before=old, after=new, issues=issues)
+    if missing or added or changed:
+        differences['exports'] = dict(missing=missing, added=added, changed=changed)
+
+    old, new = before['legacy_modules'], current['legacy_modules']
+    missing, added = sorted(set(old) - set(new)), sorted(set(new) - set(old))
+    changed = {name: dict(before=old[name], after=new[name])
+               for name in sorted(set(old) & set(new)) if old[name] != new[name]}
+    for name in sorted(set(old) & set(new)):
+        try:
+            alias = importlib.import_module('pcresolve.' + name)
+            target = importlib.import_module('pcresolve.' + new[name])
+            if alias is not target:
+                changed[name] = dict(before=old[name], after=new[name], issue='module identity')
+        except ImportError as error:
+            changed[name] = dict(before=old[name], after=new[name], issue=str(error))
+    if missing or added or changed:
+        differences['legacy_modules'] = dict(missing=missing, added=added, changed=changed)
+    return differences
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--baseline', type=Path, required=True)
@@ -40,14 +89,7 @@ def main():
     args = parser.parse_args()
     before = json.loads(args.baseline.read_text(encoding='utf-8'))
     current = manifest()
-    differences = {}
-    for section in ('exports', 'legacy_modules'):
-        old, new = before[section], current[section]
-        missing, added = sorted(set(old) - set(new)), sorted(set(new) - set(old))
-        changed = {name: dict(before=old[name], after=new[name])
-                   for name in sorted(set(old) & set(new)) if old[name] != new[name]}
-        if missing or added or changed:
-            differences[section] = dict(missing=missing, added=added, changed=changed)
+    differences = compare(before, current)
     project_config = (ROOT / 'pyproject.toml').read_text(encoding='utf-8')
     version_match = re.search(r'^version\s*=\s*"([^"]+)"', project_config, re.MULTILINE)
     if version_match is None:

@@ -24,6 +24,36 @@ def _fingerprint(payload):
     return hashlib.sha256(data).hexdigest()
 
 
+_PATH_FIELDS = frozenset(('file_path', 'source_files', 'import_roots', 'source',
+                          'id', 'call_context', 'call_id', 'incoming_call_id',
+                          'output_container', 'object_sources', 'target_container'))
+_PATH_KEY_FIELDS = frozenset(('sha256', 'source_hashes'))
+
+
+def _canonicalize_paths(value, root, field=''):
+    """Canonicalize checkout-local paths in documented flow output fields."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            mapped = _canonicalize_paths(key, root, 'file_path') if field in _PATH_KEY_FIELDS else key
+            if mapped in result:
+                raise ValueError('Path normalization produced a duplicate key: %s' % mapped)
+            result[mapped] = _canonicalize_paths(item, root, key)
+        return result
+    if isinstance(value, list):
+        return [_canonicalize_paths(item, root, field) for item in value]
+    if not isinstance(value, str) or field not in _PATH_FIELDS:
+        return value
+    prefix = '$heap:' if value.startswith('$heap:') else ''
+    candidate = value[len(prefix):].replace('\\', '/')
+    normalized_root = str(root).replace('\\', '/').rstrip('/')
+    if candidate.casefold() == normalized_root.casefold():
+        return prefix + '$ROOT'
+    if candidate.casefold().startswith(normalized_root.casefold() + '/'):
+        return prefix + '$ROOT' + candidate[len(normalized_root):]
+    return value
+
+
 ## Validate corpus availability and inventory before producing any baseline.
 #  @param root Repository root.
 #  @param projects Ownership project manifest.
@@ -90,10 +120,11 @@ def capture_baseline():
         payload = {'analysis': result.to_dict(),
                    'queries': {p: result.trace_parameter(p) for p in case.get('returns', {})}}
         key = 'flow/' + case['id']
-        outputs[key] = _fingerprint(payload)
+        outputs[key] = _fingerprint(_canonicalize_paths(payload, ROOT))
         counts[key] = len(result.calls)
         timings[key] = time.perf_counter() - start
     return {'python': platform.python_version(), 'hash_seed': os.environ.get('PYTHONHASHSEED'),
+            'path_normalization': 'flow-checkout-root-v2',
             'revision': revision.stdout.strip(), 'source_sha256': source_hash.hexdigest(),
             'outputs': outputs,
             'call_counts': counts, 'seconds': timings}
@@ -122,6 +153,8 @@ def main():
             parser.error('Use the same Python runtime for baseline comparisons')
         if previous.get('hash_seed') != current['hash_seed']:
             parser.error('Recapture the baseline with this script to fix the Python hash seed')
+        if previous.get('path_normalization') != current.get('path_normalization'):
+            parser.error('Baseline and current path normalization must match')
     args.output.write_text(json.dumps(current, indent=2) + '\n', encoding='utf-8')
     print('Captured %s ownership projects and %s flow entries.' % (
         sum(k.startswith('ownership/') for k in current['outputs']),
