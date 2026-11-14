@@ -86,6 +86,31 @@ def medians(report):
     }
 
 
+def paired_median_delta(before_values, after_values):
+    """Return the median candidate-minus-baseline delta for paired samples."""
+    if len(before_values) != len(after_values):
+        raise ValueError('Baseline and candidate sample counts must match')
+    deltas = [after - before for before, after in zip(before_values, after_values)]
+    return statistics.median(deltas), deltas
+
+
+def sample_medians(report):
+    """Return per-worker medians, preserving independent sample pairing."""
+    result = {}
+    for sample in report['samples']:
+        values = {}
+        peaks = []
+        for run in sample['runs']:
+            peaks.append(run['peak_rss_bytes'])
+            for row in run['rows']:
+                values.setdefault(row['variant'], []).append(row['wall'])
+        result.setdefault(sample['modules'], []).append(dict(
+            wall={key: statistics.median(rows) for key, rows in values.items()},
+            peak_rss_bytes=statistics.median(peaks),
+            outputs_equal=sample['outputs_equal']))
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--baseline-ref', default='HEAD')
@@ -115,6 +140,7 @@ def main():
             baseline_script, ROOT / 'scripts' / 'perf_scalability.py',
             output_dir, args.sizes, args.repeats, args.independent_samples)
     old, new = medians(before), medians(after)
+    old_samples, new_samples = sample_medians(before), sample_medians(after)
     comparisons = []
     for size in args.sizes:
         modules = size + 1
@@ -122,15 +148,25 @@ def main():
         for variant, old_seconds in old_row['wall'].items():
             new_seconds = new_row['wall'][variant]
             allowance = max(old_seconds * 0.10, 0.050)
+            paired_delta, paired_deltas = paired_median_delta(
+                [sample['wall'][variant] for sample in old_samples[modules]],
+                [sample['wall'][variant] for sample in new_samples[modules]])
             comparisons.append(dict(modules=modules, metric='wall_seconds', variant=variant,
                                     before=old_seconds, after=new_seconds,
                                     allowance=allowance,
-                                    passed=new_seconds <= old_seconds + allowance))
+                                    paired_delta_median=paired_delta,
+                                    paired_deltas=paired_deltas,
+                                    passed=paired_delta <= allowance))
         old_peak, new_peak = old_row['peak_rss_bytes'], new_row['peak_rss_bytes']
         allowance = max(old_peak * 0.10, 10 * 1024 * 1024)
+        paired_delta, paired_deltas = paired_median_delta(
+            [sample['peak_rss_bytes'] for sample in old_samples[modules]],
+            [sample['peak_rss_bytes'] for sample in new_samples[modules]])
         comparisons.append(dict(modules=modules, metric='peak_rss_bytes',
                                 before=old_peak, after=new_peak, allowance=allowance,
-                                passed=new_peak <= old_peak + allowance))
+                                paired_delta_median=paired_delta,
+                                paired_deltas=paired_deltas,
+                                passed=paired_delta <= allowance))
         comparisons.append(dict(modules=modules, metric='output_reuse_equivalence',
                                 before=old_row['outputs_equal'], after=new_row['outputs_equal'],
                                 passed=old_row['outputs_equal'] and new_row['outputs_equal']))
