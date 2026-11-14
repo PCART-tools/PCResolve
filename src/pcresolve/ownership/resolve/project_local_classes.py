@@ -385,6 +385,19 @@ class ProjectLocalClassesMixin:
     def _local_class_candidates(
             self, module, source, tracers, visited=None):
         source = normalize_source(source)
+        if type(source) is str and source == "local":
+            tracer = tracers.get(module)
+            module_cg = self.project_cg.modules.get(module)
+            if (tracer is not None
+                    and not tracer.symbols.direct.get(source)
+                    and source not in tracer.import_from_symbols
+                    and not tracer.wildcard_modules
+                    and (module_cg is None or source not in module_cg.classes)):
+                # ``local`` is the ownership sentinel used for a receiver
+                # whose concrete class is unavailable. With no binding or
+                # wildcard source that can shadow it, tracing it cannot yield
+                # a local class and only repeats the same unbound-name walk.
+                return []
         key = (module, type(source).__name__, source_display(source))
         seen = set(visited or set())
         if key in seen:

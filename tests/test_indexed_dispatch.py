@@ -67,6 +67,30 @@ def test_dispatch_candidates_match_exhaustive_lookup():
                 dict.fromkeys(expected)), edge.callee_name
 
 
+def test_unbound_local_receiver_marker_skips_symbol_tracing(tmp_path, monkeypatch):
+    (tmp_path / 'plain.py').write_text('class Factory: pass\n', encoding='utf-8')
+    (tmp_path / 'bound.py').write_text(
+        'class Factory: pass\nlocal = Factory()\n', encoding='utf-8')
+    analyzer = ProjectAnalyzer(str(tmp_path))
+    analyzer.analyze()
+    tracers = analyzer._ownership_run.program.module_tracers
+    bound_candidates = analyzer._local_class_candidates(
+        'bound', 'local', tracers)
+    traced = []
+    original = analyzer.trace_symbol
+
+    def record(*args, **kwargs):
+        traced.append(args[1])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(analyzer, 'trace_symbol', record)
+    assert analyzer._local_class_candidates('plain', 'local', tracers) == []
+    assert traced == []
+    assert analyzer._local_class_candidates(
+        'bound', 'local', tracers) == bound_candidates
+    assert traced
+
+
 def test_parameter_lookup_does_not_check_unrelated_call_edges(tmp_path, monkeypatch):
     for source in ROOT.glob('*.py'):
         shutil.copyfile(source, tmp_path / source.name)
