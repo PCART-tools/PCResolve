@@ -4,7 +4,7 @@
 
 import ast
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from types import CellType, FunctionType, MethodType
 
 from pcresolve.ownership.call_graph import FunctionId
@@ -21,23 +21,98 @@ from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
 #  @param fact_structures Fact structures whose observer links are rebound per clone.
 #  @param fact_edges Parent-child fact relationships.
 #  @param versioned_edges Versioned-container callback relationships.
+## Explicit reusable facts collected by one source-file visitor.
+## 单文件访问器收集并可复用的显式事实字段。
+@dataclass(frozen=True)
+class SingleFileVisitorFacts:
+    return_sources: object
+    return_element_sources: object
+    call_graph_return_sources: object
+    call_graph_return_values: object
+    call_graph_yield_sources: object
+    symbols: object
+    api_calls: object
+    comprehension_targets: object
+    attr_accesses: object
+    local: object
+    defined_functions: object
+    function_params: object
+    _parameter_name_index: object
+    parameter_sources: object
+    _assigned_call_sources: object
+    container_items: object
+    homogeneous_container_items: object
+    homogeneous_container_value_sources: object
+    homogeneous_container_tuple_items: object
+    container_lengths: object
+    container_kinds: object
+    container_item_kinds: object
+    container_set_sources: object
+    class_methods: object
+    class_bases: object
+    instance_attrs: object
+    instance_attr_kinds: object
+    instance_attr_item_kinds: object
+    instance_attr_item_fields: object
+    _constructor_kwargs_contracts: object
+    _local_instance_field_sources: object
+    _local_instance_field_shapes: object
+    _local_instance_field_shadowed: object
+    class_attr_kinds: object
+    _container_item_kind_conflicts: object
+    import_from_symbols: object
+    wildcard_modules: object
+    import_aliases: object
+    _import_binding_sources: object
+    call_sites: object
+    call_assign_funcs: object
+    _assignment_counter: object
+    _global_names: object
+    call_site_objects: object
+    symbol_refs: object
+    module_scope: object
+    scope_stack: object
+    module_cg: object
+    _literal_values: object
+    _pending_call_targets_by_node: object
+    _argparse_parsers: object
+    _argparse_destination_shapes: object
+    _iterable_binding_sources: object
+    _iterated_append_sources: object
+    _iterated_append_tuple_sources: object
+    _iterated_append_tuple_conflicts: object
+    _attribute_append_tuple_sources: object
+    _attribute_append_tuple_conflicts: object
+    _subscripted_import_attribute_receivers: object
+    external_method_overrides: object
+    _mapping_edges: object
+    _mapping_local_names: object
+    _finite_namespace_stability: object
+    _module_tree: object
+    mapping_facts_literals: object
+
+
+## Source version identity and detached ownership facts.
+## 源码版本身份与分离后的归属事实。
+#
+#  @param module_name Import-qualified module identity.
+#  @param is_package Whether the source represents a package initializer.
+#  @param file_path Original source path.
+#  @param visitor Declared source-derived visitor facts.
+#  @param fact_structures Fact structures whose observer links are rebound per clone.
+#  @param fact_edges Parent-child fact relationships.
+#  @param versioned_edges Versioned-container callback relationships.
 @dataclass(frozen=True)
 class SingleFileFacts:
     module_name: str
     is_package: bool
     file_path: str
-    values: dict
+    visitor: SingleFileVisitorFacts
     fact_structures: tuple
     fact_edges: tuple
     versioned_edges: tuple
 
 
-_RUN_STATE = frozenset((
-    '_analysis_budget', '_func_stack', '_class_stack', '_super_base_path_stack',
-    '_seen_api_call_ids', '_receiver_owner_guards', '_expression_query_cache',
-    '_class_receiver_stack', '_caller_stack', '_mapping_blocked_names',
-    '_finite_name_guards', '_listeners', '_version', '_mapping_facts',
-))
 # Exact built-in scalar types cannot hold fact structures or bound callbacks.
 # Subclasses follow the existing visitor logic, including fact-edge registration.
 _ATOMIC_TYPES = frozenset((type(None), str, bytes, int, float, bool))
@@ -68,7 +143,9 @@ def _ast_memo(document, budget):
 def _detach_visitor_callbacks(values, tracer, memo):
     from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
 
-    pending = [(value, tracer) for value in values.values() if type(value) not in _ATOMIC_TYPES]
+    pending = [(getattr(values, item.name), tracer)
+               for item in fields(values)
+               if type(getattr(values, item.name)) not in _ATOMIC_TYPES]
     seen = set()
     fact_structures, fact_edges, versioned_edges = [], [], []
     fact_structure_ids = set()
@@ -199,13 +276,16 @@ def capture_source_facts(tracer, document, budget=None):
     memo = _ast_memo(document, budget)
     if tracer._analysis_budget is not None:
         memo[id(tracer._analysis_budget)] = None
-    values = {name: value for name, value in tracer.__dict__.items()
-              if name not in _RUN_STATE and name not in (
-                  'module_name', 'is_package', '_file_path')}
+    visitor_values = {
+        item.name: getattr(tracer, item.name)
+        for item in fields(SingleFileVisitorFacts)
+        if item.name != 'mapping_facts_literals'
+    }
+    visitor_values['mapping_facts_literals'] = tracer._mapping_facts.literals
+    visitor = SingleFileVisitorFacts(**visitor_values)
     fact_structures, fact_edges, versioned_edges = _detach_visitor_callbacks(
-        values, tracer, memo)
-    values['_mapping_facts_literals'] = deepcopy(tracer._mapping_facts.literals, memo)
-    values = deepcopy(values, memo)
+        visitor, tracer, memo)
+    visitor = deepcopy(visitor, memo)
     copied_structures = deepcopy(fact_structures, memo)
     copied_fact_edges = deepcopy(fact_edges, memo)
     copied_versioned_edges = deepcopy(versioned_edges, memo)
@@ -213,7 +293,7 @@ def capture_source_facts(tracer, document, budget=None):
     if budget is not None:
         budget.checkpoint(force=True)
     return SingleFileFacts(tracer.module_name or '', tracer.is_package,
-                           tracer._file_path, values, copied_structures,
+                           tracer._file_path, visitor, copied_structures,
                            copied_fact_edges, copied_versioned_edges)
 
 
@@ -229,13 +309,15 @@ def clone_source_facts(source_facts, document, budget=None):
         budget.checkpoint(force=True)
     memo = _ast_memo(document, budget)
     memo[id(source_facts)] = None
-    copied_values = deepcopy(source_facts.values, memo)
+    copied_visitor = deepcopy(source_facts.visitor, memo)
     copied = SingleFileAnalyzer(module_name=source_facts.module_name,
                                 is_package=source_facts.is_package,
                                 file_path=source_facts.file_path,
                                 analysis_budget=budget)
-    copied.__dict__.update(copied_values)
-    copied._mapping_facts.literals = copied.__dict__.pop('_mapping_facts_literals')
+    for item in fields(SingleFileVisitorFacts):
+        if item.name != 'mapping_facts_literals':
+            setattr(copied, item.name, getattr(copied_visitor, item.name))
+    copied._mapping_facts.literals = copied_visitor.mapping_facts_literals
     copied_structures = deepcopy(source_facts.fact_structures, memo)
     fact_edges = deepcopy(source_facts.fact_edges, memo)
     versioned_edges = deepcopy(source_facts.versioned_edges, memo)

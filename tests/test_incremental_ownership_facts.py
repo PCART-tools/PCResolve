@@ -36,8 +36,10 @@ def test_cached_facts_detach_collector_closures_and_isolate_clone_notifications(
     def make_collector():
         collector = SingleFileAnalyzer(module_name='main', file_path='main.py')
         collector.visit(tree)
-        collector.transient_callback = lambda: collector
-        collector.nested_metadata = {'items': [collector.module_cg, lambda: collector]}
+        collector.module_cg.transient_callback = lambda: collector
+        collector.call_site_objects.append(
+            {'items': [collector.module_cg, lambda: collector]})
+        collector.unclassified_extension = lambda: collector
         return collector
 
     collector = make_collector()
@@ -50,10 +52,12 @@ def test_cached_facts_detach_collector_closures_and_isolate_clone_notifications(
     assert original() is None
     left = clone_source_facts(facts, document)
     right = clone_source_facts(facts, document)
-    assert left.transient_callback is None and right.transient_callback is None
-    assert left.nested_metadata['items'][0] is left.module_cg
-    assert left.nested_metadata['items'][1] is None
-    assert right.nested_metadata['items'][0] is right.module_cg
+    assert left.module_cg.transient_callback is None
+    assert right.module_cg.transient_callback is None
+    assert left.call_site_objects[0]['items'][0] is left.module_cg
+    assert left.call_site_objects[0]['items'][1] is None
+    assert right.call_site_objects[0]['items'][0] is right.module_cg
+    assert not hasattr(left, 'unclassified_extension')
     left_version, right_version = left.version, right.version
     left.module_cg.functions['probe'] = object()
     assert left.version > left_version
@@ -88,8 +92,8 @@ def test_file_edit_revisits_only_changed_module_and_does_not_reuse_query_state(t
     assert not hasattr(cached, '_mapping_facts')
     live = analyzer._ownership_run.program.module_tracers['main']
     assert live._mapping_facts.lookup.__self__ is live
-    assert live.symbols.direct is not cached.values['symbols'].direct
-    assert live.module_cg is not cached.values['module_cg']
+    assert live.symbols.direct is not cached.visitor.symbols.direct
+    assert live.module_cg is not cached.visitor.module_cg
     version = live.version
     live.module_cg.functions['__cache_listener_probe__'] = object()
     assert live.version > version
