@@ -2,7 +2,6 @@
 #  Conservative iterable-return facts from bounded installed type stubs.
 #  根据有界的已安装类型存根保守推断可迭代返回事实。
 
-"""Conservative iterable-return facts from bounded installed type stubs."""
 
 from __future__ import annotations
 
@@ -360,7 +359,6 @@ class _Resolver:
 #  @param roots Ordered import roots.
 #  @return Versioned protocol fact or None on uncertainty or analysis failure.
 def iterable_return_fact(qualified_target, roots):
-    """Prove every declared overload returns a type with an iteration method."""
     try:
         return _Resolver(roots).iterable_return(qualified_target)
     except (OSError, TypeError, ValueError, RecursionError):

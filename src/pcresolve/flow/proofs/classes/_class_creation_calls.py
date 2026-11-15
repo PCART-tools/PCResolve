@@ -60,7 +60,6 @@ def _literal(node):
 #  @param argument Required forwarded argument name.
 #  @return Source proof and evidence, or None when conditions are not met.
 def _source_literal_helper_result(analyzer, caller, call, argument):
-    """Prove a side-effect-free source helper returns one literal string."""
     if (not isinstance(call, ast.Call) or len(call.args) != 1 or call.keywords
             or not isinstance(call.args[0], ast.Name) or call.args[0].id != argument):
         return None
@@ -107,7 +106,6 @@ def _source_literal_helper_result(analyzer, caller, call, argument):
 #  @param module_prefix Optional proof of the module-call prefix.
 #  @return Metadata fact and evidence, or None for unsupported values.
 def _source_member_metadata_value(analyzer, owner, selected, statement, module_prefix):
-    """Prove a literal or source-observed value for one member metadata write."""
     attribute = statement.targets[0].attr
     value = statement.value
     if _literal(value):
@@ -180,7 +178,6 @@ def _source_member_metadata_value(analyzer, owner, selected, statement, module_p
 #  @param attribute Metadata attribute whose write must be unique.
 #  @return Conditional initialization fact, or None if not proven.
 def _source_module_initialized_member_metadata(analyzer, selected, attribute):
-    """Prove a source classmethod installs member metadata at module load."""
     ref, member = selected
     if (not isinstance(member, ast.FunctionDef) or not isinstance(attribute, str)
             or not attribute.isidentifier() or member.decorator_list

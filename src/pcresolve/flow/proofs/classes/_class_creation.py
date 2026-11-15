@@ -40,7 +40,6 @@ def _span(ref, node):
 #  @param visible Visible class writes and escape records.
 #  @return True only when every relevant record is an allowed escape.
 def _deferred_class_escapes(analyzer, owners, visible):
-    """Reject executable class escapes, allowing bounded source method-doc reads."""
     contexts = {}
     for module, bodies in analyzer.module_bodies.items():
         for _, body in bodies:

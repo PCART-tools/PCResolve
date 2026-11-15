@@ -569,10 +569,10 @@ class FlowRunMixin:
     #
     #  @param previous Previously collected checks.
     #  @param current Checks from another context.
-    #  @return Bounded merged alternatives, or an empty list when incompatible.
+    #  @return Up to 8 merged alternatives, or an empty list when incompatible,
+    #  inconsistent, or over the candidate bound.
     @staticmethod
     def _merge_fresh_mapping_checks(previous, current):
-        """Keep bounded receiver alternatives only when their lookup proof agrees."""
         if previous == current:
             return copy.deepcopy(previous)
         if (not previous or not current or len(previous) > 8 or len(current) > 8

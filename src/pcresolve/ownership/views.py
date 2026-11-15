@@ -210,7 +210,6 @@ def build_explain_call_view(result, query, top=20):
 #  @param project_root Root used for relative paths.
 #  @return POSIX-style path or empty string.
 def _relpath(file_path, project_root):
-    """Return a relative POSIX path with <external>/ prefix for external paths."""
     if not file_path:
         return ""
     try:
@@ -322,7 +321,6 @@ def _full_library_usage(u):
 #  @param value Value to convert.
 #  @return Converted value with string dictionary keys and list sequences.
 def _json_value(value):
-    """Recursively convert Source IR and containers to JSON-safe values."""
     converted = source_to_legacy(value)
     if isinstance(converted, dict):
         return {

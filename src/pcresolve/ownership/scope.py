@@ -179,7 +179,6 @@ def merge_snapshots(base, left, right):
 #  @param right_binding Right binding or source.
 #  @return SourceSet of deduplicated alternatives.
 def _merge_two(left_binding, right_binding):
-    """Create a merged binding from two different branch bindings."""
     from pcresolve.ownership.sources import source_display, CallResult, SourceSet as SS
     ## Include call-site location when distinguishing call results.
     ## 区分调用结果时将调用点位置纳入键。

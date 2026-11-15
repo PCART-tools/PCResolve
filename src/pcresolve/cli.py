@@ -43,7 +43,6 @@ def _format_location(call):
 #  @param result Project analysis result to display.
 #  @return None.
 def _print_debug_dump(result):
-    """Legacy full text output (--debug-dump)."""
     print("Global symbol table:")
     for f in result.files:
         print(f"\n{f.module_name} module:")
@@ -77,7 +76,6 @@ def _print_debug_dump(result):
 #  @param top Maximum libraries to display; nonpositive values show all.
 #  @return None.
 def _print_summary(result, top=20):
-    """Compact summary text output (default)."""
     stats = result.stats
     libs = result.library_usage
     print("PCResolve Summary")

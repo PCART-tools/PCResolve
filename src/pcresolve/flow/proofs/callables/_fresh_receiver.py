@@ -228,18 +228,16 @@ def _receiver_argument_escapes(node, receiver, input_attributes):
                for child in ast.iter_child_nodes(node))
 
 
-## Resolve  lookup argument safe using bounded source evidence.
+## Accept only bounded argument syntax without opaque calls or receiver escapes.
 ## 确认有限实参表达式不含不透明调用或接收者逃逸。
 #
-#  @param summary Input summary used by this analysis step.
-#  @param node Input node used by this analysis step.
-#  @param receiver Input receiver used by this analysis step.
-#  @param input_attributes Input input attributes used by this analysis step.
-#  @param depth Input depth used by this analysis step.
-#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
+#  @param summary Summary containing the current analyzer, function and call facts.
+#  @param node Candidate argument expression.
+#  @param receiver Receiver expression that may be read safely.
+#  @param input_attributes Receiver attributes proven to be input data.
+#  @param depth Current recursive expression depth; values above 24 are rejected.
+#  @return True for supported expressions; False for unsupported or over-depth input.
 def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
-    """Allow finite argument expressions without opaque calls or receiver escapes."""
-
     # Bound recursive expression checks so deeply nested input cannot exhaust analysis.
     if depth > 24:
         return False
@@ -303,15 +301,15 @@ def _lookup_argument_safe(summary, node, receiver, input_attributes, depth=0):
     return False
 
 
-## Resolve an Enum.auto member when its value follows from source.
+## Verify an imported Enum.auto member from bounded source declarations.
 ## 解析可由源码确定的 Enum.auto 成员。
 #
-#  @param analyzer Input analyzer used by this analysis step.
-#  @param owner Input owner used by this analysis step.
-#  @param expression Input expression used by this analysis step.
-#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
+#  @param analyzer Analyzer containing imports, definitions and class-write facts.
+#  @param owner Source reference whose expression is being checked.
+#  @param expression Candidate member expression.
+#  @return True when the member is a stable source Enum.auto declaration with no
+#  conflicting writes; False otherwise. At most 32 source base classes are visited.
 def _source_enum_auto_member(analyzer, owner, expression):
-    """Prove an imported source enum member declared with stdlib ``auto()``."""
     if not isinstance(expression, ast.Attribute) or not isinstance(expression.value, ast.Name):
         return False
     alias = expression.value.id
@@ -383,14 +381,14 @@ def _source_enum_auto_member(analyzer, owner, expression):
         for written, attribute, _, _, _ in writes)
 
 
-## Track values captured by setdefault along a bounded source path.
+## Verify a bounded setdefault capture on the current **kwargs mapping.
 ## 在有界源码路径中跟踪 setdefault 捕获值。
 #
-#  @param summary Input summary used by this analysis step.
-#  @param node Input node used by this analysis step.
-#  @return Resolved analysis fact, source value, or None when evidence is insufficient.
+#  @param summary Summary containing the current function and analyzed calls.
+#  @param node Candidate setdefault call expression.
+#  @return True only for one matching analyzed call with bounded source evidence;
+#  False for other mappings, call shapes, effects or incomplete evidence.
 def _bounded_capture_setdefault(summary, node):
-    """Accept an exact builtin dict.setdefault on the current **kwargs map."""
     capture = summary.node.args.kwarg
     if (capture is None or not isinstance(node.func, ast.Attribute)
             or node.func.attr != 'setdefault' or not isinstance(node.func.value, ast.Name)

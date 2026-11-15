@@ -158,7 +158,6 @@ _BUILTIN_METHOD_RESULT_ITEM_KINDS = {
 #  @param func_name Called function or method name.
 #  @return Result owner or None when no contract matches.
 def _match_result_owner(top, func_name):
-    """Return the verified owner of an import-backed call's result object."""
     if top is None:
         return None
     for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
@@ -175,7 +174,6 @@ def _match_result_owner(top, func_name):
 #  @param func_name Function or method name.
 #  @return True if at least one contract uses the name.
 def _has_result_owner_contract(func_name):
-    """Return whether any verified result contract covers a method name."""
     return any(
         contract_name == func_name
         for _, contract_name in _RESULT_OWNER_CONTRACTS
@@ -189,7 +187,6 @@ def _has_result_owner_contract(func_name):
 #  @param attribute Attribute name.
 #  @return Result owner or None when no contract matches.
 def _match_attribute_result_owner(top, attribute):
-    """Return the verified owner of an import-backed attribute's value."""
     if top is None:
         return None
     for (lib_prefix, name), contract in (
@@ -208,7 +205,6 @@ def _match_attribute_result_owner(top, attribute):
 #  @param attribute Attribute name.
 #  @return PythonShape or None when no shape contract matches.
 def _match_attribute_python_shape(top, attribute):
-    """Return the concrete Python shape from a verified attribute contract."""
     if top is None:
         return None
     for (lib_prefix, name), contract in (
@@ -228,7 +224,6 @@ def _match_attribute_python_shape(top, attribute):
 #  @param func_name Called function or method name.
 #  @return PythonShape or None when no shape contract matches.
 def _match_result_python_shape(top, func_name):
-    """Return the concrete Python shape from a verified result contract."""
     if top is None:
         return None
     for (lib_prefix, fn), contract in _RESULT_OWNER_CONTRACTS.items():
@@ -246,7 +241,6 @@ def _match_result_python_shape(top, func_name):
 #  @param owner Candidate result owner.
 #  @return True if a result contract names that owner.
 def _is_verified_result_owner(owner):
-    """Return whether owner is produced by a verified result contract."""
     return owner in _VERIFIED_RESULT_OWNERS
 
 
@@ -257,7 +251,6 @@ def _is_verified_result_owner(owner):
 #  @param func_name Called function or method name.
 #  @return Item owner or None when no contract matches.
 def _match_result_item_owner(top, func_name):
-    """Return a uniform owner for destructured or indexed call-result items."""
     if top is None:
         return None
     for (lib_prefix, fn), owner in _RESULT_ITEM_OWNER_CONTRACTS.items():
@@ -275,7 +268,6 @@ def _match_result_item_owner(top, func_name):
 #  @param func_name Called function or method name.
 #  @return Element owner or None when no contract matches.
 def _match_iterator_element_owner(top, func_name):
-    """Return the owner of elements from a known import-backed iterator."""
     if top is None:
         return None
     for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():
@@ -293,7 +285,6 @@ def _match_iterator_element_owner(top, func_name):
 #  @param func_name Called function or method name.
 #  @return PythonShape or None when no shape contract matches.
 def _match_iterator_element_shape(top, func_name):
-    """Return the Python shape of elements from a verified iterator."""
     if top is None:
         return None
     for (lib_prefix, fn), contract in _ITERATOR_ELEMENT_OWNER_MAP.items():

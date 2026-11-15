@@ -392,10 +392,9 @@ def source_identity_factory_wrapper_chain(analyzer, owner, target,
 #  @param expression Candidate descriptor construction expression.
 #  @param shadowed Names already bound in the class namespace.
 #  @param dependencies Optional set receiving supporting source paths.
-#  @return Descriptor premise, or None when any required proof is missing.
+#  @return Descriptor premise string, or None when any required proof is missing.
 def _source_same_name_property_descriptor(analyzer, owner, expression, shadowed,
                                           dependencies=None):
-    """Prove a source descriptor installs a same-name private property."""
     if (not isinstance(expression, ast.Call)
             or not isinstance(expression.func, ast.Attribute)
             or not isinstance(expression.func.value, ast.Name)
@@ -535,10 +534,9 @@ def _source_same_name_property_descriptor(analyzer, owner, expression, shadowed,
 #  @param member Decorated member definition.
 #  @param dependencies Optional set receiving supporting source paths.
 #  @param assumptions Optional set receiving required premises.
-#  @return Descriptor premise, or None when the proof is incomplete.
+#  @return Descriptor premise string, or None when the proof is incomplete.
 def _source_deprecated_classproperty(analyzer, owner, member, dependencies=None,
                                      assumptions=None):
-    """Prove a source deprecation decorator preserves class-property behavior."""
     if assumptions is None or len(member.decorator_list) != 2:
         return None
     deprecation, descriptor = member.decorator_list

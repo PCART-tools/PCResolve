@@ -3,7 +3,6 @@
 
 from pcresolve.flow.transfer._summary_support import *
 from pcresolve.flow.transfer.call_expression import CallExpressionMixin
-from pcresolve.flow.transfer.call_expression import CallExpressionMixin
 from pcresolve.flow.transfer.summary_values import ValuesMixin
 from pcresolve.flow.transfer.summary_class_effects import ClassEffectsMixin
 from pcresolve.flow.transfer.summary_call_evidence import CallEvidenceMixin

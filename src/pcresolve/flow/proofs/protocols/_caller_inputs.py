@@ -112,7 +112,6 @@ def _target(node, origins, module_origins):
 #  @param module_origins Names proven to refer to imported modules.
 #  @return True if the call may be retained as an unknown result.
 def _module_call_assignment(node, origins, module_origins):
-    """Skip a bounded imported-module call assigned to a name as an unknown value."""
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
         return False
     head = node.func

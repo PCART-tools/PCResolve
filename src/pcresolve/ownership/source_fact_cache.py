@@ -11,9 +11,18 @@ from pcresolve.ownership.call_graph import FunctionId
 from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
 
 
+## Detached source facts; no analyzer instance or run-local state is retained.
+## 分离的源码事实记录；不保留分析器实例或单次运行状态。
+#
+#  @param module_name Import-qualified module identity.
+#  @param is_package Whether the source represents a package initializer.
+#  @param file_path Original source path.
+#  @param values Deep-copied visitor facts with AST identities preserved.
+#  @param fact_structures Fact structures whose observer links are rebound per clone.
+#  @param fact_edges Parent-child fact relationships.
+#  @param versioned_edges Versioned-container callback relationships.
 @dataclass(frozen=True)
 class SingleFileFacts:
-    """Pristine source-derived visitor facts, without an analyzer instance."""
     module_name: str
     is_package: bool
     file_path: str
@@ -34,6 +43,12 @@ _RUN_STATE = frozenset((
 _ATOMIC_TYPES = frozenset((type(None), str, bytes, int, float, bool))
 
 
+## Preserve source AST identity during fact detachment and rehydration.
+## 分离和重新载入事实时保留源 AST 节点身份。
+#
+#  @param document Read-only source version owning the AST nodes.
+#  @param budget Optional analysis budget checked once per AST node.
+#  @return Deepcopy memo mapping each source AST identity to the original node.
 def _ast_memo(document, budget):
     memo = {}
     for node in ast.walk(document.tree):
@@ -43,8 +58,14 @@ def _ast_memo(document, budget):
     return memo
 
 
+## Find fact observer links and remove references to the source visitor.
+## 查找事实观察者关系并移除指向源访问器的引用。
+#
+#  @param values Collected visitor values to traverse.
+#  @param tracer Visitor whose callbacks must not escape into the cache.
+#  @param memo Deepcopy map preserving AST identities and detached callbacks.
+#  @return Tuple of fact structures, fact edges and versioned-container edges.
 def _detach_visitor_callbacks(values, tracer, memo):
-    """Keep cached values from retaining the collector through bound callbacks."""
     from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
 
     pending = [(value, tracer) for value in values.values() if type(value) not in _ATOMIC_TYPES]
@@ -124,8 +145,13 @@ def _detach_visitor_callbacks(values, tracer, memo):
     return tuple(fact_structures), tuple(fact_edges), tuple(versioned_edges)
 
 
+## Remove observers from a pristine cache copy before it is retained.
+## 保留干净缓存副本前移除其中的观察者回调。
+#
+#  @param structures Copied fact structures whose listeners must be cleared.
+#  @param versioned_edges Copied containers whose callbacks must be cleared.
+#  @return None.
 def _detach_fact_callbacks(structures, versioned_edges):
-    """Drop observer cycles from the pristine cache copy before retaining it."""
     for structure in structures:
         structure._listeners = []
     for container, _, _ in versioned_edges:
@@ -133,8 +159,15 @@ def _detach_fact_callbacks(structures, versioned_edges):
         container._adopt = None
 
 
+## Restore callbacks so one clone observes only its own fact graph.
+## 恢复回调，使每个克隆只观察自身事实图。
+#
+#  @param root Fresh visitor that owns root facts.
+#  @param structures Cloned fact structures receiving local listeners.
+#  @param fact_edges Parent-child fact relationships to restore.
+#  @param versioned_edges Versioned containers and their recorded owners.
+#  @return None.
 def _reattach_fact_callbacks(root, structures, fact_edges, versioned_edges):
-    """Restore listeners from the registered fact structures in one clone."""
     from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
 
     root._listeners = []
@@ -161,7 +194,6 @@ def _reattach_fact_callbacks(root, structures, fact_edges, versioned_edges):
 #  @param budget Optional current analysis budget.
 #  @return Independent visitor facts with callbacks rebound to the copy.
 def capture_source_facts(tracer, document, budget=None):
-    """Capture collected state as a detached facts record, never a visitor."""
     if budget is not None:
         budget.checkpoint(force=True)
     memo = _ast_memo(document, budget)

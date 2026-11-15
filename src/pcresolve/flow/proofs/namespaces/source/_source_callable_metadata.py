@@ -17,14 +17,14 @@ from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified
 #  @param target Pair of decorated function identity and AST node.
 #  @param attribute Custom attribute name to prove.
 #  @return Versioned evidence dictionary, or None when the shape is unsupported.
+#  The decorator must accept one source function, define exactly one nested
+#  wrapper decorated with functools.wraps(input), assign one literal custom
+#  attribute to the wrapper, and return it. The wrapper body is deferred and
+#  does not participate in metadata formation.
+#  装饰器必须接收一个源码函数，定义唯一一个带 functools.wraps(input) 的嵌套包装函数，
+#  为其设置一个字面量自定义属性并返回该包装函数。包装函数体延迟执行，
+#  不参与元数据形成过程的证明。
 def wrapper_metadata(analyzer, target, attribute):
-    """Prove one literal attribute on a returned functools.wraps wrapper.
-
-    The decorator must take one source function, define exactly one nested
-    wrapper decorated with functools.wraps(input), assign one literal custom
-    attribute to that wrapper, and return it. The wrapper body is deferred and
-    is not interpreted as part of metadata formation.
-    """
     ref, function = target
     if (not isinstance(function, ast.FunctionDef) or len(function.decorator_list) != 1
             or type(attribute) is not str or not attribute or attribute.startswith('__')):
