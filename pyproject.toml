@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.optional-dependencies]
-dev = ["build>=1.2,<2", "pytest>=7", "mypy>=1.11,<2"]
+dev = ["build>=1.2,<2", "pytest>=7", "mypy>=1.11,<2", "psutil>=5.9"]
 
 [project.urls]
 Homepage = "https://github.com/PCART-tools/PCResolve"
