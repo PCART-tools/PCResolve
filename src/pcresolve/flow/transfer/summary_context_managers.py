@@ -21,7 +21,7 @@ from pcresolve.flow.transfer._summary_support import (
 )
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 from pcresolve.flow.transfer.recursive_summary import (
-    create_child_summary, execute_child_block,
+    create_child_summary, execute_child_block, merge_child_block,
 )
 
 
@@ -283,10 +283,7 @@ class ContextManagersMixin:
             outcomes = execution.outcomes
         finally:
             self.analyzer._context_exit_stack.pop()
-        self.remaining = min(self.remaining, execution.remaining)
-        self.calls.extend(execution.calls)
-        self.mapping_effects.extend(execution.mapping_effects)
-        self.result.boundaries.extend(execution.boundaries)
+        merge_child_block(self, execution)
         supported = set()
         for source_call in execution.calls:
             if source_call.target_status == 'local_container_protocol':

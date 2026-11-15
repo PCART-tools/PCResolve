@@ -11,7 +11,7 @@ from pcresolve.flow.proofs.callables.dispatch.finite_dispatch import (
 )
 from pcresolve.flow.transfer._summary_support import _class_lookup_key, _unique
 from pcresolve.flow.transfer.recursive_summary import (
-    create_child_summary, evaluate_child_expression,
+    create_child_summary, evaluate_child_expression, propagate_child_expression,
 )
 
 
@@ -129,9 +129,8 @@ class ValuesMixin:
                                        module_ref, self.node, self.remaining)
         module_env = {}
         execution = evaluate_child_expression(summary, expression, module_env)
-        env.update(execution.heap_updates)
-        self.remaining = execution.remaining
-        return self.marked(execution.values, assignment)
+        values = propagate_child_expression(self, env, execution)
+        return self.marked(values, assignment)
 
     def class_value(self, class_ref, node, env):
         value = {'kind': 'class', 'module': class_ref.module,

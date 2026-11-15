@@ -9,6 +9,7 @@ from pcresolve.flow.model.results import FlowAnalysis, FunctionRef
 from pcresolve.flow.transfer.call_expression_state import _CallExpressionState
 from pcresolve.flow.transfer.recursive_summary import (
     create_child_summary, evaluate_child_expression, execute_child_block,
+    merge_child_block, propagate_child_expression,
 )
 from pcresolve.flow.transfer.summary import _Summary
 from pcresolve.ownership.call_graph import ModuleCallGraph
@@ -28,8 +29,11 @@ def child_factory(summary: _Summary) -> ChildSummaryFactory:
 def child_summary(summary: _Summary, result: FlowAnalysis, ref: FunctionRef,
                   node: ast.AST, remaining: int) -> RecursiveSummaryPort:
     child = create_child_summary(child_factory(summary), result, ref, node, remaining)
-    evaluate_child_expression(child, node, {})
-    execute_child_block(child, [], {})
+    env: dict[str, object] = {}
+    expression = evaluate_child_expression(child, node, env)
+    propagate_child_expression(child, env, expression)
+    block = execute_child_block(child, [], env)
+    merge_child_block(child, block)
     child.conditions = list(child.conditions)
     child.context_cleanup_order[0] += 1
     incoming: Mapping[str, Sequence[Mapping[str, object]]] = child.incoming

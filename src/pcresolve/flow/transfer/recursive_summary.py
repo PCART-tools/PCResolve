@@ -3,7 +3,7 @@
 
 import ast
 from dataclasses import dataclass
-from typing import Mapping, Optional, Sequence
+from typing import Mapping, MutableMapping, Optional, Sequence
 
 from pcresolve.flow.contracts import ChildSummaryFactory, RecursiveSummaryPort
 from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef
@@ -41,6 +41,15 @@ def evaluate_child_expression(child: RecursiveSummaryPort, node: ast.AST,
     return ChildExpressionExecution(values, heap_updates, child.remaining)
 
 
+def propagate_child_expression(parent: RecursiveSummaryPort,
+                               env: MutableMapping[str, object],
+                               execution: ChildExpressionExecution
+                               ) -> Sequence[Mapping[str, object]]:
+    env.update(execution.heap_updates)
+    parent.remaining = execution.remaining
+    return execution.values
+
+
 def execute_child_block(child: RecursiveSummaryPort,
                         statements: Sequence[ast.stmt],
                         env: Mapping[str, object]) -> ChildBlockExecution:
@@ -48,3 +57,11 @@ def execute_child_block(child: RecursiveSummaryPort,
     return ChildBlockExecution(outcomes, tuple(child.calls),
                                tuple(child.mapping_effects),
                                tuple(child.result.boundaries), child.remaining)
+
+
+def merge_child_block(parent: RecursiveSummaryPort,
+                      execution: ChildBlockExecution) -> None:
+    parent.remaining = min(parent.remaining, execution.remaining)
+    parent.calls.extend(execution.calls)
+    parent.mapping_effects.extend(execution.mapping_effects)
+    parent.result.boundaries.extend(execution.boundaries)

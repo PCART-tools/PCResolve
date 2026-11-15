@@ -2,6 +2,7 @@
 #  Recursive summaries are constructed through an explicit internal factory.
 
 import ast
+from types import SimpleNamespace
 from pathlib import Path
 
 from pcresolve.flow.model.results import FlowAnalysis, FunctionRef
@@ -95,3 +96,47 @@ def test_child_summary_factory_isolates_query_state():
     assert child.calls == []
     assert child.evaluated_calls == set()
     assert child.conditions == [{'branch': 'selected'}]
+
+
+def test_child_expression_propagation_returns_only_heap_facts_and_budget():
+    parent = SimpleNamespace(remaining=7)
+    env = {'existing': ['keep']}
+    execution = recursive_summary.ChildExpressionExecution(
+        values=[{'kind': 'literal', 'value': 9}],
+        heap_updates={'$heap:child': [{'kind': 'parameter'}]},
+        remaining=3,
+    )
+
+    values = recursive_summary.propagate_child_expression(parent, env, execution)
+
+    assert values == [{'kind': 'literal', 'value': 9}]
+    assert env == {'existing': ['keep'], '$heap:child': [{'kind': 'parameter'}]}
+    assert parent.remaining == 3
+
+
+def test_child_block_merge_preserves_parent_data_and_applies_budget_cap():
+    parent_call = object()
+    child_call = object()
+    parent_effect = {'operation': 'prior'}
+    child_effect = {'operation': 'child'}
+    parent_boundary = {'reason': 'prior'}
+    child_boundary = {'reason': 'child'}
+    result = FlowAnalysis(entry=FunctionRef(), inputs={}, calls=[parent_call],
+                          boundaries=[parent_boundary])
+    parent = SimpleNamespace(remaining=7, calls=result.calls,
+                             mapping_effects=[parent_effect], result=result)
+    execution = recursive_summary.ChildBlockExecution(
+        outcomes=[], calls=[child_call], mapping_effects=[child_effect],
+        boundaries=[child_boundary], remaining=3,
+    )
+
+    recursive_summary.merge_child_block(parent, execution)
+
+    assert parent.remaining == 3
+    assert parent.calls == [parent_call, child_call]
+    assert parent.mapping_effects == [parent_effect, child_effect]
+    assert parent.result.boundaries == [parent_boundary, child_boundary]
+
+    parent.remaining = 2
+    recursive_summary.merge_child_block(parent, execution)
+    assert parent.remaining == 2
