@@ -105,8 +105,11 @@ class RecursiveSummaryPort(Protocol):
     remaining: int
     calls: list[FlowCall]
     mapping_effects: list[object]
+    conditions: list[object]
     context_execution: bool
+    ## Shared with nested context-exit children to preserve query-wide order.
     context_cleanup_order: list[int]
+    incoming: dict[str, Sequence[Mapping[str, object]]]
 
     def expression(self, node: ast.AST,
                    env: Mapping[str, object]) -> Sequence[Mapping[str, object]]:

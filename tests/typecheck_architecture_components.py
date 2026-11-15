@@ -24,7 +24,12 @@ def child_factory(summary: _Summary) -> ChildSummaryFactory:
 def child_summary(summary: _Summary, result: FlowAnalysis, ref: FunctionRef,
                   node: ast.AST, remaining: int) -> RecursiveSummaryPort:
     factory = child_factory(summary)
-    return factory(result, ref, node, remaining)
+    child = factory(result, ref, node, remaining)
+    child.conditions = list(child.conditions)
+    child.context_cleanup_order[0] += 1
+    child.incoming = dict(child.incoming)
+    child.remaining = min(child.remaining, remaining)
+    return child
 
 
 def cached_graph(facts: SingleFileFacts) -> ModuleCallGraph:

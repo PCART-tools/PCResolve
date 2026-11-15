@@ -67,6 +67,8 @@ def test_cleanup_reverses_successful_entry_order_and_mutates_shared_object(name)
     calls = [call for call in exits(result) if call.implicit_protocol['incoming_exit']['kind'] == 'return']
     assert [call.target.qualname.rsplit('.', 2)[-2] for call in sorted(
         calls, key=lambda call: call.implicit_protocol['cleanup_order'])] == ['Clear', 'Restore']
+    cleanup_orders = [call.implicit_protocol['cleanup_order'] for call in exits(result)]
+    assert sorted(cleanup_orders) == list(range(len(cleanup_orders)))
 
 
 def test_failure_of_later_enter_cleans_only_successfully_entered_managers():

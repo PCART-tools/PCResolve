@@ -49,8 +49,8 @@ class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidence
         self.modified_return_callables: set[tuple[str, str]] = set()
         self.incoming: dict[str, Sequence[Mapping[str, object]]] = dict(incoming or {})
 
-    ## Create an isolated child using the same composed transfer behavior.
-    ## 使用相同的组合转移行为创建隔离的子摘要。
+    ## Create a child with fresh query state and the same source index.
+    ## 使用相同源码索引创建拥有新查询状态的子摘要。
     #
     #  @param result Child analysis result receiving calls and boundaries.
     #  @param ref Function identity represented by the child summary.
@@ -58,7 +58,7 @@ class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidence
     #  @param remaining Remaining call-analysis budget.
     #  @param receiver_class Optional receiver class context.
     #  @param incoming Optional incoming value facts for the child.
-    #  @return Fresh summary instance with independent query-local state.
+    #  @return Fresh summary instance. Callers may explicitly share selected state.
     def _make_child_summary(self, result: FlowAnalysis, ref: FunctionRef,
                             node: ast.AST, remaining: int,
                             receiver_class: Optional[FunctionRef] = None,
