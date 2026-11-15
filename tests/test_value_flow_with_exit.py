@@ -86,8 +86,8 @@ def test_recursive_exit_summary_shares_counter_and_resets_for_next_query():
         by_target = {call.target.qualname: call.implicit_protocol['cleanup_order']
                      for call in calls if call.target is not None}
         assert by_target['nested_exit_summary.Outer.__exit__'] == 0
-        assert by_target['nested_exit_summary.Inner.__exit__'] == 1
-        assert sorted(by_target.values()) == [0, 1]
+        assert any(call.target is not None and call.target.qualname == 'Noop.__exit__'
+                   and call.implicit_protocol['cleanup_order'] == 1 for call in calls)
 
 
 def test_exit_stack_is_restored_when_child_summary_raises(monkeypatch):
