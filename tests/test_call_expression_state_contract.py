@@ -6,6 +6,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 
 import pcresolve.flow.transfer.call_expression as call_expression
+import pcresolve.flow.transfer.call_expression_state as call_expression_state
 
 
 EXPECTED_PHASES = (
@@ -27,10 +28,9 @@ def test_call_expression_state_declares_all_phase_fields():
     assert is_dataclass(state_type)
 
     state_fields = {item.name for item in fields(state_type)}
-    module_path = Path(call_expression.__file__)
-    tree = ast.parse(module_path.read_text(encoding='utf-8'))
+    transfer_tree = ast.parse(Path(call_expression.__file__).read_text(encoding='utf-8'))
     phase_methods = {
-        node.name: node for node in ast.walk(tree)
+        node.name: node for node in ast.walk(transfer_tree)
         if isinstance(node, ast.FunctionDef) and node.name in EXPECTED_PHASES
     }
 

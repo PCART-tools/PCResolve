@@ -5,7 +5,7 @@
 import ast
 from typing import Mapping, Optional, Protocol, Sequence, Set, Tuple
 
-from pcresolve.flow.model.results import FlowAnalysis, FunctionRef
+from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef
 
 
 ## Cooperative resource boundary checked by flow execution components.
@@ -68,6 +68,12 @@ class SourceIndexPort(Protocol):
         ...
 
 
+## Analyzer data required to construct a query-local flow summary.
+## 构造查询级数据流摘要所需的分析器数据。
+class SummaryAnalyzerPort(SourceIndexPort, Protocol):
+    texts: Mapping[str, str]
+
+
 ## Query-local state visible to value-flow transfer components.
 ## 数据流传播组件可见的查询级状态。
 class FlowSummaryPort(Protocol):
@@ -86,4 +92,36 @@ class FlowSummaryPort(Protocol):
     #  @return None.
     def add_boundary(self, reason: str, node: ast.AST,
                      env: Mapping[str, Sequence[Mapping[str, object]]]) -> None:
+        ...
+
+
+## Minimal recursive summary surface used by child-summary call sites.
+## 子摘要递归调用点所需的最小摘要接口。
+class RecursiveSummaryPort(Protocol):
+    analyzer: SummaryAnalyzerPort
+    result: FlowAnalysis
+    ref: FunctionRef
+    node: ast.AST
+    remaining: int
+    calls: list[FlowCall]
+    mapping_effects: list[object]
+    context_execution: bool
+    context_cleanup_order: list[int]
+
+    def expression(self, node: ast.AST,
+                   env: Mapping[str, object]) -> Sequence[Mapping[str, object]]:
+        ...
+
+    def block(self, statements: Sequence[ast.stmt],
+              env: Mapping[str, object]) -> Sequence[object]:
+        ...
+
+
+## Construct a child summary with isolated query-local state.
+## 使用隔离的查询级状态创建子摘要。
+class ChildSummaryFactory(Protocol):
+    def __call__(self, result: FlowAnalysis, ref: FunctionRef, node: ast.AST,
+                 remaining: int, receiver_class: Optional[FunctionRef] = None,
+                 incoming: Optional[Mapping[str, Sequence[Mapping[str, object]]]] = None
+                 ) -> RecursiveSummaryPort:
         ...

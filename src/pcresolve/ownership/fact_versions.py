@@ -2,10 +2,15 @@
 #  Mutation notifications for internal facts; versions are not schema fields.
 #  内部事实的变更通知；版本号不属于公共 schema 字段。
 
+from typing import Callable, Optional
+
 
 ## Ordered dictionary with constant-cost mutation generation.
 ## 以常数开销记录变更代次的有序字典。
 class VersionedDict(dict):
+    _changed: Optional[Callable[[], None]]
+    _adopt: Optional[Callable[[object], None]]
+
     ## Copy entries and callbacks using one memo to preserve observer identities.
     ## 使用同一 memo 复制条目与回调，保留观察者身份关系。
     #
@@ -130,6 +135,9 @@ class VersionedDict(dict):
 ## List notifying changes while retaining ordinary sequence operations.
 ## 保留普通序列操作并通知变更的列表。
 class VersionedList(list):
+    _changed: Optional[Callable[[], None]]
+    _adopt: Optional[Callable[[object], None]]
+
     ## Copy elements and callbacks using one memo to preserve observer identities.
     ## 使用同一 memo 复制元素与回调，保留观察者身份关系。
     #
@@ -306,6 +314,8 @@ class VersionedList(list):
 ## 将集合变更传播给已订阅索引的记录。
 class FactStructure:
     _versioned_fields = {}
+    _version: int
+    _listeners: list[Callable[[], None]]
 
     ## Increment the structural generation and notify current listeners.
     ## 递增结构代次并通知当前监听者。
@@ -332,7 +342,7 @@ class FactStructure:
     #
     #  @param value Inserted value.
     #  @return None
-    def _adopt(self, value):
+    def _adopt(self, value: object) -> None:
         if isinstance(value, FactStructure):
             value.watch(self._notify)
 

@@ -6,95 +6,112 @@ import ast
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from types import CellType, FunctionType, MethodType
+from typing import Iterable, Optional, Protocol, Sequence, Tuple, TYPE_CHECKING, Union
 
-from pcresolve.ownership.call_graph import FunctionId
+from pcresolve.frontend.source_snapshot import SourceDocument
+from pcresolve.ownership.call_graph import FunctionId, ModuleCallGraph
 from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
+from pcresolve.ownership.mapping_facts import MappingValue
+from pcresolve.ownership.scope import Scope
+from pcresolve.ownership.symbol_table import SymbolTable
+from pcresolve.ownership.types import ApiCall
+from pcresolve.runtime.limits import AnalysisBudget
+
+if TYPE_CHECKING:
+    class _SingleFileAnalyzerFactory(Protocol):
+        def __call__(self, module_name: Optional[str] = ..., is_package: bool = ...,
+                     file_path: str = ...,
+                     analysis_budget: Optional[AnalysisBudget] = ...) -> SingleFileAnalyzer: ...
+
+    _single_file_analyzer_factory: _SingleFileAnalyzerFactory
+else:
+    _single_file_analyzer_factory = SingleFileAnalyzer
 
 
-## Detached source facts; no analyzer instance or run-local state is retained.
-## 分离的源码事实记录；不保留分析器实例或单次运行状态。
-#
-#  @param module_name Import-qualified module identity.
-#  @param is_package Whether the source represents a package initializer.
-#  @param file_path Original source path.
-#  @param values Deep-copied visitor facts with AST identities preserved.
-#  @param fact_structures Fact structures whose observer links are rebound per clone.
-#  @param fact_edges Parent-child fact relationships.
-#  @param versioned_edges Versioned-container callback relationships.
+FactEdge = Tuple[bool, Optional[FactStructure], FactStructure]
+VersionedEdge = Tuple[Union[VersionedDict, VersionedList], bool,
+                      Optional[FactStructure]]
+
+
 ## Explicit reusable facts collected by one source-file visitor.
 ## 单文件访问器收集并可复用的显式事实字段。
+#  Only declared source facts are retained; query stacks and lookup caches are excluded.
+#  仅保留显式声明的源码事实；查询栈和查找缓存不进入该记录。
 @dataclass(frozen=True)
 class SingleFileVisitorFacts:
-    return_sources: object
-    return_element_sources: object
-    call_graph_return_sources: object
-    call_graph_return_values: object
-    call_graph_yield_sources: object
-    symbols: object
-    api_calls: object
-    comprehension_targets: object
-    attr_accesses: object
-    local: object
-    defined_functions: object
-    function_params: object
-    _parameter_name_index: object
-    parameter_sources: object
-    _assigned_call_sources: object
-    container_items: object
-    homogeneous_container_items: object
-    homogeneous_container_value_sources: object
-    homogeneous_container_tuple_items: object
-    container_lengths: object
-    container_kinds: object
-    container_item_kinds: object
-    container_set_sources: object
-    class_methods: object
-    class_bases: object
-    instance_attrs: object
-    instance_attr_kinds: object
-    instance_attr_item_kinds: object
-    instance_attr_item_fields: object
-    _constructor_kwargs_contracts: object
-    _local_instance_field_sources: object
-    _local_instance_field_shapes: object
-    _local_instance_field_shadowed: object
-    class_attr_kinds: object
-    _container_item_kind_conflicts: object
-    import_from_symbols: object
-    wildcard_modules: object
-    import_aliases: object
-    _import_binding_sources: object
-    call_sites: object
-    call_assign_funcs: object
-    _assignment_counter: object
-    _global_names: object
-    call_site_objects: object
+    return_sources: dict[object, object]
+    return_element_sources: dict[object, object]
+    call_graph_return_sources: dict[object, object]
+    call_graph_return_values: dict[object, object]
+    call_graph_yield_sources: dict[object, object]
+    symbols: SymbolTable
+    api_calls: list[object]
+    comprehension_targets: set[object]
+    attr_accesses: list[object]
+    local: set[object]
+    defined_functions: set[object]
+    function_params: dict[object, object]
+    _parameter_name_index: Optional[dict[str, list[tuple[str, int]]]]
+    parameter_sources: dict[object, object]
+    _assigned_call_sources: dict[object, object]
+    container_items: dict[object, object]
+    homogeneous_container_items: dict[object, object]
+    homogeneous_container_value_sources: dict[object, object]
+    homogeneous_container_tuple_items: dict[object, object]
+    container_lengths: dict[object, object]
+    container_kinds: dict[object, object]
+    container_item_kinds: dict[object, object]
+    container_set_sources: dict[object, object]
+    class_methods: dict[object, object]
+    class_bases: dict[object, object]
+    instance_attrs: dict[object, object]
+    instance_attr_kinds: dict[object, object]
+    instance_attr_item_kinds: dict[object, object]
+    instance_attr_item_fields: dict[object, object]
+    _constructor_kwargs_contracts: dict[object, object]
+    _local_instance_field_sources: dict[object, object]
+    _local_instance_field_shapes: dict[object, object]
+    _local_instance_field_shadowed: dict[object, object]
+    class_attr_kinds: dict[object, object]
+    _container_item_kind_conflicts: set[object]
+    import_from_symbols: dict[object, object]
+    wildcard_modules: list[object]
+    import_aliases: set[object]
+    _import_binding_sources: dict[object, object]
+    call_sites: dict[object, object]
+    call_assign_funcs: dict[object, object]
+    _assignment_counter: int
+    _global_names: set[object]
+    call_site_objects: list[object]
     symbol_refs: object
-    module_scope: object
-    scope_stack: object
-    module_cg: object
-    _literal_values: object
-    _pending_call_targets_by_node: object
-    _argparse_parsers: object
-    _argparse_destination_shapes: object
-    _iterable_binding_sources: object
-    _iterated_append_sources: object
-    _iterated_append_tuple_sources: object
-    _iterated_append_tuple_conflicts: object
-    _attribute_append_tuple_sources: object
-    _attribute_append_tuple_conflicts: object
-    _subscripted_import_attribute_receivers: object
-    external_method_overrides: object
-    _mapping_edges: object
-    _mapping_local_names: object
-    _finite_namespace_stability: object
-    _module_tree: object
-    mapping_facts_literals: object
+    module_scope: Scope
+    scope_stack: list[Scope]
+    module_cg: ModuleCallGraph
+    _literal_values: dict[object, object]
+    _pending_call_targets_by_node: dict[object, object]
+    _argparse_parsers: dict[object, object]
+    _argparse_destination_shapes: dict[object, object]
+    _iterable_binding_sources: dict[object, object]
+    _iterated_append_sources: dict[object, object]
+    _iterated_append_tuple_sources: dict[object, object]
+    _iterated_append_tuple_conflicts: set[object]
+    _attribute_append_tuple_sources: dict[object, object]
+    _attribute_append_tuple_conflicts: set[object]
+    _subscripted_import_attribute_receivers: set[object]
+    external_method_overrides: dict[object, object]
+    _mapping_edges: list[object]
+    _mapping_local_names: dict[object, object]
+    _finite_namespace_stability: dict[object, object]
+    _module_tree: Optional[ast.AST]
+    mapping_facts_literals: dict[ast.AST, MappingValue]
 
 
 ## Source version identity and detached ownership facts.
 ## 源码版本身份与分离后的归属事实。
 #
+#  This record contains no analyzer instance or run-local state.
+#  该记录不包含分析器实例或单次运行状态。
 #  @param module_name Import-qualified module identity.
 #  @param is_package Whether the source represents a package initializer.
 #  @param file_path Original source path.
@@ -108,9 +125,9 @@ class SingleFileFacts:
     is_package: bool
     file_path: str
     visitor: SingleFileVisitorFacts
-    fact_structures: tuple
-    fact_edges: tuple
-    versioned_edges: tuple
+    fact_structures: Tuple[FactStructure, ...]
+    fact_edges: Tuple[FactEdge, ...]
+    versioned_edges: Tuple[VersionedEdge, ...]
 
 
 # Exact built-in scalar types cannot hold fact structures or bound callbacks.
@@ -124,8 +141,11 @@ _ATOMIC_TYPES = frozenset((type(None), str, bytes, int, float, bool))
 #  @param document Read-only source version owning the AST nodes.
 #  @param budget Optional analysis budget checked once per AST node.
 #  @return Deepcopy memo mapping each source AST identity to the original node.
-def _ast_memo(document, budget):
-    memo = {}
+def _ast_memo(document: SourceDocument,
+              budget: Optional[AnalysisBudget]) -> dict[int, object]:
+    if not isinstance(document.tree, ast.AST):
+        raise TypeError('source document must contain a parsed AST')
+    memo: dict[int, object] = {}
     for node in ast.walk(document.tree):
         if budget is not None:
             budget.checkpoint()
@@ -140,21 +160,25 @@ def _ast_memo(document, budget):
 #  @param tracer Visitor whose callbacks must not escape into the cache.
 #  @param memo Deepcopy map preserving AST identities and detached callbacks.
 #  @return Tuple of fact structures, fact edges and versioned-container edges.
-def _detach_visitor_callbacks(values, tracer, memo):
-    from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
-
-    pending = [(getattr(values, item.name), tracer)
-               for item in fields(values)
-               if type(getattr(values, item.name)) not in _ATOMIC_TYPES]
-    seen = set()
-    fact_structures, fact_edges, versioned_edges = [], [], []
-    fact_structure_ids = set()
+def _detach_visitor_callbacks(
+        values: SingleFileVisitorFacts, tracer: SingleFileAnalyzer,
+        memo: dict[int, object]
+        ) -> Tuple[Tuple[FactStructure, ...], Tuple[FactEdge, ...],
+                   Tuple[VersionedEdge, ...]]:
+    pending: list[Tuple[object, object]] = [
+        (getattr(values, item.name), tracer)
+        for item in fields(values)
+        if type(getattr(values, item.name)) not in _ATOMIC_TYPES]
+    seen: set[int] = set()
+    fact_structures: list[FactStructure] = []
+    fact_edges: list[FactEdge] = []
+    versioned_edges: list[VersionedEdge] = []
+    fact_structure_ids: set[int] = set()
     while pending:
         value, owner = pending.pop()
         # Plain containers cannot have listeners of their own. Avoid the
         # versioned-container checks for these common traversal nodes.
-        kind = type(value)
-        if kind is dict:
+        if type(value) is dict:
             identity = id(value)
             if identity in seen:
                 continue
@@ -162,12 +186,22 @@ def _detach_visitor_callbacks(values, tracer, memo):
             pending.extend([(child, owner) for child in value.keys() if type(child) not in _ATOMIC_TYPES])
             pending.extend([(child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES])
             continue
-        if kind in (list, tuple, set, frozenset):
+        children: Optional[Iterable[object]] = None
+        if type(value) is list:
+            children = value
+        elif type(value) is tuple:
+            children = value
+        elif type(value) is set:
+            children = value
+        elif type(value) is frozenset:
+            children = value
+        if children is not None:
             identity = id(value)
             if identity in seen:
                 continue
             seen.add(identity)
-            pending.extend([(child, owner) for child in value if type(child) not in _ATOMIC_TYPES])
+            pending.extend([(child, owner) for child in children
+                            if type(child) not in _ATOMIC_TYPES])
             continue
         if isinstance(value, FactStructure):
             if id(value) not in fact_structure_ids:
@@ -215,9 +249,12 @@ def _detach_visitor_callbacks(values, tracer, memo):
             pending.extend([(child, owner) for child in value.values() if type(child) not in _ATOMIC_TYPES])
         elif isinstance(value, (list, tuple, set, frozenset)):
             pending.extend([(child, owner) for child in value if type(child) not in _ATOMIC_TYPES])
-        elif hasattr(value, '__dict__') and not isinstance(value, type):
+        elif not isinstance(value, type):
+            attributes = getattr(value, '__dict__', None)
+            if not isinstance(attributes, dict):
+                continue
             child_owner = value if isinstance(value, FactStructure) else owner
-            pending.extend([(child, child_owner) for child in value.__dict__.values()
+            pending.extend([(child, child_owner) for child in attributes.values()
                             if type(child) not in _ATOMIC_TYPES])
     return tuple(fact_structures), tuple(fact_edges), tuple(versioned_edges)
 
@@ -228,7 +265,8 @@ def _detach_visitor_callbacks(values, tracer, memo):
 #  @param structures Copied fact structures whose listeners must be cleared.
 #  @param versioned_edges Copied containers whose callbacks must be cleared.
 #  @return None.
-def _detach_fact_callbacks(structures, versioned_edges):
+def _detach_fact_callbacks(structures: Sequence[FactStructure],
+                           versioned_edges: Sequence[VersionedEdge]) -> None:
     for structure in structures:
         structure._listeners = []
     for container, _, _ in versioned_edges:
@@ -244,9 +282,10 @@ def _detach_fact_callbacks(structures, versioned_edges):
 #  @param fact_edges Parent-child fact relationships to restore.
 #  @param versioned_edges Versioned containers and their recorded owners.
 #  @return None.
-def _reattach_fact_callbacks(root, structures, fact_edges, versioned_edges):
-    from pcresolve.ownership.fact_versions import FactStructure, VersionedDict, VersionedList
-
+def _reattach_fact_callbacks(root: SingleFileAnalyzer,
+                             structures: Sequence[FactStructure],
+                             fact_edges: Sequence[FactEdge],
+                             versioned_edges: Sequence[VersionedEdge]) -> None:
     root._listeners = []
     for value in structures:
         value._listeners = []
@@ -270,7 +309,8 @@ def _reattach_fact_callbacks(root, structures, fact_edges, versioned_edges):
 #  @param document Read-only source version owning its AST identities.
 #  @param budget Optional current analysis budget.
 #  @return Independent visitor facts with callbacks rebound to the copy.
-def capture_source_facts(tracer, document, budget=None):
+def capture_source_facts(tracer: SingleFileAnalyzer, document: SourceDocument,
+                         budget: Optional[AnalysisBudget] = None) -> SingleFileFacts:
     if budget is not None:
         budget.checkpoint(force=True)
     memo = _ast_memo(document, budget)
@@ -304,16 +344,17 @@ def capture_source_facts(tracer, document, budget=None):
 #  @param document Read-only source version owning the AST identities.
 #  @param budget Optional current analysis budget.
 #  @return Fresh visitor with callbacks rebound to its own state.
-def clone_source_facts(source_facts, document, budget=None):
+def clone_source_facts(source_facts: SingleFileFacts, document: SourceDocument,
+                       budget: Optional[AnalysisBudget] = None) -> SingleFileAnalyzer:
     if budget is not None:
         budget.checkpoint(force=True)
     memo = _ast_memo(document, budget)
     memo[id(source_facts)] = None
     copied_visitor = deepcopy(source_facts.visitor, memo)
-    copied = SingleFileAnalyzer(module_name=source_facts.module_name,
-                                is_package=source_facts.is_package,
-                                file_path=source_facts.file_path,
-                                analysis_budget=budget)
+    copied = _single_file_analyzer_factory(module_name=source_facts.module_name,
+                                           is_package=source_facts.is_package,
+                                           file_path=source_facts.file_path,
+                                           analysis_budget=budget)
     for item in fields(SingleFileVisitorFacts):
         if item.name != 'mapping_facts_literals':
             setattr(copied, item.name, getattr(copied_visitor, item.name))

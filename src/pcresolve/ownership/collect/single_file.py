@@ -265,7 +265,7 @@ class SingleFileAnalyzer(FactStructure, SingleFileSourceResolutionMixin,
     ## 返回当前最内层的词法作用域。
     #
     #  @return Current Scope at the top of the scope stack.
-    def current_scope(self):
+    def current_scope(self) -> Scope:
         return self.scope_stack[-1]
 
     ## Push a new scope onto the stack.
@@ -428,7 +428,7 @@ class SingleFileAnalyzer(FactStructure, SingleFileSourceResolutionMixin,
     #
     #  @param node Lambda expression.
     #  @return Source-location-qualified callable key.
-    def _local_lambda_key(self, node):
+    def _local_lambda_key(self, node: ast.Lambda) -> str:
         name = "<lambda>@%d:%d" % (node.lineno, node.col_offset)
         return self._local_callable_key(name)
 
