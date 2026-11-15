@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 import psutil
 
@@ -23,11 +24,14 @@ _HEAVY_COMMAND_MARKERS = (
 _MIN_AVAILABLE_MEMORY = 512 * 1024 * 1024
 _MIN_AVAILABLE_MEMORY_RATIO = 0.05
 _HIGH_CPU_PERCENT = 90.0
-_HIGH_EXTERNAL_PROCESS_CPU_SECONDS = 1.0
+_MIN_EXTERNAL_PROCESS_CPU_SECONDS = 1.0
+_HIGH_EXTERNAL_PROCESS_CPU_RATIO = 0.20
+_HIGH_EXTERNAL_PROCESS_TOTAL_CPU_RATIO = 0.75
 
 
 def capture_system_state():
     """Capture host load and active Python processes for benchmark provenance."""
+    captured_at = time.monotonic()
     cpu_percent = psutil.cpu_percent(interval=0.2)
     memory = psutil.virtual_memory()
     ignored_pids = {os.getpid()}
@@ -59,7 +63,8 @@ def capture_system_state():
              if process['pid'] not in ignored_pids and process['command_markers']]
     minimum_memory = max(_MIN_AVAILABLE_MEMORY,
                          int(memory.total * _MIN_AVAILABLE_MEMORY_RATIO))
-    return dict(cpu_percent=cpu_percent, memory_total_bytes=memory.total,
+    return dict(captured_monotonic_seconds=captured_at,
+                cpu_percent=cpu_percent, memory_total_bytes=memory.total,
                 memory_available_bytes=memory.available,
                 memory_available_threshold_bytes=minimum_memory,
                 ignored_monitor_pids=sorted(ignored_pids),
@@ -71,7 +76,12 @@ def load_interference(before, after):
     before_by_pid = {item['pid']: item for item in before['processes']}
     ignored_pids = set(before.get('ignored_monitor_pids', ())) | set(
         after.get('ignored_monitor_pids', ()))
+    elapsed = max(0.0, after.get('captured_monotonic_seconds', 0.0) -
+                  before.get('captured_monotonic_seconds', 0.0))
+    cpu_delta_threshold = max(_MIN_EXTERNAL_PROCESS_CPU_SECONDS,
+                              elapsed * _HIGH_EXTERNAL_PROCESS_CPU_RATIO)
     external_cpu = []
+    total_external_cpu_seconds = 0.0
     for process in after['processes']:
         if process['pid'] in ignored_pids:
             continue
@@ -79,10 +89,14 @@ def load_interference(before, after):
         if previous is None:
             continue
         delta = process['cpu_seconds'] - previous['cpu_seconds']
-        if delta >= _HIGH_EXTERNAL_PROCESS_CPU_SECONDS:
+        if delta > 0:
+            total_external_cpu_seconds += delta
             external_cpu.append(dict(pid=process['pid'], name=process['name'],
                                      command_markers=process['command_markers'],
-                                     cpu_seconds_delta=delta))
+                                     cpu_seconds_delta=delta,
+                                     cpu_fraction_of_interval=(delta / elapsed
+                                                               if elapsed else None),
+                                     threshold_exceeded=delta >= cpu_delta_threshold))
     reasons = []
     if before['heavy_processes'] or after['heavy_processes']:
         reasons.append('concurrent_heavy_process')
@@ -92,10 +106,15 @@ def load_interference(before, after):
             before['memory_available_threshold_bytes'],
             after['memory_available_threshold_bytes']):
         reasons.append('low_available_memory')
-    if external_cpu:
+    total_external_cpu_fraction = (total_external_cpu_seconds / elapsed
+                                   if elapsed else 0.0)
+    if (any(item['threshold_exceeded'] for item in external_cpu)
+            or total_external_cpu_fraction >= _HIGH_EXTERNAL_PROCESS_TOTAL_CPU_RATIO):
         reasons.append('external_process_cpu')
     return dict(interference_detected=bool(reasons), reasons=reasons,
-                external_cpu_processes=external_cpu)
+                external_cpu_processes=external_cpu,
+                total_external_cpu_seconds=total_external_cpu_seconds,
+                total_external_cpu_fraction_of_interval=total_external_cpu_fraction)
 
 
 def run_benchmark(script, output, sizes, repeats, samples):
@@ -127,7 +146,10 @@ def run_paired_benchmarks(before_script, after_script, output_dir,
         interference_thresholds=dict(
             heavy_process_markers=list(_HEAVY_COMMAND_MARKERS),
             high_cpu_percent=_HIGH_CPU_PERCENT,
-            external_process_cpu_seconds=_HIGH_EXTERNAL_PROCESS_CPU_SECONDS,
+            minimum_external_process_cpu_seconds=_MIN_EXTERNAL_PROCESS_CPU_SECONDS,
+            external_process_cpu_fraction_of_interval=_HIGH_EXTERNAL_PROCESS_CPU_RATIO,
+            total_external_process_cpu_fraction_of_interval=(
+                _HIGH_EXTERNAL_PROCESS_TOTAL_CPU_RATIO),
             minimum_available_memory_bytes=_MIN_AVAILABLE_MEMORY,
             minimum_available_memory_ratio=_MIN_AVAILABLE_MEMORY_RATIO),
         snapshots=[])
