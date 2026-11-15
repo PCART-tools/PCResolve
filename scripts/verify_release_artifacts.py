@@ -29,10 +29,15 @@ def _clean_environment():
 
 
 def _run(command, *, cwd=None, capture_output=True):
-    return subprocess.run(command, cwd=cwd, env=_clean_environment(), check=True,
-                          stdout=subprocess.PIPE if capture_output else None,
-                          stderr=subprocess.STDOUT if capture_output else None,
-                          text=True)
+    try:
+        return subprocess.run(command, cwd=cwd, env=_clean_environment(), check=True,
+                              stdout=subprocess.PIPE if capture_output else None,
+                              stderr=subprocess.STDOUT if capture_output else None,
+                              text=True)
+    except subprocess.CalledProcessError as error:
+        output = error.stdout or error.stderr or ''
+        raise RuntimeError('command failed (%s):\n%s' %
+                           (' '.join(command), output[-12000:])) from error
 
 
 def _sha256(path):
@@ -127,7 +132,7 @@ def main():
         assert len(sdist_roots) == 1 and sdist_roots[0].is_dir()
         sdist_dist = work / 'sdist-dist'
         sdist_dist.mkdir()
-        _run([sys.executable, '-m', 'build', '--wheel', '--no-isolation',
+        _run([sys.executable, '-m', 'build', '--wheel',
               '--outdir', str(sdist_dist), str(sdist_roots[0])], cwd=work)
         sdist_wheels = list(sdist_dist.glob('*.whl'))
         assert len(sdist_wheels) == 1
@@ -135,8 +140,9 @@ def main():
         wheel_install = _install_and_verify(wheels[0], work / 'wheel-venv', work)
         sdist_install = _install_and_verify(sdist_wheels[0], work / 'sdist-venv', work)
         destination = args.dist_dir.resolve()
-        retained = [destination / wheels[0].name, destination / sdists[0].name,
-                    destination / sdist_wheels[0].name]
+        retained = [destination / 'checkout-wheel' / wheels[0].name,
+                    destination / sdists[0].name,
+                    destination / 'sdist-built-wheel' / sdist_wheels[0].name]
         hashes = [_preserve_artifact(source, target) for source, target in zip(
             (wheels[0], sdists[0], sdist_wheels[0]), retained)]
         if args.report:
@@ -144,7 +150,9 @@ def main():
             source_status = subprocess.check_output(
                 ['git', 'status', '--porcelain', '--untracked-files=all', '--',
                  'src/pcresolve', 'pyproject.toml', 'README.md'], cwd=root, text=True).strip()
-            artifact_hashes = {path.name: digest for path, digest in zip(retained, hashes)}
+            artifact_hashes = {
+                str(path.relative_to(destination)): digest
+                for path, digest in zip(retained, hashes)}
             report = dict(revision=revision, source_clean=not source_status,
                           source_status=source_status.splitlines(),
                           python=sys.version, platform=platform.platform(),
