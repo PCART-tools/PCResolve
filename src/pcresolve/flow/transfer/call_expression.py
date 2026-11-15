@@ -5,7 +5,9 @@
 import ast
 import builtins
 import copy
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
+from typing import Any
+
 from pcresolve.flow.model.results import FlowCall, FunctionRef
 from pcresolve.facts.scope_facts import statement_scope_facts
 from pcresolve.flow.proofs.callables.dispatch.conditional_constructor import signature_reference as conditional_constructor_signature
@@ -19,12 +21,197 @@ from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified as nam
 from pcresolve.flow.transfer._summary_support import _call_key, _call_span, _unique
 
 
-## Evaluate a call using the summary's bounded source and flow context.
-## 使用摘要的有界源码与数据流上下文分析调用。
-from types import SimpleNamespace
+## Per-call mutable facts shared by the ordered call-transfer phases.
+## 有序调用转移阶段共享的单次调用可变事实。
+## Intermediate fields are initialized by the phase that first establishes them.
+## 中间字段由首次建立该事实的阶段初始化。
+@dataclass(eq=False, repr=False)
+class _CallExpressionState:
+    self: Any
+    node: ast.Call
+    env: dict[str, Any]
+    location: tuple[int, ...]
+    return_value: Any = None
+    fresh_instance_method_bindings: list[Any] = field(default_factory=list)
+
+    # Callee binding and construction candidates.
+    alias: Any = field(init=False, repr=False)
+    allocation_candidates: Any = field(init=False, repr=False)
+    allocation_class: Any = field(init=False, repr=False)
+    allocation_values: Any = field(init=False, repr=False)
+    binding: Any = field(init=False, repr=False)
+    bound_receiver: Any = field(init=False, repr=False)
+    bounded_targets: Any = field(init=False, repr=False)
+    builtin_status: Any = field(init=False, repr=False)
+    callable_incomplete: Any = field(init=False, repr=False)
+    callable_instance_cause: Any = field(init=False, repr=False)
+    callable_instance_fact: Any = field(init=False, repr=False)
+    callable_sources: Any = field(init=False, repr=False)
+    callee_classes: Any = field(init=False, repr=False)
+    canonical: Any = field(init=False, repr=False)
+    class_target: Any = field(init=False, repr=False)
+    classes: Any = field(init=False, repr=False)
+    construction_candidates: Any = field(init=False, repr=False)
+    construction_safe: Any = field(init=False, repr=False)
+    constructor: Any = field(init=False, repr=False)
+    constructor_class: Any = field(init=False, repr=False)
+    dispatch_kind: Any = field(init=False, repr=False)
+    field_evidence: Any = field(init=False, repr=False)
+    function_names: Any = field(init=False, repr=False)
+    global_declarations: Any = field(init=False, repr=False)
+    global_rebound: Any = field(init=False, repr=False)
+    identities: Any = field(init=False, repr=False)
+    matches: Any = field(init=False, repr=False)
+    module: Any = field(init=False, repr=False)
+    name: Any = field(init=False, repr=False)
+    nominal_target: Any = field(init=False, repr=False)
+    owner: Any = field(init=False, repr=False)
+    protocol: Any = field(init=False, repr=False)
+    qualname: Any = field(init=False, repr=False)
+    receiver_sources: Any = field(init=False, repr=False)
+    receiver_values: Any = field(init=False, repr=False)
+    returned_field_receiver: Any = field(init=False, repr=False)
+    target: Any = field(init=False, repr=False)
+
+    # Receiver, inheritance and super dispatch.
+    args: Any = field(init=False, repr=False)
+    bases: Any = field(init=False, repr=False)
+    builtin_super: Any = field(init=False, repr=False)
+    candidate: Any = field(init=False, repr=False)
+    changed: Any = field(init=False, repr=False)
+    class_name: Any = field(init=False, repr=False)
+    class_ref: Any = field(init=False, repr=False)
+    current_class_known: Any = field(init=False, repr=False)
+    current_descriptor: Any = field(init=False, repr=False)
+    hierarchy: Any = field(init=False, repr=False)
+    inherited: Any = field(init=False, repr=False)
+    is_explicit_super: Any = field(init=False, repr=False)
+    is_zero_super: Any = field(init=False, repr=False)
+    owner_index: Any = field(init=False, repr=False)
+    possible_allocations: Any = field(init=False, repr=False)
+    receiver: Any = field(init=False, repr=False)
+    receiver_name: Any = field(init=False, repr=False)
+    receiver_types: Any = field(init=False, repr=False)
+    truncated: Any = field(init=False, repr=False)
+    types: Any = field(init=False, repr=False)
+    writes: Any = field(init=False, repr=False)
+
+    # Fresh receiver and callable binding.
+    assignment_evidence: Any = field(init=False, repr=False)
+    body_preserved: Any = field(init=False, repr=False)
+    candidates: Any = field(init=False, repr=False)
+    complete: Any = field(init=False, repr=False)
+    complete_candidates: Any = field(init=False, repr=False)
+    decorated_target_candidate: Any = field(init=False, repr=False)
+    decoration_facts: Any = field(init=False, repr=False)
+    descriptor_kind: Any = field(init=False, repr=False)
+    dot: Any = field(init=False, repr=False)
+    fresh_binding: Any = field(init=False, repr=False)
+    identity_decorator: Any = field(init=False, repr=False)
+    imported: Any = field(init=False, repr=False)
+    instance_types: Any = field(init=False, repr=False)
+    receiver_complete: Any = field(init=False, repr=False)
+    replacement: Any = field(init=False, repr=False)
+    rest: Any = field(init=False, repr=False)
+    wrapper_forwarding_candidate: Any = field(init=False, repr=False)
+
+    # Call identity and record construction.
+    ambient: Any = field(init=False, repr=False)
+    call: Any = field(init=False, repr=False)
+    call_id: Any = field(init=False, repr=False)
+    class_binding: Any = field(init=False, repr=False)
+    common: Any = field(init=False, repr=False)
+    constructor_values: Any = field(init=False, repr=False)
+    context: Any = field(init=False, repr=False)
+    contexts: Any = field(init=False, repr=False)
+    identity: Any = field(init=False, repr=False)
+    parameters: Any = field(init=False, repr=False)
+
+    # Target status and call metadata.
+    callable_binding: Any = field(init=False, repr=False)
+    decorated_class: Any = field(init=False, repr=False)
+    facts: Any = field(init=False, repr=False)
+    fresh: Any = field(init=False, repr=False)
+    limits: Any = field(init=False, repr=False)
+    literal_join: Any = field(init=False, repr=False)
+    method: Any = field(init=False, repr=False)
+    string_arity: Any = field(init=False, repr=False)
+    string_protocol: Any = field(init=False, repr=False)
+
+    # Formal parameters and call binding.
+    actual_values: Any = field(init=False, repr=False)
+    capture_values: Any = field(init=False, repr=False)
+    closed: Any = field(init=False, repr=False)
+    contract: Any = field(init=False, repr=False)
+    functions: Any = field(init=False, repr=False)
+    instance_parameter: Any = field(init=False, repr=False)
+    invalid_binding: Any = field(init=False, repr=False)
+    params: Any = field(init=False, repr=False)
+    positional: Any = field(init=False, repr=False)
+    records: Any = field(init=False, repr=False)
+
+    # Per-argument binding and propagation.
+    aliases: Any = field(init=False, repr=False)
+    arg: Any = field(init=False, repr=False)
+    argument_record: Any = field(init=False, repr=False)
+    binding_record: Any = field(init=False, repr=False)
+    container: Any = field(init=False, repr=False)
+    default: Any = field(init=False, repr=False)
+    defaults: Any = field(init=False, repr=False)
+    forwarded: Any = field(init=False, repr=False)
+    fresh_super: Any = field(init=False, repr=False)
+    incoming_bindings: Any = field(init=False, repr=False)
+    literal: Any = field(init=False, repr=False)
+    param: Any = field(init=False, repr=False)
+    parameter: Any = field(init=False, repr=False)
+    possibly_expanded: Any = field(init=False, repr=False)
+    protocol_values: Any = field(init=False, repr=False)
+    raw_values: Any = field(init=False, repr=False)
+    receiver_parameters: Any = field(init=False, repr=False)
+    record: Any = field(init=False, repr=False)
+    slot: Any = field(init=False, repr=False)
+    supplied: Any = field(init=False, repr=False)
+    target_path: Any = field(init=False, repr=False)
+    unknown_keywords: Any = field(init=False, repr=False)
+    unknown_positions: Any = field(init=False, repr=False)
+    value: Any = field(init=False, repr=False)
+    values: Any = field(init=False, repr=False)
+
+    # Source-backed effects and mutations.
+    affected: Any = field(init=False, repr=False)
+    argument: Any = field(init=False, repr=False)
+    capture: Any = field(init=False, repr=False)
+    conditional: Any = field(init=False, repr=False)
+    container_result: Any = field(init=False, repr=False)
+    effects_complete: Any = field(init=False, repr=False)
+    fact: Any = field(init=False, repr=False)
+    invalid_receivers: Any = field(init=False, repr=False)
+    mutations: Any = field(init=False, repr=False)
+    scope: Any = field(init=False, repr=False)
+    selected_target: Any = field(init=False, repr=False)
+    sources: Any = field(init=False, repr=False)
+    unmodeled: Any = field(init=False, repr=False)
+    updated: Any = field(init=False, repr=False)
+
+    # Container and protocol result resolution.
+    _: Any = field(init=False, repr=False)
+    incoming_receiver: Any = field(init=False, repr=False)
+    preserved_classes: Any = field(init=False, repr=False)
+    reference: Any = field(init=False, repr=False)
+    required: Any = field(init=False, repr=False)
+    source: Any = field(init=False, repr=False)
+    source_super: Any = field(init=False, repr=False)
+
+    # Return-source construction.
+    field_types: Any = field(init=False, repr=False)
+    item: Any = field(init=False, repr=False)
+    result_value: Any = field(init=False, repr=False)
+    returned_object: Any = field(init=False, repr=False)
 
 
 class CallExpressionMixin:
+    ## Evaluate a call using the summary's bounded source and flow context.
+    ## 使用摘要的有界源码与数据流上下文分析调用。
     def call_expression(self, node, env):
         location = _call_span(node)
         if location not in self.evaluated_calls and self.analyzer._class_return_stack:
@@ -39,36 +226,35 @@ class CallExpressionMixin:
         if location not in self.evaluated_calls:
             self.remaining -= 1
             self.evaluated_calls.add(location)
-        state = SimpleNamespace(self=self, node=node, env=env, location=location,
-                                return_value=None, fresh_instance_method_bindings=[])
-        if self._call_expression_stage_1(state):
+        state = _CallExpressionState(self=self, node=node, env=env, location=location)
+        if self._resolve_callee_and_construction(state):
             return state.return_value
-        if self._call_expression_stage_2(state):
+        if self._resolve_receiver_dispatch(state):
             return state.return_value
-        if self._call_expression_stage_3(state):
+        if self._resolve_callable_binding(state):
             return state.return_value
-        if self._call_expression_stage_4(state):
+        if self._create_flow_call_record(state):
             return state.return_value
-        if self._call_expression_stage_5(state):
+        if self._complete_call_target_metadata(state):
             return state.return_value
-        if self._call_expression_stage_6(state):
+        if self._bind_call_parameters(state):
             return state.return_value
-        if self._call_expression_stage_7(state):
+        if self._map_call_arguments(state):
             return state.return_value
-        if self._call_expression_stage_8(state):
+        if self._analyze_call_effects(state):
             return state.return_value
-        if self._call_expression_stage_9(state):
+        if self._resolve_container_and_protocol_results(state):
             return state.return_value
-        if self._call_expression_stage_10(state):
+        if self._resolve_return_sources(state):
             return state.return_value
         return state.return_value
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Resolve the callee, binding and construction candidates.
+    ## 解析被调对象、绑定关系和构造候选。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_1(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _resolve_callee_and_construction(self, state):
         state.name = ast.unparse(state.node.func)
         state.binding = state.env.get(state.name.split('.')[0])
         state.builtin_status = (state.self.analyzer._builtin_name_status(state.self.ref, state.self.node, state.name, state.env)
@@ -164,12 +350,12 @@ class CallExpressionMixin:
                              state.constructor_class.qualname)
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Resolve receiver-based, inherited, super and field dispatch.
+    ## 解析基于接收者的继承、super 与字段分派。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_2(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _resolve_receiver_dispatch(self, state):
         state.receiver_types = {tuple((value.get('class_type') or {}).get(key, '')
                           for key in ('module', 'qualname')) for value in state.receiver_values}
         if (state.target is None and isinstance(state.node.func, ast.Attribute)
@@ -315,12 +501,12 @@ class CallExpressionMixin:
             state.allocation_candidates = [dict(value, value_incomplete=True) for value in state.allocation_candidates]
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Resolve callable-instance and fresh-receiver bindings.
+    ## 解析可调用实例与新鲜接收者绑定。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_3(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _resolve_callable_binding(self, state):
         if state.allocation_class and not state.self.analyzer._explicit_object_allocation(state.allocation_class):
             state.allocation_class = None
         if not state.allocation_candidates and state.allocation_class is None and state.dispatch_kind == 'builtin_allocation':
@@ -473,12 +659,12 @@ class CallExpressionMixin:
             state.dispatch_kind = 'constructor' if state.constructor_class is not None else 'classmethod'
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Create the call record and capture its initial identity and evidence.
+    ## 创建调用记录并记录初始身份与证据。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_4(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _create_flow_call_record(self, state):
         state.call_id = _call_key(state.self.ref.file_path, state.node)
         if state.target and (not namespace_unmodified(state.self.analyzer, state.self.ref.module + '.' + state.name)
                 or not namespace_unmodified(state.self.analyzer,
@@ -607,12 +793,12 @@ class CallExpressionMixin:
                 'evidence': state.self.evidence(state.node)})
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Finalize target status and attach bounded call metadata.
+    ## 确定目标状态并附加有界调用元数据。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_5(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _complete_call_target_metadata(self, state):
         if state.dispatch_kind == 'receiver_unresolved' and state.bounded_targets:
             state.call.target_status = 'receiver_unresolved'
             state.self.add_boundary('class_attribute_state_unknown', state.node, state.env,
@@ -759,12 +945,12 @@ class CallExpressionMixin:
                 'evidence': state.self.evidence(state.node)})
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Bind call arguments to formal parameters and callable contracts.
+    ## 将调用实参与形参及可调用契约绑定。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_6(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _bind_call_parameters(self, state):
         state.capture_values = {}
         state.params = state.target[1].args if state.target else None
         state.contract = state.self.analyzer.return_summaries.get(state.canonical) if state.target is None else None
@@ -875,12 +1061,12 @@ class CallExpressionMixin:
         state.actual_values = {}
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Build per-argument binding records and propagate argument facts.
+    ## 构建逐实参绑定记录并传播实参事实。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_7(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _map_call_arguments(self, state):
         state.protocol_values = {}
         for state.record in state.records:
             state.slot, state.arg = state.record['argument'], state.record['node']
@@ -999,12 +1185,12 @@ class CallExpressionMixin:
                             'sources': _unique([v for b in state.binding for v in b.get('defaults', {}).get(state.param.arg, [])])})
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Collect source-backed effects and receiver mutations.
+    ## 收集有源码依据的效果与接收者变更。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_8(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _analyze_call_effects(self, state):
         if (state.constructor_class is not None and state.target
                 and state.call.target_status == 'constructor'):
             state.fact = constructor_source_binding(state.self, state.node, state.constructor_class, state.target,
@@ -1141,12 +1327,12 @@ class CallExpressionMixin:
         state.container_result = state.self.container_call(state.node, state.receiver_values, state.call, state.env, state.protocol_values)
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Resolve container, protocol and bounded-target result facts.
+    ## 解析容器、协议及有界目标的结果事实。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_9(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _resolve_container_and_protocol_results(self, state):
         if state.container_result is None and isinstance(state.node.func, ast.Attribute) and state.node.func.attr == 'copy':
             state.incoming_receiver = state.self.incoming_copy_receiver(state.node, state.receiver_values, state.call, state.env)
             if state.incoming_receiver is not None:
@@ -1212,12 +1398,12 @@ class CallExpressionMixin:
             return True
         return False
 
-    ## Evaluate one ordered phase of an explicit call expression.
-    ## 按调用求值顺序执行一个转移阶段。
+    ## Assemble the call result sources and their evidence.
+    ## 组装调用结果来源及其证据。
     #
-    #  @param state Mutable per-call working state.
-    #  @return True when this phase produces an early result.
-    def _call_expression_stage_10(self, state):
+    #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @return True only when this phase completes the call with an early result.
+    def _resolve_return_sources(self, state):
         state.result_value = {'kind': 'call_result', 'source': state.call_id,
                         'relation': 'direct',
                         'evidence': [state.self.evidence(state.node)],
