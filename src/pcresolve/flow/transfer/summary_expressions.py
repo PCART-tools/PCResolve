@@ -1,7 +1,12 @@
 ## @package pcresolve.flow.transfer.summary_expressions
 ## @brief Expressions operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.flow.model.results import FunctionRef
+from pcresolve.flow.transfer._summary_support import _unique
+from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 
 
 class ExpressionsMixin:

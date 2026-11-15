@@ -1,7 +1,25 @@
 ## @package pcresolve.flow.transfer.summary_context_managers
 ## @brief Context Managers operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.facts.effect_facts import contains_yield
+from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
+from pcresolve.facts.scope_facts import statement_scope_facts
+from pcresolve.flow.model.results import FlowAnalysis, FunctionRef
+from pcresolve.flow.proofs.protocols._contextmanager_instance_effects import (
+    temporary_receiver_attributes as bounded_temporary_receiver_attributes,
+)
+from pcresolve.flow.transfer._summary_support import (
+    _CONTEXT_EXIT_PATH_LIMIT,
+    _CONTEXT_PROTOCOL_NODE_LIMIT,
+    _call_key,
+    _exception_class,
+    _may_raise,
+    _unique,
+)
+from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 
 
 class ContextManagersMixin:

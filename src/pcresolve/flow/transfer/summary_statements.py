@@ -1,7 +1,52 @@
 ## @package pcresolve.flow.transfer.summary_statements
 ## @brief Statements operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.facts.effect_facts import contains_yield
+from pcresolve.facts.import_facts import import_facts
+from pcresolve.flow.model.results import FlowCall, FunctionRef
+from pcresolve.flow.proofs.callables._fresh_member_checks import (
+    fresh_checks as fresh_mapping_member_checks,
+)
+from pcresolve.flow.proofs.callables._function_factory import factory_wrapper
+from pcresolve.flow.proofs.callables.dispatch.keyword_validation import (
+    checks as keyword_validation_checks,
+)
+from pcresolve.flow.proofs.containers.container_predicates import (
+    checks as container_predicate_checks,
+)
+from pcresolve.flow.proofs.containers.mapping_attribute_transfer import (
+    transfers as mapping_attribute_transfers,
+)
+from pcresolve.flow.proofs.containers.mapping_key_access import (
+    footprints as mapping_key_access_footprints,
+)
+from pcresolve.flow.proofs.containers.mapping_return_transfer import (
+    transfers as mapping_return_transfers,
+)
+from pcresolve.flow.proofs.namespaces.metadata._metadata_observer import (
+    observer_effects,
+)
+from pcresolve.flow.proofs.namespaces.metadata._metadata_queries import metadata_query
+from pcresolve.flow.proofs.protocols._cached_imports import cached_import
+from pcresolve.flow.proofs.protocols.capture_rejection_guard import (
+    checks as capture_rejection_checks,
+)
+from pcresolve.flow.transfer._summary_support import (
+    _attribute_write_roots,
+    _call_key,
+    _exception_class,
+    _loop_env,
+    _loop_signature,
+    _may_raise,
+    _unique,
+)
+from pcresolve.flow.transfer.environment import (
+    merge_environments as _merge_env,
+    merge_result_sources as _merge_result_sources,
+)
 
 
 class StatementsMixin:

@@ -1,7 +1,15 @@
 ## @package pcresolve.flow.transfer.summary_effects
 ## @brief Effects operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.facts.effect_facts import FunctionEffect, finite_key_delete_sites
+from pcresolve.flow.proofs.containers.mapping_remainders import (
+    _ProofLimit,
+    mapping_remainder,
+)
+from pcresolve.flow.transfer._summary_support import _loop_env, _unique
 
 
 class EffectsMixin:

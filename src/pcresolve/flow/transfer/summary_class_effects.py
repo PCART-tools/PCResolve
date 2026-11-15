@@ -1,7 +1,23 @@
 ## @package pcresolve.flow.transfer.summary_class_effects
 ## @brief Class Effects operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.facts.scope_facts import statement_scope_facts
+from pcresolve.flow.model.results import FunctionRef
+from pcresolve.flow.proofs.classes._class_name_binding import (
+    _write_name as class_write_name,
+    source_binding as source_class_name_binding,
+)
+from pcresolve.flow.proofs.classes._class_read_binding import (
+    source_binding as source_class_read_binding,
+)
+from pcresolve.flow.proofs.protocols.class_attribute_effects import (
+    _ClassEffectLimit,
+    class_attribute_writes,
+)
+from pcresolve.flow.transfer._summary_support import _class_origin_key, _unique
 
 
 class ClassEffectsMixin:

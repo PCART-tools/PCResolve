@@ -5,7 +5,7 @@ import ast
 import copy
 from typing import Mapping, Optional, Sequence
 
-from pcresolve.flow.transfer._summary_support import *
+
 from pcresolve.flow.transfer.call_expression import CallExpressionMixin
 from pcresolve.flow.transfer.summary_values import ValuesMixin
 from pcresolve.flow.transfer.summary_class_effects import ClassEffectsMixin

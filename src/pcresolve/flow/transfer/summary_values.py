@@ -1,7 +1,15 @@
 ## @package pcresolve.flow.transfer.summary_values
 ## @brief Values operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.flow.model.results import FunctionRef
+from pcresolve.flow.proofs.callables.dispatch.finite_dispatch import (
+    DispatchLimit,
+    generated_dict,
+)
+from pcresolve.flow.transfer._summary_support import _class_lookup_key, _unique
 
 
 class ValuesMixin:

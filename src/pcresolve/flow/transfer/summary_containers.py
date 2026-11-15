@@ -1,7 +1,12 @@
 ## @package pcresolve.flow.transfer.summary_containers
 ## @brief Containers operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+import copy
+from dataclasses import asdict
+from pcresolve.facts.effect_facts import container_method_effect
+from pcresolve.facts.return_resolution import select_dependencies
+from pcresolve.flow.transfer._summary_support import _loop_env, _unique
 
 
 class ContainersMixin:

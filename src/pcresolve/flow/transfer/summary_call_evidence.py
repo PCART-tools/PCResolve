@@ -1,7 +1,10 @@
 ## @package pcresolve.flow.transfer.summary_call_evidence
 ## @brief Call Evidence operations for query-local flow summaries.
 
-from pcresolve.flow.transfer._summary_support import *
+import ast
+from dataclasses import asdict
+from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
+from pcresolve.flow.transfer._summary_support import _unique
 
 
 class CallEvidenceMixin:
