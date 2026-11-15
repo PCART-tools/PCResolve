@@ -2,10 +2,14 @@
 #  Strict probes exercise the actual internal state and factory contracts.
 
 import ast
+from typing import Mapping, Sequence
 
 from pcresolve.flow.contracts import ChildSummaryFactory, RecursiveSummaryPort
 from pcresolve.flow.model.results import FlowAnalysis, FunctionRef
 from pcresolve.flow.transfer.call_expression_state import _CallExpressionState
+from pcresolve.flow.transfer.recursive_summary import (
+    create_child_summary, evaluate_child_expression, execute_child_block,
+)
 from pcresolve.flow.transfer.summary import _Summary
 from pcresolve.ownership.call_graph import ModuleCallGraph
 from pcresolve.ownership.source_fact_cache import SingleFileFacts
@@ -23,11 +27,13 @@ def child_factory(summary: _Summary) -> ChildSummaryFactory:
 
 def child_summary(summary: _Summary, result: FlowAnalysis, ref: FunctionRef,
                   node: ast.AST, remaining: int) -> RecursiveSummaryPort:
-    factory = child_factory(summary)
-    child = factory(result, ref, node, remaining)
+    child = create_child_summary(child_factory(summary), result, ref, node, remaining)
+    evaluate_child_expression(child, node, {})
+    execute_child_block(child, [], {})
     child.conditions = list(child.conditions)
     child.context_cleanup_order[0] += 1
-    child.incoming = dict(child.incoming)
+    incoming: Mapping[str, Sequence[Mapping[str, object]]] = child.incoming
+    _ = incoming
     child.remaining = min(child.remaining, remaining)
     return child
 

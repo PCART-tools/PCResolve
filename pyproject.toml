@@ -38,5 +38,6 @@ strict = true
 files = ["src/pcresolve/flow/contracts.py", "tests/typecheck_flow_contracts.py",
          "tests/typecheck_architecture_components.py",
          "src/pcresolve/flow/transfer/summary.py",
+         "src/pcresolve/flow/transfer/recursive_summary.py",
          "src/pcresolve/flow/transfer/call_expression_state.py",
          "src/pcresolve/ownership/source_fact_cache.py"]

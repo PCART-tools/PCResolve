@@ -20,6 +20,9 @@ from pcresolve.flow.transfer._summary_support import (
     _unique,
 )
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
+from pcresolve.flow.transfer.recursive_summary import (
+    create_child_summary, execute_child_block,
+)
 
 
 class ContextManagersMixin:
@@ -269,21 +272,23 @@ class ContextManagersMixin:
         for local in self.analyzer._scope_facts(method).bound:
             frame.setdefault(local, [])
         scratch = FlowAnalysis(ref, {})
-        child = self._make_child_summary(scratch, ref, method, self.remaining)
+        child = create_child_summary(self._make_child_summary, scratch, ref,
+                                     method, self.remaining)
         child.context_execution = True
         child.context_cleanup_order = self.context_cleanup_order
         child.conditions = copy.deepcopy(self.conditions)
         self.analyzer._context_exit_stack.append(ref)
         try:
-            outcomes = child.block(method.body, frame)
+            execution = execute_child_block(child, method.body, frame)
+            outcomes = execution.outcomes
         finally:
             self.analyzer._context_exit_stack.pop()
-        self.remaining = min(self.remaining, child.remaining)
-        self.calls.extend(child.calls)
-        self.mapping_effects.extend(child.mapping_effects)
-        self.result.boundaries.extend(scratch.boundaries)
+        self.remaining = min(self.remaining, execution.remaining)
+        self.calls.extend(execution.calls)
+        self.mapping_effects.extend(execution.mapping_effects)
+        self.result.boundaries.extend(execution.boundaries)
         supported = set()
-        for source_call in child.calls:
+        for source_call in execution.calls:
             if source_call.target_status == 'local_container_protocol':
                 supported.add(source_call.id)
             elif (source_call.target_status == 'builtin_boundary'
@@ -294,7 +299,7 @@ class ContextManagersMixin:
                 supported.add(source_call.id)
         issues = [boundary['reason'] for boundary in scratch.boundaries if not (
             boundary.get('call_id') in supported and boundary['reason'] == 'builtin_boundary')]
-        if any(source_call.id not in supported for source_call in child.calls):
+        if any(source_call.id not in supported for source_call in execution.calls):
             issues.append('context_exit_call_unmodeled')
         if any(kind == 'unknown' for kind, _, _, _ in outcomes):
             issues.append('context_exit_completion_unresolved')
@@ -303,7 +308,7 @@ class ContextManagersMixin:
         call.effects = _unique([dict(effect, exit_call_id=call.id,
             completion=effect.get('completion', 'normal_return'),
             conditions=_unique(effect.get('conditions', []) + self.conditions))
-            for source_call in child.calls for effect in source_call.effects]
+            for source_call in execution.calls for effect in source_call.effects]
             + [dict(effect, exit_call_id=call.id, completion='normal_return')
                for effect in child.mapping_effects])
         completed = []

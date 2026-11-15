@@ -10,6 +10,9 @@ from pcresolve.flow.proofs.callables.dispatch.finite_dispatch import (
     generated_dict,
 )
 from pcresolve.flow.transfer._summary_support import _class_lookup_key, _unique
+from pcresolve.flow.transfer.recursive_summary import (
+    create_child_summary, evaluate_child_expression,
+)
 
 
 class ValuesMixin:
@@ -122,14 +125,13 @@ class ValuesMixin:
                                 and isinstance(parent.ctx, ast.Load)):
                             return []
         module_ref = FunctionRef(self.ref.module, '', bodies[0][0], 0)
-        summary = self._make_child_summary(self.result, module_ref, self.node,
-                                           self.remaining)
+        summary = create_child_summary(self._make_child_summary, self.result,
+                                       module_ref, self.node, self.remaining)
         module_env = {}
-        values = summary.expression(expression, module_env)
-        env.update({key: value for key, value in module_env.items()
-                    if key.startswith('$heap:')})
-        self.remaining = summary.remaining
-        return self.marked(values, assignment)
+        execution = evaluate_child_expression(summary, expression, module_env)
+        env.update(execution.heap_updates)
+        self.remaining = execution.remaining
+        return self.marked(execution.values, assignment)
 
     def class_value(self, class_ref, node, env):
         value = {'kind': 'class', 'module': class_ref.module,
