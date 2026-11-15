@@ -66,6 +66,7 @@ by the source construct they model:
 | `flow/analysis/proof_context.py` | Source proof preparation and semantic queries |
 | `flow/runtime/analysis_run.py` | Per-run entry traversal and summary merging |
 | `flow/transfer/call_expression.py` | Ordered call-resolution, record, binding, effect and result phases |
+| `flow/transfer/call_expression_state.py` | Explicit per-call working state shared by those phases |
 | `flow/transfer/summary.py` | Query-local summary state and transfer-component composition |
 | `flow/transfer/summary_values.py` | Literal, callable and source-class value facts |
 | `flow/transfer/summary_class_effects.py` | Class lookup and receiver invalidation effects |
@@ -124,6 +125,32 @@ Ownership wraps that snapshot in three internal types:
 Repeated ownership runs construct fresh run state. Value flow owns its own
 snapshot and caches. There is no public `AnalysisSession`, and the two adapters
 must not assume that one invocation shares caches with the other.
+
+The ownership source-fact cache records the declared `SingleFileVisitorFacts`
+schema. It does not retain the visitor's whole `__dict__`, query stacks, or
+lookup caches. Fact-structure listeners are detached during capture and rebound
+to each cloned visitor, so edits to one clone cannot mutate another clone or a
+later ownership run. The AST nodes remain tied to the `SourceDocument` version
+from which the facts were collected; a changed, removed, or renamed source
+requires facts from the corresponding new snapshot.
+
+Value flow separates the analyzer's source index from each recursive summary's
+query-local environment and evidence. `_Summary._make_child_summary()` creates
+a child with the explicitly supplied result, target, source node, remaining
+depth, receiver, and incoming bindings. Context-manager transfer still owns
+cleanup through its existing `try/finally` boundary. `_CallExpressionState` is
+the internal dataclass shared by the ordered call-transfer phases; it is not a
+public result or JSON schema.
+
+The deferred class proof in `flow/proofs/classes/_class_deferred.py` performs a
+bounded syntax preflight (2,000 AST nodes) and charges the optional analysis
+budget before interpreting declaration-time effects. Each proof attempt owns a
+`_DeferredClassProofState`. Its statement interpreter keeps source order,
+retains only facts that agree at branch joins, and invalidates stored function
+metadata evidence after later writes. Unsupported or open effects return no
+proof; the proof does not execute source bodies or widen inference. These
+boundaries and the remaining internal composition patterns are catalogued in
+[`architecture-1.0.8-follow-up.md`](architecture-1.0.8-follow-up.md).
 
 ## Shared fact layer
 
