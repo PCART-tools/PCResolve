@@ -11,7 +11,6 @@ from pcresolve.flow.transfer.summary_containers import ContainersMixin
 from pcresolve.flow.transfer.summary_effects import EffectsMixin
 from pcresolve.flow.transfer.summary_context_managers import ContextManagersMixin
 from pcresolve.flow.transfer.summary_statements import StatementsMixin
-import sys
 
 
 class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidenceMixin, ExpressionsMixin, ContainersMixin, EffectsMixin, ContextManagersMixin, StatementsMixin):
@@ -41,10 +40,17 @@ class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidence
         self.modified_return_callables = set()
         self.incoming = incoming or {}
 
-
-# Proof and context managers recursively construct the composed query summary.
-for _module_name in (
-        'summary_values', 'summary_class_effects', 'summary_call_evidence',
-        'summary_expressions', 'summary_containers', 'summary_effects',
-        'summary_context_managers', 'summary_statements'):
-    setattr(sys.modules[__package__ + '.' + _module_name], '_Summary', _Summary)
+    ## Create an isolated child using the same composed transfer behavior.
+    ## 使用相同的组合转移行为创建隔离的子摘要。
+    #
+    #  @param result Child analysis result receiving calls and boundaries.
+    #  @param ref Function identity represented by the child summary.
+    #  @param node Source function node evaluated by the child.
+    #  @param remaining Remaining call-analysis budget.
+    #  @param receiver_class Optional receiver class context.
+    #  @param incoming Optional incoming value facts for the child.
+    #  @return Fresh summary instance with independent query-local state.
+    def _make_child_summary(self, result, ref, node, remaining, receiver_class=None,
+                            incoming=None):
+        return type(self)(self.analyzer, result, ref, node, remaining,
+                          receiver_class=receiver_class, incoming=incoming)

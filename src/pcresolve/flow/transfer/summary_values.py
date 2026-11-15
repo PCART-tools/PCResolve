@@ -114,8 +114,8 @@ class ValuesMixin:
                                 and isinstance(parent.ctx, ast.Load)):
                             return []
         module_ref = FunctionRef(self.ref.module, '', bodies[0][0], 0)
-        summary = _Summary(self.analyzer, self.result, module_ref, self.node,
-                           self.remaining)
+        summary = self._make_child_summary(self.result, module_ref, self.node,
+                                           self.remaining)
         module_env = {}
         values = summary.expression(expression, module_env)
         env.update({key: value for key, value in module_env.items()

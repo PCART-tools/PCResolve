@@ -251,7 +251,7 @@ class ContextManagersMixin:
         for local in self.analyzer._scope_facts(method).bound:
             frame.setdefault(local, [])
         scratch = FlowAnalysis(ref, {})
-        child = _Summary(self.analyzer, scratch, ref, method, self.remaining)
+        child = self._make_child_summary(scratch, ref, method, self.remaining)
         child.context_execution = True
         child.context_cleanup_order = self.context_cleanup_order
         child.conditions = copy.deepcopy(self.conditions)
