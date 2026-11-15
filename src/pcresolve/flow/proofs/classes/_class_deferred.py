@@ -5,7 +5,9 @@
 import ast
 import builtins
 import copy
+from dataclasses import dataclass, field
 from string import Formatter
+from typing import Optional
 
 from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
 from pcresolve.facts.effect_facts import execution_nodes
@@ -43,6 +45,45 @@ def _body(node):
         and type(statement.value.value) is str)]
 
 
+## Bound the declaration syntax and charge the optional run budget.
+## 限制声明语法规模，并扣减可选的整次运行预算。
+#
+#  @param analyzer Flow analyzer owning the current run budget.
+#  @param function Candidate declaration whose syntax will be inspected.
+#  @return True when the function fits the local bound; otherwise False.
+def _within_function_budget(analyzer, function):
+    inspected = 0
+    for _ in ast.walk(function):
+        inspected += 1
+        if inspected > 2000:
+            return False
+        if analyzer._analysis_budget is not None:
+            analyzer._analysis_budget.checkpoint()
+    return True
+
+
+## Mutable state owned by one deferred-class proof attempt.
+## 一次延后类证明尝试独占的可变状态。
+@dataclass
+class _DeferredClassProofState:
+    declarations: list[dict[str, object]] = field(default_factory=list)
+    invocations: list[dict[str, object]] = field(default_factory=list)
+    stores: list[dict[str, object]] = field(default_factory=list)
+    metadata_writes: list[dict[str, object]] = field(default_factory=list)
+    generated_members: list[dict[str, object]] = field(default_factory=list)
+    published_tokens: set[int] = field(default_factory=set)
+    token_nodes: dict[int, ast.AST] = field(default_factory=dict)
+    class_write_sites: list[dict[str, object]] = field(default_factory=list)
+    expression_helper_calls: list[dict[str, object]] = field(default_factory=list)
+    expression_budget: int = 2000
+    namespace_queries: list[dict[str, object]] = field(default_factory=list)
+    namespace_guard: Optional[bool] = None
+    exception_branches: list[dict[str, object]] = field(default_factory=list)
+    module_native: Optional[bool] = None
+    class_aliases: set[str] = field(default_factory=set)
+    dirty_class_names: set[str] = field(default_factory=set)
+
+
 ## Isolate fresh function-object construction from arbitrary future method bodies.
 ## 将新建函数对象构造与后续任意方法体效果隔离。
 #
@@ -54,24 +95,10 @@ def _body(node):
 #  @return Effect-only source and supporting facts, or None for open helper effects.
 def prepare(analyzer, target, parameter, class_target=None, decorations=()):
     ref, function = target
-    declarations, invocations, stores, metadata = [], [], [], []
-    generated, published = [], set()
-    token_nodes = {}
-    write_sites = []
-    expression_calls, expression_budget = [], [2000]
-    namespace_queries, namespace_guard = [], [None]
-    exception_branches = []
-    module_native = [None]
+    if not _within_function_budget(analyzer, function):
+        return None
+    proof = _DeferredClassProofState(class_aliases={parameter})
     read_function = function_reads(analyzer, class_target, decorations)
-    class_aliases, dirty = {parameter}, set()
-    inspected = 0
-    for _ in ast.walk(function):
-        inspected += 1
-        if inspected > 2000:
-            return None
-        if analyzer._analysis_budget is not None:
-            analyzer._analysis_budget.checkpoint()
-
     ## Capture a source location for deferred-effect evidence.
     ## 记录延后效果证据对应的源码位置。
     #
@@ -109,11 +136,11 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
     #  @param call Factory invocation producing the function.
     #  @return Metadata formation fact, or None when module metadata is unstable.
     def formation(node, wrappers, call):
-        if module_native[0] is None:
+        if proof.module_native is None:
             bindings = analyzer.import_binding_facts.get(ref.module, [])
-            module_native[0] = (len(bindings) == 1 and not bindings[0].get('__name__')
-                               and unmodified(analyzer, ref.module + '.__name__'))
-        if not module_native[0]:
+            proof.module_native = (len(bindings) == 1 and not bindings[0].get('__name__')
+                                   and unmodified(analyzer, ref.module + '.__name__'))
+        if not proof.module_native:
             return None
         shapes = {'documentation': ['NoneType' if ast.get_docstring(node, clean=False) is None else 'str'],
                   'module': ['str'], 'name': ['str'], 'qualname': ['str'],
@@ -153,9 +180,10 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         fact = copy.deepcopy(payload['formation'])
         if any(fact['metadata_shapes'][key] is None for key in ('documentation', 'name', 'qualname')):
             return
-        generated.append({'attribute': name, 'metadata_formation': fact,
-                          'store_evidence': span(statement), '_token': payload['token']})
-        published.add(payload['token'])
+        proof.generated_members.append({'attribute': name, 'metadata_formation': fact,
+                                        'store_evidence': span(statement),
+                                        '_token': payload['token']})
+        proof.published_tokens.add(payload['token'])
 
     ## Update aliased function metadata and invalidate stale stored snapshots.
     ## 更新别名函数元数据并使过期存储快照失效。
@@ -173,13 +201,15 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         if payload is None:
             # A branch join can lose metadata precision while retaining the
             # known native function. Invalidate any possibly aliased store too.
-            generated[:] = [record for record in generated
-                            if token_nodes.get(record['_token']) is not current[1]]
+            proof.generated_members[:] = [
+                record for record in proof.generated_members
+                if proof.token_nodes.get(record['_token']) is not current[1]]
             return
         token = payload['token']
         # A later write through a retained local invalidates earlier snapshots.
-        if token in published:
-            generated[:] = [record for record in generated if record['_token'] != token]
+        if token in proof.published_tokens:
+            proof.generated_members[:] = [record for record in proof.generated_members
+                                          if record['_token'] != token]
         updated = copy.deepcopy(payload)
         fact = updated['formation']
         if fact is not None:
@@ -199,13 +229,13 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
     #
     #  @return True when namespace operations are proven to use builtins.
     def native_namespace():
-        if namespace_guard[0] is None:
+        if proof.namespace_guard is None:
             try:
-                namespace_guard[0] = _stable_builtin_namespace(
+                proof.namespace_guard = _stable_builtin_namespace(
                     analyzer, ref, ('vars', 'getattr', 'type', '__build_class__'))[0]
             except _ClassEffectLimit:
-                namespace_guard[0] = False
-        return namespace_guard[0]
+                proof.namespace_guard = False
+        return proof.namespace_guard
 
     ## Inline fresh helpers into expressions while preserving source semantics.
     ## 将新建辅助函数内联到表达式，同时保留源码语义约束。
@@ -262,10 +292,10 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                             and isinstance(right.args[0], ast.Name) and right.args[0].id == parameter
                             and analyzer._builtin_name_status(ref, function, 'vars') == 'confirmed_builtin'
                             and native_namespace()):
-                        premise = read_function.namespace(dirty)
+                        premise = read_function.namespace(proof.dirty_class_names)
                         if premise is not None:
                             premise['lookup_evidence'] = span(item)
-                            namespace_queries.append(premise)
+                            proof.namespace_queries.append(premise)
                             return ast.copy_location(ast.Name(
                                 id='$native_class_namespace_membership', ctx=ast.Load()), item)
                 return self.generic_visit(item)
@@ -289,12 +319,13 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                         if any(isinstance(item, ast.Call) for item in ast.walk(fallback)):
                             raise ValueError()
                         ast.literal_eval(fallback)
-                        premise = read_function.namespace(dirty, absent=name) if name else None
+                        premise = (read_function.namespace(proof.dirty_class_names, absent=name)
+                                   if name else None)
                     except (ValueError, TypeError, RecursionError):
                         premise = None
                     if premise is not None:
                         premise['lookup_evidence'] = span(call)
-                        namespace_queries.append(premise)
+                        proof.namespace_queries.append(premise)
                         return copy.deepcopy(fallback)
                 if not isinstance(call.func, ast.Name) or call.func.id not in state:
                     return self.generic_visit(call)
@@ -311,11 +342,11 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 if reasons or any(record['status'] != 'exact' for record in records):
                     raise ValueError()
                 count = sum(1 for _ in ast.walk(helper))
-                expression_budget[0] -= count
+                proof.expression_budget -= count
                 analyzer._class_effect_fact_steps -= count
                 if analyzer._analysis_budget is not None:
                     analyzer._analysis_budget.checkpoint()
-                if expression_budget[0] < 0 or analyzer._class_effect_fact_steps < 0:
+                if proof.expression_budget < 0 or analyzer._class_effect_fact_steps < 0:
                     raise ValueError()
                 self.active.add(name)
                 # An immediate lambda preserves argument snapshots, lexical
@@ -330,7 +361,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 replacement.keywords = [ast.keyword(arg=item.arg, value=self.visit(item.value))
                                         for item in replacement.keywords]
                 self.active.remove(name)
-                expression_calls.append({'call_evidence': span(call),
+                proof.expression_helper_calls.append({'call_evidence': span(call),
                     'helper_evidence': span(helper), 'effects': 'source_body_requires_validation',
                     'runtime_helper_executed': False})
                 return replacement
@@ -386,23 +417,28 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
     #  @return None; updates dirty attributes and write evidence in place.
     def writes(statement, values):
         if isinstance(statement, ast.Assign) and isinstance(statement.value, ast.Name):
-            if statement.value.id in class_aliases:
-                class_aliases.update(node.id for node in statement.targets if isinstance(node, ast.Name))
+            if statement.value.id in proof.class_aliases:
+                proof.class_aliases.update(node.id for node in statement.targets
+                                           if isinstance(node, ast.Name))
         # Inspect this statement's evaluated inputs, not later statements in an
         # if branch or deferred helper bodies. Each reached statement is visited
         # in order, after the finite-loop specializer has bound its local names.
         inputs = [child for child in ast.iter_child_nodes(statement) if isinstance(child, ast.expr)]
         for node in (node for value in inputs for node in execution_nodes(ast.Expr(value=value))):
             if (isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del))
-                    and isinstance(node.value, ast.Name) and node.value.id in class_aliases):
-                dirty.add(node.attr)
-                write_sites.append({'attribute': node.attr, 'statement_evidence': span(statement)})
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in proof.class_aliases):
+                proof.dirty_class_names.add(node.attr)
+                proof.class_write_sites.append({'attribute': node.attr,
+                                                'statement_evidence': span(statement)})
             elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                     and node.func.id in ('setattr', 'delattr') and len(node.args) >= 2
-                    and isinstance(node.args[0], ast.Name) and node.args[0].id in class_aliases):
+                    and isinstance(node.args[0], ast.Name)
+                    and node.args[0].id in proof.class_aliases):
                 name = string(node.args[1], values) or '*'
-                dirty.add(name)
-                write_sites.append({'attribute': name, 'statement_evidence': span(statement)})
+                proof.dirty_class_names.add(name)
+                proof.class_write_sites.append({'attribute': name,
+                                                'statement_evidence': span(statement)})
 
     ## Recognize a helper call that constructs and returns a fresh inner function.
     ## 识别会构造并返回新建内层函数的辅助函数调用。
@@ -450,7 +486,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             # Only exact native string arguments of this particular factory
             # call may specialize its deferred getter name.
             name = string(node.args[1], bound)
-            premise = read_function(name, node, dirty)
+            premise = read_function(name, node, proof.dirty_class_names)
             if premise is not None:
                 premise['lookup_evidence'] = span(node)
             return premise
@@ -467,9 +503,10 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                             'completion': 'fresh_function_return_only'}
         if wrappers:
             invocation['metadata_wrappers'] = wrappers
-        invocations.append(invocation)
-        payload = {'token': len(invocations), 'formation': formation(body[0], wrappers, call)}
-        token_nodes[payload['token']] = body[0]
+        proof.invocations.append(invocation)
+        payload = {'token': len(proof.invocations),
+                   'formation': formation(body[0], wrappers, call)}
+        proof.token_nodes[payload['token']] = body[0]
         return ('fresh', body[0], payload), [ast.copy_location(ast.Expr(value=value), call)
                                   for value in arguments]
 
@@ -506,7 +543,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
             if isinstance(statement, ast.FunctionDef):
                 if not _declaration(statement):
                     raise ValueError()
-                declarations.append(span(statement))
+                proof.declarations.append(span(statement))
                 state[statement.name] = ('helper', statement)
                 values.pop(statement.name, None)
                 output.append(ast.copy_location(ast.Assign(
@@ -550,7 +587,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 # establish normal completion or suppress the source exception.
                 # 每条分支都纳入效果上界；这不证明正常完成，也不会抑制源码异常。
                 output.append(ast.copy_location(ast.Expr(value=value), statement))
-                exception_branches.append({'exception': name, 'evidence': span(statement),
+                proof.exception_branches.append({'exception': name, 'evidence': span(statement),
                     'completion': 'source_exceptional_exit', 'runtime_exception_confirmed': False})
             elif isinstance(statement, ast.Assign) and len(statement.targets) == 1:
                 destination, value = statement.targets[0], statement.value
@@ -570,7 +607,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                     elif (isinstance(destination, ast.Attribute)
                             and isinstance(destination.value, ast.Name)
                             and destination.value.id == parameter):
-                        stores.append(span(statement))
+                        proof.stores.append(span(statement))
                         if isinstance(value, ast.Name):
                             store_metadata(destination.attr, value.id, state, statement)
                     else:
@@ -583,7 +620,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                         raise ValueError()
                     evaluated = expression(value, state, values)
                     metadata_write(destination.value.id, destination.attr, value, state, values, statement)
-                    metadata.append(span(statement))
+                    proof.metadata_writes.append(span(statement))
                     output.append(ast.copy_location(ast.Expr(value=evaluated), statement))
                 else:
                     replacement = copy.copy(statement)
@@ -608,7 +645,7 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 replacement = copy.deepcopy(statement)
                 replacement.value.args[2] = placeholder(statement.value.args[2])
                 expression(statement.value.args[1], state, values)
-                stores.append(span(statement))
+                proof.stores.append(span(statement))
                 store_metadata(string(statement.value.args[1], values),
                                statement.value.args[2].id, state, statement)
                 output.append(replacement)
@@ -630,31 +667,33 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
     transformed.body = body
     assumptions = ['source_snapshot_bindings_hold', 'builtin_function_creation_and_metadata',
                    'builtin_type_attribute_writes', 'no_external_frame_introspection']
-    for invocation in invocations:
+    for invocation in proof.invocations:
         for wrapper in invocation.get('metadata_wrappers', []):
             assumptions.extend(wrapper['assumptions'])
     hashes = dict(analyzer.hashes)
-    for record in generated:
+    for record in proof.generated_members:
         assumptions.extend(record['metadata_formation']['assumptions'])
         hashes.update(record['metadata_formation']['source_hashes'])
-    for query in namespace_queries:
+    for query in proof.namespace_queries:
         query['assumptions'] = sorted(set(query['assumptions'] + [
             'standard_builtin_namespace_preserved', 'no_unmodeled_indirect_builtin_mutation']))
         assumptions.extend(query['assumptions'])
         hashes.update(query['source_hashes'])
-    if exception_branches:
+    if proof.exception_branches:
         assumptions.extend(['standard_builtin_namespace_preserved',
                             'no_unmodeled_indirect_builtin_mutation'])
     return transformed, {'kind': 'source_deferred_class_functions',
         'scope': 'class_decoration_only', 'status': 'declaration_effects_bounded',
         'runtime_bodies_executed': False, 'future_method_effects': 'unmodeled',
-        'declarations': declarations, 'factory_invocations': invocations,
-        'protected_class_stores': stores, 'fresh_function_metadata_writes': metadata,
-        'generated_class_members': [{key: value for key, value in record.items() if key != '_token'}
-                                    for record in generated],
-        'class_write_sites': write_sites,
-        'expression_helper_calls': expression_calls,
-        'class_namespace_queries': namespace_queries,
-        'native_exception_branches': exception_branches,
+        'declarations': proof.declarations, 'factory_invocations': proof.invocations,
+        'protected_class_stores': proof.stores,
+        'fresh_function_metadata_writes': proof.metadata_writes,
+        'generated_class_members': [
+            {key: value for key, value in record.items() if key != '_token'}
+            for record in proof.generated_members],
+        'class_write_sites': proof.class_write_sites,
+        'expression_helper_calls': proof.expression_helper_calls,
+        'class_namespace_queries': proof.namespace_queries,
+        'native_exception_branches': proof.exception_branches,
         'source_hashes': dict(sorted(hashes.items())),
         'assumptions': sorted(set(assumptions))}
