@@ -44,8 +44,14 @@ jobs:
       - name: Compare frozen API baseline
         if: matrix.python == '3.13.9'
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/api-gate.json -- python scripts/compare_public_api.py --baseline tests/baselines/architecture_1_0_8/api.json --output reports/architecture-1.0.8/api-after.json
-      - name: Compare complete output baseline
-        if: matrix.python == '3.13.9'
+      - name: Capture fixed reference on Linux
+        if: matrix.os == 'ubuntu-24.04' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/platform-baseline-gate.json -- python scripts/capture_platform_baseline.py --output reports/architecture-1.0.8/platform-baseline.json
+      - name: Compare complete output baseline (Linux)
+        if: matrix.os == 'ubuntu-24.04' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/output-gate.json -- python scripts/compare_analysis_baseline.py --compare reports/architecture-1.0.8/platform-baseline.json --output reports/architecture-1.0.8/after.json
+      - name: Compare complete output baseline (Windows)
+        if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/output-gate.json -- python scripts/compare_analysis_baseline.py --compare tests/baselines/architecture_1_0_8/analysis.json --output reports/architecture-1.0.8/after.json
       - name: Compare isolated-process performance thresholds
         if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
