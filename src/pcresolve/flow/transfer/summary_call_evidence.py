@@ -3,36 +3,12 @@
 
 import ast
 from dataclasses import asdict
-from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
 from pcresolve.flow.transfer._summary_support import _unique
+from pcresolve.flow.transfer.call_binding_state import CallBindingMixin
+from pcresolve.flow.transfer.source_evidence import SourceEvidenceMixin
 
 
-class CallEvidenceMixin:
-    def evidence(self, node):
-        return self.evidence_at(self.ref, node)
-
-    def evidence_at(self, ref, node):
-        key = (ref.file_path, node.lineno, node.col_offset,
-               node.end_lineno, node.end_col_offset)
-        if key in self.evidence_cache:
-            return self.evidence_cache[key]
-        _, first, start, last, end = key
-        source_lines = (self.source_lines if ref.file_path == self.ref.file_path else
-                        [line.encode('utf-8') for line in
-                         self.analyzer.texts[ref.file_path].split('\n')])
-        if first == last:
-            snippet = source_lines[first - 1][start:end]
-        else:
-            snippet = b'\n'.join([source_lines[first - 1][start:]] +
-                                  source_lines[first:last - 1] +
-                                  [source_lines[last - 1][:end]])
-        value = {'file_path': ref.file_path, 'lineno': node.lineno,
-                'col_offset': node.col_offset, 'end_lineno': node.end_lineno,
-                'end_col_offset': node.end_col_offset,
-                'source_text': snippet.decode('utf-8')}
-        self.evidence_cache[key] = value
-        return value
-
+class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
     def module_callable_evidence(self, facts, node):
         ref = facts['module_ref']
         arguments = []
@@ -138,29 +114,3 @@ class CallEvidenceMixin:
         return {'kind': 'callable', 'source': target.qualname, 'module': target.module,
                 'defaults': defaults or {}, 'relation': 'direct',
                 'evidence': [self.evidence(node)], 'conditions': list(self.conditions)}
-
-    def bind_call_arguments(self, node, params, positional, call):
-        records, reasons = bind_ast_call(node, FunctionSignature.from_ast(params, positional))
-        self.result.boundaries.extend({'call_id': call.id, 'reason': reason} for reason in reasons)
-        for record in records:
-            if record['status'] == 'missing':
-                call.binding_issues.append({
-                    'kind': 'missing_required', 'parameter': record['parameter']})
-            elif record['status'] == 'duplicate':
-                call.binding_issues.append({
-                    'kind': 'duplicate_binding', 'parameter': record['parameter'],
-                    'argument': record['argument'],
-                    'conflicts_with': record.get('conflicts_with')})
-            elif (record['status'] == 'unresolved'
-                  and record['binding_kind'] not in (
-                      'dynamic_starred', 'dynamic_keyword')):
-                call.binding_issues.append({
-                    'kind': 'unresolved_argument', 'argument': record['argument']})
-        if 'dynamic_argument_expansion' in reasons:
-            call.binding_issues.append({'kind': 'dynamic_expansion'})
-        call.binding_issues = _unique(call.binding_issues)
-        call.binding_status = ('invalid' if any(
-            issue['kind'] in ('missing_required', 'duplicate_binding', 'unresolved_argument')
-            for issue in call.binding_issues) else
-            'uncertain' if call.binding_issues else 'complete')
-        return records

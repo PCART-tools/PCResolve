@@ -3,7 +3,6 @@
 #  词法作用域与绑定模型。
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 SCOPE_MODULE = "module"
@@ -92,8 +91,8 @@ class Scope:
     #         enclosing class namespace — only self/attr).  The
     #         starting scope's own bindings are always searched.
     #  @return Binding object or None.
-    def lookup(self, name: str,
-               skip_parent_classes: bool = False) -> Optional[Binding]:
+    def lookup(self, name,
+               skip_parent_classes = False):
         scope = self
         is_origin = True
         while scope is not None:

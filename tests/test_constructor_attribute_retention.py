@@ -3,6 +3,7 @@
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+from pcresolve.flow.proofs.callables._constructor_retention import retained_stores
 
 
 def facts(tmp_path, source):
@@ -91,6 +92,46 @@ def test_plain_source_constructor_proves_a_retained_attribute_store(tmp_path):
     assert fact['runtime_store_confirmed'] is False
     assert fact['store_evidence']['lineno'] == 3
     assert fact['source_hashes'] == result.inputs['sha256']
+
+
+def test_retention_modes_keep_list_and_open_effect_result_meanings_distinct(tmp_path):
+    source = '''class Entry:
+    def __init__(self, **kwargs):
+        self.value = kwargs.pop('legacy', 0)
+'''
+    (tmp_path / 'sample.py').write_text(source, encoding='utf-8')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    result = analyzer.analyze(FunctionRef('sample', 'Entry'))
+    target = analyzer._definition_index.find('sample', 'Entry.__init__')[0]
+    hierarchy = analyzer._class_mro('sample', 'Entry')
+    binding = result.inputs['entry_binding']
+
+    stores = retained_stores(analyzer, hierarchy, target, binding)
+    effects = retained_stores(analyzer, hierarchy, target, binding, return_effects=True)
+
+    assert [item['attribute'] for item in stores] == ['value']
+    assert effects['status'] == 'source_bound'
+    assert effects['writes'] == ['value']
+
+
+def test_open_constructor_keeps_empty_store_and_unknown_effect_results_distinct(tmp_path):
+    source = '''class Entry:
+    def __init__(self, **kwargs):
+        self.value = kwargs.pop('legacy', 0)
+        opaque(self)
+'''
+    (tmp_path / 'sample.py').write_text(source, encoding='utf-8')
+    analyzer = FlowAnalyzer(project_root=tmp_path)
+    result = analyzer.analyze(FunctionRef('sample', 'Entry'))
+    target = analyzer._definition_index.find('sample', 'Entry.__init__')[0]
+    hierarchy = analyzer._class_mro('sample', 'Entry')
+    binding = result.inputs['entry_binding']
+
+    stores = retained_stores(analyzer, hierarchy, target, binding)
+    effects = retained_stores(analyzer, hierarchy, target, binding, return_effects=True)
+
+    assert stores == []
+    assert effects is None
 
 
 def test_source_parent_and_later_method_preserve_an_unwritten_field(tmp_path):

@@ -4,6 +4,7 @@
 
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import Mapping
 
 
 ## One collected definition; repeated logical names remain separate records.
@@ -42,7 +43,7 @@ class DefinitionIndex:
     _qualified: object = field(init=False, repr=False, compare=False)
     _kinds: object = field(init=False, repr=False, compare=False)
     _names: object = field(init=False, repr=False, compare=False)
-    _scopes: object = field(init=False, repr=False, compare=False)
+    _scopes: Mapping[tuple[str, str], frozenset[str]] = field(init=False, repr=False, compare=False)
 
     ## Build immutable indexes while retaining duplicate definition records.
     ## 构建不可变索引，同时保留重复定义记录。
@@ -107,7 +108,7 @@ class DefinitionIndex:
     #  @param module Adapter's module name.
     #  @param kind Definition category.
     #  @return Immutable set of collected lexical names.
-    def scopes(self, module, kind='function'):
+    def scopes(self, module, kind = 'function'):
         return self._scopes.get((kind, module), frozenset())
 
     ## Find modules containing an exact lexical name.

@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.optional-dependencies]
-dev = ["build>=1.2,<2", "pytest>=7", "mypy>=1.11,<2", "psutil>=5.9"]
+dev = ["build>=1.2,<2", "pytest>=7", "psutil>=5.9"]
 
 [project.urls]
 Homepage = "https://github.com/PCART-tools/PCResolve"
@@ -30,14 +30,4 @@ include = ["pcresolve", "pcresolve.*"]
 namespaces = false
 
 [tool.pytest.ini_options]
-norecursedirs = ["tests/fixtures/tested_projects"]
-
-[tool.mypy]
-python_version = "3.9"
-strict = true
-files = ["src/pcresolve/flow/contracts.py", "tests/typecheck_flow_contracts.py",
-         "tests/typecheck_architecture_components.py",
-         "src/pcresolve/flow/transfer/summary.py",
-         "src/pcresolve/flow/transfer/recursive_summary.py",
-         "src/pcresolve/flow/transfer/call_expression_state.py",
-         "src/pcresolve/ownership/source_fact_cache.py"]
+norecursedirs = ["tests/fixtures/tested_projects", ".local-verification"]

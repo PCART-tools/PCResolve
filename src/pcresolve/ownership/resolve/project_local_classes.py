@@ -4,6 +4,7 @@
 
 import ast
 
+from pcresolve.ownership.ownership_model import MethodResultIndex
 from pcresolve.ownership.sources import (
     CallResult, ContainerItem, ContainerIter, InstanceMethod,
     ParameterSource, SourceSet, normalize_source, source_display,
@@ -18,12 +19,15 @@ class ProjectLocalClassesMixin:
     #
     #  @return Records and qualified/local/import-alias candidate buckets.
     def _get_method_result_index(self):
-        generation = self.project_cg.version
-        if (getattr(self, '_method_result_graph', None) is not self.project_cg
-                or getattr(self, '_method_result_generation', None) != generation):
+        graph = self.project_cg
+        generation = graph.version
+        run = self._ownership_run
+        cached = (run.method_result_index if run is not None
+                  else getattr(self, '_initial_method_result_index', None))
+        if cached is None or cached.graph is not graph or cached.generation != generation:
             records, qualified, local, classes, exact = [], {}, {}, {}, {}
-            for owner, graph in self.project_cg.modules.items():
-                for name, summary in graph.classes.items():
+            for owner, module_graph in graph.modules.items():
+                for name, summary in module_graph.classes.items():
                     for method, payload in summary.methods.items():
                         ordinal = len(records)
                         records.append((owner, name, method, payload))
@@ -31,10 +35,12 @@ class ProjectLocalClassesMixin:
                         local.setdefault((owner, name + '.' + method), []).append(ordinal)
                         classes.setdefault(owner + '.' + name, []).append(ordinal)
                         exact.setdefault((owner, name, method), []).append(ordinal)
-            self._method_result_index = records, qualified, local, classes, exact
-            self._method_result_generation = generation
-            self._method_result_graph = self.project_cg
-        return self._method_result_index
+            cached = MethodResultIndex(graph, generation, (records, qualified, local, classes, exact))
+            if run is not None:
+                run.method_result_index = cached
+            else:
+                self._initial_method_result_index = cached
+        return cached.data
 
     ## Select possible spellings; the existing return proof remains authoritative.
     ## 选择可能的方法拼写；已有的返回值证明仍是最终依据。
@@ -481,7 +487,6 @@ class ProjectLocalClassesMixin:
         if run.constructor_only_fields is None:
             from pcresolve.ownership.ast_facts import constructor_only_fields
             run.constructor_only_fields = constructor_only_fields(tracers, self._analysis_budget)
-            self._constructor_only_fields = run.constructor_only_fields
         if source.method not in run.constructor_only_fields:
             return []
         self._callable_field_in_progress.add(key)

@@ -8,7 +8,9 @@
 
 import os
 from pcresolve.runtime.limits import AnalysisBudget
-from pcresolve.ownership.source_fact_cache import capture_source_facts, clone_source_facts
+from pcresolve.ownership.source_fact_cache import (
+    SourceFactCacheEntry, capture_source_facts, clone_source_facts, find_source_fact_entry,
+)
 from pcresolve.frontend.module_mapper import ModuleMapper
 from pcresolve.ownership.resolve.call_result_resolution import CallResultResolutionMixin
 from pcresolve.ownership.resolve.instance_method_resolution import InstanceMethodResolutionMixin
@@ -151,6 +153,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                       ProjectCallContextMixin, ProjectLocalClassesMixin,
                       ProjectMethodOwnershipMixin, ProjectResultBindingMixin,
                       ProjectSourceTracingMixin):
+
     # ── pipeline ───────────────────────────────────────────────────────
 
     ## Initialize the analyzer for a project directory or one Python source file.
@@ -164,12 +167,12 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self.reuse_source_facts = reuse_source_facts
         self._source_fact_cache = {}
         self.analysis_limits = analysis_limits
-        self._analysis_budget = None
         self.module_mapper = ModuleMapper(project_root)
         self.project_root = (self.module_mapper.project_root
                              if os.path.isfile(project_root) else project_root)
         self._source_store = SourceStore()
         self._ownership_run = None
+        self._initial_method_result_index = None
         self.global_symbols = {}
         self.symbol_chains = {}
         self.all_calls = {}
@@ -177,7 +180,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         self._callable_field_in_progress = set()
         self._edge_target_in_progress = set()
         self._ownership_proof_budget = OwnershipProofBudget()
-        self._constructor_only_fields = None
+        self._initial_constructor_only_fields = None
         self._source_resolver = SourceSetResolver(
             top_source_cb=self._top_source,
             cg_return_cb=self._lookup_cg_return_source,
@@ -189,6 +192,149 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             origin_candidates_cb=self._origin_candidates,
             is_direct_import_cb=self._is_direct_import_base,
             dedupe_cb=self._dedupe_list)
+
+    @property
+    def _constructor_only_fields(self):
+        # Compatibility view of the active run's lazy constructor evidence.
+        if self._ownership_run is None:
+            return self._initial_constructor_only_fields
+        return self._ownership_run.constructor_only_fields
+
+    @_constructor_only_fields.setter
+    def _constructor_only_fields(self, value):
+        if self._ownership_run is None:
+            self._initial_constructor_only_fields = value
+        else:
+            self._ownership_run.constructor_only_fields = value
+
+    @property
+    def global_symbols(self):
+        if self._ownership_run is None:
+            return self._initial_global_symbols
+        return self._ownership_run.global_symbols
+
+    @global_symbols.setter
+    def global_symbols(self, value):
+        if self._ownership_run is None:
+            self._initial_global_symbols = value
+        else:
+            self._ownership_run.global_symbols = value
+
+    @property
+    def symbol_chains(self):
+        if self._ownership_run is None:
+            return self._initial_symbol_chains
+        return self._ownership_run.symbol_chains
+
+    @symbol_chains.setter
+    def symbol_chains(self, value):
+        if self._ownership_run is None:
+            self._initial_symbol_chains = value
+        else:
+            self._ownership_run.symbol_chains = value
+
+    @property
+    def all_calls(self):
+        if self._ownership_run is None:
+            return self._initial_all_calls
+        return self._ownership_run.all_calls
+
+    @all_calls.setter
+    def all_calls(self, value):
+        if self._ownership_run is None:
+            self._initial_all_calls = value
+        else:
+            self._ownership_run.all_calls = value
+
+    @property
+    def project_cg(self):
+        if self._ownership_run is None:
+            return self._initial_project_cg
+        return self._ownership_run.program.call_graph
+
+    @project_cg.setter
+    def project_cg(self, value):
+        if self._ownership_run is None:
+            self._initial_project_cg = value
+        else:
+            self._ownership_run.program.call_graph = value
+
+    @property
+    def _source_snapshot(self):
+        if self._ownership_run is None:
+            raise AttributeError('source snapshot is not available before analysis')
+        return self._ownership_run.snapshot.sources
+
+    @property
+    def _python_shape_in_progress(self):
+        if self._ownership_run is None:
+            return self._initial_python_shape_in_progress
+        return self._ownership_run.python_shape_in_progress
+
+    @_python_shape_in_progress.setter
+    def _python_shape_in_progress(self, value):
+        if self._ownership_run is None:
+            self._initial_python_shape_in_progress = value
+        else:
+            self._ownership_run.python_shape_in_progress = value
+
+    @property
+    def _callable_field_in_progress(self):
+        if self._ownership_run is None:
+            return self._initial_callable_field_in_progress
+        return self._ownership_run.callable_field_in_progress
+
+    @_callable_field_in_progress.setter
+    def _callable_field_in_progress(self, value):
+        if self._ownership_run is None:
+            self._initial_callable_field_in_progress = value
+        else:
+            self._ownership_run.callable_field_in_progress = value
+
+    @property
+    def _edge_target_in_progress(self):
+        if self._ownership_run is None:
+            return self._initial_edge_target_in_progress
+        return self._ownership_run.edge_target_in_progress
+
+    @_edge_target_in_progress.setter
+    def _edge_target_in_progress(self, value):
+        if self._ownership_run is None:
+            self._initial_edge_target_in_progress = value
+        else:
+            self._ownership_run.edge_target_in_progress = value
+
+    @property
+    def _ownership_proof_budget(self):
+        if self._ownership_run is None:
+            return self._initial_ownership_proof_budget
+        return self._ownership_run.proof_budget
+
+    @_ownership_proof_budget.setter
+    def _ownership_proof_budget(self, value):
+        if self._ownership_run is None:
+            self._initial_ownership_proof_budget = value
+        else:
+            self._ownership_run.proof_budget = value
+
+    @property
+    def _analysis_budget(self):
+        # Compatibility view of the active run's cooperative analysis budget.
+        if self._ownership_run is None:
+            return None
+        return self._ownership_run.analysis_budget
+
+    def _clear_pre_run_compat_state(self):
+        # Pre-run aliases support direct resolver use, but are not inputs to a run.
+        for name in (
+                '_initial_global_symbols', '_initial_symbol_chains', '_initial_all_calls',
+                '_initial_project_cg', '_initial_constructor_only_fields',
+                '_initial_python_shape_in_progress', '_initial_callable_field_in_progress',
+                '_initial_edge_target_in_progress', '_initial_ownership_proof_budget',
+                '_initial_definition_index', '_initial_edge_index', '_initial_callable_index'):
+            self.__dict__.pop(name, None)
+        # Kept as None for compatibility with existing internal inspection.
+        self._initial_method_result_index = None
 
     ## Check whether a symbol has import-backed ownership evidence.
     ## 检查符号是否有导入支撑的归属证据。
@@ -204,9 +350,8 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
     #
     #  @return ProjectAnalysis with all results.
     def analyze(self):
-        self._analysis_budget = (AnalysisBudget(self.analysis_limits)
-                                 if self.analysis_limits is not None else None)
-        budget = self._analysis_budget
+        budget = (AnalysisBudget(self.analysis_limits)
+                  if self.analysis_limits is not None else None)
         if budget is not None:
             budget.checkpoint(force=True)
 
@@ -218,25 +363,15 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         source_paths = [path for path in paths if path and os.path.exists(path)]
         sources = (self._source_store.snapshot(source_paths, OWNERSHIP_SOURCE, budget=budget)
                    if budget is not None else self._source_store.snapshot(source_paths, OWNERSHIP_SOURCE))
-        run = OwnershipRun(ProjectSnapshot(all_modules, sources))
+        run = OwnershipRun(ProjectSnapshot(all_modules, sources), analysis_budget=budget)
         run.ast_facts.budget = budget
         self._ownership_run = run
+        self._clear_pre_run_compat_state()
 
-        # Compatibility aliases remain while resolver methods migrate to the
-        # explicit run model in later behavior-preserving slices.
-        # 在解析方法逐步迁移到显式 run 模型期间，暂时保留兼容别名。
-        self._source_snapshot = run.snapshot.sources
-        self.project_cg = run.program.call_graph
+        # Resolver properties forward to this run so existing internal call
+        # sites share the same per-run storage rather than keeping duplicates.
         module_tracers = run.program.module_tracers
         diagnostics = run.diagnostics
-        self.global_symbols = run.global_symbols
-        self.symbol_chains = run.symbol_chains
-        self.all_calls = run.all_calls
-        self._python_shape_in_progress = run.python_shape_in_progress
-        self._callable_field_in_progress = run.callable_field_in_progress
-        self._edge_target_in_progress = run.edge_target_in_progress
-        self._ownership_proof_budget = run.proof_budget
-        self._constructor_only_fields = run.constructor_only_fields
 
         next_source_facts = {}
         for module in all_modules:
@@ -282,10 +417,11 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
 
             # Reuse detached visitor facts only when both snapshot identity and module context match.
             # 仅当快照对象和模块上下文均匹配时，才复用分离保存的访问器事实。
-            cached = self._source_fact_cache.get(file_path) if self.reuse_source_facts else None
-            if (cached is not None and cached[0] is document
-                    and cached[1:3] == (module, package)):
-                tracer = clone_source_facts(cached[-1], document, budget)
+            cached = (find_source_fact_entry(self._source_fact_cache, file_path,
+                                             document, module, package)
+                      if self.reuse_source_facts else None)
+            if cached is not None:
+                tracer = clone_source_facts(cached.facts, document, budget)
                 run.source_facts_reused += 1
                 next_source_facts[file_path] = cached
             else:
@@ -293,21 +429,23 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
                     file_path=file_path, analysis_budget=budget)
                 tracer.visit(document.tree)
                 if self.reuse_source_facts:
-                    pristine = capture_source_facts(tracer, document)
-                    next_source_facts[file_path] = document, module, package, pristine
+                    pristine = capture_source_facts(tracer, document, budget)
+                    next_source_facts[file_path] = SourceFactCacheEntry(
+                        document, module, package, pristine)
             run.program.add_module(module, tracer)
-        self._source_fact_cache = next_source_facts
 
         # Temporarily guard imports while bounded local call results are propagated.
         # 传播有界本地调用结果时，暂时启用导入稳定性保护。
         for tracer in module_tracers.values():
             tracer._ownership_import_unstable = True
-        self._bind_bounded_local_call_results(module_tracers)
-        self._bind_bounded_callback_map_results(module_tracers)
-        self._bind_bounded_local_iteration_results(module_tracers)
-        self._bind_proven_result_method_results(module_tracers)
-        for tracer in module_tracers.values():
-            tracer._ownership_import_unstable = False
+        try:
+            self._bind_bounded_local_call_results(module_tracers)
+            self._bind_bounded_callback_map_results(module_tracers)
+            self._bind_bounded_local_iteration_results(module_tracers)
+            self._bind_proven_result_method_results(module_tracers)
+        finally:
+            for tracer in module_tracers.values():
+                tracer._ownership_import_unstable = False
         self.resolve_cross_file_symbols(module_tracers)
         self.get_calls(module_tracers)
 
@@ -328,7 +466,7 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         if budget is not None:
             budget.checkpoint(force=True)
 
-        return ProjectAnalysis(
+        result = ProjectAnalysis(
             project_root=self.project_root,
             files=files,
             all_api_calls=all_api_calls,
@@ -337,6 +475,10 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             all_symbol_provenance=all_provenance,
             library_usage=library_usage,
         )
+        # Publish only after the full analysis succeeds.  A failed run keeps
+        # the previous pristine cache, which is still guarded by source identity.
+        self._source_fact_cache = next_source_facts
+        return result
 
     # ── provenance helpers ───────────────────────────────────────────────
 

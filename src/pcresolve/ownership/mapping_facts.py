@@ -75,7 +75,7 @@ class MappingFacts:
         self.lambda_identity = lambda_identity
         self.mutable_lookup = mutable_lookup
         self.python_shape = python_shape or (lambda node: None)
-        self.literals: dict[ast.AST, MappingValue] = {}
+        self.literals = {}
 
     ## Capture a local definition without reducing its identity to local.
     ## 捕获本地定义，同时保留其具体身份。

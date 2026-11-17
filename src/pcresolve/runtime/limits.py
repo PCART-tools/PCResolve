@@ -100,7 +100,7 @@ class AnalysisBudget:
     #  @param work Number of visited facts, syntax nodes or resolver entries.
     #  @param force Check time/memory even before the next 64-work checkpoint.
     #  @return None; an exceeded or unavailable limit raises AnalysisLimitExceeded.
-    def checkpoint(self, work: int = 1, force: bool = False) -> None:
+    def checkpoint(self, work = 1, force = False):
         self.work += work
         if self.limits.max_work is not None and self.work > self.limits.max_work:
             raise AnalysisLimitExceeded('work', self.work)

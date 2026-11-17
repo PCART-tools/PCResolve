@@ -15,7 +15,7 @@ PACKAGE = Path(pcresolve.__file__).parent
 
 def test_package_root_contains_only_entry_points():
     files = {path.name for path in PACKAGE.iterdir() if path.is_file()}
-    assert files == {'__init__.py', '__main__.py', 'cli.py', 'py.typed'}
+    assert files == {'__init__.py', '__main__.py', 'cli.py'}
 
 
 def test_flow_analyzer_is_a_small_entry_and_orchestration_module():

@@ -2,14 +2,16 @@
 #  Exact project call targets, bounded contexts, and parameter binding.
 #  精确解析项目调用目标、有界调用上下文和参数绑定。
 
-from pcresolve.ownership.call_graph import FunctionId, ProjectCallGraph
-from pcresolve.facts.call_resolution import CallContext, DefinitionRecord, DefinitionIndex
+
+from pcresolve.ownership.call_graph import FunctionId
+from pcresolve.facts.call_resolution import CallContext
 from pcresolve.facts.program_facts import (
     bind_parameter_sources, starred_item_source,
     CONTEXT_BINDING, OWNERSHIP_BINDING,
 )
 from pcresolve.facts.return_resolution import CallBinding, first_bound_value
-from pcresolve.ownership.ownership_model import bounded_ownership_query
+from pcresolve.ownership.ownership_model import OwnershipCallableIndex, bounded_ownership_query, build_ownership_definition_index, build_ownership_edge_index
+from pcresolve.ownership.resolve.target_metadata import TargetMetadataMixin
 from pcresolve.ownership.sources import (
     CallResult, ContainerItem, DerivedResult, InstanceMethod, ParameterSource,
     SourceSet, TupleSource, UnknownSource, normalize_source, source_display,
@@ -21,53 +23,29 @@ _NO_BOUNDED_CANDIDATES = object()
 
 ## Project call-context and argument-binding behavior mixed into ProjectAnalyzer.
 ## 混入 ProjectAnalyzer 的项目调用上下文和参数绑定逻辑。
-class ProjectCallContextMixin:
+class ProjectCallContextMixin(TargetMetadataMixin):
     ## Adapt this generation's ownership summaries to the shared name index.
     ## 将当前代归属摘要适配到共享名称索引。
     #  Logical keys and mutable source payloads retain their ownership meaning.
     #  A normal analysis collects a new ProjectCallGraph before resolution.
     #
     #  @return Internal candidate index; not a public call-graph result.
-    def _get_definition_index(self):
-        generation = (id(self.project_cg), self.project_cg.version)
-        if getattr(self, '_definition_index_generation', None) != generation:
-            records = []
-            for module, module_cg in self.project_cg.modules.items():
-                for kind, summaries in (('function', module_cg.functions), ('class', module_cg.classes)):
-                    records.extend(DefinitionRecord(module, qualname, summary, kind,
-                                                    summary.definition_span)
-                                   for qualname, summary in summaries.items())
-            self._definition_index = DefinitionIndex(records)
-            self._definition_index_graph = self.project_cg
-            self._definition_index_generation = generation
-            self._edge_target_name_index = {}
-            for ordinal, record in enumerate(self._definition_index.records):
-                if record.kind != 'function':
-                    continue
-                _, class_name, name, constructor, _ = self._local_target_metadata(
-                    record.module, record.qualname)
-                callable_name = class_name if constructor else name
-                self._edge_target_name_index.setdefault(
-                    callable_name, []).append(ordinal)
-        return self._definition_index
+    def _get_ownership_definition_index(self):
+        graph = self.project_cg
+        generation = graph.version
+        run = self._ownership_run
+        cached = (run.definition_index if run is not None
+                  else getattr(self, '_initial_definition_index', None))
+        if cached is None or cached.graph is not graph or cached.generation != generation:
+            cached = build_ownership_definition_index(graph, self._local_target_metadata)
+            if run is not None:
+                run.definition_index = cached
+            else:
+                self._initial_definition_index = cached
+        return cached
 
-    ## Collect callable spellings that the existing target matcher accepts.
-    ## 收集现有目标匹配器接受的可调用对象名称形式。
-    #
-    #  @param edge Call edge with syntactic and explicit callable sources.
-    #  @return Set of terminal names; these are candidates, not target proofs.
-    def _edge_callable_names(self, edge):
-        names = set()
-        callee_name = getattr(edge, 'callee_name', '') or ''
-        if callee_name:
-            names.add(callee_name.rsplit('.', 1)[-1])
-        source = normalize_source(getattr(edge, 'callee_source', None))
-        sources = source.sources if isinstance(source, SourceSet) else (source,)
-        for item in sources:
-            item = normalize_source(item)
-            if isinstance(item, str):
-                names.add(item.rsplit('.', 1)[-1])
-        return names
+    def _get_definition_index(self):
+        return self._get_ownership_definition_index().definitions
 
     ## Select possible definitions without inspecting unrelated receivers.
     ## 选择可能的定义，不检查无关接收者。
@@ -76,34 +54,41 @@ class ProjectCallContextMixin:
     #  @param caller_module Optional module used to narrow method candidates.
     #  @return Definitions in their original collection order.
     def _edge_target_candidates(self, edge, caller_module=None):
-        index = self._get_definition_index()
+        index = self._get_ownership_definition_index()
         names = self._edge_callable_names(edge)
         ordinals = set()
         for name in names:
-            ordinals.update(self._edge_target_name_index.get(name, ()))
+            ordinals.update(index.target_names.get(name, ()))
         ordinals.update(self._callable_method_candidates(edge, caller_module))
-        return tuple(index.records[ordinal] for ordinal in sorted(ordinals))
+        return tuple(index.definitions.records[ordinal] for ordinal in sorted(ordinals))
 
     ## Discard callable facts after edge or module-binding changes.
     ## 调用边或模块绑定变化后丢弃可调用对象事实。
     #
     #  @return None.
     def _invalidate_callable_lookup(self):
-        self._callable_lookup_graph = None
+        if self._ownership_run is not None:
+            self._ownership_run.callable_index = None
+        else:
+            self._initial_callable_index = None
 
     ## Initialize static callable facts for this binding generation.
     ## 为当前绑定版本初始化静态可调用对象事实。
     #
     #  @return None.
     def _ensure_callable_lookup(self):
-        generation = (id(self.project_cg), self.project_cg.version)
-        if (getattr(self, '_callable_lookup_graph', None) is not self.project_cg
-                or getattr(self, '_callable_lookup_generation', None) != generation):
-            self._callable_lookup_graph = self.project_cg
-            self._callable_lookup_generation = generation
-            self._callable_lookup_edges = None
-            self._static_callable_cache = {}
-            self._callable_reverse_lookup = None
+        graph = self.project_cg
+        generation = graph.version
+        run = self._ownership_run
+        cached = (run.callable_index if run is not None
+                  else getattr(self, '_initial_callable_index', None))
+        if cached is None or cached.graph is not graph or cached.generation != generation:
+            cached = OwnershipCallableIndex(graph, generation)
+            if run is not None:
+                run.callable_index = cached
+            else:
+                self._initial_callable_index = cached
+        return cached
 
     ## Reuse only callable classes independent of recursive parameter proofs.
     ## 仅复用不依赖递归参数证明的可调用类候选。
@@ -127,9 +112,9 @@ class ProjectCallContextMixin:
 
         if dynamic(edge.callee):
             return None
-        self._ensure_callable_lookup()
+        index = self._ensure_callable_lookup()
         key = (module, id(edge))
-        cached = self._static_callable_cache.get(key)
+        cached = index.static_classes.get(key)
         if (cached is None or cached[1] is not edge.callee
                 or cached[2] != edge.callee_name):
             classes = self._local_callable_class_candidates(
@@ -137,7 +122,7 @@ class ProjectCallContextMixin:
                 display_name=edge.callee_name)
             # Retain the edge itself, preventing identity reuse for temporary edges.
             cached = (edge, edge.callee, edge.callee_name, tuple(classes))
-            self._static_callable_cache[key] = cached
+            index.static_classes[key] = cached
         return cached[3]
 
     ## Select callable-instance methods using source facts, not bounded proofs.
@@ -148,8 +133,8 @@ class ProjectCallContextMixin:
     #  @param module Caller module, if known.
     #  @return Definition ordinals requiring the existing exact target check.
     def _callable_method_candidates(self, edge, module):
-        self._get_definition_index()
-        ordinals = self._edge_target_name_index.get('__call__', ())
+        index = self._get_ownership_definition_index()
+        ordinals = index.target_names.get('__call__', ())
         if not ordinals or module is None:
             return ordinals
         tracers = self._ownership_run.program.module_tracers
@@ -162,10 +147,10 @@ class ProjectCallContextMixin:
             return ordinals
         identities = set(classes)
         return tuple(ordinal for ordinal in ordinals
-                     if (self._definition_index.records[ordinal].module,
+                     if (index.definitions.records[ordinal].module,
                          self._local_target_metadata(
-                             self._definition_index.records[ordinal].module,
-                             self._definition_index.records[ordinal].qualname)[1])
+                             index.definitions.records[ordinal].module,
+                             index.definitions.records[ordinal].qualname)[1])
                      in identities)
 
     ## Index possible incoming callable-instance edges in original order.
@@ -173,19 +158,20 @@ class ProjectCallContextMixin:
     #
     #  @return Target identity to edge ordinals; exact matching stays query-local.
     def _get_callable_reverse_lookup(self):
-        edges, _, _, _ = self._get_edge_lookup()
-        self._ensure_callable_lookup()
-        if self._callable_lookup_edges is not self._edge_lookup:
-            self._callable_lookup_edges = self._edge_lookup
-            self._callable_reverse_lookup = None
-        if self._callable_reverse_lookup is None:
+        edge_lookup = self._get_edge_lookup()
+        edges, _, _, _ = edge_lookup
+        index = self._ensure_callable_lookup()
+        if index.indexed_edges is not edge_lookup:
+            index.indexed_edges = edge_lookup
+            index.reverse_lookup = None
+        if index.reverse_lookup is None:
             lookup = {}
             for edge_ordinal, (module, edge) in enumerate(edges):
                 for ordinal in self._callable_method_candidates(edge, module):
-                    record = self._definition_index.records[ordinal]
+                    record = self._get_definition_index().records[ordinal]
                     lookup.setdefault((record.module, record.qualname), set()).add(edge_ordinal)
-            self._callable_reverse_lookup = lookup
-        return self._callable_reverse_lookup
+            index.reverse_lookup = lookup
+        return index.reverse_lookup
 
     ## Update syntactic edge indexes after a callable-source rewrite.
     ## 可调用来源改写后更新语法调用边索引。
@@ -194,64 +180,53 @@ class ProjectCallContextMixin:
     #  @return None; resolution results themselves are never cached here.
     def _invalidate_edge_lookup(self, edge=None):
         self._invalidate_callable_lookup()
-        if (edge is None
-                or getattr(self, '_edge_lookup_graph', None) is not self.project_cg):
-            self._edge_lookup_graph = None
+        run = self._ownership_run
+        cached = (run.edge_index if run is not None
+                  else getattr(self, '_initial_edge_index', None))
+        if edge is None or cached is None or cached.graph is not self.project_cg:
+            self._set_edge_index(None)
             return
-        ordinal = self._edge_lookup_ordinals.get(id(edge))
+        ordinal = cached.ordinals.get(id(edge))
         if ordinal is None:
-            self._edge_lookup_graph = None
+            self._set_edge_index(None)
             return
         position = (edge.caller.qualname, edge.call_lineno, edge.call_col_offset,
                     getattr(edge, 'mapping_targets', None) is not None)
-        if self._edge_lookup_positions[ordinal] != position:
-            self._edge_lookup_graph = None
+        if cached.positions[ordinal] != position:
+            self._set_edge_index(None)
             return
-        names = self._edge_lookup[1]
-        previous = self._edge_lookup_names[ordinal]
+        names = cached.data[1]
+        previous = cached.edge_names[ordinal]
         current = self._edge_callable_names(edge)
         for name in previous - current:
             names[name].discard(ordinal)
         for name in current - previous:
             names.setdefault(name, set()).add(ordinal)
-        self._edge_lookup_names[ordinal] = current
+        cached.edge_names[ordinal] = current
+
+    def _set_edge_index(self, index):
+        if self._ownership_run is not None:
+            self._ownership_run.edge_index = index
+        else:
+            self._initial_edge_index = index
 
     ## Index call spellings and source locations for the current edge facts.
     ## 为当前调用边事实建立名称及源码位置索引。
     #
     #  @return Ordered edges, name buckets, mapping edges, and location buckets.
-    def _get_edge_lookup(self):
+    def _get_ownership_edge_index(self):
         graph = self.project_cg
         generation = graph.version
-        if (getattr(self, '_edge_lookup_graph', None) is not graph
-                or self._edge_lookup_generation != generation):
-            edges, names, mapped, sites = [], {}, [], {}
-            edge_names, ordinals = {}, {}
-            scopes, positions = {}, {}
-            for module, cg in graph.modules.items():
-                for edge in cg.edges:
-                    ordinal = len(edges)
-                    edges.append((module, edge))
-                    ordinals[id(edge)] = ordinal
-                    edge_names[ordinal] = self._edge_callable_names(edge)
-                    for name in edge_names[ordinal]:
-                        names.setdefault(name, set()).add(ordinal)
-                    if getattr(edge, 'mapping_targets', None) is not None:
-                        mapped.append(ordinal)
-                    sites.setdefault((module, edge.call_lineno,
-                                      edge.call_col_offset), []).append(edge)
-                    scopes.setdefault((module, edge.caller.qualname), []).append(edge)
-                    positions[ordinal] = (edge.caller.qualname, edge.call_lineno,
-                                          edge.call_col_offset,
-                                          getattr(edge, 'mapping_targets', None) is not None)
-            self._edge_lookup = (edges, names, mapped, sites)
-            self._edge_lookup_names = edge_names
-            self._edge_lookup_ordinals = ordinals
-            self._edge_scope_lookup = scopes
-            self._edge_lookup_positions = positions
-            self._edge_lookup_graph = graph
-            self._edge_lookup_generation = generation
-        return self._edge_lookup
+        run = self._ownership_run
+        cached = (run.edge_index if run is not None
+                  else getattr(self, '_initial_edge_index', None))
+        if cached is None or cached.graph is not graph or cached.generation != generation:
+            cached = build_ownership_edge_index(graph, self._edge_callable_names)
+            self._set_edge_index(cached)
+        return cached
+
+    def _get_edge_lookup(self):
+        return self._get_ownership_edge_index().data
 
     ## Return one lexical caller's edges in original collection order.
     ## 按原始收集顺序返回一个词法调用者的调用边。
@@ -260,8 +235,8 @@ class ProjectCallContextMixin:
     #  @param scope Caller qualified name.
     #  @return Ordered edge tuple, retaining every spelling and candidate.
     def _call_edges_in_scope(self, module, scope):
-        self._get_edge_lookup()
-        return tuple(self._edge_scope_lookup.get((module, scope), ()))
+        index = self._get_ownership_edge_index()
+        return tuple(index.scopes.get((module, scope), ()))
 
     ## Select candidate callback-contract edges by accepted callable spellings.
     ## 根据回调契约接受的名称筛选候选调用边。
@@ -1453,30 +1428,6 @@ class ProjectCallContextMixin:
         return self._plain_edge_targets_local_function(
             edge, caller_module, target_module, callable_name,
             is_constructor, caller_tracer, tracers)
-
-    ## Describe one local function, constructor, or method target.
-    ## 描述一个局部函数、构造函数或方法目标。
-    #
-    #  @param target_module Target definition's module.
-    #  @param scope_name Qualified function or method name.
-    #  @return Target metadata tuple, or None when its module is unavailable.
-    def _local_target_metadata(self, target_module, scope_name):
-        cg = getattr(self, "project_cg", None)
-        target_cg = cg.modules.get(target_module) if cg is not None else None
-        if target_cg is None:
-            return None
-        parts = scope_name.split(".")
-        class_name = parts[-2] if len(parts) >= 2 else ""
-        target_name = parts[-1]
-        is_constructor = (
-            target_name == "__init__"
-            and class_name in target_cg.classes)
-        is_method = (
-            not is_constructor
-            and class_name in target_cg.classes
-            and target_name in target_cg.classes[class_name].methods)
-        return (target_cg, class_name, target_name,
-                is_constructor, is_method)
 
     ## Match an exact callable source retained on the edge.
     ## 匹配调用边上保留的精确可调用来源。

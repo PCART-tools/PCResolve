@@ -60,7 +60,7 @@ def _inspect_wheel(wheel):
         names = archive.namelist()
         top_level = next(name for name in names if name.endswith('.dist-info/top_level.txt'))
         assert archive.read(top_level).decode().splitlines() == ['pcresolve']
-        assert 'pcresolve/py.typed' in names
+        assert 'pcresolve/py.typed' not in names
         assert 'pcresolve/flow/transfer/call_expression.py' in names
         assert 'pcresolve/flow/proofs/classes/_class_creation_calls.py' in names
         assert not any(name.startswith(('cross_file_analyzer/', 'path_scanner/',
@@ -108,17 +108,21 @@ def main():
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix='pcresolve-release-') as directory:
         work = Path(directory)
+        checkout = work / 'checkout'
+        shutil.copytree(root, checkout, ignore=shutil.ignore_patterns(
+            '.git', 'build', '*.egg-info', '.local-verification', 'reports',
+            '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'))
         dist = work / 'dist'
         dist.mkdir()
         _run([sys.executable, '-m', 'build', '--wheel', '--sdist',
-              '--outdir', str(dist), str(root)], cwd=work)
+              '--outdir', str(dist), str(checkout)], cwd=work)
         wheels = list(dist.glob('*.whl'))
         sdists = list(dist.glob('*.tar.gz'))
         assert len(wheels) == len(sdists) == 1, (wheels, sdists)
         _inspect_wheel(wheels[0])
         with tarfile.open(sdists[0], 'r:gz') as archive:
             names = archive.getnames()
-            assert any(name.endswith('/src/pcresolve/py.typed') for name in names)
+            assert not any(name.endswith('/src/pcresolve/py.typed') for name in names)
             assert any(name.endswith('/src/pcresolve/flow/transfer/call_expression.py')
                        for name in names)
         extracted = work / 'sdist-source'

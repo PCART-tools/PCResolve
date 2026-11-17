@@ -18,7 +18,7 @@ import psutil
 
 ROOT = Path(__file__).resolve().parents[1]
 _HEAVY_COMMAND_MARKERS = (
-    'pytest', 'mypy', 'compare_analysis_baseline.py', 'evaluate_ground_truth.py',
+    'pytest', 'compare_analysis_baseline.py', 'evaluate_ground_truth.py',
     'verify_release_artifacts.py', 'perf_scalability.py', 'run_ci_gate.py',
 )
 _MIN_AVAILABLE_MEMORY = 512 * 1024 * 1024

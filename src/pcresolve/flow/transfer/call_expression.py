@@ -13,162 +13,133 @@ from pcresolve.flow.proofs.callables.dispatch.conditional_constructor import sig
 from pcresolve.flow.proofs.callables._constructor_binding import source_binding as constructor_source_binding
 from pcresolve.flow.proofs.callables._callable_instance_binding import source_binding
 from pcresolve.flow.proofs.callables._function_factory import factory_wrapper
-from pcresolve.flow.proofs.callables._fresh_receiver import (method_binding as fresh_method_binding,
-    super_method_binding as fresh_super_method_binding, incoming_origin as fresh_incoming_origin)
+from pcresolve.flow.proofs.callables._fresh_receiver import method_binding as fresh_method_binding, super_method_binding as fresh_super_method_binding
 from pcresolve.flow.proofs.callables._fresh_receiver import recover_lookup_receiver as fresh_lookup_receiver
 from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified as namespace_unmodified
-from pcresolve.flow.transfer._summary_support import _call_key, _call_span, _unique
-from pcresolve.flow.transfer.call_expression_state import _CallExpressionState
+from pcresolve.flow.transfer._summary_support import _call_key, _unique
+from pcresolve.flow.transfer.call_entry import (
+    CallEntryMixin, CalleeResolution, ReceiverDispatchResult, CallDecorationResult,
+    CallableBindingResult,
+)
+from pcresolve.flow.transfer.call_binding_state import (
+    CallArgumentsBinding, CallArgumentValues, CallEffectsResult, has_invalid_binding, record_argument_binding,
+    record_actual_values, record_protocol_values, unavailable_call_binding, unbound_default_arguments,
+)
 
 
-class CallExpressionMixin:
-    ## Evaluate a call using the summary's bounded source and flow context.
-    ## 使用摘要的有界源码与数据流上下文分析调用。
-    def call_expression(self, node, env):
-        location = _call_span(node)
-        if location not in self.evaluated_calls and self.analyzer._class_return_stack:
-            if self.analyzer._fact_calls <= 0:
-                self.result.boundaries.append({'function': asdict(self.ref),
-                    'reason': 'class_return_budget', 'evidence': self.evidence(node)})
-                return []
-            self.analyzer._fact_calls -= 1
-        if location not in self.evaluated_calls and self.remaining <= 0:
-            self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'budget_exceeded', 'evidence': self.evidence(node)})
-            return []
-        if location not in self.evaluated_calls:
-            self.remaining -= 1
-            self.evaluated_calls.add(location)
-        state = _CallExpressionState(self=self, node=node, env=env, location=location)
-        if self._resolve_callee_and_construction(state):
-            return state.return_value
-        if self._resolve_receiver_dispatch(state):
-            return state.return_value
-        if self._resolve_callable_binding(state):
-            return state.return_value
-        if self._create_flow_call_record(state):
-            return state.return_value
-        if self._complete_call_target_metadata(state):
-            return state.return_value
-        if self._bind_call_parameters(state):
-            return state.return_value
-        if self._map_call_arguments(state):
-            return state.return_value
-        if self._analyze_call_effects(state):
-            return state.return_value
-        if self._resolve_container_and_protocol_results(state):
-            return state.return_value
-        if self._resolve_return_sources(state):
-            return state.return_value
-        return state.return_value
+class CallExpressionMixin(CallEntryMixin):
+    # Query-local state provided by the composed summary, not by each phase.
 
     ## Resolve the callee, binding and construction candidates.
     ## 解析被调对象、绑定关系和构造候选。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
+    #  @return Facts consumed by receiver dispatch and call-record construction.
     def _resolve_callee_and_construction(self, state):
         state.name = ast.unparse(state.node.func)
         state.binding = state.env.get(state.name.split('.')[0])
-        state.builtin_status = (state.self.analyzer._builtin_name_status(state.self.ref, state.self.node, state.name, state.env)
+        state.builtin_status = (self.analyzer._builtin_name_status(self.ref, self.node, state.name, state.env)
                           if isinstance(state.node.func, ast.Name) and hasattr(builtins, state.name) else None)
-        state.callable_sources = (state.self.expression(state.node.func, state.env)
+        state.callable_sources = (self.expression(state.node.func, state.env)
                             if isinstance(state.node.func, ast.Subscript) else state.binding or [])
         state.protocol = getattr(state.node, '_flow_implicit_protocol', {})
         state.target = (getattr(state.node, '_flow_protocol_target', None) if state.protocol else
-                  state.self.analyzer._resolve(state.self.ref, state.name) if state.binding is None else None)
-        state.global_rebound = False
-        state.global_declarations = []
-        state.nominal_target = state.target
+                  self.analyzer._resolve(self.ref, state.name) if state.binding is None else None)
+        global_rebound = False
+        global_declarations = []
+        nominal_target = state.target
         if state.target and not state.protocol and '.' not in state.target[0].qualname:
-            state.global_declarations = state.self.analyzer._module_global_declarations(state.target[0])
-            state.global_rebound = bool(state.global_declarations)
-            if state.global_rebound:
+            global_declarations = self.analyzer._module_global_declarations(state.target[0])
+            global_rebound = bool(global_declarations)
+            if global_rebound:
                 state.target = None
-        state.canonical = state.self.ref.module + '.' + state.name
+        state.canonical = self.ref.module + '.' + state.name
         state.constructor_class = None
         state.allocation_class = None
-        state.allocation_values = []
+        allocation_values = []
         state.allocation_candidates = []
         state.construction_safe = False
         state.callable_instance_fact = None
-        state.callable_instance_cause = None
         state.bounded_targets = []
-        state.callable_incomplete = state.global_rebound
-        state.receiver_values = (state.self.expression(state.node.func.value, state.env)
+        state.callable_incomplete = global_rebound
+        state.receiver_values = (self.expression(state.node.func.value, state.env)
                             if isinstance(state.node.func, ast.Attribute) else [])
-        state.receiver_sources = state.self.materialize(state.receiver_values, state.env)
+        state.receiver_sources = self.materialize(state.receiver_values, state.env)
         state.returned_field_receiver = bool(state.receiver_values) and all(
             value.get('receiver_type_evidence') for value in state.receiver_values)
         state.bound_receiver = bool(state.protocol and state.target)
         state.dispatch_kind = 'receiver_type_evidence' if state.bound_receiver else None
-        state.field_evidence = None
-        state.owner = state.self.ref.qualname.rpartition('.')[0]
-        state.function_names = state.self.analyzer._definition_index.scopes(state.self.ref.module)
-        state.callee_classes = state.self.class_values(state.binding, env=state.env) if state.binding and isinstance(state.node.func, ast.Name) else []
+        state.owner = self.ref.qualname.rpartition('.')[0]
+        function_names = self.analyzer._definition_index.scopes(self.ref.module)
+        state.callee_classes = self.class_values(state.binding, env=state.env) if state.binding and isinstance(state.node.func, ast.Name) else []
         state.construction_candidates = []
         if state.binding and isinstance(state.node.func, ast.Name) and not state.callee_classes:
-            state.classes = state.self.class_values(state.binding, allow_incomplete=True, env=state.env)
-            if state.classes and all(value.get('attribute_provenance') for value in state.classes):
-                state.construction_candidates = [value for value in state.classes
-                    if state.self.analyzer._ordinary_construction(FunctionRef(**value['class_type']))]
-                if len(state.construction_candidates) != len(state.classes):
+            _phase_classes = self.class_values(state.binding, allow_incomplete=True, env=state.env)
+            if _phase_classes and all(value.get('attribute_provenance') for value in _phase_classes):
+                state.construction_candidates = [value for value in _phase_classes
+                    if self.analyzer._ordinary_construction(FunctionRef(**value['class_type']))]
+                if len(state.construction_candidates) != len(_phase_classes):
                     state.construction_candidates = [dict(value, value_incomplete=True)
                                                for value in state.construction_candidates]
                 state.allocation_candidates = state.construction_candidates
-                state.allocation_values = state.construction_candidates
+                allocation_values = state.construction_candidates
         if state.target is None:
             if state.callee_classes:
-                state.identities = {(value['module'], value['source'])
+                _phase_identities = {(value['module'], value['source'])
                               for value in state.callee_classes}
-                state.class_target = None
-                if len(state.identities) == 1:
-                    state.module, state.qualname = next(iter(state.identities))
-                    state.matches = state.self.analyzer._definition_index.find(
-                        state.module, state.qualname, kind='class')
-                    state.class_target = state.matches[0] if len(state.matches) == 1 else None
+                _phase_class_target = None
+                if len(_phase_identities) == 1:
+                    _phase_module, _phase_qualname = next(iter(_phase_identities))
+                    _phase_matches = self.analyzer._definition_index.find(
+                        _phase_module, _phase_qualname, kind='class')
+                    _phase_class_target = _phase_matches[0] if len(_phase_matches) == 1 else None
             elif state.binding is None:
-                state.class_target = state.self.analyzer._resolve_class(state.self.ref, state.name)
-                state.alias = state.name.split('.')[0]
-                if (state.alias in state.self.analyzer.imports.get(state.self.ref.module, {})
-                        and not state.self.analyzer._stable_import_name(
-                            state.self.ref.module + '.' + state.alias)):
-                    state.class_target = None
-                if state.class_target and not state.self.analyzer._stable_import_name(
-                        state.class_target[0].module + '.' + state.class_target[0].qualname):
-                    state.class_target = None
+                _phase_class_target = self.analyzer._resolve_class(self.ref, state.name)
+                _phase_alias = state.name.split('.')[0]
+                if (_phase_alias in self.analyzer.imports.get(self.ref.module, {})
+                        and not self.analyzer._stable_import_name(
+                            self.ref.module + '.' + _phase_alias)):
+                    _phase_class_target = None
+                if _phase_class_target and not self.analyzer._stable_import_name(
+                        _phase_class_target[0].module + '.' + _phase_class_target[0].qualname):
+                    _phase_class_target = None
             elif all(value.get('kind') == 'import' for value in state.binding):
-                state.callee_classes = state.self.class_values([dict(value,
+                state.callee_classes = self.class_values([dict(value,
                     source=value['source'] + ('.' + state.name.split('.', 1)[1]
                         if '.' in state.name else '')) for value in state.binding])
-                state.class_target = None
-                state.identities = {(value['module'], value['source']) for value in state.callee_classes}
-                if len(state.identities) == 1:
-                    state.module, state.qualname = next(iter(state.identities))
-                    state.matches = state.self.analyzer._definition_index.find(state.module, state.qualname, kind='class')
-                    state.class_target = state.matches[0] if len(state.matches) == 1 else None
+                _phase_class_target = None
+                _phase_identities = {(value['module'], value['source']) for value in state.callee_classes}
+                if len(_phase_identities) == 1:
+                    _phase_module, _phase_qualname = next(iter(_phase_identities))
+                    _phase_matches = self.analyzer._definition_index.find(_phase_module, _phase_qualname, kind='class')
+                    _phase_class_target = _phase_matches[0] if len(_phase_matches) == 1 else None
             else:
-                state.class_target = None
-            if state.class_target is not None:
-                state.constructor = state.self.analyzer._constructor_target(state.class_target)
-                state.constructor_class = state.class_target[0]
-                state.construction_safe = state.self.analyzer._ordinary_construction(state.constructor_class)
-                if state.constructor is not None:
-                    state.target = state.constructor
+                _phase_class_target = None
+            if _phase_class_target is not None:
+                _phase_constructor = self.analyzer._constructor_target(_phase_class_target)
+                state.constructor_class = _phase_class_target[0]
+                state.construction_safe = self.analyzer._ordinary_construction(state.constructor_class)
+                if _phase_constructor is not None:
+                    state.target = _phase_constructor
                     state.bound_receiver = True
                     state.dispatch_kind = 'constructor'
                 else:
                     state.dispatch_kind = 'constructor_unavailable'
                 state.canonical = (state.constructor_class.module + '.' +
                              state.constructor_class.qualname)
-        return False
+        return CalleeResolution(function_names, nominal_target, allocation_values,
+                                global_declarations, global_rebound)
 
     ## Resolve receiver-based, inherited, super and field dispatch.
     ## 解析基于接收者的继承、super 与字段分派。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _resolve_receiver_dispatch(self, state):
-        state.receiver_types = {tuple((value.get('class_type') or {}).get(key, '')
+    #  @param callee Facts established by callee resolution.
+    #  @return Descriptor and allocation values consumed by later phases.
+    def _resolve_receiver_dispatch(self, state, callee):
+        allocation_values = callee.allocation_values
+        field_evidence = None
+        _phase_receiver_types = {tuple((value.get('class_type') or {}).get(key, '')
                           for key in ('module', 'qualname')) for value in state.receiver_values}
         if (state.target is None and isinstance(state.node.func, ast.Attribute)
                 and state.receiver_values and all(value.get('class_type')
@@ -177,52 +148,52 @@ class CallExpressionMixin:
                                             and not value.get('projection')
                                             and not value.get('output_path')
                                             for value in state.receiver_values)
-                and len(state.receiver_types) == 1):
-            state.module, state.class_name = next(iter(state.receiver_types))
-            state.matches = state.self.analyzer._definition_index.find(state.module, state.class_name + '.' + state.node.func.attr)
-            state.candidate = state.matches[0] if len(state.matches) == 1 else state.self.analyzer._inherited_method(
-                state.module, state.class_name, state.node.func.attr)
-            if state.candidate is not None:
-                state.target = state.candidate
+                and len(_phase_receiver_types) == 1):
+            _phase_module, _phase_class_name = next(iter(_phase_receiver_types))
+            _phase_matches = self.analyzer._definition_index.find(_phase_module, _phase_class_name + '.' + state.node.func.attr)
+            _phase_candidate = _phase_matches[0] if len(_phase_matches) == 1 else self.analyzer._inherited_method(
+                _phase_module, _phase_class_name, state.node.func.attr)
+            if _phase_candidate is not None:
+                state.target = _phase_candidate
                 state.bound_receiver = False
                 state.dispatch_kind = 'class_receiver_candidate'
         if (state.target is None and isinstance(state.node.func, ast.Attribute) and isinstance(state.node.func.value, ast.Name)
-                and state.owner and state.owner not in state.function_names
-                and (state.self.node.args.posonlyargs or state.self.node.args.args)
+                and state.owner and state.owner not in callee.function_names
+                and (self.node.args.posonlyargs or self.node.args.args)
                 # Incoming instance facts take precedence over the method's
                 # lexical owner, including incomplete/empty candidates.
                 and not any('instance_type' in value or 'instance_candidates' in value
                             for value in state.receiver_values + state.receiver_sources)
                 and state.receiver_sources and all(v['kind'] == 'parameter' and v['relation'] == 'direct'
                     and not v.get('value_incomplete')
-                    and v['source'] == (state.self.node.args.posonlyargs + state.self.node.args.args)[0].arg
+                    and v['source'] == (self.node.args.posonlyargs + self.node.args.args)[0].arg
                     for v in state.receiver_sources)):
-            state.matches = state.self.analyzer._definition_index.find(state.self.ref.module, state.owner + '.' + state.node.func.attr)
-            if not state.matches:
-                state.inherited = state.self.analyzer._inherited_method(state.self.ref.module, state.owner, state.node.func.attr)
-                state.matches = [state.inherited] if state.inherited else []
-            if len(state.matches) == 1:
-                state.target = state.matches[0]
+            _phase_matches = self.analyzer._definition_index.find(self.ref.module, state.owner + '.' + state.node.func.attr)
+            if not _phase_matches:
+                _phase_inherited = self.analyzer._inherited_method(self.ref.module, state.owner, state.node.func.attr)
+                _phase_matches = [_phase_inherited] if _phase_inherited else []
+            if len(_phase_matches) == 1:
+                state.target = _phase_matches[0]
                 state.bound_receiver = True
                 state.dispatch_kind = 'instance_method'
         if (isinstance(state.node.func, ast.Attribute) and isinstance(state.node.func.value, ast.Attribute)
                 and isinstance(state.node.func.value.value, ast.Name)
-                and not getattr(state.self.node, 'decorator_list', [])):
-            state.args = state.self.node.args.posonlyargs + state.self.node.args.args
-            state.bases = state.env.get(state.node.func.value.value.id, [])
-            if state.args and state.bases and all(v['kind'] == 'parameter' and v['source'] == state.args[0].arg
-                                     and v['relation'] == 'direct' for v in state.bases):
-                state.candidate = state.self.analyzer._field_candidate(state.self.ref, state.node.func.value.attr, state.node.func.attr)
-                if state.candidate:
-                    state.target, state.field_evidence = state.candidate
+                and not getattr(self.node, 'decorator_list', [])):
+            _phase_args = self.node.args.posonlyargs + self.node.args.args
+            _phase_bases = state.env.get(state.node.func.value.value.id, [])
+            if _phase_args and _phase_bases and all(v['kind'] == 'parameter' and v['source'] == _phase_args[0].arg
+                                     and v['relation'] == 'direct' for v in _phase_bases):
+                _phase_candidate = self.analyzer._field_candidate(self.ref, state.node.func.value.attr, state.node.func.attr)
+                if _phase_candidate:
+                    state.target, field_evidence = _phase_candidate
                     state.bound_receiver = True
                     state.dispatch_kind = 'field_method'
-        state.is_zero_super = (isinstance(state.node.func, ast.Attribute)
+        _phase_is_zero_super = (isinstance(state.node.func, ast.Attribute)
                          and isinstance(state.node.func.value, ast.Call)
                          and isinstance(state.node.func.value.func, ast.Name)
                          and state.node.func.value.func.id == 'super'
                          and not state.node.func.value.args and not state.node.func.value.keywords)
-        state.is_explicit_super = (isinstance(state.node.func, ast.Attribute)
+        _phase_is_explicit_super = (isinstance(state.node.func, ast.Attribute)
             and isinstance(state.node.func.value, ast.Call)
             and isinstance(state.node.func.value.func, ast.Name)
             and state.node.func.value.func.id == 'super'
@@ -231,99 +202,101 @@ class CallExpressionMixin:
             and isinstance(state.node.func.value.args[0], ast.Name)
             and isinstance(state.node.func.value.args[1], ast.Name)
             and state.node.func.value.args[0].id == state.owner.rpartition('.')[2])
-        state.current_descriptor = state.self.analyzer._descriptor_kind(
-            (state.self.ref, state.self.node))
-        state.builtin_super = ('super' not in state.env
-            and 'super' not in state.self.analyzer.imports.get(state.self.ref.module, {})
-            and 'super' not in state.self.analyzer.module_bindings.get(state.self.ref.module, set())
-            and state.self.analyzer._resolve(state.self.ref, 'super') is None
-            and state.self.analyzer._resolve_class(state.self.ref, 'super') is None)
-        state.current_class_known = (not state.is_explicit_super or (
+        current_descriptor = self.analyzer._descriptor_kind(
+            (self.ref, self.node))
+        _phase_builtin_super = ('super' not in state.env
+            and 'super' not in self.analyzer.imports.get(self.ref.module, {})
+            and 'super' not in self.analyzer.module_bindings.get(self.ref.module, set())
+            and self.analyzer._resolve(self.ref, 'super') is None
+            and self.analyzer._resolve_class(self.ref, 'super') is None)
+        _phase_current_class_known = (not _phase_is_explicit_super or (
             state.node.func.value.args[0].id not in state.env
-            and state.self.analyzer._class_symbol(state.self.ref.module + '.' + state.owner)
+            and self.analyzer._class_symbol(self.ref.module + '.' + state.owner)
             is not None))
-        if ((state.is_zero_super or state.is_explicit_super) and state.owner and state.builtin_super
-                and state.current_class_known):
-            state.inherited = state.self.analyzer._inherited_method(
-                state.self.ref.module, state.owner, state.node.func.attr,
+        if ((_phase_is_zero_super or _phase_is_explicit_super) and state.owner and _phase_builtin_super
+                and _phase_current_class_known):
+            _phase_inherited = self.analyzer._inherited_method(
+                self.ref.module, state.owner, state.node.func.attr,
                 skip_current_members=True)
-            state.args = state.self.node.args.posonlyargs + state.self.node.args.args
-            state.receiver_name = (state.node.func.value.args[1].id
-                             if state.is_explicit_super else state.args[0].arg if state.args else '')
-            if (state.inherited and state.args and state.receiver_name == state.args[0].arg
-                    and state.env.get(state.receiver_name)):
-                state.target = state.inherited
+            _phase_args = self.node.args.posonlyargs + self.node.args.args
+            _phase_receiver_name = (state.node.func.value.args[1].id
+                             if _phase_is_explicit_super else _phase_args[0].arg if _phase_args else '')
+            if (_phase_inherited and _phase_args and _phase_receiver_name == _phase_args[0].arg
+                    and state.env.get(_phase_receiver_name)):
+                state.target = _phase_inherited
                 state.bound_receiver = state.node.func.attr != '__new__'
                 state.dispatch_kind = ('super_new' if state.node.func.attr == '__new__'
                                  else 'super_method')
-                state.receiver_values = state.env.get(state.receiver_name, [])
-                state.receiver_sources = state.self.materialize(state.receiver_values, state.env)
-            if (state.inherited is None and state.node.func.attr == '__new__'
+                state.receiver_values = state.env.get(_phase_receiver_name, [])
+                state.receiver_sources = self.materialize(state.receiver_values, state.env)
+            if (_phase_inherited is None and state.node.func.attr == '__new__'
                     and len(state.node.args) == 1 and not state.node.keywords):
-                state.receiver = state.self.class_values(state.env.get(state.receiver_name, []), env=state.env)
-                state.types = _unique([value.get('class_type') for value in state.receiver])
-                if (state.receiver and all(state.types) and len(state.types) == 1
-                        and not any(value.get('value_incomplete') for value in state.receiver)):
-                    state.class_ref = FunctionRef(**state.types[0])
-                    state.hierarchy = state.self.analyzer._class_mro(state.class_ref.module, state.class_ref.qualname)
-                    state.owner_index = next((index for index, (ref, _) in enumerate(state.hierarchy or ())
-                        if ref.module == state.self.ref.module and ref.qualname == state.owner), None)
-                    state.writes, state.truncated = state.self.analyzer._class_binding_writes()
-                    state.changed = state.truncated or any(attribute in ('__new__', '__class__', '__bases__', '*')
-                        and any(written == ref for ref, _ in state.hierarchy or ())
-                        for written, attribute, _, _, _ in state.writes)
-                    if state.owner_index is not None and not state.changed and not any(
+                _phase_receiver = self.class_values(state.env.get(_phase_receiver_name, []), env=state.env)
+                _phase_types = _unique([value.get('class_type') for value in _phase_receiver])
+                if (_phase_receiver and all(_phase_types) and len(_phase_types) == 1
+                        and not any(value.get('value_incomplete') for value in _phase_receiver)):
+                    _phase_class_ref = FunctionRef(**_phase_types[0])
+                    _phase_hierarchy = self.analyzer._class_mro(_phase_class_ref.module, _phase_class_ref.qualname)
+                    _phase_owner_index = next((index for index, (ref, _) in enumerate(_phase_hierarchy or ())
+                        if ref.module == self.ref.module and ref.qualname == state.owner), None)
+                    _phase_writes, _phase_truncated = self.analyzer._class_binding_writes()
+                    _phase_changed = _phase_truncated or any(attribute in ('__new__', '__class__', '__bases__', '*')
+                        and any(written == ref for ref, _ in _phase_hierarchy or ())
+                        for written, attribute, _, _, _ in _phase_writes)
+                    if _phase_owner_index is not None and not _phase_changed and not any(
                             '__new__' in statement_scope_facts(cls.body).bound
                             or cls.keywords or cls.decorator_list
-                            for ref, cls in state.hierarchy[state.owner_index + 1:]):
-                        state.classes = state.self.class_values(state.self.expression(state.node.args[0], state.env),
+                            for ref, cls in _phase_hierarchy[_phase_owner_index + 1:]):
+                        _phase_classes = self.class_values(self.expression(state.node.args[0], state.env),
                                                     allow_incomplete=True, env=state.env)
-                        if state.classes:
-                            if (len({(value['module'], value['source']) for value in state.classes}) == 1
-                                    and not any(value.get('value_incomplete') for value in state.classes)):
-                                state.allocation_class = FunctionRef(**state.classes[0]['class_type'])
-                            state.allocation_values = state.classes
-                            state.allocation_candidates = state.classes
+                        if _phase_classes:
+                            if (len({(value['module'], value['source']) for value in _phase_classes}) == 1
+                                    and not any(value.get('value_incomplete') for value in _phase_classes)):
+                                state.allocation_class = FunctionRef(**_phase_classes[0]['class_type'])
+                            allocation_values = _phase_classes
+                            state.allocation_candidates = _phase_classes
                             state.dispatch_kind = 'builtin_allocation'
         if (state.target is None and isinstance(state.node.func, ast.Attribute)
                 and isinstance(state.node.func.value, ast.Name)
                 and state.node.func.value.id == 'object' and state.node.func.attr == '__new__'
                 and len(state.node.args) == 1 and not state.node.keywords
                 and 'object' not in state.env
-                and 'object' not in state.self.analyzer.imports.get(state.self.ref.module, {})
-                and 'object' not in state.self.analyzer.module_bindings.get(state.self.ref.module, set())
-                and state.self.analyzer._resolve(state.self.ref, 'object') is None
-                and state.self.analyzer._resolve_class(state.self.ref, 'object') is None):
-            state.classes = state.self.class_values(state.self.expression(state.node.args[0], state.env), allow_incomplete=True, env=state.env)
-            if state.classes and len({(value['module'], value['source']) for value in state.classes}) == 1:
-                if not any(value.get('value_incomplete') for value in state.classes):
-                    state.allocation_class = FunctionRef(**state.classes[0]['class_type'])
-                state.allocation_values = state.classes
-                state.allocation_candidates = state.classes
+                and 'object' not in self.analyzer.imports.get(self.ref.module, {})
+                and 'object' not in self.analyzer.module_bindings.get(self.ref.module, set())
+                and self.analyzer._resolve(self.ref, 'object') is None
+                and self.analyzer._resolve_class(self.ref, 'object') is None):
+            _phase_classes = self.class_values(self.expression(state.node.args[0], state.env), allow_incomplete=True, env=state.env)
+            if _phase_classes and len({(value['module'], value['source']) for value in _phase_classes}) == 1:
+                if not any(value.get('value_incomplete') for value in _phase_classes):
+                    state.allocation_class = FunctionRef(**_phase_classes[0]['class_type'])
+                allocation_values = _phase_classes
+                state.allocation_candidates = _phase_classes
                 state.dispatch_kind = 'builtin_allocation'
-            elif state.classes:
-                state.allocation_candidates = state.classes
-                state.allocation_values = state.classes
+            elif _phase_classes:
+                state.allocation_candidates = _phase_classes
+                allocation_values = _phase_classes
                 state.dispatch_kind = 'builtin_allocation'
-        state.possible_allocations = state.allocation_candidates
-        state.allocation_candidates = [value for value in state.possible_allocations
-            if (state.self.analyzer._ordinary_construction if state.construction_candidates
-                else state.self.analyzer._explicit_object_allocation)(FunctionRef(**value['class_type']))]
-        if len(state.allocation_candidates) != len(state.possible_allocations):
+        _phase_possible_allocations = state.allocation_candidates
+        state.allocation_candidates = [value for value in _phase_possible_allocations
+            if (self.analyzer._ordinary_construction if state.construction_candidates
+                else self.analyzer._explicit_object_allocation)(FunctionRef(**value['class_type']))]
+        if len(state.allocation_candidates) != len(_phase_possible_allocations):
             state.allocation_candidates = [dict(value, value_incomplete=True) for value in state.allocation_candidates]
-        return False
+        return ReceiverDispatchResult(current_descriptor, allocation_values, field_evidence)
 
     ## Resolve callable-instance and fresh-receiver bindings.
     ## 解析可调用实例与新鲜接收者绑定。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
+    #  @return Fresh instance-method binding evidence for call-record construction.
     def _resolve_callable_binding(self, state):
-        if state.allocation_class and not state.self.analyzer._explicit_object_allocation(state.allocation_class):
+        fresh_instance_method_bindings = []
+        callable_instance_cause = None
+        if state.allocation_class and not self.analyzer._explicit_object_allocation(state.allocation_class):
             state.allocation_class = None
         if not state.allocation_candidates and state.allocation_class is None and state.dispatch_kind == 'builtin_allocation':
             state.dispatch_kind = None
-        state.receiver_values = fresh_lookup_receiver(state.self, state.node, state.receiver_values)
+        state.receiver_values = fresh_lookup_receiver(self, state.node, state.receiver_values)
         if (state.target is None and isinstance(state.node.func, ast.Attribute)
                 and state.receiver_values and all((value.get('instance_type') and (
                                                 not value.get('value_incomplete')
@@ -333,77 +306,77 @@ class CallExpressionMixin:
                                             and not value.get('projection')
                                             and not value.get('output_path')
                                             for value in state.receiver_values)):
-            state.instance_types = {
+            _phase_instance_types = {
                 (identity['module'], identity['qualname'])
                 for value in state.receiver_values
                 for identity in ([value['instance_type']] if value.get('instance_type')
                                  else value.get('instance_candidates', []))}
-            state.candidates = []
-            state.complete_candidates = True
-            for state.module, state.class_name in sorted(state.instance_types):
-                state.candidate = state.self.analyzer._instance_method_candidate(
-                    state.module, state.class_name, state.node.func.attr)
-                if state.self.class_lookup_affected(state.receiver_values,
+            _phase_candidates = []
+            _phase_complete_candidates = True
+            for _phase_module, _phase_class_name in sorted(_phase_instance_types):
+                _phase_candidate = self.analyzer._instance_method_candidate(
+                    _phase_module, _phase_class_name, state.node.func.attr)
+                if self.class_lookup_affected(state.receiver_values,
                         (state.node.func.attr, '__class__', '__bases__')):
-                    state.candidate = None
-                if state.candidate is None:
-                    state.complete_candidates = False
-                elif state.candidate not in state.candidates:
-                    state.candidates.append(state.candidate)
-            state.receiver_complete = all(not value.get('value_incomplete') for value in state.receiver_values)
-            if state.complete_candidates and len(state.candidates) == 1:
-                state.candidate = state.candidates[0]
-                state.fresh_binding = (fresh_method_binding(
-                    state.self, state.node, state.candidate, state.receiver_values) if not state.receiver_complete else None)
-                if state.receiver_complete or state.fresh_binding is not None:
-                    state.target = state.candidate
+                    _phase_candidate = None
+                if _phase_candidate is None:
+                    _phase_complete_candidates = False
+                elif _phase_candidate not in _phase_candidates:
+                    _phase_candidates.append(_phase_candidate)
+            _phase_receiver_complete = all(not value.get('value_incomplete') for value in state.receiver_values)
+            if _phase_complete_candidates and len(_phase_candidates) == 1:
+                _phase_candidate = _phase_candidates[0]
+                _phase_fresh_binding = (fresh_method_binding(
+                    self, state.node, _phase_candidate, state.receiver_values) if not _phase_receiver_complete else None)
+                if _phase_receiver_complete or _phase_fresh_binding is not None:
+                    state.target = _phase_candidate
                     state.bound_receiver = True
                     state.dispatch_kind = ('returned_field_candidate'
                                      if state.returned_field_receiver else
                                      'receiver_type_evidence')
-                    if state.fresh_binding is not None:
-                        state.fresh_instance_method_bindings = [state.fresh_binding]
-            elif state.candidates and (state.complete_candidates or any(
+                    if _phase_fresh_binding is not None:
+                        fresh_instance_method_bindings = [_phase_fresh_binding]
+            elif _phase_candidates and (_phase_complete_candidates or any(
                     value.get('instance_candidates') for value in state.receiver_values)):
-                state.bounded_targets = state.candidates
-                state.dispatch_kind = ('bounded_alternatives' if state.receiver_complete
-                                 and state.complete_candidates else 'receiver_unresolved')
+                state.bounded_targets = _phase_candidates
+                state.dispatch_kind = ('bounded_alternatives' if _phase_receiver_complete
+                                 and _phase_complete_candidates else 'receiver_unresolved')
         if state.target is None and state.binding and all(v['kind'] == 'import' for v in state.binding):
-            state.imported = {v['source'] for v in state.binding}
-            if len(state.imported) == 1:
-                state.canonical = next(iter(state.imported)) + ('.' + state.name.split('.', 1)[1] if '.' in state.name else '')
-                state.target = (state.self.analyzer._resolve_import_binding(state.canonical)
+            _phase_imported = {v['source'] for v in state.binding}
+            if len(_phase_imported) == 1:
+                state.canonical = next(iter(_phase_imported)) + ('.' + state.name.split('.', 1)[1] if '.' in state.name else '')
+                state.target = (self.analyzer._resolve_import_binding(state.canonical)
                           if not any(value.get('conditions')
                                      or value.get('import_modified')
                                      or value.get('import_incomplete')
                                      for value in state.binding) else None)
         elif state.binding is None:
-            state.alias, state.dot, state.rest = state.name.partition('.')
-            state.imported = state.self.analyzer.imports.get(state.self.ref.module, {}).get(state.alias)
-            if state.imported:
-                state.canonical = state.imported + (state.dot + state.rest if state.dot else '')
+            _phase_alias, _phase_dot, _phase_rest = state.name.partition('.')
+            _phase_imported = self.analyzer.imports.get(self.ref.module, {}).get(_phase_alias)
+            if _phase_imported:
+                state.canonical = _phase_imported + (_phase_dot + _phase_rest if _phase_dot else '')
         if state.callable_sources and isinstance(state.node.func, (ast.Name, ast.Subscript)):
-            state.candidates, state.complete = state.self.callable_targets(state.callable_sources)
-            state.callable_incomplete = bool(state.candidates) and not state.complete
+            _phase_candidates, _phase_complete = self.callable_targets(state.callable_sources)
+            state.callable_incomplete = bool(_phase_candidates) and not _phase_complete
             if isinstance(state.node.func, ast.Subscript) and not isinstance(state.node.func.slice, ast.Constant):
-                state.complete = False
-            if state.complete and len(state.candidates) == 1:
-                state.target = state.candidates[0]
+                _phase_complete = False
+            if _phase_complete and len(_phase_candidates) == 1:
+                state.target = _phase_candidates[0]
                 state.dispatch_kind = ('literal_dispatch' if isinstance(state.node.func, ast.Subscript)
                                  else 'incoming_callable' if any(
                                      value.get('callable_type') for value in state.callable_sources)
                                  else None)
-            elif state.candidates:
+            elif _phase_candidates:
                 state.target = None
-                state.bounded_targets = state.candidates
+                state.bounded_targets = _phase_candidates
         if state.target is None:
-            state.target, state.callable_instance_fact, state.callable_instance_cause = (
-                state.self.analyzer._module_callable_instance(
-                    state.self.ref, state.name, state.binding))
+            state.target, state.callable_instance_fact, callable_instance_cause = (
+                self.analyzer._module_callable_instance(
+                    self.ref, state.name, state.binding))
             if state.target is not None:
                 state.bound_receiver = True
                 state.dispatch_kind = 'callable_instance_candidate'
-                state.assignment_evidence = state.self.evidence_at(
+                _phase_assignment_evidence = self.evidence_at(
                     state.callable_instance_fact['module_ref'],
                     state.callable_instance_fact['assignment'])
                 state.receiver_sources = [{
@@ -412,13 +385,17 @@ class CallExpressionMixin:
                     'instance_type': asdict(
                         state.callable_instance_fact['class_ref']),
                     'relation': 'direct',
-                    'evidence': [state.assignment_evidence, state.self.evidence(state.node)],
-                    'conditions': list(state.self.conditions)}]
-        state.decorated_target_candidate = False
+                    'evidence': [_phase_assignment_evidence, self.evidence(state.node)],
+                    'conditions': list(self.conditions)}]
+        decorated_target_candidate = False
+        identity_decorator = None
+        wrapper_forwarding_candidate = False
+        decoration_facts = []
+        body_preserved = False
         if (isinstance(state.node.func, ast.Attribute) and (
                 any(value.get('class_type') and value.get('value_incomplete')
                     for value in state.receiver_values)
-                or state.self.class_lookup_affected(state.receiver_values,
+                or self.class_lookup_affected(state.receiver_values,
                     (state.node.func.attr, '__class__', '__bases__'))
                 or state.node.func.attr.startswith('__') and not state.node.func.attr.endswith('__')
                 and any(effect.get('attributes') for value in state.receiver_values
@@ -426,41 +403,39 @@ class CallExpressionMixin:
             if (state.target and state.dispatch_kind == 'super_new' and state.receiver_values
                     and all(value.get('source_class_origin', {}).get('basis') == 'source_symbol'
                             for value in state.receiver_values)
-                    and not state.self.class_lookup_affected(state.receiver_values,
+                    and not self.class_lookup_affected(state.receiver_values,
                         (state.node.func.attr, '__class__', '__bases__'))
                     and any(value.get('cause') == 'unmodeled_call' for key, values in state.env.items()
                             if key.startswith('$class_origin_invalid:') for value in values)
                     and not any(value.get('cause') == 'write' for key, values in state.env.items()
                                 if key.startswith('$class_origin_invalid:') for value in values)):
-                state.self.result.boundaries.append({'reason': 'source_lookup_candidate',
-                    'call_id': _call_key(state.self.ref.file_path, state.node),
-                    'target': asdict(state.target[0]), 'evidence': state.self.evidence(state.node)})
+                self.result.boundaries.append({'reason': 'source_lookup_candidate',
+                    'call_id': _call_key(self.ref.file_path, state.node),
+                    'target': asdict(state.target[0]), 'evidence': self.evidence(state.node)})
             state.target, state.bounded_targets, state.bound_receiver, state.dispatch_kind = None, [], False, None
-        state.identity_decorator = None
-        state.wrapper_forwarding_candidate = False
-        state.descriptor_kind = state.self.analyzer._descriptor_kind(state.target) if state.target else None
+        state.descriptor_kind = self.analyzer._descriptor_kind(state.target) if state.target else None
         if state.target and getattr(state.target[1], 'decorator_list', []) and state.descriptor_kind is None:
-            state.identity_decorator = state.self.analyzer._identity_decorator(state.target)
-            state.decoration_facts = state.self.analyzer._binding_decoration_facts(state.target)
-            state.body_preserved = (len(state.decoration_facts) == 1
-                and state.decoration_facts[0]['body_binding_status'] == 'preserved')
-            if state.identity_decorator is not None or state.body_preserved:
-                state.decorated_target_candidate = state.body_preserved and state.identity_decorator is None
-            elif (factory_wrapper(state.self.analyzer, state.target) or {}).get('forwarding') is not None:
+            identity_decorator = self.analyzer._identity_decorator(state.target)
+            decoration_facts = self.analyzer._binding_decoration_facts(state.target)
+            body_preserved = (len(decoration_facts) == 1
+                and decoration_facts[0]['body_binding_status'] == 'preserved')
+            if identity_decorator is not None or body_preserved:
+                decorated_target_candidate = body_preserved and identity_decorator is None
+            elif (factory_wrapper(self.analyzer, state.target) or {}).get('forwarding') is not None:
                 # Preserve only the nominal original body. This wrapper's
                 # path condition requires concrete invocation arguments;
                 # generic ownership/value-flow consumers retain a boundary.
-                state.wrapper_forwarding_candidate = True
-                state.decorated_target_candidate = True
+                wrapper_forwarding_candidate = True
+                decorated_target_candidate = True
             elif state.dispatch_kind in (
                     'constructor', 'instance_method', 'field_method',
                     'receiver_type_evidence', 'returned_field_candidate',
                     'super_method', 'super_new'):
-                state.decorated_target_candidate = True
+                decorated_target_candidate = True
             else:
-                state.replacement = state.self.analyzer._decorated_target(state.target)
-                if state.replacement:
-                    state.target = state.replacement
+                _phase_replacement = self.analyzer._decorated_target(state.target)
+                if _phase_replacement:
+                    state.target = _phase_replacement
                     state.dispatch_kind = 'decorator_replacement'
                 else:
                     state.target = None
@@ -469,64 +444,71 @@ class CallExpressionMixin:
         elif state.descriptor_kind == 'classmethod':
             state.bound_receiver = True
             state.dispatch_kind = 'constructor' if state.constructor_class is not None else 'classmethod'
-        return False
+        decoration = CallDecorationResult(
+            identity_decorator, wrapper_forwarding_candidate,
+            decorated_target_candidate, body_preserved, decoration_facts)
+        return CallableBindingResult(
+            fresh_instance_method_bindings, callable_instance_cause, decoration)
 
     ## Create the call record and capture its initial identity and evidence.
     ## 创建调用记录并记录初始身份与证据。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _create_flow_call_record(self, state):
-        state.call_id = _call_key(state.self.ref.file_path, state.node)
-        if state.target and (not namespace_unmodified(state.self.analyzer, state.self.ref.module + '.' + state.name)
-                or not namespace_unmodified(state.self.analyzer,
+    #  @param fresh_instance_method_bindings Facts returned by callable binding.
+    #  @return Constructor values consumed by the effects phase.
+    def _create_flow_call_record(self, state, fresh_instance_method_bindings,
+                                 nominal_target, decoration, global_declarations,
+                                 global_rebound):
+        state.call_id = _call_key(self.ref.file_path, state.node)
+        if state.target and (not namespace_unmodified(self.analyzer, self.ref.module + '.' + state.name)
+                or not namespace_unmodified(self.analyzer,
                     state.target[0].module + '.' + state.target[0].qualname)):
-            state.self.result.boundaries.append({'call_id': state.call_id,
+            self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'dynamic_source_namespace_binding', 'boundary_kind': 'uncertainty',
-                'target': asdict(state.target[0]), 'evidence': state.self.evidence(state.node)})
-        state.constructor_values = (state.self.expression(state.node.func, state.env)
+                'target': asdict(state.target[0]), 'evidence': self.evidence(state.node)})
+        constructor_values = (self.expression(state.node.func, state.env)
             if state.constructor_class is not None and state.target
             and state.dispatch_kind == 'constructor' else [])
-        state.call = FlowCall(state.call_id, state.self.ref, state.name, state.node.lineno, state.node.col_offset,
+        state.call = FlowCall(state.call_id, self.ref, state.name, state.node.lineno, state.node.col_offset,
                         state.node.end_lineno, state.node.end_col_offset, state.target[0] if state.target else None)
-        state.call.instance_method_bindings = state.fresh_instance_method_bindings
+        state.call.instance_method_bindings = fresh_instance_method_bindings
         state.call.implicit_protocol = copy.deepcopy(state.protocol)
-        if state.global_rebound:
-            state.self.result.boundaries.append({'call_id': state.call_id,
+        if global_rebound:
+            self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'module_callable_binding_unconfirmed',
-                'boundary_kind': 'uncertainty', 'nominal_target': asdict(state.nominal_target[0]),
-                'declarations': [state.self.evidence_at(state.nominal_target[0], declaration)
-                                 for declaration in state.global_declarations],
-                'evidence': state.self.evidence(state.node)})
-        if getattr(state.self.analyzer, '_conditional_source_state', False):
-            state.contexts = [context for value in state.receiver_sources
+                'boundary_kind': 'uncertainty', 'nominal_target': asdict(nominal_target[0]),
+                'declarations': [self.evidence_at(nominal_target[0], declaration)
+                                 for declaration in global_declarations],
+                'evidence': self.evidence(state.node)})
+        if getattr(self.analyzer, '_conditional_source_state', False):
+            _phase_contexts = [context for value in state.receiver_sources
                         for context in value.get('instance_candidate_contexts', [])] or state.receiver_sources
-            state.common = (state.contexts[0].get('conditions', []) if state.contexts else [])
-            state.call.conditions = _unique(copy.deepcopy(state.self.conditions) + [condition for condition in state.common
-                if all(condition in value.get('conditions', []) for value in state.contexts)])
-            state.parameters = state.self.node.args.posonlyargs + state.self.node.args.args
-            state.ambient = state.env.get(state.parameters[0].arg, []) if state.parameters else []
-            if state.ambient:
+            _phase_common = (_phase_contexts[0].get('conditions', []) if _phase_contexts else [])
+            state.call.conditions = _unique(copy.deepcopy(self.conditions) + [condition for condition in _phase_common
+                if all(condition in value.get('conditions', []) for value in _phase_contexts)])
+            _phase_parameters = self.node.args.posonlyargs + self.node.args.args
+            _phase_ambient = state.env.get(_phase_parameters[0].arg, []) if _phase_parameters else []
+            if _phase_ambient:
                 state.call.conditions = _unique(state.call.conditions + [condition
-                    for condition in state.ambient[0].get('conditions', [])
-                    if all(condition in value.get('conditions', []) for value in state.ambient)
+                    for condition in _phase_ambient[0].get('conditions', [])
+                    if all(condition in value.get('conditions', []) for value in _phase_ambient)
                     and condition.get('kind') == 'source_state_preserved'])
-            for state.context in state.contexts:
-                state.identity = state.context.get('instance_type')
-                state.candidate = (state.self.analyzer._instance_method_candidate(state.identity['module'],
-                    state.identity['qualname'], state.node.func.attr) if state.identity and isinstance(state.node.func, ast.Attribute)
+            for _phase_context in _phase_contexts:
+                _phase_identity = _phase_context.get('instance_type')
+                _phase_candidate = (self.analyzer._instance_method_candidate(_phase_identity['module'],
+                    _phase_identity['qualname'], state.node.func.attr) if _phase_identity and isinstance(state.node.func, ast.Attribute)
                     else None)
-                if state.candidate and state.candidate in state.bounded_targets:
-                    state.call.candidate_paths.append({'target': asdict(state.candidate[0]), 'call_id': state.call.id,
-                        'receiver_class': copy.deepcopy(state.identity),
-                        'conditions': copy.deepcopy(state.context.get('conditions', []))})
+                if _phase_candidate and _phase_candidate in state.bounded_targets:
+                    state.call.candidate_paths.append({'target': asdict(_phase_candidate[0]), 'call_id': state.call.id,
+                        'receiver_class': copy.deepcopy(_phase_identity),
+                        'conditions': copy.deepcopy(_phase_context.get('conditions', []))})
         state.call.callable_sources = copy.deepcopy(state.callable_sources)
         if state.callable_incomplete:
-            state.self.add_boundary('callable_identity_incomplete', state.node, state.env,
+            self.add_boundary('callable_identity_incomplete', state.node, state.env,
                 state.callable_sources, call_id=state.call_id)
         if (isinstance(state.node.func, ast.Subscript) and state.callable_sources
                 and not isinstance(state.node.func.slice, ast.Constant)):
-            state.self.add_boundary('literal_dispatch_key_unknown', state.node, state.env,
+            self.add_boundary('literal_dispatch_key_unknown', state.node, state.env,
                               state.callable_sources, call_id=state.call_id)
         if state.target:
             state.call.target_candidates = [asdict(state.target[0])]
@@ -541,50 +523,50 @@ class CallExpressionMixin:
             'conditions': copy.deepcopy(value.get('conditions', [])),
             'basis': 'source_snapshot', 'runtime_target_confirmed': False}
             for value in state.receiver_values if value.get('context_manager_return'))
-        state.class_binding = state.self.class_method_binding(state.node, state.target, state.receiver_values)
-        if state.class_binding:
-            state.call.class_method_bindings = [state.class_binding]
-            if state.class_binding['status'] != 'source_bound':
-                state.self.result.boundaries.append({'call_id': state.call_id,
+        _phase_class_binding = self.class_method_binding(state.node, state.target, state.receiver_values)
+        if _phase_class_binding:
+            state.call.class_method_bindings = [_phase_class_binding]
+            if _phase_class_binding['status'] != 'source_bound':
+                self.result.boundaries.append({'call_id': state.call_id,
                     'reason': 'class_method_binding_unconfirmed', 'boundary_kind': 'uncertainty',
-                    'issues': copy.deepcopy(state.class_binding['issues']), 'evidence': state.self.evidence(state.node)})
+                    'issues': copy.deepcopy(_phase_class_binding['issues']), 'evidence': self.evidence(state.node)})
         if (state.target and state.receiver_sources and (state.descriptor_kind == 'classmethod'
                 or any(value.get('class_type') for value in state.receiver_sources))):
-            state.self.result.boundaries.append({'call_id': state.call_id,
+            self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'dynamic_class_receiver_override_possible',
-                'boundary_kind': 'assumption' if state.class_binding and state.class_binding['status'] == 'source_bound' else 'uncertainty',
-                'binding_status': state.class_binding['status'] if state.class_binding else 'unconfirmed',
-                'assumptions': copy.deepcopy(state.class_binding['assumptions']) if state.class_binding else [],
-                'evidence': state.self.evidence(state.node)})
-        if state.identity_decorator is not None:
+                'boundary_kind': 'assumption' if _phase_class_binding and _phase_class_binding['status'] == 'source_bound' else 'uncertainty',
+                'binding_status': _phase_class_binding['status'] if _phase_class_binding else 'unconfirmed',
+                'assumptions': copy.deepcopy(_phase_class_binding['assumptions']) if _phase_class_binding else [],
+                'evidence': self.evidence(state.node)})
+        if decoration.identity_decorator is not None:
             state.call.decorator_identity_evidence = [{
-                'decorator': asdict(state.identity_decorator['decorator']),
-                'parameter': state.identity_decorator['parameter'],
-                'returns': [state.self.evidence_at(
-                    state.identity_decorator['decorator'], returned)
-                    for returned in state.identity_decorator['returns']]}]
-            if (state.identity_decorator['effects_unmodeled'] and not (state.body_preserved
-                    and state.decoration_facts[0].get('kind') == 'source_fresh_function_decoration')):
-                state.self.result.boundaries.append({
+                'decorator': asdict(decoration.identity_decorator['decorator']),
+                'parameter': decoration.identity_decorator['parameter'],
+                'returns': [self.evidence_at(
+                    decoration.identity_decorator['decorator'], returned)
+                    for returned in decoration.identity_decorator['returns']]}]
+            if (decoration.identity_decorator['effects_unmodeled'] and not (decoration.body_preserved
+                    and decoration.decoration_facts[0].get('kind') == 'source_fresh_function_decoration')):
+                self.result.boundaries.append({
                     'call_id': state.call_id, 'callee_name': state.name,
                     'reason': 'identity_decorator_effects_unmodeled',
                     'affected_scope': 'unknown', 'affected_values': [],
-                    'evidence': state.self.evidence_at(
-                        state.identity_decorator['decorator'],
-                        state.identity_decorator['definition'])})
-        if state.wrapper_forwarding_candidate:
-            state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+                    'evidence': self.evidence_at(
+                        decoration.identity_decorator['decorator'],
+                        decoration.identity_decorator['definition'])})
+        if decoration.wrapper_forwarding_candidate:
+            self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'identity_decorator_effects_unmodeled',
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence_at(state.target[0], state.target[1])})
+                'evidence': self.evidence_at(state.target[0], state.target[1])})
         if state.callable_instance_fact is not None:
-            state.call.callable_instance_evidence = state.self.module_callable_evidence(
+            state.call.callable_instance_evidence = self.module_callable_evidence(
                 state.callable_instance_fact, state.node)
             state.call.callable_instance_evidence['binding'] = source_binding(
-                state.self, state.callable_instance_fact, state.target)
+                self, state.callable_instance_fact, state.target)
         if state.returned_field_receiver:
             state.call.receiver_type_evidence = _unique([
-                dict(fact, receiver_call=state.self.evidence(state.node))
+                dict(fact, receiver_call=self.evidence(state.node))
                 for value in state.receiver_values
                 for fact in value['receiver_type_evidence']])
         state.call.target_status = ('bounded_alternatives' if state.bounded_targets else
@@ -598,135 +580,137 @@ class CallExpressionMixin:
                               else 'definition_unavailable')
         if (state.target is None and state.builtin_status in ('source_binding', 'unconfirmed')
                 and state.name in ('dict', 'list', 'tuple', 'set', 'str', 'repr', 'bool', 'len', 'next')):
-            state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
-                'function': asdict(state.self.ref), 'reason': 'builtin_name_unconfirmed',
+            self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+                'function': asdict(self.ref), 'reason': 'builtin_name_unconfirmed',
                 'builtin_name_status': state.builtin_status, 'affected_scope': 'unknown',
-                'affected_values': [], 'conditions': list(state.self.conditions),
-                'evidence': state.self.evidence(state.node)})
-        return False
+                'affected_values': [], 'conditions': list(self.conditions),
+                'evidence': self.evidence(state.node)})
+        return constructor_values
 
     ## Finalize target status and attach bounded call metadata.
     ## 确定目标状态并附加有界调用元数据。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _complete_call_target_metadata(self, state):
+    #  @return Whether the call is a literal string join, consumed by argument mapping.
+    def _complete_call_target_metadata(self, state, current_descriptor,
+                                       callable_instance_cause, decoration,
+                                       field_evidence):
         if state.dispatch_kind == 'receiver_unresolved' and state.bounded_targets:
             state.call.target_status = 'receiver_unresolved'
-            state.self.add_boundary('class_attribute_state_unknown', state.node, state.env,
+            self.add_boundary('class_attribute_state_unknown', state.node, state.env,
                 state.receiver_values, call_id=state.call_id)
         if state.callable_incomplete:
             state.call.target_status = 'definition_unavailable'
         if state.constructor_class is not None and not state.construction_safe:
-            state.self.result.boundaries.append({'call_id': state.call_id,
-                'reason': 'dynamic_construction', 'evidence': state.self.evidence(state.node)})
-            if (state.self.analyzer._class_binding_write_cache is not None
-                    and state.self.analyzer._class_binding_write_cache[1]):
-                state.self.result.boundaries.append({'call_id': state.call_id,
-                    'reason': 'constructor_binding_budget', 'evidence': state.self.evidence(state.node)})
+            self.result.boundaries.append({'call_id': state.call_id,
+                'reason': 'dynamic_construction', 'evidence': self.evidence(state.node)})
+            if (self.analyzer._class_binding_write_cache is not None
+                    and self.analyzer._class_binding_write_cache[1]):
+                self.result.boundaries.append({'call_id': state.call_id,
+                    'reason': 'constructor_binding_budget', 'evidence': self.evidence(state.node)})
             if state.target and state.target[1].name == '__new__':
-                state.self.result.boundaries.append({'call_id': state.call_id,
+                self.result.boundaries.append({'call_id': state.call_id,
                     'reason': 'constructor_initialization_unmodeled',
-                    'phase': '__init__', 'evidence': state.self.evidence(state.node)})
+                    'phase': '__init__', 'evidence': self.evidence(state.node)})
         if state.allocation_class is not None or state.allocation_candidates and not state.construction_candidates:
-            state.self.result.boundaries.append({'call_id': state.call_id,
+            self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'builtin_allocator_source_unavailable',
-                'evidence': state.self.evidence(state.node)})
-        if state.field_evidence:
+                'evidence': self.evidence(state.node)})
+        if field_evidence:
             state.call.target_status = 'constructor_field_candidate'
-            state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
-                'reason': 'constructor_field_assumption', 'evidence': state.self.evidence(state.field_evidence)})
-        if state.callable_instance_cause is not None:
-            state.self.result.boundaries.append({
+            self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+                'reason': 'constructor_field_assumption', 'evidence': self.evidence(field_evidence)})
+        if callable_instance_cause is not None:
+            self.result.boundaries.append({
                 'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'module_callable_instance_unresolved',
-                'cause': state.callable_instance_cause,
+                'cause': callable_instance_cause,
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence(state.node)})
+                'evidence': self.evidence(state.node)})
         if state.callable_instance_fact is not None:
-            state.callable_binding = state.call.callable_instance_evidence['binding']
-            state.self.result.boundaries.append({
+            _phase_callable_binding = state.call.callable_instance_evidence['binding']
+            self.result.boundaries.append({
                 'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'dynamic_callable_instance_override_possible',
-                'boundary_kind': 'assumption' if state.callable_binding['status'] == 'source_bound' else 'uncertainty',
-                'binding_status': state.callable_binding['status'],
-                'assumptions': copy.deepcopy(state.callable_binding['assumptions']),
+                'boundary_kind': 'assumption' if _phase_callable_binding['status'] == 'source_bound' else 'uncertainty',
+                'binding_status': _phase_callable_binding['status'],
+                'assumptions': copy.deepcopy(_phase_callable_binding['assumptions']),
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence(state.node)})
+                'evidence': self.evidence(state.node)})
         if (state.target and state.dispatch_kind in (
                 'super_method', 'super_new', 'instance_method')
-                and getattr(state.self.node, 'decorator_list', [])
-                and state.current_descriptor not in ('classmethod', 'staticmethod')):
-            state.self.result.boundaries.append({
+                and getattr(self.node, 'decorator_list', [])
+                and current_descriptor not in ('classmethod', 'staticmethod')):
+            self.result.boundaries.append({
                 'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'decorated_caller_semantics',
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence(state.self.node)})
-            state.facts = state.self.analyzer._binding_decoration_facts((state.self.ref, state.self.node))
-            if len(state.facts) == 1 and state.facts[0]['body_binding_status'] == 'preserved':
-                state.self.result.boundaries[-1].update(boundary_kind='assumption',
-                    body_binding_status='preserved', function=asdict(state.self.ref),
-                    assumptions=copy.deepcopy(state.facts[0]['assumptions']))
-        if state.target and state.decorated_target_candidate:
-            state.self.result.boundaries.append({
+                'evidence': self.evidence(self.node)})
+            _phase_facts = self.analyzer._binding_decoration_facts((self.ref, self.node))
+            if len(_phase_facts) == 1 and _phase_facts[0]['body_binding_status'] == 'preserved':
+                self.result.boundaries[-1].update(boundary_kind='assumption',
+                    body_binding_status='preserved', function=asdict(self.ref),
+                    assumptions=copy.deepcopy(_phase_facts[0]['assumptions']))
+        if state.target and decoration.decorated_target_candidate:
+            self.result.boundaries.append({
                 'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'decorated_target_candidate',
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence_at(state.target[0], state.target[1])})
-            state.facts = state.self.analyzer._binding_decoration_facts(state.target)
-            if len(state.facts) == 1 and state.facts[0]['body_binding_status'] == 'preserved':
-                state.self.result.boundaries[-1].update(boundary_kind='assumption',
+                'evidence': self.evidence_at(state.target[0], state.target[1])})
+            _phase_facts = self.analyzer._binding_decoration_facts(state.target)
+            if len(_phase_facts) == 1 and _phase_facts[0]['body_binding_status'] == 'preserved':
+                self.result.boundaries[-1].update(boundary_kind='assumption',
                     body_binding_status='preserved', function=asdict(state.target[0]),
-                    assumptions=copy.deepcopy(state.facts[0]['assumptions']))
+                    assumptions=copy.deepcopy(_phase_facts[0]['assumptions']))
         if state.target and state.owner and state.dispatch_kind in (
                 'instance_method', 'super_method', 'super_new'):
-            state.hierarchy = state.self.analyzer._class_mro(state.self.ref.module, state.owner)
-            state.decorated_class = next(((ref, cls) for ref, cls in (state.hierarchy or ())
+            _phase_hierarchy = self.analyzer._class_mro(self.ref.module, state.owner)
+            _phase_decorated_class = next(((ref, cls) for ref, cls in (_phase_hierarchy or ())
                                     if cls.decorator_list), None)
-            if state.decorated_class is not None:
-                state.self.result.boundaries.append({
+            if _phase_decorated_class is not None:
+                self.result.boundaries.append({
                     'call_id': state.call_id, 'callee_name': state.name,
                     'reason': 'decorated_class_candidate',
                     'affected_scope': 'unknown', 'affected_values': [],
-                    'evidence': state.self.evidence_at(*state.decorated_class)})
-        state.string_arity = {'split': (0, 2), 'rsplit': (0, 2),
+                    'evidence': self.evidence_at(*_phase_decorated_class)})
+        _phase_string_arity = {'split': (0, 2), 'rsplit': (0, 2),
                         'strip': (0, 1), 'lstrip': (0, 1), 'rstrip': (0, 1),
                         'startswith': (1, 3), 'endswith': (1, 3),
                         'partition': (1, 1), 'rpartition': (1, 1)}
-        state.method = state.node.func.attr if isinstance(state.node.func, ast.Attribute) else ''
-        state.limits = state.string_arity.get(state.method)
-        state.string_protocol = (state.target is None and isinstance(state.node.func, ast.Attribute)
+        _phase_method = state.node.func.attr if isinstance(state.node.func, ast.Attribute) else ''
+        _phase_limits = _phase_string_arity.get(_phase_method)
+        _phase_string_protocol = (state.target is None and isinstance(state.node.func, ast.Attribute)
                            and isinstance(state.node.func.value, ast.Name)
-                           and state.limits is not None and state.limits[0] <= len(state.node.args) <= state.limits[1]
+                           and _phase_limits is not None and _phase_limits[0] <= len(state.node.args) <= _phase_limits[1]
                            and not state.node.keywords
                            and not any(isinstance(argument, ast.Starred)
                                        for argument in state.node.args)
                            and state.receiver_sources
                            and all(v.get('python_shape') == 'str'
                                    for v in state.receiver_sources))
-        if state.string_protocol:
+        if _phase_string_protocol:
             state.call.target_status = 'python_protocol'
             state.call.argument_sources.append({'argument': {'receiver': True}, 'parameter': '$receiver',
                                           'sources': state.receiver_sources})
-            if state.method in ('partition', 'rpartition'):
+            if _phase_method in ('partition', 'rpartition'):
                 state.call.return_dependencies = [
                     {'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
                      'output_path': [index],
                      'evidence': [{'provenance':
                         'Guarded or trusted str partition result dependency'}],
-                     'conditions': list(state.self.conditions)} for index in range(3)]
+                     'conditions': list(self.conditions)} for index in range(3)]
             else:
                 state.call.return_dependencies = [{
                     'kind': 'parameter', 'source': '$receiver', 'relation': 'derived',
                     'evidence': [{'provenance':
                         'Guarded str receiver dependency; builtin method implementation assumed'}],
-                    'conditions': list(state.self.conditions)}]
-                state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+                    'conditions': list(self.conditions)}]
+                self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
                                                'reason': 'string_subclass_override_possible'})
-            if state.method in ('partition', 'rpartition'):
-                state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+            if _phase_method in ('partition', 'rpartition'):
+                self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
                                                'reason': 'string_subclass_override_possible'})
-        state.literal_join = (state.target is None and isinstance(state.node.func, ast.Attribute)
+        literal_join = (state.target is None and isinstance(state.node.func, ast.Attribute)
                         and isinstance(state.node.func.value, ast.Constant) and isinstance(state.node.func.value.value, str)
                         and state.node.func.attr == 'join' and len(state.node.args) == 1 and not state.node.keywords
                         and not isinstance(state.node.args[0], ast.Starred))
@@ -736,56 +720,55 @@ class CallExpressionMixin:
             # gate that proof on the generic receiver-binding flag: other
             # uncertainty in argument expansion can clear that flag even
             # when the super lookup remains statically exact.
-            state.fresh = fresh_super_method_binding(state.self, state.node, state.target, state.receiver_values)
-            if state.fresh is not None:
-                state.call.instance_method_bindings = [state.fresh]
+            _phase_fresh = fresh_super_method_binding(self, state.node, state.target, state.receiver_values)
+            if _phase_fresh is not None:
+                state.call.instance_method_bindings = [_phase_fresh]
         if state.target and state.bound_receiver and state.dispatch_kind in (
                 'instance_method', 'field_method', 'receiver_type_evidence',
                 'returned_field_candidate'):
-            state.fresh = fresh_method_binding(state.self, state.node, state.target, state.receiver_values)
-            if state.fresh is not None:
-                state.call.instance_method_bindings = [state.fresh]
-            state.self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
+            _phase_fresh = fresh_method_binding(self, state.node, state.target, state.receiver_values)
+            if _phase_fresh is not None:
+                state.call.instance_method_bindings = [_phase_fresh]
+            self.result.boundaries.append({'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'dynamic_method_override_possible',
                 **({'boundary_kind': 'assumption', 'binding_status': 'source_bound',
-                    'assumptions': copy.deepcopy(state.fresh['assumptions'])} if state.fresh is not None else {})})
+                    'assumptions': copy.deepcopy(_phase_fresh['assumptions'])} if _phase_fresh is not None else {})})
         if state.returned_field_receiver and (state.target or state.bounded_targets):
-            state.self.result.boundaries.append({
+            self.result.boundaries.append({
                 'call_id': state.call_id, 'callee_name': state.name,
                 'reason': 'dynamic_accessor_override_possible',
                 'affected_scope': 'unknown', 'affected_values': [],
-                'evidence': state.self.evidence(state.node)})
-        return False
+                'evidence': self.evidence(state.node)})
+        return literal_join
 
     ## Bind call arguments to formal parameters and callable contracts.
     ## 将调用实参与形参及可调用契约绑定。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
+    #  @return Signature, positional parameters and records for argument mapping.
     def _bind_call_parameters(self, state):
-        state.capture_values = {}
-        state.params = state.target[1].args if state.target else None
-        state.contract = state.self.analyzer.return_summaries.get(state.canonical) if state.target is None else None
-        if (state.contract is None and state.target is None and state.name == 'isinstance'
+        _phase_params = state.target[1].args if state.target else None
+        _phase_contract = self.analyzer.return_summaries.get(state.canonical) if state.target is None else None
+        if (_phase_contract is None and state.target is None and state.name == 'isinstance'
                 and state.builtin_status == 'confirmed_builtin' and len(state.node.args) == 2
                 and not state.node.keywords and isinstance(state.node.args[0], ast.Name)
                 and isinstance(state.node.args[1], ast.Name) and state.node.args[1].id == 'str'
-                and state.self.analyzer._builtin_name_status(state.self.ref, state.self.node, 'str', state.env)
+                and self.analyzer._builtin_name_status(self.ref, self.node, 'str', state.env)
                     == 'confirmed_builtin'):
-            state.functions, state.closed = state.self.callable_targets(state.env.get(state.node.args[0].id, []))
-            if (state.functions and state.closed and all(not function.decorator_list
-                    and '.' not in ref.qualname for ref, function in state.functions)):
-                state.contract = {'parameters': ['object', 'classinfo'], 'returns': [],
+            _phase_functions, _phase_closed = self.callable_targets(state.env.get(state.node.args[0].id, []))
+            if (_phase_functions and _phase_closed and all(not function.decorator_list
+                    and '.' not in ref.qualname for ref, function in _phase_functions)):
+                _phase_contract = {'parameters': ['object', 'classinfo'], 'returns': [],
                     'provenance': 'Closed source function object is not a builtin str'}
                 state.call.target_status = 'python_protocol'
                 state.call.implicit_protocol = {'kind': 'source_function_isinstance',
-                    'type': 'str', 'result': False, 'evidence': state.self.evidence(state.node)}
-        if (state.contract is None and state.target is None and state.builtin_status == 'confirmed_builtin'
+                    'type': 'str', 'result': False, 'evidence': self.evidence(state.node)}
+        if (_phase_contract is None and state.target is None and state.builtin_status == 'confirmed_builtin'
                 and state.name in ('str', 'repr', 'bool', 'len', 'list', 'tuple', 'set', 'callable')
-                and state.canonical == state.self.ref.module + '.' + state.name
+                and state.canonical == self.ref.module + '.' + state.name
                 and len(state.node.args) == 1 and not state.node.keywords
                 and not isinstance(state.node.args[0], ast.Starred)):
-            state.contract = {'parameters': ['object'], 'returns': [
+            _phase_contract = {'parameters': ['object'], 'returns': [
                 {'parameter': 'object', 'relation': 'derived'}],
                 'provenance': 'Python builtin result dependency (not owner preservation)'}
             state.call.target_status = 'python_protocol'
@@ -799,8 +782,8 @@ class CallExpressionMixin:
                     'result': False, 'dependency': 'input_object_type_only',
                     'completion': 'normal_return_if_precondition',
                     'effects': 'none_if_precondition', 'call_id': state.call.id,
-                    'source_hash': state.self.analyzer.hashes[state.self.ref.file_path],
-                    'evidence': state.self.evidence(state.node)}
+                    'source_hash': self.analyzer.hashes[self.ref.file_path],
+                    'evidence': self.evidence(state.node)}
             elif state.name == 'bool':
                 state.call.implicit_protocol = {'kind': 'builtin_scalar_truth', 'builtin': 'bool',
                     'status': 'requires_exact_input', 'runtime_input_confirmed': False,
@@ -808,8 +791,8 @@ class CallExpressionMixin:
                         'exact_types': ['NoneType', 'bool', 'int', 'float', 'str', 'bytes']},
                     'completion': 'normal_return_if_precondition',
                     'effects': 'none_if_precondition', 'call_id': state.call.id,
-                    'source_hash': state.self.analyzer.hashes[state.self.ref.file_path],
-                    'evidence': state.self.evidence(state.node)}
+                    'source_hash': self.analyzer.hashes[self.ref.file_path],
+                    'evidence': self.evidence(state.node)}
             elif state.name == 'len':
                 state.call.implicit_protocol = {'kind': 'builtin_container_length', 'builtin': 'len',
                     'status': 'requires_exact_input', 'runtime_input_confirmed': False,
@@ -818,459 +801,442 @@ class CallExpressionMixin:
                                         'set', 'frozenset']},
                     'completion': 'normal_return_if_precondition',
                     'effects': 'none_if_precondition', 'call_id': state.call.id,
-                    'source_hash': state.self.analyzer.hashes[state.self.ref.file_path],
-                    'evidence': state.self.evidence(state.node)}
-        if (state.contract is None and state.target is None and state.builtin_status == 'confirmed_builtin' and state.name == 'next'
-                and state.canonical == state.self.ref.module + '.next'
+                    'source_hash': self.analyzer.hashes[self.ref.file_path],
+                    'evidence': self.evidence(state.node)}
+        if (_phase_contract is None and state.target is None and state.builtin_status == 'confirmed_builtin' and state.name == 'next'
+                and state.canonical == self.ref.module + '.next'
                 and len(state.node.args) == 1 and not state.node.keywords
                 and not isinstance(state.node.args[0], ast.Starred)):
-            state.contract = {'parameters': ['iterator'], 'returns': [
+            _phase_contract = {'parameters': ['iterator'], 'returns': [
                 {'parameter': 'iterator', 'projection': ['*'], 'relation': 'direct'}],
                 'provenance': 'Python next returns an element produced by its iterator'}
             state.call.target_status = 'python_protocol'
-        if state.contract and (state.binding is None or all(v['kind'] == 'import' for v in state.binding)):
-            state.params = ast.arguments(posonlyargs=[], args=[ast.arg(arg=n) for n in state.contract['parameters']],
+        if _phase_contract and (state.binding is None or all(v['kind'] == 'import' for v in state.binding)):
+            _phase_params = ast.arguments(posonlyargs=[], args=[ast.arg(arg=n) for n in _phase_contract['parameters']],
                                    vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[])
             state.call.return_dependencies = [
                 {'kind': 'parameter', 'source': d['parameter'], 'relation': d['relation'],
                  'projection': d.get('projection', []),
-                 'evidence': [{'provenance': state.contract['provenance'], 'callable': state.canonical}], 'conditions': []}
-                for d in state.contract.get('returns', [])]
-        state.positional = state.params.posonlyargs + state.params.args if state.params else []
-        state.instance_parameter = None
-        if state.bound_receiver and state.target and state.positional:
+                 'evidence': [{'provenance': _phase_contract['provenance'], 'callable': state.canonical}], 'conditions': []}
+                for d in _phase_contract.get('returns', [])]
+        _phase_positional = _phase_params.posonlyargs + _phase_params.args if _phase_params else []
+        _phase_instance_parameter = None
+        if state.bound_receiver and state.target and _phase_positional:
             if state.dispatch_kind != 'constructor':
                 state.call.argument_sources.append({
                     'argument': {'receiver': True},
-                    'parameter': state.positional[0].arg,
+                    'parameter': _phase_positional[0].arg,
                     'sources': state.receiver_sources})
                 if (state.descriptor_kind is None and not state.target[1].decorator_list
                         and state.receiver_sources and all(value.get('instance_type')
                             for value in state.receiver_sources)):
-                    state.instance_parameter = state.positional[0].arg
+                    _phase_instance_parameter = _phase_positional[0].arg
                     state.call.parameter_bindings.append({'argument': {'receiver': True},
-                        'parameter': state.instance_parameter, 'status': 'exact',
+                        'parameter': _phase_instance_parameter, 'status': 'exact',
                         'binding_kind': 'implicit_receiver', 'destination_kind': 'parameter'})
-            state.positional = state.positional[1:]
-        state.records = state.self.bind_call_arguments(state.node, state.params, state.positional, state.call) if state.params else [
-            {'argument': {'position': i}, 'node': arg.value if isinstance(arg, ast.Starred) else arg,
-             'parameter': None, 'target_path': [], 'status': 'unresolved',
-              'binding_kind': 'dynamic_starred' if isinstance(arg, ast.Starred) else 'explicit',
-              'destination_kind': 'unresolved'}
-            for i, arg in enumerate(state.node.args)] + [
-            {'argument': {'keyword': kw.arg}, 'node': kw.value, 'parameter': None,
-              'target_path': [], 'status': 'unresolved', 'binding_kind': 'explicit',
-              'destination_kind': 'unresolved'}
-            for kw in state.node.keywords]
-        if not state.params:
-            state.call.binding_status = 'unavailable'
-        state.invalid_binding = bool(state.params) and any(
-            record['status'] == 'unresolved'
-            and record['binding_kind'] in ('explicit', 'starred', 'expanded_keyword')
-            for record in state.records)
-        state.invalid_binding = state.invalid_binding or any(
-            record['status'] in ('missing', 'duplicate') for record in state.records)
-        state.actual_values = {}
-        return False
+            _phase_positional = _phase_positional[1:]
+        _phase_records = (self.bind_call_arguments(state.node, _phase_params, _phase_positional, state.call)
+                          if _phase_params else unavailable_call_binding(state.node, state.call))
+        _phase_invalid_binding = has_invalid_binding(bool(_phase_params), _phase_records)
+        return CallArgumentsBinding(_phase_params, _phase_positional, _phase_records,
+                                    _phase_instance_parameter, _phase_invalid_binding)
 
     ## Build per-argument binding records and propagate argument facts.
     ## 构建逐实参绑定记录并传播实参事实。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _map_call_arguments(self, state):
-        state.protocol_values = {}
-        for state.record in state.records:
-            state.slot, state.arg = state.record['argument'], state.record['node']
-            state.parameter, state.target_path = state.record['parameter'], state.record['target_path']
-            state.binding_record = {'argument': state.slot, 'parameter': state.parameter,
-                              'status': state.record['status'],
-                              'destination_kind': state.record.get('destination_kind', 'unresolved')}
-            if state.target_path:
-                state.binding_record['target_path'] = state.target_path
-            if state.record['binding_kind'] != 'explicit':
-                state.binding_record['binding_kind'] = state.record['binding_kind']
-            state.call.parameter_bindings.append(state.binding_record)
-            if state.arg is None:
+    #  @param binding Results established by the preceding binding phase.
+    #  @param literal_join Metadata result established by target completion.
+    #  @return Per-call argument values for effect and result phases.
+    def _map_call_arguments(self, state, binding,
+                            literal_join):
+        arguments = CallArgumentValues()
+        for _phase_record in binding.records:
+            _phase_slot, _phase_arg = _phase_record['argument'], _phase_record['node']
+            _phase_parameter, _phase_target_path = _phase_record['parameter'], _phase_record['target_path']
+            record_argument_binding(state.call, _phase_record)
+            if _phase_arg is None:
                 continue
-            state.raw_values = state.self.expression(state.arg, state.env)
-            if isinstance(state.slot, dict) and 'position' in state.slot:
-                state.protocol_values[state.slot['position']] = state.raw_values
-            state.raw_values = [dict(value, value_incomplete=True)
+            _phase_raw_values = self.expression(_phase_arg, state.env)
+            record_protocol_values(arguments, _phase_record, _phase_raw_values)
+            _phase_raw_values = [dict(value, value_incomplete=True)
                 if ((value.get('callable_type') or {}).get('module', value.get('module')),
                     (value.get('callable_type') or {}).get('qualname', value.get('source')))
-                    in state.self.modified_return_callables else value for value in state.raw_values]
-            state.actual_values[state.parameter] = _unique(state.actual_values.get(state.parameter, []) + state.raw_values)
-            state.values = state.self.marked(state.self.materialize(state.raw_values, state.env), state.arg)
-            state.argument_record = {'argument': state.slot, 'parameter': state.parameter, 'sources': state.values}
-            state.container = state.self.exact_container(state.raw_values, ('dict', 'list', 'tuple'), state.env)
-            if state.container is not None and not state.target_path and not any(
+                    in self.modified_return_callables else value for value in _phase_raw_values]
+            record_actual_values(arguments, _phase_record, _phase_raw_values)
+            _phase_values = self.marked(self.materialize(_phase_raw_values, state.env), _phase_arg)
+            _phase_argument_record = {'argument': _phase_slot, 'parameter': _phase_parameter, 'sources': _phase_values}
+            _phase_container = self.exact_container(_phase_raw_values, ('dict', 'list', 'tuple'), state.env)
+            if _phase_container is not None and not _phase_target_path and not any(
                     isinstance(child, ast.Call) for argument in state.node.args
                     + [keyword.value for keyword in state.node.keywords] for child in ast.walk(argument)):
-                state.argument_record['container_binding'] = {'status': 'exact',
-                    'shape': state.container['container_shape'],
-                    'source': state.container['source'],
-                    'contents_unknown': bool(state.env.get(state.container['source'] + '$state')),
-                    'evidence': [state.self.evidence(state.arg)], 'conditions': copy.deepcopy(state.self.conditions)}
-            elif state.raw_values and not state.target_path and all(
+                _phase_argument_record['container_binding'] = {'status': 'exact',
+                    'shape': _phase_container['container_shape'],
+                    'source': _phase_container['source'],
+                    'contents_unknown': bool(state.env.get(_phase_container['source'] + '$state')),
+                    'evidence': [self.evidence(_phase_arg)], 'conditions': copy.deepcopy(self.conditions)}
+            elif _phase_raw_values and not _phase_target_path and all(
                     value.get('kind') == 'parameter' and value.get('relation') == 'direct'
                     and value.get('container_binding', {}).get('status') == 'exact'
                     and not any(value.get(flag) for flag in ('projection', 'output_path', 'value_incomplete'))
-                    for value in state.raw_values):
-                state.incoming_bindings = [value['container_binding'] for value in state.raw_values]
-                if all(value == state.incoming_bindings[0] for value in state.incoming_bindings):
-                    state.forwarded = copy.deepcopy(state.incoming_bindings[0])
-                    state.aliases = {name for name, facts in state.self.incoming.items() if any(
-                        fact.get('container_binding', {}).get('source') == state.forwarded['source']
+                    for value in _phase_raw_values):
+                _phase_incoming_bindings = [value['container_binding'] for value in _phase_raw_values]
+                if all(value == _phase_incoming_bindings[0] for value in _phase_incoming_bindings):
+                    _phase_forwarded = copy.deepcopy(_phase_incoming_bindings[0])
+                    _phase_aliases = {name for name, facts in self.incoming.items() if any(
+                        fact.get('container_binding', {}).get('source') == _phase_forwarded['source']
                         for fact in facts)}
-                    if any(value.get('source') in state.aliases for previous in state.self.calls
+                    if any(value.get('source') in _phase_aliases for previous in self.calls
                             for value in previous.receiver_sources + [value for item in previous.argument_sources
                                 for value in item.get('sources', [])]):
-                        state.forwarded['contents_unknown'] = True
-                    state.argument_record['container_binding'] = state.forwarded
-            state.literal = state.self.literal_fact(state.arg, state.env)
-            if state.literal is not None:
-                state.argument_record.update(literal=state.literal, value_evidence=[state.self.evidence(state.arg)])
-            if state.target_path:
-                state.argument_record['target_path'] = state.target_path
-            state.call.argument_sources.append(state.argument_record)
-            for state.value in state.values:
-                state.call.argument_flows.append(dict(state.value, target_parameter=state.parameter,
-                                                target_path=state.target_path, argument=state.slot,
+                        _phase_forwarded['contents_unknown'] = True
+                    _phase_argument_record['container_binding'] = _phase_forwarded
+            _phase_literal = self.literal_fact(_phase_arg, state.env)
+            if _phase_literal is not None:
+                _phase_argument_record.update(literal=_phase_literal, value_evidence=[self.evidence(_phase_arg)])
+            if _phase_target_path:
+                _phase_argument_record['target_path'] = _phase_target_path
+            state.call.argument_sources.append(_phase_argument_record)
+            for _phase_value in _phase_values:
+                state.call.argument_flows.append(dict(_phase_value, target_parameter=_phase_parameter,
+                                                target_path=_phase_target_path, argument=_phase_slot,
                                                 status='flow_found'))
-                if state.value['kind'] == 'parameter':
-                    state.call.parameter_flows.append(dict(state.value, source_parameter=state.value['source'],
-                                                     target_parameter=state.parameter,
-                                                     target_path=state.target_path,
-                                                     argument=state.slot, status='flow_found'))
-        state.fresh_super = (state.call.instance_method_bindings[0]
+                if _phase_value['kind'] == 'parameter':
+                    state.call.parameter_flows.append(dict(_phase_value, source_parameter=_phase_value['source'],
+                                                     target_parameter=_phase_parameter,
+                                                     target_path=_phase_target_path,
+                                                     argument=_phase_slot, status='flow_found'))
+        _phase_fresh_super = (state.call.instance_method_bindings[0]
             if len(state.call.instance_method_bindings) == 1
             and state.call.instance_method_bindings[0].get('kind') == 'fresh_source_super_method'
             and state.call.instance_method_bindings[0].get('status') == 'source_bound'
             else None)
-        state.receiver_parameters = (state.target[1].args.posonlyargs + state.target[1].args.args
+        _phase_receiver_parameters = (state.target[1].args.posonlyargs + state.target[1].args.args
             if state.target is not None else [])
-        if (state.fresh_super is not None and state.receiver_parameters
-                and state.fresh_super.get('call_id') == state.call.id
-                and state.fresh_super.get('target') == asdict(state.target[0])
+        if (_phase_fresh_super is not None and _phase_receiver_parameters
+                and _phase_fresh_super.get('call_id') == state.call.id
+                and _phase_fresh_super.get('target') == asdict(state.target[0])
                 and state.call.receiver_sources and all(
-                    value.get('fresh_receiver_origin') == state.fresh_super.get('origin')
+                    value.get('fresh_receiver_origin') == _phase_fresh_super.get('origin')
                     and value.get('relation') == 'direct'
-                    and value.get('source') == state.fresh_super.get('origin', {}).get('parameter')
+                    and value.get('source') == _phase_fresh_super.get('origin', {}).get('parameter')
                     and not any(value.get(flag) for flag in (
                         'projection', 'output_path', 'attribute_provenance',
                         'import_modified', 'import_incomplete', 'value_incomplete'))
                     for value in state.call.receiver_sources)
                 and not any(binding.get('argument') == {'receiver': True}
-                    and binding.get('parameter') == state.receiver_parameters[0].arg
+                    and binding.get('parameter') == _phase_receiver_parameters[0].arg
                     for binding in state.call.parameter_bindings)):
             state.call.parameter_bindings.append({'argument': {'receiver': True},
-                'parameter': state.receiver_parameters[0].arg, 'status': 'exact',
+                'parameter': _phase_receiver_parameters[0].arg, 'status': 'exact',
                 'binding_kind': 'implicit_receiver', 'destination_kind': 'parameter',
                 'basis': 'source_bound_super_method_wrapper'})
-        if state.literal_join:
+        if literal_join:
             state.call.target_status = 'python_protocol'
             state.call.argument_sources[0]['parameter'] = 'iterable'
             state.call.parameter_bindings[0].update(parameter='iterable', status='exact')
-            for state.value in state.call.argument_flows + state.call.parameter_flows:
-                state.value['target_parameter'] = 'iterable'
+            for _phase_value in state.call.argument_flows + state.call.parameter_flows:
+                _phase_value['target_parameter'] = 'iterable'
             state.call.return_dependencies = [{'kind': 'parameter', 'source': 'iterable', 'projection': ['*'],
                 'relation': 'derived', 'evidence': [{'provenance': 'Python str.join iterable elements'}],
-                'conditions': list(state.self.conditions)}]
-        if state.params:
-            state.supplied = {b['parameter'] for b in state.call.parameter_bindings if b['status'] == 'exact'}
-            state.defaults = list(zip(state.positional[len(state.positional) - len(state.params.defaults):], state.params.defaults))
-            state.defaults += [(a, d) for a, d in zip(state.params.kwonlyargs, state.params.kw_defaults) if d is not None]
-            for state.param, state.default in state.defaults:
-                state.unknown_keywords = any(keyword.arg is None and not isinstance(keyword.value, ast.Dict)
-                                       for keyword in state.node.keywords)
-                state.unknown_positions = any(isinstance(argument, ast.Starred)
-                                        and not isinstance(argument.value, (ast.Tuple, ast.List))
-                                        for argument in state.node.args)
-                state.possibly_expanded = state.unknown_keywords or (state.unknown_positions and state.param in state.positional)
-                if state.param.arg not in state.supplied and not state.possibly_expanded:
-                    state.call.parameter_bindings.append({'argument': None, 'parameter': state.param.arg,
-                                                    'binding_kind': 'default', 'status': 'exact',
-                                                    'source_text': ast.unparse(state.default)})
-                    if state.binding and all(v['kind'] == 'callable' for v in state.binding):
-                        state.call.argument_sources.append({'argument': None, 'parameter': state.param.arg,
-                            'sources': _unique([v for b in state.binding for v in b.get('defaults', {}).get(state.param.arg, [])])})
-        return False
+                'conditions': list(self.conditions)}]
+        for _phase_param, _phase_default in unbound_default_arguments(
+                state.node, binding, state.call.parameter_bindings):
+            state.call.parameter_bindings.append({'argument': None, 'parameter': _phase_param.arg,
+                                            'binding_kind': 'default', 'status': 'exact',
+                                            'source_text': ast.unparse(_phase_default)})
+            if state.binding and all(v['kind'] == 'callable' for v in state.binding):
+                state.call.argument_sources.append({'argument': None, 'parameter': _phase_param.arg,
+                    'sources': _unique([v for b in state.binding for v in b.get('defaults', {}).get(_phase_param.arg, [])])})
+        return arguments
 
     ## Collect source-backed effects and receiver mutations.
     ## 收集有源码依据的效果与接收者变更。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _analyze_call_effects(self, state):
+    #  @param binding Binding result containing the implicit receiver parameter, if any.
+    #  @param arguments Mutable values established by the argument mapping phase.
+    #  @param constructor_values Values established with the call record.
+    #  @return Binding validity and container result after applying effects.
+    def _analyze_call_effects(self, state,
+                              binding, arguments, constructor_values):
+        _phase_invalid_binding = binding.invalid
+        effective_name = state.name
+        _phase_capture_values = {}
         if (state.constructor_class is not None and state.target
                 and state.call.target_status == 'constructor'):
-            state.fact = constructor_source_binding(state.self, state.node, state.constructor_class, state.target,
-                state.constructor_values, state.self.class_origin_invalid(asdict(state.constructor_class), state.env)
-                or state.self.class_lookup_affected([{'class_lookup_mutations':
-                    state.self.class_lookup_effects(asdict(state.constructor_class), state.env)}],
+            _phase_fact = constructor_source_binding(self, state.node, state.constructor_class, state.target,
+                constructor_values, self.class_origin_invalid(asdict(state.constructor_class), state.env)
+                or self.class_lookup_affected([{'class_lookup_mutations':
+                    self.class_lookup_effects(asdict(state.constructor_class), state.env)}],
                     ('__new__', '__init__', '__class__', '__bases__')))
-            state.call.constructor_bindings = [state.fact]
-            if state.fact['status'] == 'source_bound':
-                state.parameter = state.fact['implicit_binding']['parameter']
-                state.slot = copy.deepcopy(state.fact['implicit_binding']['argument'])
-                state.sources = ([{'kind': 'constructor_instance', 'source': state.call.id,
+            state.call.constructor_bindings = [_phase_fact]
+            if _phase_fact['status'] == 'source_bound':
+                _phase_parameter = _phase_fact['implicit_binding']['parameter']
+                _phase_slot = copy.deepcopy(_phase_fact['implicit_binding']['argument'])
+                _phase_sources = ([{'kind': 'constructor_instance', 'source': state.call.id,
                     'instance_type': asdict(state.constructor_class), 'relation': 'direct',
-                    'evidence': [state.self.evidence(state.node)],
-                    'conditions': copy.deepcopy(state.self.conditions)}]
-                    if state.fact['phase'] == '__init__' else copy.deepcopy(state.constructor_values))
-                if state.fact['phase'] == '__new__':
-                    for state.value in state.sources:
-                        state.value.setdefault('source_class_origin', {
+                    'evidence': [self.evidence(state.node)],
+                    'conditions': copy.deepcopy(self.conditions)}]
+                    if _phase_fact['phase'] == '__init__' else copy.deepcopy(constructor_values))
+                if _phase_fact['phase'] == '__new__':
+                    for _phase_value in _phase_sources:
+                        _phase_value.setdefault('source_class_origin', {
                             'basis': 'source_symbol', 'class': asdict(state.constructor_class),
-                            'evidence': copy.deepcopy(state.value.get('evidence', [])), 'call_context': []})
-                state.call.argument_sources.insert(0, {'argument': state.slot, 'parameter': state.parameter,
-                                                'sources': state.sources})
-                state.call.parameter_bindings.insert(0, {'argument': state.slot, 'parameter': state.parameter,
+                            'evidence': copy.deepcopy(_phase_value.get('evidence', [])), 'call_context': []})
+                state.call.argument_sources.insert(0, {'argument': _phase_slot, 'parameter': _phase_parameter,
+                                                'sources': _phase_sources})
+                state.call.parameter_bindings.insert(0, {'argument': _phase_slot, 'parameter': _phase_parameter,
                     'status': 'exact', 'binding_kind': 'implicit_receiver',
                     'destination_kind': 'parameter'})
-                if state.self.implicit_keyword_conflict(state.call, state.parameter, state.slot,
+                if self.implicit_keyword_conflict(state.call, _phase_parameter, _phase_slot,
                         {arg.arg for arg in state.target[1].args.posonlyargs}):
-                    state.invalid_binding = True
-                state.actual_values[state.parameter] = state.sources
-                for state.value in state.sources:
-                    state.call.argument_flows.append(dict(state.value, target_parameter=state.parameter,
-                        argument=state.slot, status='flow_found'))
-                state.self.result.boundaries.append({'call_id': state.call.id,
-                    'reason': 'source_constructor_' + state.fact['phase'].strip('_') + '_binding',
+                    _phase_invalid_binding = True
+                arguments.actual_values[_phase_parameter] = _phase_sources
+                for _phase_value in _phase_sources:
+                    state.call.argument_flows.append(dict(_phase_value, target_parameter=_phase_parameter,
+                        argument=_phase_slot, status='flow_found'))
+                self.result.boundaries.append({'call_id': state.call.id,
+                    'reason': 'source_constructor_' + _phase_fact['phase'].strip('_') + '_binding',
                     'boundary_kind': 'assumption', 'binding_status': 'source_bound',
-                    'execution_scope': state.fact['execution_scope'],
-                    'assumptions': copy.deepcopy(state.fact['assumptions']),
-                    'evidence': state.self.evidence(state.node)})
+                    'execution_scope': _phase_fact['execution_scope'],
+                    'assumptions': copy.deepcopy(_phase_fact['assumptions']),
+                    'evidence': self.evidence(state.node)})
             else:
-                state.self.result.boundaries.append({'call_id': state.call.id,
+                self.result.boundaries.append({'call_id': state.call.id,
                     'reason': 'constructor_binding_unconfirmed',
-                    'issues': copy.deepcopy(state.fact['issues']), 'evidence': state.self.evidence(state.node)})
-                state.conditional = conditional_constructor_signature(state.self, state.node, state.fact, state.call.id)
-                if state.conditional is not None and state.call.binding_status != 'invalid':
-                    state.conditional.update(call_id=state.call.id, call_evidence=state.self.evidence(state.node))
-                    state.call.conditional_source_bindings = [state.conditional]
-                    state.call.conditions = copy.deepcopy(state.conditional['conditions'])
-                    state.self.result.boundaries.append({'call_id': state.call.id,
+                    'issues': copy.deepcopy(_phase_fact['issues']), 'evidence': self.evidence(state.node)})
+                _phase_conditional = conditional_constructor_signature(self, state.node, _phase_fact, state.call.id)
+                if _phase_conditional is not None and state.call.binding_status != 'invalid':
+                    _phase_conditional.update(call_id=state.call.id, call_evidence=self.evidence(state.node))
+                    state.call.conditional_source_bindings = [_phase_conditional]
+                    state.call.conditions = copy.deepcopy(_phase_conditional['conditions'])
+                    self.result.boundaries.append({'call_id': state.call.id,
                         'reason': 'conditional_constructor_signature',
                         'boundary_kind': 'required_condition',
-                        'condition': copy.deepcopy(state.conditional['conditions'][-1])})
-        if state.instance_parameter is not None:
-            if state.self.implicit_keyword_conflict(state.call, state.instance_parameter, {'receiver': True},
+                        'condition': copy.deepcopy(_phase_conditional['conditions'][-1])})
+        if binding.instance_parameter is not None:
+            if self.implicit_keyword_conflict(state.call, binding.instance_parameter, {'receiver': True},
                     {arg.arg for arg in state.target[1].args.posonlyargs}):
-                state.invalid_binding = True
-            state.invalid_receivers = {(value.get('source'), repr(value.get('instance_type')))
+                _phase_invalid_binding = True
+            _phase_invalid_receivers = {(value.get('source'), repr(value.get('instance_type')))
                 for values in state.env.values() for value in values
                 if value.get('instance_type') and value.get('value_incomplete')}
-            for state.argument in state.call.argument_sources:
-                if state.argument.get('argument') == {'receiver': True}:
-                    state.argument['sources'] = [dict(value, value_incomplete=True)
+            for _phase_argument in state.call.argument_sources:
+                if _phase_argument.get('argument') == {'receiver': True}:
+                    _phase_argument['sources'] = [dict(value, value_incomplete=True)
                         if (value.get('source'), repr(value.get('instance_type')))
-                            in state.invalid_receivers else value for value in state.argument['sources']]
-                    state.actual_values[state.instance_parameter] = state.argument['sources']
+                            in _phase_invalid_receivers else value for value in _phase_argument['sources']]
+                    arguments.actual_values[binding.instance_parameter] = _phase_argument['sources']
         if (state.descriptor_kind == 'classmethod' and state.target and any(
                 fact.get('status') == 'source_bound' for fact in state.call.class_method_bindings)):
-            state.parameters = state.target[1].args.posonlyargs + state.target[1].args.args
-            if state.parameters and state.self.implicit_keyword_conflict(state.call, state.parameters[0].arg,
+            _phase_parameters = state.target[1].args.posonlyargs + state.target[1].args.args
+            if _phase_parameters and self.implicit_keyword_conflict(state.call, _phase_parameters[0].arg,
                     {'receiver': True}, {arg.arg for arg in state.target[1].args.posonlyargs}):
-                state.invalid_binding = True
-        for state.argument in state.call.argument_sources:
-            state.updated = []
-            for state.value in state.argument.get('sources', []):
-                if state.value.get('class_type'):
-                    state.mutations = state.self.class_lookup_effects(state.value['class_type'], state.env)
-                    if state.mutations:
-                        state.value = dict(state.value, class_lookup_mutations=_unique(
-                            state.value.get('class_lookup_mutations', []) + copy.deepcopy(state.mutations)))
-                    if state.self.class_origin_invalid(state.value['class_type'], state.env):
-                        state.value = dict(state.value, value_incomplete=True)
-                state.updated.append(state.value)
-            state.argument['sources'] = state.updated
-        state.effects_complete = False
+                _phase_invalid_binding = True
+        for _phase_argument in state.call.argument_sources:
+            _phase_updated = []
+            for _phase_value in _phase_argument.get('sources', []):
+                if _phase_value.get('class_type'):
+                    _phase_mutations = self.class_lookup_effects(_phase_value['class_type'], state.env)
+                    if _phase_mutations:
+                        _phase_value = dict(_phase_value, class_lookup_mutations=_unique(
+                            _phase_value.get('class_lookup_mutations', []) + copy.deepcopy(_phase_mutations)))
+                    if self.class_origin_invalid(_phase_value['class_type'], state.env):
+                        _phase_value = dict(_phase_value, value_incomplete=True)
+                _phase_updated.append(_phase_value)
+            _phase_argument['sources'] = _phase_updated
+        _phase_effects_complete = False
         if state.target:
             # Closure cells are read at invocation, after all argument expressions.
-            for state.capture in state.self.analyzer._captures(*state.target):
-                state.capture_values[state.capture] = copy.deepcopy(state.env.get(state.capture, []))
-                state.record = {'capture': state.capture, 'sources': state.capture_values[state.capture],
-                    'current_sources': copy.deepcopy(state.self.materialize(state.capture_values[state.capture], state.env))}
-                state.container = state.self.exact_container(state.capture_values[state.capture], ('dict', 'list', 'tuple'), state.env)
-                if state.container is not None:
-                    state.record['container_binding'] = {'status': 'exact',
-                        'shape': state.container['container_shape'], 'source': state.container['source'],
-                        'contents_unknown': bool(state.env.get(state.container['source'] + '$state')),
-                        'evidence': [state.self.evidence(state.node)], 'conditions': copy.deepcopy(state.self.conditions)}
-                state.call.capture_bindings.append(state.record)
-        state.selected_target = (state.self.analyzer._selected_definition(state.target,
-            state.self.analyzer._incoming_facts(state.target, state.call)) if state.target else None)
+            for _phase_capture in self.analyzer._captures(*state.target):
+                _phase_capture_values[_phase_capture] = copy.deepcopy(state.env.get(_phase_capture, []))
+                _phase_record = {'capture': _phase_capture, 'sources': _phase_capture_values[_phase_capture],
+                    'current_sources': copy.deepcopy(self.materialize(_phase_capture_values[_phase_capture], state.env))}
+                _phase_container = self.exact_container(_phase_capture_values[_phase_capture], ('dict', 'list', 'tuple'), state.env)
+                if _phase_container is not None:
+                    _phase_record['container_binding'] = {'status': 'exact',
+                        'shape': _phase_container['container_shape'], 'source': _phase_container['source'],
+                        'contents_unknown': bool(state.env.get(_phase_container['source'] + '$state')),
+                        'evidence': [self.evidence(state.node)], 'conditions': copy.deepcopy(self.conditions)}
+                state.call.capture_bindings.append(_phase_record)
+        _phase_selected_target = (self.analyzer._selected_definition(state.target,
+            self.analyzer._incoming_facts(state.target, state.call)) if state.target else None)
         if state.target:
-            state.call.conditional_returns = state.self.analyzer._guarded_object_returns(state.target)
-            for state.fact in state.call.conditional_returns:
-                state.values = state.self.container_values(state.actual_values.get(state.fact['parameter'], []))
-                if (state.call.binding_status == 'complete' and state.values and all(
+            state.call.conditional_returns = self.analyzer._guarded_object_returns(state.target)
+            for _phase_fact in state.call.conditional_returns:
+                _phase_values = self.container_values(arguments.actual_values.get(_phase_fact['parameter'], []))
+                if (state.call.binding_status == 'complete' and _phase_values and all(
                         value.get('kind') == 'container'
                         and value.get('container_shape') in ('dict', 'list', 'tuple')
                         and value.get('relation') == 'direct' and not value.get('value_incomplete')
                         and not value.get('projection') and not value.get('output_path')
-                        and value['source'] in state.env for value in state.values)
-                        and len({value['source'] for value in state.values}) == 1):
-                    state.fact.update(container_shape=state.values[0]['container_shape'],
-                        object_source=state.values[0]['source'],
+                        and value['source'] in state.env for value in _phase_values)
+                        and len({value['source'] for value in _phase_values}) == 1):
+                    _phase_fact.update(container_shape=_phase_values[0]['container_shape'],
+                        object_source=_phase_values[0]['source'],
                         binding=copy.deepcopy(next(binding for binding in state.call.parameter_bindings
-                            if binding.get('parameter') == state.fact['parameter'])),
-                        input_evidence=_unique([evidence for value in state.values
+                            if binding.get('parameter') == _phase_fact['parameter'])),
+                        input_evidence=_unique([evidence for value in _phase_values
                             for evidence in value.get('evidence', [])]))
-        state.self.invalidate_attributes(state.env)
-        if state.target and not state.invalid_binding and not getattr(state.node, '_flow_skip_effects', False):
-            state.effects_complete = state.self.apply_effects(
-                state.selected_target, state.actual_values, state.capture_values, state.call, state.env, state.node)
-            state.scope = state.self.analyzer._scope_facts(state.selected_target[1])
-            state.unmodeled = (state.scope.nonlocals & state.scope.bound) - {
+        self.invalidate_attributes(state.env)
+        if state.target and not _phase_invalid_binding and not getattr(state.node, '_flow_skip_effects', False):
+            _phase_effects_complete = self.apply_effects(
+                _phase_selected_target, arguments.actual_values, _phase_capture_values, state.call, state.env, state.node)
+            _phase_scope = self.analyzer._scope_facts(_phase_selected_target[1])
+            _phase_unmodeled = (_phase_scope.nonlocals & _phase_scope.bound) - {
                 effect['target'] for effect in state.call.effects
                 if effect.get('kind') == 'nonlocal_write' and effect.get('status') == 'exact'}
-            if state.unmodeled:
-                state.affected = [value for name in state.unmodeled for value in state.capture_values.get(name, [])]
-                state.self.add_boundary('capture_binding_write_unmodeled', state.node, state.env, state.affected,
+            if _phase_unmodeled:
+                _phase_affected = [value for name in _phase_unmodeled for value in _phase_capture_values.get(name, [])]
+                self.add_boundary('capture_binding_write_unmodeled', state.node, state.env, _phase_affected,
                                   call_id=state.call.id)
-                for state.name in state.unmodeled:
-                    state.self.unknown_container_contents(state.capture_values.get(state.name, []), state.env)
-                    state.env[state.name] = [dict(value, value_incomplete=True)
-                                 for value in state.env.get(state.name, [])]
-                state.effects_complete = False
-        state.container_result = state.self.container_call(state.node, state.receiver_values, state.call, state.env, state.protocol_values)
-        return False
+                for _phase_name in _phase_unmodeled:
+                    # Preserve the prior downstream name semantics while keeping
+                    # the original syntactic call name available to other phases.
+                    effective_name = _phase_name
+                    self.unknown_container_contents(_phase_capture_values.get(_phase_name, []), state.env)
+                    state.env[_phase_name] = [dict(value, value_incomplete=True)
+                                 for value in state.env.get(_phase_name, [])]
+                _phase_effects_complete = False
+        return CallEffectsResult(_phase_invalid_binding, self.container_call(
+            state.node, state.receiver_values, state.call, state.env, arguments.protocol_values),
+            _phase_effects_complete, _phase_selected_target, _phase_capture_values,
+            arguments, effective_name)
 
     ## Resolve container, protocol and bounded-target result facts.
     ## 解析容器、协议及有界目标的结果事实。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _resolve_container_and_protocol_results(self, state):
-        if state.container_result is None and isinstance(state.node.func, ast.Attribute) and state.node.func.attr == 'copy':
-            state.incoming_receiver = state.self.incoming_copy_receiver(state.node, state.receiver_values, state.call, state.env)
-            if state.incoming_receiver is not None:
-                state.container_result = state.self.container_call(state.node, state.incoming_receiver, state.call, state.env, state.protocol_values)
-        if state.target is None and state.container_result is None:
-            state.self.inherited_setdefault(state.node, state.receiver_values, state.call, state.env)
-        if state.target is None and state.container_result is None and isinstance(state.node.func, ast.Name):
-            state.container_result = state.self.container_constructor(state.node, state.call, state.env, state.protocol_values)
+    #  @param effects Result produced by the effects phase.
+    #  @return Result facts, or None when return-source resolution must continue.
+    def _resolve_container_and_protocol_results(
+            self, state, effects
+            ):
+        container_result = effects.container_result
+        if container_result is None and isinstance(state.node.func, ast.Attribute) and state.node.func.attr == 'copy':
+            _phase_incoming_receiver = self.incoming_copy_receiver(state.node, state.receiver_values, state.call, state.env)
+            if _phase_incoming_receiver is not None:
+                container_result = self.container_call(state.node, _phase_incoming_receiver, state.call, state.env, effects.arguments.protocol_values)
+        if state.target is None and container_result is None:
+            self.inherited_setdefault(state.node, state.receiver_values, state.call, state.env)
+        if state.target is None and container_result is None and isinstance(state.node.func, ast.Name):
+            container_result = self.container_constructor(state.node, state.call, state.env, effects.arguments.protocol_values)
         if (state.target is None and not state.bounded_targets
                 and state.call.target_status not in ('python_protocol', 'local_container_protocol',
                                               'builtin_allocation')):
-            for state.values in state.actual_values.values():
-                state.self.invalidate_literals(state.values, state.env)
-                state.candidates, state._ = state.self.callable_targets(state.values)
-                state.self.modified_return_callables.update(
-                    (candidate[0].module, candidate[0].qualname) for candidate in state.candidates)
-                for state.reference in state.self.container_values(state.values):
-                    if state.reference.get('kind') == 'container':
-                        state.source = state.reference['source']
-                        state.env[state.source] = [dict(value, value_incomplete=True)
+            for _phase_values in effects.arguments.actual_values.values():
+                self.invalidate_literals(_phase_values, state.env)
+                _phase_candidates, _phase__ = self.callable_targets(_phase_values)
+                self.modified_return_callables.update(
+                    (candidate[0].module, candidate[0].qualname) for candidate in _phase_candidates)
+                for _phase_reference in self.container_values(_phase_values):
+                    if _phase_reference.get('kind') == 'container':
+                        _phase_source = _phase_reference['source']
+                        state.env[_phase_source] = [dict(value, value_incomplete=True)
                             if value.get('kind') == 'callable' or value.get('callable_type')
-                            else value for value in state.env.get(state.source, [])]
-                state.self.unknown_container_contents(state.values, state.env)
-            state.self.unknown_container_contents(state.receiver_values, state.env)
-        state.source_super = (state.name == 'super' and state.builtin_status == 'confirmed_builtin'
+                            else value for value in state.env.get(_phase_source, [])]
+                self.unknown_container_contents(_phase_values, state.env)
+            self.unknown_container_contents(state.receiver_values, state.env)
+        _phase_source_super = (effects.effective_name == 'super' and state.builtin_status == 'confirmed_builtin'
             and len(state.node.args) == 2 and not state.node.keywords
             and not any(isinstance(argument, ast.Starred) for argument in state.node.args)
             and all(known and not any(value.get('value_incomplete') for value in known)
-                    for known in (state.self.class_values(values, env=state.env)
-                                  for values in state.actual_values.values())))
-        state.preserved_classes = (state.self.class_attribute_effect(
-            state.selected_target, state.call, state.capture_values, state.env, state.node)
-            if state.selected_target and not state.invalid_binding
+                    for known in (self.class_values(values, env=state.env)
+                                  for values in effects.arguments.actual_values.values())))
+        _phase_preserved_classes = (self.class_attribute_effect(
+            effects.selected_target, state.call, effects.capture_values, state.env, state.node)
+            if effects.selected_target and not effects.invalid_binding
             and not getattr(state.node, '_flow_skip_effects', False) else [])
-        if not state.effects_complete and not state.source_super and state.call.target_status not in (
+        if not effects.effects_complete and not _phase_source_super and state.call.target_status not in (
                 'python_protocol', 'local_container_protocol', 'builtin_allocation'):
-            state.self.invalidate_instance_receivers(
-                [value for values in state.actual_values.values() for value in values]
+            self.invalidate_instance_receivers(
+                [value for values in effects.arguments.actual_values.values() for value in values]
                 + state.receiver_values
-                + [value for values in state.capture_values.values() for value in values], state.env)
-            state.self.invalidate_class_origins(
-                [value for value in [value for values in state.actual_values.values() for value in values]
+                + [value for values in effects.capture_values.values() for value in values], state.env)
+            self.invalidate_class_origins(
+                [value for value in [value for values in effects.arguments.actual_values.values() for value in values]
                 + state.receiver_values
-                + [value for values in state.capture_values.values() for value in values]
-                 if value.get('class_type') not in state.preserved_classes], state.env, state.call)
-        state.self.calls.append(state.call)
-        if state.invalid_binding:
-            state.return_value =  []
-            return True
-        if (getattr(state.self.analyzer, '_conditional_source_state', False) and state.call.target is not None
+                + [value for values in effects.capture_values.values() for value in values]
+                 if value.get('class_type') not in _phase_preserved_classes], state.env, state.call)
+        self.calls.append(state.call)
+        if effects.invalid_binding:
+            return []
+        if (getattr(self.analyzer, '_conditional_source_state', False) and state.call.target is not None
                 and state.call.target_status in ('super_new', 'super_method', 'classmethod')):
-            state.required = [condition for condition in state.call.conditions
+            _phase_required = [condition for condition in state.call.conditions
                         if condition.get('kind') == 'source_state_preserved']
-            if state.required:
+            if _phase_required:
                 state.call.conditional_source_bindings = [{'kind': 'conditional_source_lookup',
                     'status': 'required', 'target': asdict(state.call.target), 'call_id': state.call.id,
-                    'call_evidence': state.self.evidence(state.node), 'conditions': copy.deepcopy(state.call.conditions),
+                    'call_evidence': self.evidence(state.node), 'conditions': copy.deepcopy(state.call.conditions),
                     'receiver_classes': _unique([value['class_type'] for value in state.receiver_sources
                         if value.get('class_type')]), 'runtime_target_confirmed': False,
-                    'source_hashes': dict(state.self.analyzer.hashes), 'feasibility': 'not_proven'}]
-        if state.container_result is not None:
-            state.return_value =  state.container_result
-            return True
-        return False
+                    'source_hashes': dict(self.analyzer.hashes), 'feasibility': 'not_proven'}]
+        if container_result is not None:
+            return container_result
+        return None
 
     ## Assemble the call result sources and their evidence.
     ## 组装调用结果来源及其证据。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
-    #  @return True only when this phase completes the call with an early result.
-    def _resolve_return_sources(self, state):
-        state.result_value = {'kind': 'call_result', 'source': state.call_id,
+    #  @param effects Result produced by the effects phase.
+    #  @return Resolved call-result facts, possibly empty.
+    def _resolve_return_sources(self, state, effects,
+                                allocation_values):
+        _phase_result_value = {'kind': 'call_result', 'source': state.call_id,
                         'relation': 'direct',
-                        'evidence': [state.self.evidence(state.node)],
-                        'conditions': list(state.self.conditions)}
+                        'evidence': [self.evidence(state.node)],
+                        'conditions': list(self.conditions)}
         if any(effect.get('kind') == 'mapping_remainder' and effect.get('return_path')
                for effect in state.call.effects):
-            state.return_value =  state.call.result_sources
-            return True
-        state.returned_object = state.self.returned_container(
-            state.selected_target, state.call, state.actual_values, state.env, state.node, state.effects_complete)
-        if state.returned_object is not None:
-            state.result_value['container_object'] = state.returned_object
-            state.result_value['object_only'] = True
-            state.result_value['conditions'] = _unique(state.result_value['conditions'] +
-                state.returned_object.get('conditions', []))
-            state.result_value['evidence'] = _unique(state.result_value['evidence'] +
-                state.returned_object.pop('evidence'))
-            state.call.result_sources = [state.result_value]
-            state.return_value =  [state.result_value]
-            return True
-        if state.effects_complete and state.call.result_sources:
-            state.return_value =  [state.result_value] + state.call.result_sources
-            return True
+            return state.call.result_sources
+        _phase_returned_object = self.returned_container(
+            effects.selected_target, state.call, effects.arguments.actual_values, state.env, state.node, effects.effects_complete)
+        if _phase_returned_object is not None:
+            _phase_result_value['container_object'] = _phase_returned_object
+            _phase_result_value['object_only'] = True
+            _phase_result_value['conditions'] = _unique(_phase_result_value['conditions'] +
+                _phase_returned_object.get('conditions', []))
+            _phase_result_value['evidence'] = _unique(_phase_result_value['evidence'] +
+                _phase_returned_object.pop('evidence'))
+            state.call.result_sources = [_phase_result_value]
+            return [_phase_result_value]
+        if effects.effects_complete and state.call.result_sources:
+            return [_phase_result_value] + state.call.result_sources
         if state.constructor_class is not None and state.construction_safe:
-            state.result_value['instance_type'] = asdict(state.constructor_class)
-            state.mutations = state.self.class_lookup_effects(asdict(state.constructor_class), state.env)
-            if state.mutations:
-                state.result_value['class_lookup_mutations'] = copy.deepcopy(state.mutations)
-            state.result_value['evidence'] = _unique(state.result_value['evidence'] + [
+            _phase_result_value['instance_type'] = asdict(state.constructor_class)
+            _phase_mutations = self.class_lookup_effects(asdict(state.constructor_class), state.env)
+            if _phase_mutations:
+                _phase_result_value['class_lookup_mutations'] = copy.deepcopy(_phase_mutations)
+            _phase_result_value['evidence'] = _unique(_phase_result_value['evidence'] + [
                 evidence for value in state.callee_classes
                 for evidence in value.get('evidence', [])])
-            state.call.result_sources = [state.result_value]
+            state.call.result_sources = [_phase_result_value]
         elif state.allocation_class is not None:
-            state.result_value['instance_type'] = asdict(state.allocation_class)
-            state.result_value['evidence'] = _unique(state.result_value['evidence'] + [
-                evidence for value in state.allocation_values
+            _phase_result_value['instance_type'] = asdict(state.allocation_class)
+            _phase_result_value['evidence'] = _unique(_phase_result_value['evidence'] + [
+                evidence for value in allocation_values
                 for evidence in value.get('evidence', [])])
-            state.call.result_sources = [state.result_value]
-            state.result_value['attribute_provenance'] = _unique([
-                fact for value in state.allocation_values for fact in value.get('attribute_provenance', [])])
-            state.result_value['conditions'] = _unique(state.result_value['conditions'] + [
-                condition for value in state.allocation_values for condition in value.get('conditions', [])])
+            state.call.result_sources = [_phase_result_value]
+            _phase_result_value['attribute_provenance'] = _unique([
+                fact for value in allocation_values for fact in value.get('attribute_provenance', [])])
+            _phase_result_value['conditions'] = _unique(_phase_result_value['conditions'] + [
+                condition for value in allocation_values for condition in value.get('conditions', [])])
         elif state.allocation_candidates:
-            state.result_value.update(instance_candidates=_unique([
+            _phase_result_value.update(instance_candidates=_unique([
                 value['class_type'] for value in state.allocation_candidates]),
                 value_incomplete=any(value.get('value_incomplete') for value in state.allocation_candidates),
                 attribute_provenance=_unique([fact for value in state.allocation_candidates
                     for fact in value.get('attribute_provenance', [])]),
-                conditions=_unique(state.result_value['conditions'] + [condition
+                conditions=_unique(_phase_result_value['conditions'] + [condition
                     for value in state.allocation_candidates for condition in value.get('conditions', [])]),
-                evidence=_unique(state.result_value['evidence'] + [evidence
+                evidence=_unique(_phase_result_value['evidence'] + [evidence
                     for value in state.allocation_candidates for evidence in value.get('evidence', [])]))
-            state.call.result_sources = [state.result_value]
-            if getattr(state.self.analyzer, '_conditional_source_state', False):
-                state.result_value['instance_candidate_contexts'] = [
+            state.call.result_sources = [_phase_result_value]
+            if getattr(self.analyzer, '_conditional_source_state', False):
+                _phase_result_value['instance_candidate_contexts'] = [
                     {'instance_type': copy.deepcopy(value['class_type']),
                      'conditions': copy.deepcopy(value.get('conditions', []))}
                     for value in state.allocation_candidates]
@@ -1278,25 +1244,22 @@ class CallExpressionMixin:
               and isinstance(state.node.func, ast.Attribute)
               and isinstance(state.node.func.value, ast.Name)
               and state.call.binding_status == 'complete'):
-            state.field_types = state.self.analyzer._returned_field_instances(state.target)
-            if state.field_types:
-                state.values = []
-                for state.item in state.field_types:
-                    state.fact = {'field': state.item['field'],
-                            'instance_type': state.item['instance_type'],
-                            'assignment': state.self.evidence_at(
-                                state.item['assignment_ref'], state.item['assignment_node']),
-                            'returns': [state.self.evidence_at(state.item['return_ref'], path)
-                                        for path in state.item['return_nodes']],
-                            'accessor_call': state.self.evidence(state.node)}
-                    state.call.receiver_type_evidence.append(state.fact)
-                    state.values.append(dict(state.result_value,
-                        instance_type=state.item['instance_type'],
-                        receiver_type_evidence=[state.fact],
-                        evidence=state.result_value['evidence'] +
-                                 [state.fact['assignment']] + state.fact['returns']))
-                state.return_value =  state.values
-                return True
-        state.return_value =  [state.result_value]
-        return True
-        return False
+            _phase_field_types = self.analyzer._returned_field_instances(state.target)
+            if _phase_field_types:
+                _phase_values = []
+                for _phase_item in _phase_field_types:
+                    _phase_fact = {'field': _phase_item['field'],
+                            'instance_type': _phase_item['instance_type'],
+                            'assignment': self.evidence_at(
+                                _phase_item['assignment_ref'], _phase_item['assignment_node']),
+                            'returns': [self.evidence_at(_phase_item['return_ref'], path)
+                                        for path in _phase_item['return_nodes']],
+                            'accessor_call': self.evidence(state.node)}
+                    state.call.receiver_type_evidence.append(_phase_fact)
+                    _phase_values.append(dict(_phase_result_value,
+                        instance_type=_phase_item['instance_type'],
+                        receiver_type_evidence=[_phase_fact],
+                        evidence=_phase_result_value['evidence'] +
+                                 [_phase_fact['assignment']] + _phase_fact['returns']))
+                return _phase_values
+        return [_phase_result_value]

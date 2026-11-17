@@ -27,7 +27,6 @@ from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 from pcresolve.facts.star_imports import static_star_imports
 
 
-
 ## Find root names of attribute or subscript writes in the current scope.
 ## 查找当前作用域内属性或下标写入的根名称。
 #

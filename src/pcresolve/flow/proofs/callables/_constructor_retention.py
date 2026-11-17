@@ -10,6 +10,12 @@ from pcresolve.facts.scope_facts import function_scope_facts, statement_scope_fa
 from pcresolve.flow.proofs.classes._class_effect_attributes import written_attributes
 from pcresolve.flow.proofs.classes._class_definition import _source_callable_object_identity
 from pcresolve.flow.proofs.protocols._property_namespace import _stable_builtin_namespace
+from pcresolve.flow.proofs.callables._constructor_retention_values import (
+    known_receiver_condition, known_receiver_value,
+)
+from pcresolve.flow.proofs.callables._constructor_retention_selection import (
+    retention_facts_are_closed, select_retained_store_writes,
+)
 
 
 ## Signal an open receiver effect or unsupported constructor behavior.
@@ -97,14 +103,7 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
     #  @param receiver Receiver parameter identifier.
     #  @return Known value, or the local unknown sentinel.
     def known_value(node, locals_, receiver):
-        if isinstance(node, ast.Constant):
-            return node.value
-        if isinstance(node, ast.Name):
-            return locals_.get(node.id, unknown)
-        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
-                and node.value.id == receiver):
-            return receiver_values.get(node.attr, unknown)
-        return unknown
+        return known_receiver_value(node, locals_, receiver, receiver_values, unknown)
 
     ## Evaluate a condition only when all required values are statically known.
     ## 仅在所需值均可静态确定时计算条件。
@@ -116,37 +115,9 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
     #  @param method Method AST node used for builtin checks.
     #  @return Boolean result, or the unknown sentinel.
     def known_condition(node, locals_, receiver, owner=ref, method=initializer):
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                and node.func.id == 'len' and len(node.args) == 1 and not node.keywords
-                and analyzer._builtin_name_status(owner, method, 'len')
-                    == 'confirmed_builtin'):
-            value = known_value(node.args[0], locals_, receiver)
-            if type(value) in (tuple, list, dict, str, bytes):
-                return bool(len(value))
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            value = known_condition(node.operand, locals_, receiver, owner, method)
-            return unknown if value is unknown else not value
-        if isinstance(node, ast.BoolOp):
-            values = [known_condition(value, locals_, receiver, owner, method)
-                      for value in node.values]
-            if isinstance(node.op, ast.And):
-                if False in values:
-                    return False
-                return all(values) if unknown not in values else unknown
-            if True in values:
-                return True
-            return all(not value for value in values) if unknown not in values else unknown
-        if isinstance(node, ast.Compare) and len(node.ops) == 1 and len(node.comparators) == 1:
-            left = known_value(node.left, locals_, receiver)
-            right = known_value(node.comparators[0], locals_, receiver)
-            if left is unknown or right is unknown:
-                return unknown
-            if isinstance(node.ops[0], ast.Is):
-                return left is right
-            if isinstance(node.ops[0], ast.IsNot):
-                return left is not right
-        value = known_value(node, locals_, receiver)
-        return unknown if value is unknown else bool(value)
+        return known_receiver_condition(
+            node, locals_, receiver, owner, method, unknown,
+            known_value=known_value, builtin_name_status=analyzer._builtin_name_status)
 
     ## Find a property setter only when builtin property binding is stable.
     ## 仅在内建 property 绑定稳定时查找属性 setter。
@@ -550,13 +521,8 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
         inspect(target)
     except (RecursionError, _OpenReceiver):
         return None if return_effects else []
-    if any(attribute in calls for _, attribute, _, _ in writes):
-        return None if return_effects else []
-    if any(attribute in namespace for _, attribute, _, _ in writes):
-        return None if return_effects else []
-    if lookup_name is not None and any(attribute == lookup_name for _, attribute, _, _ in writes):
-        return None if return_effects else []
-    if any(path not in analyzer.hashes for path in decorator_dependencies):
+    if not retention_facts_are_closed(
+            writes, calls, namespace, lookup_name, decorator_dependencies, analyzer.hashes):
         return None if return_effects else []
     if return_effects:
         return {'status': 'source_bound',
@@ -573,12 +539,8 @@ def retained_stores(analyzer, hierarchy, target, binding, *, lookup_name=None,
     capture_uses = [node for node in ast.walk(initializer)
                     if isinstance(node, ast.Name) and node.id == capture]
     result = []
-    for owner, attribute, destination, statement in writes:
-        if (owner != ref or attribute in namespace or attribute.startswith('__')
-                or not isinstance(statement, ast.Assign) or len(statement.targets) != 1
-                or not isinstance(destination.ctx, ast.Store)
-                or sum(name == attribute for _, name, _, _ in writes) != 1):
-            continue
+    candidates = select_retained_store_writes(writes, ref, namespace)
+    for owner, attribute, destination, statement in candidates:
         result.append({'kind': 'retained_instance_attribute_store', 'status': 'source_bound',
             'basis': 'source_snapshot', 'function': asdict(ref),
             'receiver_class': binding['receiver_class'],

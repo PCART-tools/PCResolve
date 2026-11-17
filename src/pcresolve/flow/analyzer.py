@@ -7,7 +7,6 @@ import builtins
 import copy
 import os
 from dataclasses import asdict, replace
-from typing import Mapping, Optional
 from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
 from pcresolve.flow.index.generation import same_generation
 from pcresolve.flow.transfer.summary import _Summary
@@ -298,8 +297,8 @@ class FlowAnalyzer(SourceIndexMixin, ClassFactsMixin, ProofContextMixin, FlowRun
     #  @param node Decorator expression represented as a function definition.
     #  @param limit Maximum proof work allowed for this query.
     #  @return Fresh-decoration evidence or None when the proof is incomplete.
-    def _fresh_decoration_fact(self, ref: FunctionRef, node: ast.AST, limit: int
-                               ) -> Optional[Mapping[str, object]]:
+    def _fresh_decoration_fact(self, ref, node, limit
+                               ):
         summary = _Summary(self, FlowAnalysis(ref, {}), ref, node, 0)
         return fresh_decoration(self, (ref, node), summary.evidence_at, limit)
 

@@ -322,8 +322,67 @@ def test_signature_source_uses_fresh_function_proof_for_lower_doc_formatter(
         assert evidence[0]['identity_status'] == 'preserved'
         assert evidence[0]['body_binding_status'] == 'preserved'
         assert evidence[0]['boundaries'] == []
+        assert _kind_aliases_closed(analyzer, caller, evidence) is True
+        assert len(evidence) == 1
     else:
         assert evidence == []
+
+
+@pytest.mark.parametrize('failure_kind', ['open_alias', 'budget'])
+def test_late_kind_alias_failure_does_not_publish_staged_decorator_evidence(
+        tmp_path, monkeypatch, failure_kind):
+    source = KIND_DECORATOR.replace('@make_keyword_only()\ndef source_function(self, option):',
+        'class Cache(dict):\n'
+        '    def __missing__(self, key): return "formatted"\n'
+        'class Substitution:\n'
+        '    def __init__(self): self.params = Cache()\n'
+        '    def __call__(self, func):\n'
+        '        if func.__doc__:\n'
+        '            func.__doc__ = inspect.cleandoc(func.__doc__) % self.params\n'
+        '        return func\n'
+        'class ArtistPropertiesSubstitution(Substitution):\n'
+        '    def __call__(self, obj):\n'
+        '        super().__call__(obj)\n'
+        '        if isinstance(obj, type) and obj.__init__ != object.__init__:\n'
+        '            self(obj.__init__)\n'
+        '        return obj\n'
+        'documentation = ArtistPropertiesSubstitution()\n\n'
+        '@make_keyword_only()\n'
+        '@documentation\n'
+        'def source_function(self, option):\n'
+        '    """Documentation for %(unresolved)s."""\n')
+    analyzer, _ = prepare(tmp_path, source + SOURCE)
+    analyzer._index()
+    caller = analyzer._definition_index.find('example', 'Base.__init_subclass__')[0][0]
+    from pcresolve.flow.proofs.callables.decorators._decorator_effects import _DecoratorEffects
+    import pcresolve.flow.proofs.namespaces.metadata._metadata_signature as metadata_signature
+    original_fact = _DecoratorEffects.fact
+
+    def unresolved_ordinary_effect(self, expression, *args, **kwargs):
+        fact = original_fact(self, expression, *args, **kwargs)
+        if (type(self) is _DecoratorEffects and isinstance(expression, ast.Name)
+                and expression.id == 'documentation'):
+            fact['boundaries'].append({'reason': 'decorator_call_unresolved',
+                'evidence': {'lineno': expression.lineno}})
+        return fact
+
+    monkeypatch.setattr(_DecoratorEffects, 'fact', unresolved_ordinary_effect)
+
+    def fail_after_local_proof(*args):
+        if failure_kind == 'budget':
+            from pcresolve.flow.proofs.protocols.class_attribute_effects import _ClassEffectLimit
+            raise _ClassEffectLimit()
+        return False
+
+    monkeypatch.setattr(metadata_signature, 'imported_kind_aliases_are_closed', fail_after_local_proof)
+    evidence = []
+    if failure_kind == 'budget':
+        from pcresolve.flow.proofs.protocols.class_attribute_effects import _ClassEffectLimit
+        with pytest.raises(_ClassEffectLimit):
+            metadata_signature._kind_aliases_closed(analyzer, caller, evidence)
+    else:
+        assert not metadata_signature._kind_aliases_closed(analyzer, caller, evidence)
+    assert evidence == []
 
 
 def test_kind_comparisons_do_not_accept_a_replaced_input_signature(tmp_path):

@@ -8,11 +8,12 @@ import inspect
 import importlib.util
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
 
-from pcresolve.flow.contracts import FreshDecorationProvider, fresh_decoration_fact
 from pcresolve.flow.proofs.callables._function_factory import _canonical, _signature_namespace
 from pcresolve.flow.proofs.namespaces.metadata._metadata_namespace import builtin_namespace
+from pcresolve.flow.proofs.namespaces.metadata._kind_alias_scan import (
+    imported_kind_aliases_are_closed, inspect_module_kind_aliases,
+)
 from pcresolve.flow.proofs.protocols.class_attribute_effects import _ClassEffectLimit
 from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified
 from pcresolve.flow.proofs.classes._class_definition import namespace_issues
@@ -134,10 +135,11 @@ def _module_literal_default(analyzer, caller, expression):
 #  @param receiver_class Optional source receiver class constraint.
 #  @return True when every protected alias use is closed and stable.
 def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver_class=None,
-                         fresh_decoration: Optional[FreshDecorationProvider] = None):
+                         fresh_decoration = None):
     # Native kind enums are instances of a mutable Python enum class. Retaining
     # an alias and reflecting its class can change constructor comparisons.
     inspected = 0
+    pending_decorator_evidence = []
 
     ## Resolve an inspect/functools name through imports and lexical bindings.
     ## 通过导入与词法绑定解析 inspect/functools 名称。
@@ -479,7 +481,7 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                                           getattr(analyzer, '_fresh_decoration_fact', None))
                             if fresh_fact is None:
                                 return False
-                            fresh = fresh_decoration_fact(fresh_fact, decorated_ref, fresh_node, 2000)
+                            fresh = fresh_fact(decorated_ref, fresh_node, 2000)
                         except _ClassEffectLimit:
                             return False
                         if (fresh is None or fresh.get('identity_status') != 'preserved'
@@ -490,12 +492,11 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                                 and effect.get('impact') not in ('documentation', 'module_metadata')
                                 for effect in fresh.get('effects', ())):
                             return False
-                        if decorator_evidence is not None:
-                            key = (decorated_ref, inner.lineno, inner.col_offset,
-                                   inner.end_lineno, inner.end_col_offset)
-                            if all(item.get('_dedup_key') != key for item in decorator_evidence):
-                                fresh['_dedup_key'] = key
-                                decorator_evidence.append(fresh)
+                        key = (decorated_ref, inner.lineno, inner.col_offset,
+                               inner.end_lineno, inner.end_col_offset)
+                        if all(item.get('_dedup_key') != key for item in pending_decorator_evidence):
+                            fresh['_dedup_key'] = key
+                            pending_decorator_evidence.append(fresh)
         signature_source_cache[scope] = signature_name
         return signature_name
 
@@ -574,8 +575,6 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
         return False
 
     scope_refs = {node: ref for ref, node in analyzer.definitions}
-    parameter_kind_uses = set()
-
     ## Recognize comparisons against a proven native Parameter kind.
     ## 识别与已证明的原生 Parameter kind 进行的比较。
     #
@@ -618,6 +617,23 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 
     module_aliases = set()
 
+    ## Preserve the diagnostic for an alias whose use is outside the closed grammar.
+    ## 保留别名用法超出封闭语法时的诊断信息。
+    def debug_alias_use(module, node, parent, scope):
+        if not getattr(analyzer, '_debug_kind_aliases', False):
+            return
+        scope_ref = scope_refs.get(scope)
+        parameter_key = (scope, ast.dump(
+            parents.get(parent).func.value if isinstance(parent, ast.keyword)
+            and isinstance(parents.get(parent), ast.Call)
+            and isinstance(parents[parent].func, ast.Attribute)
+            else node, include_attributes=False))
+        print('KIND_ALIAS_DETAIL', module, ast.unparse(node),
+            ast.unparse(parent) if parent is not None else None,
+            getattr(scope_ref, 'qualname', None),
+            signature_source_cache.get(scope), parameter_cache.get(parameter_key),
+            flush=True)
+
     for module, bodies in analyzer.module_bodies.items():
         nodes, parents, scopes = [], {}, {}
         for _, body in bodies:
@@ -636,97 +652,30 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
                     pending.append((child, node if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                                                                      ast.ClassDef, ast.Lambda)) else scope))
         reference = type(caller_ref)(module, '', bodies[0][0])
-        for node in nodes:
-            if (isinstance(node, ast.Attribute)
-                    and canonical(reference, scopes[node], node.value) == 'inspect.Parameter'
-                    and node.attr in ('POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD', 'VAR_POSITIONAL',
-                                      'KEYWORD_ONLY', 'VAR_KEYWORD')):
-                parent = parents.get(node)
-                if identity_operand(node, parent):
-                    continue
-                if native_kind_comparison(node, parent, scopes[node]):
-                    parameter_kind_uses.add(node)
-                    continue
-                if isinstance(parent, ast.Assign) and parent.value is node:
-                    continue
-                if (isinstance(parent, ast.Call) and len(parent.args) >= 2 and parent.args[1] is node
-                        and canonical(reference, scopes[parent], parent.func) == 'inspect.Parameter'):
-                    continue
-                return False
-        aliases = set()
-        # Merge lexical aliases conservatively within this module. Shadowing
-        # may reject a proof but cannot erase a possible enum capability.
-        for _ in range(64):
-            previous = set(aliases)
-            for node in nodes:
-                if not isinstance(node, ast.Assign):
-                    continue
-                value = node.value
-                source = (isinstance(value, ast.Attribute)
-                    and canonical(reference, scopes[value], value.value) == 'inspect.Parameter'
-                    and value.attr in ('POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD', 'VAR_POSITIONAL',
-                                       'KEYWORD_ONLY', 'VAR_KEYWORD'))
-                if source or isinstance(value, ast.Name) and value.id in aliases:
-                    if isinstance(scopes[node], ast.ClassDef):
-                        # A module/class slot is externally retrievable even
-                        # when this file contains no direct read of the alias.
-                        return False
-                    if any(not isinstance(target, ast.Name) for target in node.targets):
-                        return False
-                    if scopes[node] is None:
-                        if (len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name)
-                                or not unmodified(analyzer, module + '.' + node.targets[0].id)):
-                            return False
-                        module_aliases.add((module, node.targets[0].id))
-                    aliases.update(target.id for target in node.targets)
-            if aliases == previous:
-                break
-        else:
+        aliases = inspect_module_kind_aliases(
+            module, nodes, parents, scopes, reference,
+            canonical=canonical,
+            identity_operand=identity_operand,
+            kind_comparison=native_kind_comparison,
+            kind_replacement=native_kind_replacement,
+            stable_module_alias=lambda source_module, local_name: unmodified(
+                analyzer, source_module + '.' + local_name),
+            debug_alias_use=debug_alias_use)
+        if aliases is None:
             return False
-        for node in nodes:
-            if not isinstance(node, ast.Name) or node.id not in aliases or not isinstance(node.ctx, ast.Load):
-                continue
-            parent = parents.get(node)
-            if identity_operand(node, parent):
-                continue
-            if native_kind_comparison(node, parent, scopes[node]):
-                parameter_kind_uses.add(node)
-                continue
-            if native_kind_replacement(node, parent, scopes[node]):
-                parameter_kind_uses.add(node)
-                continue
-            if getattr(analyzer, '_debug_kind_aliases', False):
-                scope = scopes[node]
-                scope_ref = scope_refs.get(scope)
-                parameter_key = (scope, ast.dump(
-                    parents.get(parent).func.value if isinstance(parent, ast.keyword)
-                    and isinstance(parents.get(parent), ast.Call)
-                    and isinstance(parents[parent].func, ast.Attribute)
-                    else node, include_attributes=False))
-                print('KIND_ALIAS_DETAIL', module, ast.unparse(node),
-                    ast.unparse(parent) if parent is not None else None,
-                    getattr(scope_ref, 'qualname', None),
-                    signature_source_cache.get(scope), parameter_cache.get(parameter_key),
-                    flush=True)
-            if isinstance(parent, ast.Assign) and parent.value is node:
-                continue
-            if (isinstance(parent, ast.Call) and len(parent.args) >= 2 and parent.args[1] is node
-                    and canonical(reference, scopes[parent], parent.func) == 'inspect.Parameter'):
-                continue
-            return False
+        module_aliases.update(aliases)
+
     # A locally safe enum alias cannot cross an import boundary and acquire
     # a new callback-capable use in another source module.
-    for module, local in module_aliases:
-        qualified = module + '.' + local
-        for candidate_module, bodies in analyzer.module_bodies.items():
-            for local_name, imported in analyzer.imports.get(candidate_module, {}).items():
-                if imported != qualified:
-                    continue
-                if any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                       and node.id == local_name and not identity_operand(node, None)
-                       for _, body in bodies for node in ast.walk(ast.Module(body=body, type_ignores=[]))):
-                    return False
+    if not imported_kind_aliases_are_closed(
+            module_aliases, analyzer.module_bodies, analyzer.imports, identity_operand):
+        return False
+    if decorator_evidence is not None:
+        for fact in pending_decorator_evidence:
+            if all(item.get('_dedup_key') != fact['_dedup_key'] for item in decorator_evidence):
+                decorator_evidence.append(fact)
     return True
+
 
 
 ## Bind native Signature and Parameter constructors using literal source metadata.
@@ -739,7 +688,7 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 #  @param receiver_class Optional source class associated with the call context.
 #  @return Source-bound normal-return formation evidence or None for open inputs.
 def signature_creation(analyzer, caller, call, native_lists=None, receiver_class=None,
-                       fresh_decoration: Optional[FreshDecorationProvider] = None):
+                       fresh_decoration = None):
     ref, function = caller
     if (not isinstance(call, ast.Call)
             or _canonical(analyzer, ref, function, call.func) != 'inspect.Signature'):

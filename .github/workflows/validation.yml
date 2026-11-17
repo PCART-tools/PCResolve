@@ -27,8 +27,6 @@ jobs:
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/preflight.json -- python scripts/verify_architecture_inputs.py
       - name: Build and verify release artifacts
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/artifacts-gate.json -- python scripts/verify_release_artifacts.py --dist-dir "${{ runner.temp }}/pcresolve-dist" --report reports/architecture-1.0.8/artifacts.json
-      - name: Check typed flow component contracts
-        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/mypy.json -- python -m mypy
       - name: Run tests including unresolved architecture gates
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/pytest-gate.json -- python -m pytest -q --runxfail --junitxml=reports/architecture-1.0.8/pytest.xml
       - name: Evaluate ownership ground truth

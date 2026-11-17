@@ -2,7 +2,6 @@
 #  Cached single-file visitor state has a declared fact schema.
 
 import ast
-from dataclasses import fields, is_dataclass
 from pathlib import Path
 
 from pcresolve.ownership import source_fact_cache
@@ -10,8 +9,7 @@ from pcresolve.ownership import source_fact_cache
 
 def test_visitor_fact_payload_is_a_declared_record():
     record = source_fact_cache.SingleFileVisitorFacts
-    assert is_dataclass(record)
-    names = {item.name for item in fields(record)}
+    names = set(record.__slots__)
     assert {
         'return_sources', 'symbols', 'module_cg', 'scope_stack',
         'mapping_facts_literals', '_mapping_edges',

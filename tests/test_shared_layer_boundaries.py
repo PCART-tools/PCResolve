@@ -215,6 +215,31 @@ def test_analyzers_do_not_import_each_other():
     _assert_analyzers_do_not_import_each_other()
 
 
+def _assert_transfer_does_not_inject_modules(directory):
+    for path in directory.rglob('*.py'):
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == 'setattr' and node.args):
+                continue
+            target = node.args[0]
+            if (isinstance(target, ast.Subscript) and isinstance(target.value, ast.Attribute)
+                    and isinstance(target.value.value, ast.Name)
+                    and target.value.value.id == 'sys' and target.value.attr == 'modules'):
+                raise AssertionError('%s:%s: transfer injects a module attribute' % (path, node.lineno))
+
+
+def test_transfer_does_not_inject_module_attributes():
+    _assert_transfer_does_not_inject_modules(PACKAGE / 'flow' / 'transfer')
+
+
+def test_transfer_module_injection_is_detected(tmp_path):
+    (tmp_path / 'probe.py').write_text(
+        "import sys\nsetattr(sys.modules['other'], '_Summary', object())\n", encoding='utf-8')
+    with pytest.raises(AssertionError, match='injects a module attribute'):
+        _assert_transfer_does_not_inject_modules(tmp_path)
+
+
 @pytest.mark.parametrize(('source', 'dependency'), [
     ('ownership', 'flow'), ('flow', 'ownership'),
 ])

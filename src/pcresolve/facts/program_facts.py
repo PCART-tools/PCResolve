@@ -14,6 +14,8 @@ class SourceSpan:
     file_path: str
     lineno: int
     col_offset: int
+    # The public constructor historically annotates these as int even though
+    # parsed nodes may not have end coordinates. Preserve its API signature.
     end_lineno: int
     end_col_offset: int
 
@@ -25,7 +27,7 @@ class SourceSpan:
     #  @return Span; unavailable end positions remain None.
     @classmethod
     def from_ast(cls, file_path, node):
-        return cls(file_path, node.lineno, node.col_offset,
+        return cls(file_path, getattr(node, 'lineno'), getattr(node, 'col_offset'),
                    getattr(node, 'end_lineno', None), getattr(node, 'end_col_offset', None))
 
     ## Source coordinates independent of the file path.
@@ -51,12 +53,12 @@ class SourceSpan:
 #  in their defining scope; this class never evaluates or traces them.
 @dataclass(frozen=True)
 class FunctionSignature:
-    positional_only: tuple = ()
-    positional_or_keyword: tuple = ()
-    keyword_only: tuple = ()
+    positional_only: tuple[str, ...] = ()
+    positional_or_keyword: tuple[str, ...] = ()
+    keyword_only: tuple[str, ...] = ()
     vararg: str = ''
     kwarg: str = ''
-    defaults: tuple = ()
+    defaults: tuple[tuple[str, object], ...] = ()
 
     ## Positional parameter order after any receiver binding performed by the adapter.
     ## 适配器完成接收者绑定后的位置参数顺序。
@@ -81,7 +83,8 @@ class FunctionSignature:
     #  @param positional Optional positional nodes after receiver binding.
     #  @return Signature with declaration-time AST defaults.
     @classmethod
-    def from_ast(cls, args, positional=None):
+    def from_ast(cls, args,
+                 positional = None):
         declared = args.posonlyargs + args.args
         selected = declared if positional is None else positional
         defaults = list(zip(declared[len(declared) - len(args.defaults):], args.defaults))
@@ -105,7 +108,8 @@ class FunctionSignature:
 #  @param signature Callee signature after receiver binding.
 #  @return (Binding records, ordered boundary reasons), without session mutation.
 def bind_ast_call(node, signature):
-    records, reasons = [], []
+    records = []
+    reasons = []
     positional = signature.positional
     defaults = {name for name, _ in signature.defaults}
     position = 0
@@ -156,7 +160,8 @@ def bind_ast_call(node, signature):
     #  @param slot Source position metadata.
     #  @param expanded Whether this item came from a literal starred pack.
     #  @return None
-    def positional_record(argument, slot, expanded=False):
+    def positional_record(argument, slot,
+                          expanded = False):
         nonlocal position
         parameter = None
         target_path = []
@@ -195,23 +200,24 @@ def bind_ast_call(node, signature):
         if (keyword.arg is None and isinstance(keyword.value, ast.Dict)
                 and all(isinstance(key, ast.Constant) and isinstance(key.value, str)
                         for key in keyword.value.keys)
-                and len({key.value for key in keyword.value.keys}) == len(keyword.value.keys)):
-            keyword_arguments.extend((key.value, value, True)
-                                     for key, value in zip(keyword.value.keys, keyword.value.values))
+                and len({getattr(key, 'value') for key in keyword.value.keys}) == len(keyword.value.keys)):
+            for literal_key, value in zip(keyword.value.keys, keyword.value.values):
+                assert isinstance(literal_key, ast.Constant) and isinstance(literal_key.value, str)
+                keyword_arguments.append((literal_key.value, value, True))
         else:
             keyword_arguments.append((keyword.arg, keyword.value, False))
     allowed = signature.keyword_names
     for key, argument, expanded in keyword_arguments:
         if key is None:
             parameter = signature.kwarg if signature.kwarg and not allowed else None
-            target_path = ['*'] if parameter else []
+            keyword_target_path = ['*'] if parameter else []
             reasons.append('dynamic_argument_expansion')
             uncertain_keywords = True
         else:
             parameter = key if key in allowed else (signature.kwarg or None)
-            target_path = [key] if signature.kwarg and parameter == signature.kwarg else []
+            keyword_target_path = [key] if signature.kwarg and parameter == signature.kwarg else []
         add_record({'argument': {'keyword': key}, 'node': argument,
-            'parameter': parameter, 'target_path': target_path,
+            'parameter': parameter, 'target_path': keyword_target_path,
             'status': 'exact' if parameter else 'unresolved',
             'binding_kind': ('dynamic_keyword' if key is None else
                              'expanded_keyword' if expanded else 'explicit')})
@@ -258,10 +264,12 @@ OWNERSHIP_BINDING = SourceBindingPolicy(True, True)
 #  @param index Target positional offset.
 #  @param project Pure callback producing a selected item source.
 #  @return Projected source or None when ambiguous.
-def starred_item_source(stars, index, project):
+def starred_item_source(stars, index,
+                        project):
     if any(start is None for start in stars):
         return None
-    matches = [(start, source) for start, source in sorted(stars.items()) if start <= index]
+    known = [(start, source) for start, source in stars.items() if start is not None]
+    matches = [(start, source) for start, source in sorted(known) if start <= index]
     if len(matches) != 1:
         return None
     start, source = matches[0]
@@ -282,8 +290,11 @@ def starred_item_source(stars, index, project):
 #  @param project Pure callback producing a container-item projection.
 #  @param policy Consumer's pack/default ambiguity policy.
 #  @return Source list, or None when unavailable or ambiguous.
-def bind_parameter_sources(signature, parameter, positional, keywords, stars,
-                           star_keywords, project, policy):
+def bind_parameter_sources(signature, parameter,
+                           positional, keywords,
+                           stars, star_keywords,
+                           project,
+                           policy):
     if parameter in keywords:
         return [keywords[parameter]]
 

@@ -5,14 +5,17 @@
 import ast
 import builtins
 import copy
-from dataclasses import dataclass, field
 from string import Formatter
-from typing import Optional
 
 from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
 from pcresolve.facts.effect_facts import execution_nodes
 from pcresolve.flow.proofs.callables._function_metadata import fresh_function_wraps
 from pcresolve.flow.proofs.classes._class_function_reads import function_reads
+from pcresolve.flow.proofs.classes.deferred._class_deferred_metadata import (
+    store_metadata_member, update_metadata_write,
+)
+from pcresolve.flow.proofs.classes.deferred._class_deferred_state import merge_deferred_branch_state
+from pcresolve.flow.proofs.classes.deferred._class_deferred_expression import rewrite_deferred_expression
 from pcresolve.facts.scope_facts import statement_scope_facts
 from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified
 from pcresolve.flow.proofs.protocols._property_namespace import _stable_builtin_namespace
@@ -64,24 +67,29 @@ def _within_function_budget(analyzer, function):
 
 ## Mutable state owned by one deferred-class proof attempt.
 ## 一次延后类证明尝试独占的可变状态。
-@dataclass
 class _DeferredClassProofState:
-    declarations: list[dict[str, object]] = field(default_factory=list)
-    invocations: list[dict[str, object]] = field(default_factory=list)
-    stores: list[dict[str, object]] = field(default_factory=list)
-    metadata_writes: list[dict[str, object]] = field(default_factory=list)
-    generated_members: list[dict[str, object]] = field(default_factory=list)
-    published_tokens: set[int] = field(default_factory=set)
-    token_nodes: dict[int, ast.AST] = field(default_factory=dict)
-    class_write_sites: list[dict[str, object]] = field(default_factory=list)
-    expression_helper_calls: list[dict[str, object]] = field(default_factory=list)
-    expression_budget: int = 2000
-    namespace_queries: list[dict[str, object]] = field(default_factory=list)
-    namespace_guard: Optional[bool] = None
-    exception_branches: list[dict[str, object]] = field(default_factory=list)
-    module_native: Optional[bool] = None
-    class_aliases: set[str] = field(default_factory=set)
-    dirty_class_names: set[str] = field(default_factory=set)
+    def __init__(self, declarations=None, invocations=None, stores=None,
+                 metadata_writes=None, generated_members=None, published_tokens=None,
+                 token_nodes=None, class_write_sites=None, expression_helper_calls=None,
+                 expression_budget=2000, namespace_queries=None, namespace_guard=None,
+                 exception_branches=None, module_native=None, class_aliases=None,
+                 dirty_class_names=None):
+        self.declarations = list() if declarations is None else declarations
+        self.invocations = list() if invocations is None else invocations
+        self.stores = list() if stores is None else stores
+        self.metadata_writes = list() if metadata_writes is None else metadata_writes
+        self.generated_members = list() if generated_members is None else generated_members
+        self.published_tokens = set() if published_tokens is None else published_tokens
+        self.token_nodes = dict() if token_nodes is None else token_nodes
+        self.class_write_sites = list() if class_write_sites is None else class_write_sites
+        self.expression_helper_calls = list() if expression_helper_calls is None else expression_helper_calls
+        self.expression_budget = expression_budget
+        self.namespace_queries = list() if namespace_queries is None else namespace_queries
+        self.namespace_guard = namespace_guard
+        self.exception_branches = list() if exception_branches is None else exception_branches
+        self.module_native = module_native
+        self.class_aliases = set() if class_aliases is None else class_aliases
+        self.dirty_class_names = set() if dirty_class_names is None else dirty_class_names
 
 
 ## Isolate fresh function-object construction from arbitrary future method bodies.
@@ -165,65 +173,6 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 'no_external_frame_introspection']
                 + [item for wrapper in wrappers for item in wrapper['assumptions']]))}
 
-    ## Record a stored function metadata snapshot when its formation is proven.
-    ## 仅在函数元数据形成得到证明时记录其存储快照。
-    #
-    #  @param name Stored metadata attribute name.
-    #  @param value Local name containing the fresh function.
-    #  @param state Current helper/function binding state.
-    #  @param statement Assignment providing the source evidence.
-    #  @return None; adds complete metadata evidence in place.
-    def store_metadata(name, value, state, statement):
-        payload = state[value][2] if len(state[value]) == 3 else None
-        if payload is None or payload['formation'] is None or name is None:
-            return
-        fact = copy.deepcopy(payload['formation'])
-        if any(fact['metadata_shapes'][key] is None for key in ('documentation', 'name', 'qualname')):
-            return
-        proof.generated_members.append({'attribute': name, 'metadata_formation': fact,
-                                        'store_evidence': span(statement),
-                                        '_token': payload['token']})
-        proof.published_tokens.add(payload['token'])
-
-    ## Update aliased function metadata and invalidate stale stored snapshots.
-    ## 更新别名函数元数据并使过期存储快照失效。
-    #
-    #  @param name Local function binding being updated.
-    #  @param field Metadata field such as __doc__ or __name__.
-    #  @param value Assigned metadata expression.
-    #  @param state Current helper/function binding state.
-    #  @param values Known local string values.
-    #  @param statement Assignment supplying the evidence location.
-    #  @return None; updates aliases and snapshots in place.
-    def metadata_write(name, field, value, state, values, statement):
-        current = state[name]
-        payload = current[2] if len(current) == 3 else None
-        if payload is None:
-            # A branch join can lose metadata precision while retaining the
-            # known native function. Invalidate any possibly aliased store too.
-            proof.generated_members[:] = [
-                record for record in proof.generated_members
-                if proof.token_nodes.get(record['_token']) is not current[1]]
-            return
-        token = payload['token']
-        # A later write through a retained local invalidates earlier snapshots.
-        if token in proof.published_tokens:
-            proof.generated_members[:] = [record for record in proof.generated_members
-                                          if record['_token'] != token]
-        updated = copy.deepcopy(payload)
-        fact = updated['formation']
-        if fact is not None:
-            shape = ['str'] if string(value, values) is not None else (
-                ['NoneType'] if isinstance(value, ast.Constant) and value.value is None
-                and field == '__doc__' else None)
-            fact['metadata_shapes'][{'__doc__': 'documentation', '__name__': 'name',
-                                     '__qualname__': 'qualname'}[field]] = shape
-            fact['metadata_writes'].append(span(statement))
-        for alias, item in list(state.items()):
-            other = item[2] if len(item) == 3 else None
-            if other is not None and other['token'] == token:
-                state[alias] = (item[0], item[1], updated)
-
     ## Cache whether relevant builtin namespace bindings remain stable.
     ## 缓存相关内建命名空间绑定是否稳定的结论。
     #
@@ -237,139 +186,37 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 proof.namespace_guard = False
         return proof.namespace_guard
 
-    ## Inline fresh helpers into expressions while preserving source semantics.
-    ## 将新建辅助函数内联到表达式，同时保留源码语义约束。
-    #
-    #  @param node Expression to validate and rewrite.
-    #  @param state Current helper/function binding state.
-    #  @param values Known local string values for specialization.
-    #  @return Rewritten expression; raises ValueError for unsupported effects.
+    ## Charge the bounded expansion budget for one helper inline.
+    ## 扣减一次辅助函数内联所需的有界展开预算。
+    def consume_helper_budget(helper):
+        count = sum(1 for _ in ast.walk(helper))
+        proof.expression_budget -= count
+        analyzer._class_effect_fact_steps -= count
+        if analyzer._analysis_budget is not None:
+            analyzer._analysis_budget.checkpoint()
+        if proof.expression_budget < 0 or analyzer._class_effect_fact_steps < 0:
+            raise ValueError()
+
+    ## Rewrite one expression and merge its local evidence into this proof.
+    ## 改写单个表达式，并将该次改写证据并入本次证明。
     def expression(node, state, values=None):
         if node is None:
             return None
-        values = values or {}
-
-        ## Rewrite only class-safe observations and immediately invoked helpers.
-        ## 仅改写类安全观察及立即调用的辅助函数。
-        class Inline(ast.NodeTransformer):
-            ## Initialize recursion tracking for helper inlining.
-            ## 初始化辅助函数内联的递归跟踪。
-            ## 初始化辅助函数内联的递归跟踪。
-            #
-            #  @param self AST transformer instance.
-            #  @return None.
-            def __init__(self):
-                self.active = set()
-
-            ## Keep deferred callable bodies opaque during expression rewriting.
-            ## 表达式改写期间保持延后执行的可调用函数体不透明。
-            ## 表达式改写期间保持延后执行的可调用函数体不透明。
-            #
-            #  @param self AST transformer instance.
-            #  @param item Lambda node to preserve.
-            #  @return Unmodified lambda node.
-            def visit_Lambda(self, item):
-                return item
-
-            visit_GeneratorExp = visit_Lambda
-            visit_ListComp = visit_Lambda
-            visit_SetComp = visit_Lambda
-            visit_DictComp = visit_Lambda
-
-            ## Replace a guarded vars(class) membership test with its proof marker.
-            ## 将受守卫的 vars(class) 成员测试替换为证明标记。
-            ## 将受守卫的 vars(class) 成员测试替换为证明标记。
-            #
-            #  @param self AST transformer instance.
-            #  @param item Comparison node to inspect.
-            #  @return Rewritten comparison or recursively transformed node.
-            def visit_Compare(self, item):
-                if (len(item.ops) == 1 and isinstance(item.ops[0], (ast.In, ast.NotIn))
-                        and len(item.comparators) == 1 and string(item.left, values) is not None):
-                    right = item.comparators[0]
-                    if (isinstance(right, ast.Call) and isinstance(right.func, ast.Name)
-                            and right.func.id == 'vars' and len(right.args) == 1 and not right.keywords
-                            and isinstance(right.args[0], ast.Name) and right.args[0].id == parameter
-                            and analyzer._builtin_name_status(ref, function, 'vars') == 'confirmed_builtin'
-                            and native_namespace()):
-                        premise = read_function.namespace(proof.dirty_class_names)
-                        if premise is not None:
-                            premise['lookup_evidence'] = span(item)
-                            proof.namespace_queries.append(premise)
-                            return ast.copy_location(ast.Name(
-                                id='$native_class_namespace_membership', ctx=ast.Load()), item)
-                return self.generic_visit(item)
-
-            ## Validate native lookups and inline one exact private helper call.
-            ## 校验原生查找并内联一个精确的私有辅助函数调用。
-            ## 校验原生查找并内联一个精确的私有辅助函数调用。
-            #
-            #  @param self AST transformer with active recursion state.
-            #  @param call Call expression to inspect.
-            #  @return Rewritten expression or raises ValueError when unsupported.
-            def visit_Call(self, call):
-                if (isinstance(call.func, ast.Name) and call.func.id == 'getattr'
-                        and len(call.args) == 3 and not call.keywords
-                        and isinstance(call.args[0], ast.Name) and call.args[0].id == parameter
-                        and analyzer._builtin_name_status(ref, function, 'getattr') == 'confirmed_builtin'
-                        and native_namespace()):
-                    name = string(call.args[1], values)
-                    fallback = call.args[2]
-                    try:
-                        if any(isinstance(item, ast.Call) for item in ast.walk(fallback)):
-                            raise ValueError()
-                        ast.literal_eval(fallback)
-                        premise = (read_function.namespace(proof.dirty_class_names, absent=name)
-                                   if name else None)
-                    except (ValueError, TypeError, RecursionError):
-                        premise = None
-                    if premise is not None:
-                        premise['lookup_evidence'] = span(call)
-                        proof.namespace_queries.append(premise)
-                        return copy.deepcopy(fallback)
-                if not isinstance(call.func, ast.Name) or call.func.id not in state:
-                    return self.generic_visit(call)
-                name = call.func.id
-                kind, helper = state[name][:2]
-                body = _body(helper) if kind == 'helper' else []
-                if (name in self.active or len(self.active) >= 16 or kind != 'helper'
-                        or not _declaration(helper) or len(body) != 1 or not isinstance(body[0], ast.Return)
-                        or body[0].value is None or helper.args.vararg or helper.args.kwarg
-                        or any(isinstance(item, (ast.Lambda, ast.Yield, ast.YieldFrom, ast.Await,
-                                                ast.NamedExpr)) for item in ast.walk(body[0]))):
-                    raise ValueError()
-                records, reasons = bind_ast_call(call, FunctionSignature.from_ast(helper.args))
-                if reasons or any(record['status'] != 'exact' for record in records):
-                    raise ValueError()
-                count = sum(1 for _ in ast.walk(helper))
-                proof.expression_budget -= count
-                analyzer._class_effect_fact_steps -= count
-                if analyzer._analysis_budget is not None:
-                    analyzer._analysis_budget.checkpoint()
-                if proof.expression_budget < 0 or analyzer._class_effect_fact_steps < 0:
-                    raise ValueError()
-                self.active.add(name)
-                # An immediate lambda preserves argument snapshots, lexical
-                # parameter binding and comprehension scope. Its full body is
-                # still checked by the class-effect validator below.
-                replacement = copy.copy(call)
-                replacement.func = ast.copy_location(ast.Lambda(
-                    args=copy.deepcopy(helper.args), body=copy.deepcopy(body[0].value)), call)
-                # Keep the helper's own parameter scope intact. Nested private
-                # helper references retain the ordinary unresolved-use guard.
-                replacement.args = [self.visit(argument) for argument in replacement.args]
-                replacement.keywords = [ast.keyword(arg=item.arg, value=self.visit(item.value))
-                                        for item in replacement.keywords]
-                self.active.remove(name)
-                proof.expression_helper_calls.append({'call_evidence': span(call),
-                    'helper_evidence': span(helper), 'effects': 'source_body_requires_validation',
-                    'runtime_helper_executed': False})
-                return replacement
-
-        result = Inline().visit(copy.deepcopy(node))
-        if any(isinstance(item, ast.Name) and item.id in state for item in ast.walk(result)):
-            raise ValueError()
-        return result
+        rewritten, namespace_queries, helper_calls = rewrite_deferred_expression(
+            node, state, values or {}, parameter,
+            string_value=string,
+            source_span=span,
+            builtin_name_status=lambda name: analyzer._builtin_name_status(ref, function, name)
+                == 'confirmed_builtin',
+            native_namespace=native_namespace,
+            namespace_read=lambda absent=None: (
+                read_function.namespace(proof.dirty_class_names)
+                if absent is None else read_function.namespace(
+                    proof.dirty_class_names, absent=absent)),
+            consume_helper_budget=consume_helper_budget)
+        proof.namespace_queries.extend(namespace_queries)
+        proof.expression_helper_calls.extend(helper_calls)
+        return rewritten
 
     ## Evaluate a bounded string expression from known values and literals.
     ## 根据已知值和字面量求值有界字符串表达式。
@@ -510,22 +357,6 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
         return ('fresh', body[0], payload), [ast.copy_location(ast.Expr(value=value), call)
                                   for value in arguments]
 
-    ## Merge branch bindings, retaining only facts that agree on both paths.
-    ## 合并分支绑定，仅保留两条路径都一致的事实。
-    #
-    #  @param left Binding state after the left branch.
-    #  @param right Binding state after the right branch.
-    #  @return Conservative binding state after the branch join.
-    def merge(left, right):
-        result = {}
-        for name in set(left) | set(right):
-            if name not in left or name not in right or left[name][:2] != right[name][:2]:
-                result[name] = ('uncertain', None)
-            else:
-                result[name] = (left[name] if left[name] == right[name]
-                                else (*left[name][:2], None))
-        return result
-
     ## Interpret declaration-time statements and preserve bounded branch paths.
     ## 解释声明阶段语句并保留有界分支路径。
     #
@@ -556,11 +387,8 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 left_values, right_values = dict(values), dict(values)
                 branch.body = block(statement.body, left, left_values, depth + 1)
                 branch.orelse = block(statement.orelse, right, right_values, depth + 1)
-                state.clear()
-                state.update(merge(left, right))
-                values.clear()
-                values.update({name: value for name, value in left_values.items()
-                               if right_values.get(name) == value})
+                merge_deferred_branch_state(state, values, left, right,
+                                            left_values, right_values)
                 output.append(branch)
             elif isinstance(statement, ast.Raise):
                 call = statement.exc
@@ -609,7 +437,8 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                             and destination.value.id == parameter):
                         proof.stores.append(span(statement))
                         if isinstance(value, ast.Name):
-                            store_metadata(destination.attr, value.id, state, statement)
+                            store_metadata_member(destination.attr, value.id, state, statement,
+                                                  proof.generated_members, proof.published_tokens, span)
                     else:
                         raise ValueError()
                     output.extend(before + [replacement])
@@ -619,7 +448,9 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                             '__doc__', '__name__', '__qualname__'):
                         raise ValueError()
                     evaluated = expression(value, state, values)
-                    metadata_write(destination.value.id, destination.attr, value, state, values, statement)
+                    update_metadata_write(destination.value.id, destination.attr, value, state, values,
+                                          statement, proof.generated_members, proof.published_tokens,
+                                          proof.token_nodes, span, string)
                     proof.metadata_writes.append(span(statement))
                     output.append(ast.copy_location(ast.Expr(value=evaluated), statement))
                 else:
@@ -646,8 +477,9 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
                 replacement.value.args[2] = placeholder(statement.value.args[2])
                 expression(statement.value.args[1], state, values)
                 proof.stores.append(span(statement))
-                store_metadata(string(statement.value.args[1], values),
-                               statement.value.args[2].id, state, statement)
+                store_metadata_member(string(statement.value.args[1], values),
+                               statement.value.args[2].id, state, statement,
+                               proof.generated_members, proof.published_tokens, span)
                 output.append(replacement)
             else:
                 # Unknown uses of a helper/fresh function (including invocation,
