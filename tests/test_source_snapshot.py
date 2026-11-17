@@ -205,6 +205,21 @@ def test_import_root_order_and_fallback_do_not_expand_source_set():
     assert 'pkg.main' not in index.module_to_file
 
 
+def test_flow_module_names_skip_roots_on_another_drive(monkeypatch):
+    path = str(ROOT / 'pkg/helpers.py')
+    unrelated_root = 'different-drive'
+    commonpath = os.path.commonpath
+
+    def cross_drive(paths):
+        if paths[0] == unrelated_root:
+            raise ValueError("Paths don't have the same drive")
+        return commonpath(paths)
+
+    monkeypatch.setattr(os.path, 'commonpath', cross_drive)
+    assert module_name_for_path(path, [unrelated_root, str(ROOT)], FLOW_MODULES) == 'pkg.helpers'
+    assert module_name_for_path(path, [unrelated_root], FLOW_MODULES) == 'helpers'
+
+
 def test_module_index_retains_duplicate_candidates_and_existing_last_file_winner():
     files = [str(ROOT / 'pkg/contracts.py'), str(ROOT / 'pkg/contracts.pyi')]
     index = ModuleIndex.build(files, [str(ROOT)], FLOW_MODULES)

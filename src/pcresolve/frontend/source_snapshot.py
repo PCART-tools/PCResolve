@@ -174,7 +174,16 @@ def module_name_for_path(path, roots, policy):
     # 数据流适配器保留独立的根目录和包命名策略。
     if policy != FLOW_MODULES:
         raise ValueError('Unknown module naming policy: ' + str(policy))
-    root = next((r for r in roots if os.path.commonpath([r, path]) == r), os.path.dirname(path))
+    root = os.path.dirname(path)
+    for candidate in roots:
+        try:
+            contains = os.path.commonpath([candidate, path]) == candidate
+        except ValueError:
+            # Windows paths on different drives cannot have a common path.
+            contains = False
+        if contains:
+            root = candidate
+            break
     module = os.path.splitext(os.path.relpath(path, root))[0].replace(os.sep, '.')
     return module[:-9] if module.endswith('.__init__') else module
 
