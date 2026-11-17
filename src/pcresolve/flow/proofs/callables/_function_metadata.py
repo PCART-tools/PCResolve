@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._function_metadata
+#  Prove supported function metadata copying.
+#
+#
 #  Default standard wraps on a fresh wrapper and proved plain-function metadata.
 #  为新建包装函数和已证明的普通函数验证标准 wraps 元数据复制。
+
+
 
 import ast
 

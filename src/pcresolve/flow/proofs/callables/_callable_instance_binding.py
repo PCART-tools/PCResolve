@@ -1,6 +1,12 @@
 ## @package pcresolve.flow.proofs.callables._callable_instance_binding
+#  Prove restricted bindings for callable instances.
+#
+#
 #  Narrow snapshot bindings for direct module-level, data-only constructions.
 #  为模块级直接构造的纯数据实例建立受限的快照绑定。
+
+
+
 import ast
 import copy
 import hashlib

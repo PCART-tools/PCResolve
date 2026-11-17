@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._native_class_protocol
+#  Describe native class proof premises.
+#
+#
 #  Versioned source-helper predicates for an independently proved native type input.
 #  为独立证明的原生类型输入提供版本化源码辅助谓词。
+
+
 
 import ast
 import copy

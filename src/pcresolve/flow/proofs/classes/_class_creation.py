@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_creation
+#  Analyze class creation effects.
+#
+#
 #  Bounded __init_subclass__ effects before source class decoration.
 #  对源码类装饰前的 __init_subclass__ 影响进行有界分析。
+
+
 
 import ast
 from pcresolve.flow.proofs.classes._class_effect_attributes import written_attributes

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._constructor_retention_values
+#  Evaluate known receiver values and conditions.
+#
+#
 #  Literal and branch-condition reasoning for receiver retention proofs.
 #  接收者存储保留证明中的字面量与分支条件推理。
+
+
 
 import ast
 

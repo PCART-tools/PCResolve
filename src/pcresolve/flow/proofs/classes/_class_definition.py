@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_definition
+#  Evaluate restricted class namespaces.
+#
+#
 #  Restricted namespace evaluation shared by source class binding proofs.
 #  供源码类绑定证明共享的受限命名空间求值分析。
+
+
 
 import ast
 import copy

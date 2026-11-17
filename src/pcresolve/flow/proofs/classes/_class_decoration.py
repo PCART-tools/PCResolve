@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_decoration
+#  Prove class decorator slot preservation.
+#
+#
 #  Constructor-slot preservation for bounded, identity-returning class decorators.
 #  为有界且返回原类的类装饰器证明构造器槽位保持。
+
+
 
 import ast
 import copy

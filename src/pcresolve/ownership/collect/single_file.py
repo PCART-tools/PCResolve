@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.collect.single_file
+#  Collect ownership facts from one source.
+#
+#
 #  Provide single-file AST-based API call tracing.
 #  提供基于单文件 AST 的 API 调用追踪。
 #
 #  Contains the SingleFileAnalyzer class which visits every node in a
 #  Python file's AST and builds a symbol table + list of API calls with
 #  their resolved primary owners and supporting provenance.
+
+
 
 import ast
 from pcresolve.ownership.collect.single_file_method_resolution import SingleFileMethodResolutionMixin

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.containers.mapping_attribute_transfer
+#  Prove capture retention in constructor state.
+#
+#
 #  Source obligations for retaining a keyword capture in constructor state.
 #  在构造函数状态中保留关键字捕获所需的源码证据条件。
+
+
 
 import ast
 from dataclasses import asdict

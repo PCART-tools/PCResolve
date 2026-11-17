@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.resolve.project_result_binding
+#  Propagate bounded call results.
+#
+#
 #  Bounded call, callback, iterator, and method-result binding passes.
 #  执行有界调用、回调、迭代器和方法返回结果的绑定传播。
+
+
 
 from pcresolve.ownership.ownership_contracts import _has_result_owner_contract
 from pcresolve.ownership.sources import (

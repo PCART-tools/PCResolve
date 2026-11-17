@@ -1,6 +1,10 @@
 ## @package pcresolve.ownership.fact_versions
+#  Track internal fact mutations.
+#
+#
 #  Mutation notifications for internal facts; versions are not schema fields.
 #  内部事实的变更通知；版本号不属于公共 schema 字段。
+
 
 
 ## Ordered dictionary with constant-cost mutation generation.

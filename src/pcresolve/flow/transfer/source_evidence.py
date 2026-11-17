@@ -1,5 +1,10 @@
 ## @package pcresolve.flow.transfer.source_evidence
-#  Query-local source evidence and its bounded lifetime.
+#  Build source evidence for a flow query.
+#
+#
+#  Caches source spans and snippets only for the current summary.
+#  为当前摘要构造并缓存源码位置与片段证据。
+
 
 
 class SourceEvidenceMixin:

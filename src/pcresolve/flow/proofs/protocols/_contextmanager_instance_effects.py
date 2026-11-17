@@ -1,6 +1,11 @@
-## @package pcresolve._contextmanager_instance_effects
+## @package pcresolve.flow.proofs.protocols._contextmanager_instance_effects
+#  Analyze context-manager receiver effects.
+#
+#
 #  Bounded effects for source context managers that temporarily set receiver data attributes.
 #  有界分析临时设置并恢复接收者实例属性的源码上下文管理器效果。
+
+
 
 import ast
 from dataclasses import asdict

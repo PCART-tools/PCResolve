@@ -1,5 +1,12 @@
 ## @package pcresolve.flow.transfer.recursive_summary
-#  Typed construction and execution adapters for recursive summaries.
+#  Construct and execute recursive flow summaries.
+#
+#
+#  Passes inputs to a child-summary factory and returns execution results with
+#  the remaining budget and effects needed by the caller.
+#  将输入交给子摘要工厂，并向调用方返回执行结果、剩余预算及相关效果。
+
+
 
 from collections import namedtuple
 

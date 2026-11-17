@@ -1,6 +1,11 @@
-## @package pcresolve.flow.proofs.classes._class_deferred_expression
+## @package pcresolve.flow.proofs.classes.deferred._class_deferred_expression
+#  Rewrite deferred class-effect expressions.
+#
+#
 #  Bounded expression rewriting for declaration-time class-effect proofs.
 #  为类声明阶段效果证明执行有界表达式改写。
+
+
 
 import ast
 import copy

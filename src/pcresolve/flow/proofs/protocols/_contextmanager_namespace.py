@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._contextmanager_namespace
+#  Model contextmanager construction.
+#
+#
 #  Standard contextmanager function construction, excluding future with effects.
 #  标准 contextmanager 函数构造模型，不包含未来 with 执行产生的效果。
+
+
 
 import ast
 

@@ -1,6 +1,10 @@
 ## @package pcresolve.flow.proofs.protocols._stub_iterability
+#  Read bounded stub iterability facts.
+#
+#
 #  Conservative iterable-return facts from bounded installed type stubs.
 #  根据有界的已安装类型存根保守推断可迭代返回事实。
+
 
 
 from __future__ import annotations

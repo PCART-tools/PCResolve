@@ -1,9 +1,11 @@
 ## @package pcresolve.ownership.library_usage
-#  Library usage index builder.
-#  根据调用和来源证据构建库使用索引。
+#  Build library usage views.
 #
-#  Extracted from cross_file.ProjectAnalyzer so the usage
-#  aggregation logic can be maintained independently.
+#
+#  Aggregates call and provenance evidence into per-library usage records.
+#  根据调用和来源证据聚合各库的使用记录。
+
+
 
 import os
 

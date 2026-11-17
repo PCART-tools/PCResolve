@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._fresh_receiver
+#  Resolve methods on fresh source receivers.
+#
+#
 #  Partial method lookup on the unexposed prefix of a fresh source receiver.
 #  使用保守的源码证据分析新鲜接收者的方法查找。
+
+
 
 import ast
 import copy

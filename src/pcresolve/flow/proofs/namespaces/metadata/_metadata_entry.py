@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_entry
+#  Check metadata declaration premises.
+#
+#
 #  Shared source declaration and member-lookup obligations for metadata helpers.
 #  元数据辅助分析共享的源码声明及成员查找证据要求。
+
+
 
 import ast
 from dataclasses import asdict

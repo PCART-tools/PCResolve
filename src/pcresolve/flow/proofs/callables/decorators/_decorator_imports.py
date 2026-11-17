@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.decorators._decorator_imports
+#  Trace imports during fresh-function decoration.
+#
+#
 #  Conditional cached source imports reached while decorating a fresh function.
 #  建模新鲜函数装饰期间触达的条件式缓存源码导入。
+
+
 
 import ast
 from dataclasses import asdict, replace

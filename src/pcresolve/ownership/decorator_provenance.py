@@ -1,10 +1,11 @@
 ## @package pcresolve.ownership.decorator_provenance
-#  Decorator provenance index and evidence helpers.
-#  装饰器来源索引和证据查询工具。
+#  Index decorator provenance.
 #
-#  Extracted from cross_file.ProjectAnalyzer so decorator evidence
-#  matching (_build_decorator_index, _lookup_decorated_by) lives in
-#  one place.  Does not import ProjectAnalyzer or SingleFileAnalyzer.
+#
+#  Indexes decorator evidence and matches it to calls without importing
+#  the project or single-file analyzer implementations.
+#  建立装饰器证据索引并匹配调用，不依赖项目或单文件分析器实现。
+
 
 
 ## Build a decorator evidence index from SymbolProvenance records.

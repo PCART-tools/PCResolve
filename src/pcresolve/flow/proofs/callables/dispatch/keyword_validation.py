@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.dispatch.keyword_validation
+#  Check source keyword-validation obligations.
+#
+#
 #  Source obligations for mapping-key attribute validation, never runtime facts.
 #  提供映射键属性验证的源码义务，不表示运行时事实。
+
+
 
 import ast
 from dataclasses import asdict

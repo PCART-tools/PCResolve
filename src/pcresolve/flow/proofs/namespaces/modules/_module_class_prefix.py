@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.modules._module_class_prefix
+#  Describe a fresh module-level class prefix.
+#
+#
 #  Fresh root-class namespace before a first bounded module-level call.
 #  首次有界模块级调用前新建根类的命名空间。
+
+
 
 import ast
 import copy

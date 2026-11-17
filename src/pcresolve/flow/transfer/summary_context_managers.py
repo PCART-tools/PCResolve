@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_context_managers
-## @brief Context Managers operations for query-local flow summaries.
+#  Transfer context-manager entry and cleanup.
+#
+#
+#  Orders entry, body and exit effects while retaining boundaries for unsupported protocols.
+#  按顺序处理上下文管理器的进入、主体和退出效果，并保留未支持协议的边界。
+
+
 
 import ast
 import copy

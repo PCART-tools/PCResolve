@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols.class_attribute_effects
+#  Analyze bounded class-attribute writes.
+#
+#
 #  Bounded attribute write sets for one explicitly bound source class object.
 #  为显式绑定的源码类对象计算有界属性写入集合。
+
+
 
 import ast
 from dataclasses import dataclass

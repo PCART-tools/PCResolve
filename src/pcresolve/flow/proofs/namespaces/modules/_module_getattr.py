@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.modules._module_getattr
+#  Check missing module-name obligations.
+#
+#
 #  Bounded missing-name obligations for a source module's property dispatch.
 #  为源码模块的 property 分派建立有界的缺失名称义务。
+
+
 
 import ast
 from dataclasses import asdict

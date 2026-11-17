@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.resolve.project_local_classes
+#  Describe local class identities.
+#
+#
 #  Local class identity, inheritance, and callable-instance evidence.
 #  提供项目本地类身份、继承关系和可调用实例证据。
+
+
 
 import ast
 

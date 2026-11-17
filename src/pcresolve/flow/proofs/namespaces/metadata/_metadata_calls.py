@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_calls
+#  Bind metadata queries at call sites.
+#
+#
 #  Instantiate metadata-query input obligations at a class-creation call site.
 #  在类创建调用点实例化元数据查询的输入义务。
+
+
 
 import ast
 from dataclasses import asdict

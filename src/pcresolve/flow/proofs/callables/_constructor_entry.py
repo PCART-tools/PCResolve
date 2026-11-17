@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._constructor_entry
+#  Describe source constructor entry bindings.
+#
+#
 #  Source class query bindings, separate from actual call-site evidence.
 #  描述源码类查询绑定，并与真实调用点证据分离。
+
+
 
 import ast
 from dataclasses import asdict

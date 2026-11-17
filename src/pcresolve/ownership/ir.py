@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.ir
+#  Represent internal tracing facts.
+#
+#
 #  Internal analysis IR for call sites and trace results.
 #  调用点和追踪结果使用的内部分析中间表示。
+
+
 
 from dataclasses import dataclass, field
 from pcresolve.facts.program_facts import SourceSpan

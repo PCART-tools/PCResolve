@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.views
+#  Build ownership output views.
+#
+#
 #  Output views for ProjectAnalysis facts.
 #
 #  Pure functions: take ProjectAnalysis, return dict/list/str.
 #  Do NOT print, read files, or re-analyze.
 #  All paths are returned as relative POSIX.
 #  将项目分析结果转换为输出视图，不执行分析或读取文件。
+
+
 
 import os
 

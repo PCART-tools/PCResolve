@@ -1,10 +1,13 @@
 ## @package pcresolve.frontend.scanner
 #  Provide file and directory scanning for Python project source files.
 #
+#
 #  Contains the FileScanner class for discovering .py and .pyi files in a
 #  project directory tree, with filtering for hidden files, __pycache__,
 #  and virtual environment directories.
 #  扫描项目中的 Python 源文件，并过滤隐藏目录、缓存和虚拟环境。
+
+
 
 import os
 import copy

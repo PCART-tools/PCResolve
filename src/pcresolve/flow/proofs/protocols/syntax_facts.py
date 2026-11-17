@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols.syntax_facts
+#  Inspect source-only syntax structure.
+#
+#
 #  Source-only AST structure, independent of namespace and value-flow judgments.
 #  仅描述源码 AST 结构，不依赖命名空间或数据流判断。
+
+
 
 import ast
 from collections import deque

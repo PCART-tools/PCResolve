@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_observer
+#  Analyze class metadata observations.
+#
+#
 #  Bounded effects of a private source receiver observing one native class.
 #  分析私有源码接收者观察原生类时产生的有界效果。
+
+
 
 import ast
 import copy

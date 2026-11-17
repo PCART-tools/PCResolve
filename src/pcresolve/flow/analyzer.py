@@ -1,6 +1,12 @@
 ## @package pcresolve.flow.analyzer
 #  Experimental, explicit-boundary value-flow summaries for Python functions.
-#  针对 Python 函数的实验性数据流摘要，显式保留分析边界。
+#
+#
+#  Configures source selection and proof queries, and composes indexing and
+#  per-run analysis components without executing the selected source.
+#  配置源码选择与证明查询，组合索引和单次分析组件，不执行所选源码。
+
+
 
 import ast
 import builtins

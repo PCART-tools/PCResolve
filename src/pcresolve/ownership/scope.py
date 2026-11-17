@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.scope
+#  Model lexical bindings.
+#
+#
 #  Lexical scope and binding model.
 #  词法作用域与绑定模型。
+
+
 
 from dataclasses import dataclass, field
 

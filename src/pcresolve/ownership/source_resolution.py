@@ -1,13 +1,12 @@
 ## @package pcresolve.ownership.source_resolution
-#  SourceSet primary convergence resolver.
+#  Converge structured ownership sources.
 #
-#  Extracted from cross_file.ProjectAnalyzer to keep
-#  _resolve_structured_source() and _top_source() from
-#  tangling with SourceSet-resolution internals.
 #
-#  The class receives callbacks for the bits that still live
-#  on ProjectAnalyzer so we avoid a circular import.
-#  收敛来源集合的首要库候选；通过注入回调避免循环导入。
+#  Resolves primary candidates from source sets using callbacks supplied by
+#  the project analyzer, preserving conservative convergence rules.
+#  使用项目分析器提供的回调收敛来源集合的首要候选，并保留保守收敛规则。
+
+
 
 from pcresolve.ownership.sources import (normalize_source, CallResult, PythonShape,
                                is_structured_source)

@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.collect.single_file_receiver_resolution
+#  Resolve single-file receiver sources.
+#
+#
 #  Resolve receiver, callable, and bounded result ownership in one file.
 #
 #  The mixin operates on SingleFileAnalyzer lexical state and preserves
 #  receiver-resolution order without owning a second analysis state.
 #  基于单文件分析器的词法状态解析接收者、可调用对象和有限结果归属，不另建分析状态。
+
+
 
 import ast
 

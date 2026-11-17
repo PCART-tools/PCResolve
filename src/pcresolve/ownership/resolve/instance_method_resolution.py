@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.resolve.instance_method_resolution
+#  Resolve instance-method ownership.
+#
+#
 #  Resolve ownership for structured instance-method sources.
 #
 #  The mixin owns receiver-specific resolution order while ProjectAnalyzer
 #  supplies project indexes, recursive resolution, and import-origin evidence.
 #  使用项目索引、递归解析和导入来源证据解析实例方法归属。
+
+
 
 from pcresolve.ownership.builtin_ownership import _BUILTIN_CONTAINER_METHODS, _is_builtin
 from pcresolve.ownership.ownership_contracts import _is_verified_result_owner

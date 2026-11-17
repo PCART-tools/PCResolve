@@ -1,6 +1,10 @@
-## @package pcresolve.flow.proofs.classes._class_deferred_state
+## @package pcresolve.flow.proofs.classes.deferred._class_deferred_state
+#  Join deferred declaration state.
+#
+#
 #  Conservative joins for declaration-time helper bindings and literals.
 #  延迟声明辅助函数绑定与字面量事实的保守分支合并。
+
 
 
 ## Merge only facts that agree across both bounded control-flow branches.

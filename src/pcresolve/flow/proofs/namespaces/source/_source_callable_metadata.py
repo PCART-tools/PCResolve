@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.source._source_callable_metadata
+#  Describe wrapper-installed metadata.
+#
+#
 #  Finite custom function metadata installed by a source wrapper decorator.
 #  源码包装装饰器设置的有限自定义函数元数据。
+
+
 
 import ast
 from dataclasses import asdict

@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.resolve.project_method_ownership
+#  Resolve method ownership across files.
+#
+#
 #  Cross-file method ownership and parameter-receiver resolution.
 #  执行跨文件方法归属与形参接收者来源解析。
+
+
 
 from pcresolve.ownership.builtin_ownership import _has_builtin_shape_method
 from pcresolve.ownership.resolve.container_resolution import _tuple_source_item

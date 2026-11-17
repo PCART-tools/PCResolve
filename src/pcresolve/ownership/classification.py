@@ -1,11 +1,12 @@
 ## @package pcresolve.ownership.classification
-#  Classification reason, confidence helpers, and the
-#  priority-ordered ClassificationPipeline.
-#  提供分类原因、置信度辅助函数和按优先级执行的 ClassificationPipeline。
+#  Classify evidence-backed ownership.
 #
-#  Pure functions and the pipeline are extracted from
-#  cross_file.ProjectAnalyzer so that reason/confidence
-#  rules live in one place (Phase 8B).
+#
+#  Centralizes classification reasons and confidence rules in a
+#  priority-ordered pipeline over collected ownership evidence.
+#  在按优先级执行的分类流程中集中处理归属证据、分类原因与置信度规则。
+
+
 
 from pcresolve.ownership.ir import (ClassificationResult,
                  REASON_DIRECT_IMPORT, REASON_LOCAL_DEFINITION,

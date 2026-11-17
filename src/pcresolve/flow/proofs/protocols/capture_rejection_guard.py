@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols.capture_rejection_guard
+#  Describe captured-mapping rejection guards.
+#
+#
 #  Conditional source obligations for rejecting a nonempty captured dictionary.
 #  拒绝非空捕获字典的条件性源码证据要求。
+
+
 
 import ast
 from dataclasses import asdict

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._function_metadata_formation
+#  Describe metadata formation after decoration.
+#
+#
 #  Native function metadata immediately after bounded source decoration.
 #  有界源码装饰完成后原生函数的初始元数据。
+
+
 
 import ast
 import copy

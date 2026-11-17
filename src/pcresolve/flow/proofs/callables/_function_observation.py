@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._function_observation
+#  Guard fresh-function observations.
+#
+#
 #  Source guards for local object isolation during fresh function decoration.
 #  新建函数装饰期间局部对象隔离所需的源码守卫。
+
+
 
 import ast
 import copy

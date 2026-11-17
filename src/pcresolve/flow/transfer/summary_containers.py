@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_containers
-## @brief Containers operations for query-local flow summaries.
+#  Transfer container values and item dependencies.
+#
+#
+#  Models supported construction, projection and mapping operations in the current summary.
+#  在当前摘要中处理受支持的容器构造、元素投影和映射操作。
+
+
 
 import ast
 import copy

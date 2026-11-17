@@ -1,4 +1,12 @@
-# Budget decisions made before call-transfer state is constructed.
+## @package pcresolve.flow.transfer.call_admission
+#  Decide whether a call may enter value-flow transfer.
+#
+#
+#  Computes budget charges and cutoff boundaries before per-call state exists.
+#  A separate operation records admitted call locations in the current query.
+#  在建立单次调用状态前确定预算扣减及截断边界；独立操作记录本次查询中已接纳的调用位置。
+
+
 
 from collections import namedtuple
 

@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.resolve.project_source_tracing
+#  Trace ownership sources across files.
+#
+#
 #  Cross-file receiver, return, attribute, and final-source tracing.
 #  跨文件追踪接收者、返回值、属性和最终来源。
+
+
 
 from pcresolve.ownership.builtin_ownership import _is_builtin
 from pcresolve.ownership.sources import (

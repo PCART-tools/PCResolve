@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_read_binding
+#  Prove restricted class attribute reads.
+#
+#
 #  Source invariants for class attributes which cannot invoke descriptors.
 #  为不会触发描述符的类属性读取建立源码不变式。
+
+
 
 import ast
 import copy

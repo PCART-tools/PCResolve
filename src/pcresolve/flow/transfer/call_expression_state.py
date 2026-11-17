@@ -1,6 +1,10 @@
 ## @package pcresolve.flow.transfer.call_expression_state
+#  Hold state for one call transfer.
+#
+#
 #  Explicit internal state shared by the ordered call-transfer phases.
 #  有序调用转移阶段共享的显式内部状态。
+
 
 
 # A candidate identifies both the source-level function and its syntax.

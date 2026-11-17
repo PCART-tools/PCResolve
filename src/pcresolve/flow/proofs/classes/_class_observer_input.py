@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_observer_input
+#  Describe class-creation metadata inputs.
+#
+#
 #  Class-metadata inputs at the current source class-creation phase.
 #  当前源码类创建阶段中的类元数据输入分析。
+
+
 
 import ast
 import copy

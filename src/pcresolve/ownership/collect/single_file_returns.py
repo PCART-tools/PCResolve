@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_returns
+#  Collect function return facts.
+#
+#
 #  Collect return ownership and call-graph summaries during single-file analysis.
 #  在单文件分析中收集返回值归属和调用图摘要。
+
+
 
 import ast
 

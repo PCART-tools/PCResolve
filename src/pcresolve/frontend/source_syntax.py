@@ -1,6 +1,11 @@
 ## @package pcresolve.frontend.source_syntax
+#  Parse modern and archived sources.
+#
+#
 #  Read-only AST parsing for modern and archived Python source.
 #  为现代和历史 Python 源码提供只读语法树解析。
+
+
 
 import ast
 import io

@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.modules._module_class_effects
-#  Compatibility entry point for module class-effect proofs.
+#  Expose module class-effect proof operations.
+#
+#
+#  Provides the entry point for bounded module and class effect analysis.
+#  为有界模块及类效果分析提供入口。
+
+
 
 from pcresolve.flow.proofs.classes._class_creation_calls import creation_calls
 from pcresolve.flow.proofs.namespaces.modules._module_class_effects_core import module_class_effects as _evaluate

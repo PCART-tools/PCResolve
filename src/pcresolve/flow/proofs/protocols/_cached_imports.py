@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._cached_imports
+#  Analyze source-conditioned cached imports.
+#
+#
 #  Source-conditioned cached imports, separate from arbitrary module execution.
 #  基于源码条件描述缓存导入，不推断任意模块执行。
+
+
 
 import ast
 from dataclasses import asdict

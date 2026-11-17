@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_signature
+#  Prove source signature formation.
+#
+#
 #  Native inspect metadata formation from bounded, callback-free source data.
 #  根据有界且无回调的源码数据构造原生 inspect 元数据事实。
+
+
 
 import ast
 import copy

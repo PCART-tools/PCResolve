@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.decorators._fresh_decoration
+#  Prove isolated fresh-function decoration.
+#
+#
 #  Metadata formatting isolated from an unescaped, freshly created function.
 #  建模作用于尚未逃逸的新建函数的隔离式元数据格式化。
+
+
 
 import ast
 import builtins

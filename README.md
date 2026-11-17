@@ -248,7 +248,7 @@ boundaries.
 ## Development
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 python -m pytest tests/ -v
 python scripts/evaluate_ground_truth.py --view all
 python scripts/verify_ground_truth_calls.py --coverage-only

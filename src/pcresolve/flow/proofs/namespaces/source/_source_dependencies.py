@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.source._source_dependencies
+#  Track source proof dependencies.
+#
+#
 #  Versioned support for explicit source-protocol proofs, outside primary flow.
 #  为显式源码协议证明维护版本化支持依赖，不扩展主数据流范围。
+
+
 
 from pcresolve.frontend.source_snapshot import FLOW_SOURCE, SourceStore
 

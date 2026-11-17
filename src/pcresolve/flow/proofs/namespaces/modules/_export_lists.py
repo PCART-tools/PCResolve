@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.modules._export_lists
+#  Analyze finite export lists.
+#
+#
 #  Finite export-list construction facts, not final module namespace bindings.
 #  分析有限的导出列表构造事实，不推断最终模块命名空间绑定。
+
+
 
 import ast
 import copy

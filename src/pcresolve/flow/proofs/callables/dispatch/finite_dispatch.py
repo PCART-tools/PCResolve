@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.dispatch.finite_dispatch
+#  Expand finite generated dispatch.
+#
+#
 #  Bounded source-only expansion of generated callable tables.
 #  对生成的可调用表进行有界、仅基于源码的展开。
+
+
 
 import ast
 

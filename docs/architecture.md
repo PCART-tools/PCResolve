@@ -65,7 +65,8 @@ by the source construct they model:
 | `flow/index/definitions.py` | Class hierarchy, scope and bounded definition facts |
 | `flow/analysis/proof_context.py` | Source proof preparation and semantic queries |
 | `flow/runtime/analysis_run.py` | Per-run entry traversal and summary merging |
-| `flow/transfer/call_expression.py` | Ordered call-resolution, record, binding, effect and result phases |
+| `flow/transfer/call_entry.py` | Call admission and ordered invocation of transfer phases |
+| `flow/transfer/call_expression.py` | Call-resolution, record, binding, effect and result phases |
 | `flow/transfer/call_expression_state.py` | Explicit per-call working state shared by those phases |
 | `flow/transfer/summary.py` | Query-local summary state and transfer-component composition |
 | `flow/transfer/summary_values.py` | Literal, callable and source-class value facts |
@@ -139,7 +140,7 @@ query-local environment and evidence. `_Summary._make_child_summary()` creates
 a child with the explicitly supplied result, target, source node, remaining
 depth, receiver, and incoming bindings. Context-manager transfer still owns
 cleanup through its existing `try/finally` boundary. `_CallExpressionState` is
-the internal dataclass shared by the ordered call-transfer phases; it is not a
+the internal slotted state shared by the ordered call-transfer phases; it is not a
 public result or JSON schema.
 
 The deferred class proof in `flow/proofs/classes/_class_deferred.py` performs a
@@ -149,8 +150,24 @@ budget before interpreting declaration-time effects. Each proof attempt owns a
 retains only facts that agree at branch joins, and invalidates stored function
 metadata evidence after later writes. Unsupported or open effects return no
 proof; the proof does not execute source bodies or widen inference. These
-boundaries and the remaining internal composition patterns are catalogued in
-[`architecture-1.0.8-follow-up.md`](architecture-1.0.8-follow-up.md).
+boundaries apply to each proof attempt.
+
+For call transfer, `CallEntryMixin.call_expression()` creates one state for each
+admitted call. It passes phase results to subsequent phases and distinguishes
+an unresolved `None` from an empty result. The summary owns call records and
+evidence; transfer phases update the environment for that invocation.
+
+Ownership publishes its next source-fact cache only after project analysis
+finishes. Failed captures or budget exits retain the previous cache, whose
+entries remain subject to source and module-context checks. Flow rebuilds
+query state at analysis entry. The kind-alias proof stages decorator evidence
+locally and publishes it only after all alias checks succeed.
+
+Constructor binding consumes retained-store witnesses; fresh-receiver analysis
+requests an effects summary. An empty witness list contains no established
+stores; an effects result of `None` leaves the effects unproved. Neither value
+proves that execution occurred. These distinctions and cache lifetimes should be
+preserved when modifying proof producers or their consumers.
 
 ## Shared fact layer
 

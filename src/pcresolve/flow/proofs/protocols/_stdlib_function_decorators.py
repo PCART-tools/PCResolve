@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._stdlib_function_decorators
+#  Model supported standard decorators.
+#
+#
 #  Conditional source models for standard decorators that return plain functions.
 #  为返回普通函数的标准装饰器提供条件式来源模型。
+
+
 
 import ast
 

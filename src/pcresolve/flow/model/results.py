@@ -1,5 +1,12 @@
 ## @package pcresolve.flow.model.results
 #  Public experimental value-flow result models.
+#
+#
+#  Defines function selectors, call records and analysis snapshots consumed by
+#  flow queries and serialization. These records use the experimental contract.
+#  定义供数据流查询和序列化使用的函数选择器、调用记录及分析快照，遵循实验性契约。
+
+
 
 import os
 from dataclasses import dataclass, field, asdict

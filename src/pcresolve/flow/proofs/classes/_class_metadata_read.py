@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_metadata_read
+#  Read supported source function metadata.
+#
+#
 #  Native function scalar metadata under a closed source class-use invariant.
 #  在封闭源码类使用不变量下读取原生函数标量元数据。
+
+
 
 import ast
 

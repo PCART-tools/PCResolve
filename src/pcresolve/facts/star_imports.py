@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.star_imports
-#  Bounded source-only expansion of literal __all__ imports.
-#  仅基于源码对字面量 __all__ 的通配导入做有界展开。
+#  Expand supported source wildcard imports.
+#
+#
+#  Uses bounded source witnesses and literal __all__ declarations to record unambiguous aliases.
+#  使用有界源码证据和字面量 __all__ 声明记录无歧义的通配导入别名。
+
+
 
 import ast
 import os

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_type_tests
+#  Analyze guarded class type tests.
+#
+#
 #  Non-escaping class operands of guarded native isinstance/issubclass tests.
 #  建模守卫式原生 isinstance/issubclass 检查中不会逃逸的类操作数。
+
+
 
 import ast
 import builtins

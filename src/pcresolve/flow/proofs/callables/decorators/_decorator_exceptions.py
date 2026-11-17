@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.decorators._decorator_exceptions
+#  Analyze exception paths in decoration.
+#
+#
 #  Exception-only translations inside a bounded decoration proof.
 #  有界装饰证明中仅涉及异常退出的转换。
+
+
 
 import ast
 import copy

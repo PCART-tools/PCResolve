@@ -103,7 +103,7 @@ The stable entry points use these signatures:
 analyze_project(project_root, analysis_limits=None, reuse_source_facts=False)
 analyze_source(source, file_path="<string>")
 ProjectAnalyzer(project_root, analysis_limits=None, reuse_source_facts=False)
-SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
+SingleFileAnalyzer(module_name=None, is_package=False, file_path="", analysis_budget=None)
 ```
 
 `analyze_project` and `ProjectAnalyzer` also accept a `.py`/`.pyi` file path,
@@ -112,6 +112,9 @@ CLI. They return the existing `ProjectAnalysis` result for that single file.
 
 `analyze_source` accepts Python source text. Its `file_path` parameter supplies
 location metadata; it does not select or read a file from disk.
+`SingleFileAnalyzer` is a lower-level AST visitor. Its `analysis_budget` is
+the internal cooperative budget used by project analysis; ordinary callers can
+use `analyze_source` or configure `AnalysisLimits` on `ProjectAnalyzer`.
 
 PCResolve uses one lexical scope model. There is no public scope-model selector
 or `stats.scope_model` field.
@@ -144,16 +147,29 @@ FlowAnalyzer(
     project_root=None,
     return_summaries=None,
     parameter_shapes=None,
+    analysis_limits=None,
+    support_source_protocols=False,
+    source_store=None,
 )
 FlowAnalyzer.analyze(entry, max_depth=1, max_functions=500,
-                     max_call_contexts=2000)
-FlowAnalyzer.expand(result, call_id, additional_depth=1)
+                     max_call_contexts=2000, conditional_source_state=False,
+                     max_class_effect_steps=8000)
+FlowAnalyzer.expand(result, call_id, additional_depth=1, isolate=False,
+                    preserve_lineage=False)
 ```
 
 Exactly one of `project_root` and `source_files` is required. `entry` is a
 `FunctionRef`; its `module` and dotted `qualname` identify a function, nested
 function, or method. File path and definition line can disambiguate duplicate
 definitions in the Python API.
+
+`analysis_limits` applies cooperative resource limits to an analysis run.
+`support_source_protocols` opts in to separately versioned supporting-source
+proofs, and `source_store` can provide a shared source store. The boolean
+`conditional_source_state` opts in to conditional class-state facts;
+`max_class_effect_steps` bounds class-effect proof work. For `expand`,
+`preserve_lineage=True` requires `isolate=True`. Expansion returns a new
+snapshot and validates its source and contract dependencies.
 
 `FlowAnalysis.to_dict()` emits `schema_version="flow-0.2"` with `entry`,
 `inputs`, `functions`, `calls`, and `boundaries`. `find_calls()` and

@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_statements
-## @brief Statements operations for query-local flow summaries.
+#  Transfer Python statements and control flow.
+#
+#
+#  Processes assignments, guards, exception paths and summary execution.
+#  处理赋值、守卫、异常路径以及摘要执行过程。
+
+
 
 import ast
 import copy

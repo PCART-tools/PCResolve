@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.ownership_contracts
+#  Define evidence-backed ownership contracts.
+#
+#
 #  Evidence-backed ownership and Python-shape result contracts.
 #
 #  These rules are ownership policy, not shared program facts. Both the
 #  single-file and project analyzers import them without depending on each
 #  other's implementation.
 #  根据已记录证据提供归属和 Python 结果形态契约，供两种归属分析器使用。
+
+
 
 from pcresolve.ownership.sources import PythonShape
 

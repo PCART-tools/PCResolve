@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_class_effects
-## @brief Class Effects operations for query-local flow summaries.
+#  Track class and receiver effects during flow analysis.
+#
+#
+#  Handles class lookup evidence and invalidates affected class or receiver state.
+#  处理类查找证据，并使受影响的类或接收者状态失效。
+
+
 
 import ast
 import copy

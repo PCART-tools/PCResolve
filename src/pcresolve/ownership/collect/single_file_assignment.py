@@ -1,6 +1,12 @@
 ## @package pcresolve.ownership.collect.single_file_assignment
+#  Collect single-file assignments.
+#
+#
 #  Collect assignment and container-binding facts during single-file analysis.
 #  收集单文件赋值、调用绑定和容器形状事实。
+
+
+
 #
 #  The mixin operates on SingleFileAnalyzer visitor state so lexical binding
 #  timing, target positions, and container invalidation remain unchanged.

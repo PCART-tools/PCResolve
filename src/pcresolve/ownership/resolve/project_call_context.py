@@ -1,6 +1,10 @@
 ## @package pcresolve.ownership.resolve.project_call_context
+#  Resolve project call contexts.
+#
+#
 #  Exact project call targets, bounded contexts, and parameter binding.
 #  精确解析项目调用目标、有界调用上下文和参数绑定。
+
 
 
 from pcresolve.ownership.call_graph import FunctionId

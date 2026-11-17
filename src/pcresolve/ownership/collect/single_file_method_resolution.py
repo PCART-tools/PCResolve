@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.collect.single_file_method_resolution
+#  Resolve single-file method receivers.
+#
+#
 #  Resolve method receiver sources during single-file AST analysis.
 #
 #  The mixin preserves lexical visitor state on SingleFileAnalyzer while
 #  isolating receiver-shape and method-source policy from AST orchestration.
 #  在保留词法访问状态的同时，将接收者形状和方法来源规则与 AST 编排分开。
+
+
 
 import ast
 from pcresolve.ownership.collect.single_file_query import memoized_expression_query

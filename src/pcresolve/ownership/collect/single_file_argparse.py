@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_argparse
+#  Track argparse namespace facts.
+#
+#
 #  Track argparse Namespace fields and their conservative Python shapes.
 #  跟踪 argparse Namespace 字段及其保守的 Python 形状。
+
+
 
 import ast
 

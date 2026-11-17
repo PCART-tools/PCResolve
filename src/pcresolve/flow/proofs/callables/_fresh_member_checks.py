@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._fresh_member_checks
+#  Check fresh-receiver member obligations.
+#
+#
 #  Source obligations for first-item validation on a bounded fresh receiver.
 #  为有界新鲜接收者的首项校验建立源码义务。
+
+
 
 import ast
 import copy

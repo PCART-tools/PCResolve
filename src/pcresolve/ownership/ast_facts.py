@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.ast_facts
+#  Index syntax facts for one source version.
+#
+#
 #  Read-only syntax indexes scoped to a source generation.
 #  局限于单次源码生成版本的只读语法索引。
+
+
 
 import ast
 from dataclasses import dataclass

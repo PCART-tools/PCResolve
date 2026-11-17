@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_values
-## @brief Values operations for query-local flow summaries.
+#  Track value and source-class facts in a summary.
+#
+#
+#  Resolves callable and class values and invalidates affected literal or lookup facts.
+#  解析可调用对象和类值，并使受影响的字面量或查找事实失效。
+
+
 
 import ast
 import copy

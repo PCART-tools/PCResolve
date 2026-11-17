@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_effects
-## @brief Effects operations for query-local flow summaries.
+#  Apply supported function and mapping effects.
+#
+#
+#  Propagates call effects and widens mapping remainder facts when needed.
+#  传播调用效果，并在需要时扩大映射余项事实的保守范围。
+
+
 
 import ast
 import copy

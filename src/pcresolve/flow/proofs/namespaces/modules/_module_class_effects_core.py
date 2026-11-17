@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.modules._module_class_effects_core
+#  Analyze module class-call effects.
+#
+#
 #  Bounded effects of the first explicit source classmethod module call.
 #  模块中首次显式源码类方法调用的有界效果。
+
+
 
 import ast
 from dataclasses import asdict

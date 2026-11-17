@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_builtins
+#  Recognize builtins during collection.
+#
+#
 #  Builtin-call predicates shared by single-file ownership adapters.
 #  单文件归属适配器共享的内置调用判断。
+
+
 
 import ast
 

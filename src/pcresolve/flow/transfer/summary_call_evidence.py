@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_call_evidence
-## @brief Call Evidence operations for query-local flow summaries.
+#  Record call evidence and boundaries for flow summaries.
+#
+#
+#  Provides call-site evidence, callable facts and boundary records on the current summary.
+#  为当前摘要记录调用点证据、可调用对象事实和分析边界。
+
+
 
 import ast
 from dataclasses import asdict

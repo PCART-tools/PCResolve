@@ -1,6 +1,11 @@
 ## @package pcresolve.__main__
 #  Command-line entry point for the PCResolve package.
-#  PCResolve 包的命令行入口。
+#
+#
+#  Invokes the same CLI entry point used by the installed console script.
+#  调用与已安装控制台脚本相同的命令行入口。
+
+
 
 from .cli import main
 

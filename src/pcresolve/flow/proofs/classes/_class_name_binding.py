@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_name_binding
+#  Bind supported source class names.
+#
+#
 #  Restricted source-snapshot class-name values at a bound helper's entry.
 #  在已绑定辅助函数的入口处分析受限源码快照类名称值。
+
+
 
 import ast
 import copy

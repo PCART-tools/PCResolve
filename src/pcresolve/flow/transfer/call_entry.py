@@ -1,5 +1,12 @@
 ## @package pcresolve.flow.transfer.call_entry
 #  Explicit call admission and ordered transfer orchestration.
+#
+#
+#  Admits a call against the current budgets, creates per-call state and passes
+#  phase results to effect and return resolution in execution order.
+#  按当前预算接纳调用，建立单次调用状态，并按执行顺序将阶段结果传给效果和返回值解析。
+
+
 
 from dataclasses import asdict
 from collections import namedtuple

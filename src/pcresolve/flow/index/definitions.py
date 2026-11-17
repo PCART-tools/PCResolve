@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.index.definitions
+#  Index flow definitions and class facts.
+#
+#
 #  Source class hierarchy, scope and bounded definition facts.
 #  源码类层次、作用域和有界定义事实。
+
+
 
 import ast
 

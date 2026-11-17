@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._kind_alias_scan
+#  Check kind aliases within a module.
+#
+#
 #  Module-local closure checks for inspect.Parameter kind aliases.
 #  检查 inspect.Parameter kind 别名在单个模块内是否保持封闭。
+
+
 
 import ast
 

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_literal_loops
+#  Specialize bounded literal factory loops.
+#
+#
 #  Bounded syntax specialization of fresh literal factory-table iteration.
 #  对新建字面量工厂表迭代执行有界语法特化，不运行用户代码。
+
+
 
 import ast
 import copy

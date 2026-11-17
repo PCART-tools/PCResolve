@@ -1,4 +1,11 @@
-# Binding completion decisions shared by call-transfer stages.
+## @package pcresolve.flow.transfer.call_binding_state
+#  Share call-argument binding facts between transfer stages.
+#
+#
+#  Tracks argument values, binding records and issues for one call.
+#  Distinguishes a proved invalid binding from an unavailable signature.
+#  在单次调用中保存实参值、绑定记录及问题，并区分已证明的绑定错误和不可用的签名。
+
 
 
 from collections import namedtuple

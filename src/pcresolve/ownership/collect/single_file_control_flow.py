@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_control_flow
+#  Visit single-file control flow.
+#
+#
 #  Loop, branch, comprehension, and generator visitors for ownership analysis.
 #  为归属分析处理循环、分支、推导式和生成器访问。
+
+
 
 import ast
 from dataclasses import replace

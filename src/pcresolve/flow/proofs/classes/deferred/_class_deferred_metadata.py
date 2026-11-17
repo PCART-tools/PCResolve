@@ -1,6 +1,11 @@
-## @package pcresolve.flow.proofs.classes._class_deferred_metadata
+## @package pcresolve.flow.proofs.classes.deferred._class_deferred_metadata
+#  Track generated function metadata.
+#
+#
 #  Formation and invalidation of generated function metadata evidence.
 #  新建函数元数据证据的形成与失效管理。
+
+
 
 import copy
 import ast

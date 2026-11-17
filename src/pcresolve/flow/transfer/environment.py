@@ -1,5 +1,10 @@
 ## @package pcresolve.flow.transfer.environment
-#  Conservative joins of flow environments and result sources.
+#  Merge value-flow environments.
+#
+#
+#  Joins branch bindings and result sources conservatively when paths differ.
+#  在分支路径不同时保守合并变量绑定与结果来源。
+
 
 
 def _unique(values):

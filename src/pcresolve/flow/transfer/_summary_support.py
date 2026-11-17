@@ -1,6 +1,12 @@
-## @package pcresolve.flow.transfer.summary
-#  Experimental, explicit-boundary value-flow summaries for Python functions.
-#  针对 Python 函数的实验性数据流摘要，显式保留分析边界。
+## @package pcresolve.flow.transfer._summary_support
+#  Provide shared value-flow summary helpers.
+#
+#
+#  Supplies call identifiers, environment keys and convergence helpers used by
+#  transfer components; it does not construct an analyzer.
+#  为传播组件提供调用标识、环境键和收敛辅助函数，不负责构造分析器。
+
+
 
 import ast
 import builtins

@@ -1,4 +1,7 @@
 ## @package pcresolve.cli
+#  Run the PCResolve command line.
+#
+#
 #  Provide command-line entry point for the pcresolve tool.
 #  提供 pcresolve 命令行入口及文本、JSON 和解释视图输出。
 #
@@ -10,6 +13,8 @@
 #    pcresolve --json-full /path/to/project
 #    pcresolve --debug-dump /path/to/project
 #    python -m pcresolve /path/to/project
+
+
 
 import argparse
 import json

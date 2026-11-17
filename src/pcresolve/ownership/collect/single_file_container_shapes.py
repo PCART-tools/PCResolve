@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_container_shapes
+#  Collect single-file value shapes.
+#
+#
 #  Container, item, field, and Python value-shape facts for one source file.
 #  收集单个源码文件中的容器、元素、字段和 Python 值形状事实。
+
+
 
 import ast
 from pcresolve.ownership.collect.single_file_query import memoized_expression_query

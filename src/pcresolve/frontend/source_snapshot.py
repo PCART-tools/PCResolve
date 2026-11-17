@@ -1,7 +1,12 @@
 ## @package pcresolve.frontend.source_snapshot
-#  Internal source versions, read-only AST snapshots, and module naming facts.
-#  Call-target resolution and propagation policies belong to the consumers.
-#  保存源码版本、只读语法树快照和模块命名事实；调用解析由使用方负责。
+#  Capture source snapshots and module naming facts.
+#
+#
+#  Maintains versioned source documents, read-only ASTs and module indexes;
+#  call-target resolution and propagation policies belong to the consumers.
+#  保存版本化源码文档、只读语法树及模块索引；调用目标解析与传播策略由使用方负责。
+
+
 
 import ast
 import hashlib

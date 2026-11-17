@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.sources
+#  Represent structured ownership sources.
+#
+#
 #  Typed source IR and compatibility helpers.
 #
 #  Provides frozen dataclasses to replace bare legacy tuples
 #  ("container_item", ...) etc., plus normalise/display/legacy adapters.
 #  提供类型化来源中间表示以及规范化、展示和旧格式适配工具。
+
+
 
 from dataclasses import dataclass
 from typing import Optional, Union

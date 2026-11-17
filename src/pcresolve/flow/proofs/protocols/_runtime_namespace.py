@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._runtime_namespace
+#  Track possible module-binding writes.
+#
+#
 #  Possible source writes to import-backed module bindings, without execution.
 #  不执行源码，检查对导入来源模块绑定的可能写入。
+
+
 
 import ast
 from dataclasses import asdict

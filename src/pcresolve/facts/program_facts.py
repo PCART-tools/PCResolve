@@ -1,7 +1,11 @@
 ## @package pcresolve.facts.program_facts
-#  Internal syntax facts and pure binding operations shared by analysis policies.
-#  This layer neither resolves owners nor computes value-flow summaries.
-#  保存共享语法事实并提供纯绑定操作，不解析归属或计算数据流摘要。
+#  Provide shared syntax and binding facts.
+#
+#
+#  Describes source spans and signatures and binds calls without deciding ownership or value-flow results.
+#  描述源码位置与函数签名并执行调用绑定，不决定归属或数据流结果。
+
+
 
 import ast
 from dataclasses import dataclass

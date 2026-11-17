@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.containers.mapping_key_access
+#  Describe bounded keyword-map access.
+#
+#
 #  Bounded source footprints for nonescaping keyword-capture dictionaries.
 #  未逃逸关键字捕获字典的有界源码访问记录。
+
+
 
 import ast
 from dataclasses import asdict

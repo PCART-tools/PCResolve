@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_parameter_dependency
+#  Track parameter-derived evidence.
+#
+#
 #  Parameter-derived expression evidence for single-file ownership analysis.
 #  为单文件归属分析提供参数派生表达式的证据。
+
+
 
 import ast
 

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.dispatch.conditional_constructor
+#  Resolve conditional constructor signatures.
+#
+#
 #  Signature references under explicit lookup requirements, never body bindings.
 #  在显式查找前提下引用构造器签名，不推断函数体绑定。
+
+
 
 import ast
 import copy

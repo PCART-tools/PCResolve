@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_creation
+#  Model native metadata formation.
+#
+#
 #  Native descriptor/data formation used by source metadata observers.
 #  为源码元数据观察器提供原生描述符和数据对象的构造模型。
+
+
 
 import ast
 import re

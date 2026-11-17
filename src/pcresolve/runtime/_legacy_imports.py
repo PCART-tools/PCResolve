@@ -1,6 +1,11 @@
 ## @package pcresolve.runtime._legacy_imports
+#  Support legacy module imports.
+#
+#
 #  Resolve previous flat module paths only when a caller imports them.
 #  仅在调用方导入旧模块路径时解析历史平铺模块名。
+
+
 
 from importlib import import_module, machinery
 from importlib.abc import Loader, MetaPathFinder

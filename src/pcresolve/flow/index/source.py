@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.index.source
+#  Build flow source indexes.
+#
+#
 #  Source discovery, parsing and generation-local definition indexes.
 #  源码发现、解析和按源码代次隔离的定义索引。
+
+
 
 import ast
 

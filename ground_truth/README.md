@@ -1,7 +1,13 @@
-# PCResolve 1.0.5 Ground Truth Evaluation
+# PCResolve ownership ground truth
 
 Real-project ground truth for evaluating PCResolve's API call ownership
 accuracy (recall, precision, ownership accuracy).
+
+The locked corpus and its labeling conventions originated with 1.0.5; version
+references below identify that historical corpus rather than the current
+package version. The current evaluation scope and reported results are
+summarized in [Validation](../docs/validation.md). The review files are
+generated views of the checked-in annotations, not API documentation.
 
 ## Scope
 
@@ -75,7 +81,7 @@ Run `python scripts/add_verification_levels.py --check` to validate either
 state.  It accepts both `reviewed` and `locked` and exits non-zero on any
 blocker.
 
-For the stable 1.0.5 release, run
+For the current release check, run
 `python scripts/classify_ground_truth_failures.py --release-check`. It also
 checks generated disposition artifacts and fails until the open-fix and
 GT-correction queues are both empty. Reviewed `accepted_unknown` records

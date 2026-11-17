@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._source_protocols
+#  Provide source-proven protocol helpers.
+#
+#
 #  Source-proven protocol helpers, independent of library/API spellings.
 #  提供与库或 API 名称无关、由源码证据支持的协议分析辅助逻辑。
+
+
 
 import ast
 

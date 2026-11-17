@@ -25,5 +25,17 @@ The relocation mapping is an approved compatibility target, not a claim that
 the new paths existed in the reference commit.
 
 The analysis comparison requires the same Python version and hash seed as the
-baseline. CI compares from a separate checkout; generated comparison results
-belong in build artifacts rather than this directory.
+baseline. On Windows, CI compares with the checked-in `analysis.json`. On
+Ubuntu 24.04, CI runs `scripts/capture_platform_baseline.py` to capture the
+same reference revision on Linux, then compares the current checkout with that
+platform-specific result. The capture checks the Git object IDs of the three
+corpus inputs in both revisions before running. It uses the current fingerprint
+and flow path normalization on both revisions; ownership output is compared
+on the same operating system rather than against Windows-specific fingerprints.
+Generated reports belong in build artifacts rather than this directory.
+
+The API comparison checks the recorded exports and legacy module mappings.
+An unchanged fingerprint means the captured output agrees with its reference;
+neither check alone proves that the shared semantic result is correct. The
+reviewed ownership corpus and strict value-flow matrix provide separate
+behavioral checks, with the limits described in `docs/validation.md`.

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._constructor_retention_selection
+#  Select retained-store witnesses.
+#
+#
 #  Conflict checks and witness selection after receiver-effect collection.
 #  接收者效果事实收集后的冲突检查与 witness 筛选。
+
+
 
 import ast
 

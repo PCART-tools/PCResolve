@@ -1,6 +1,10 @@
 ## @package pcresolve.ownership.ownership_model
+#  Own one ownership analysis run.
+#
+#
 #  Explicit internal state for one ownership analysis run.
 #  单次归属分析运行使用的显式内部状态。
+
 
 
 from collections import namedtuple

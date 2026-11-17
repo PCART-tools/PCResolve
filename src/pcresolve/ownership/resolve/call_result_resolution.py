@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.resolve.call_result_resolution
+#  Resolve call-result ownership.
+#
+#
 #  Resolve ownership for structured call-result sources.
 #
 #  This mixin keeps the call-result state machine separate from project
 #  orchestration while delegating project indexes and recursive resolution
 #  to ProjectAnalyzer.
 #  该混入类将调用结果解析状态与项目编排分开，并委托 ProjectAnalyzer 查询索引和递归解析。
+
+
 
 from pcresolve.ownership.sources import (
     CallResult, ContainerItem, DerivedResult, InstanceMethod, PythonShape,

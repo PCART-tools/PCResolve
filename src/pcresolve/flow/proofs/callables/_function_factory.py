@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._function_factory
+#  Analyze bounded decorator factories.
+#
+#
 #  Bounded source decorator factories over literal and native signature metadata.
 #  根据字面量和原生签名元数据有界分析源码装饰器工厂。
+
+
 
 import ast
 import copy

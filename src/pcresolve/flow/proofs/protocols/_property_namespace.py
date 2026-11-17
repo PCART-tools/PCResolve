@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._property_namespace
+#  Model builtin property construction.
+#
+#
 #  Builtin property construction is separate from descriptor access or execution.
 #  内置 property 构造与描述符访问或执行分开分析。
+
+
 
 import ast
 import builtins

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_identity
+#  Prove class decorator return identity.
+#
+#
 #  Normal class-decorator return identity, independent of class write effects.
 #  独立于类属性写入效果，证明类装饰器正常返回时的对象身份。
+
+
 
 import ast
 import copy

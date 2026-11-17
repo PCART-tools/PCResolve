@@ -1,6 +1,11 @@
 ## @package pcresolve.runtime.limits
+#  Enforce cooperative analysis limits.
+#
+#
 #  Opt-in cooperative whole-analysis limits, separate from semantic proof budgets.
 #  可选的全分析协作式资源限制，与语义证明预算分离。
+
+
 
 import math
 import os

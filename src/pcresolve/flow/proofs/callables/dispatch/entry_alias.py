@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.dispatch.entry_alias
+#  Trace entry-point aliases.
+#
+#
 #  Bounded lexical references for API selection, separate from runtime binding.
 #  为 API 选择提供有界词法引用，并与运行时绑定区分开。
+
+
 
 import ast
 import copy

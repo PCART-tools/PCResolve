@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_query
+#  Reuse single-file query results.
+#
+#
 #  Query-local reuse for single-file receiver and container-shape resolution.
 #  单文件接收者与容器形态解析中的查询内结果复用。
+
+
 
 from functools import wraps
 

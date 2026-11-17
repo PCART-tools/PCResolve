@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_creation_calls
+#  Analyze class-creation method calls.
+#
+#
 #  Finite source classmethod effects during one ordinary class creation phase.
 #  分析普通类创建阶段中有限的源码类方法影响。
+
+
 
 import ast
 import copy

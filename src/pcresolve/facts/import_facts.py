@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.import_facts
-#  Immutable import-syntax facts and relative-module name resolution.
-#  不可变的导入语法事实及相对模块名解析。
+#  Represent Python import syntax.
+#
+#
+#  Extracts immutable import bindings and resolves relative module names without importing source code.
+#  提取不可变导入绑定并解析相对模块名，不导入待分析源码。
+
+
 
 import ast
 from dataclasses import dataclass

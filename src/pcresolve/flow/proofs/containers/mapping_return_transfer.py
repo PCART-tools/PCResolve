@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.containers.mapping_return_transfer
+#  Describe returned mappings after updates.
+#
+#
 #  Conditional source facts for fresh mappings returned after a capture update.
 #  为捕获更新后返回的新建映射收集条件式源码事实。
+
+
 
 import ast
 from dataclasses import asdict

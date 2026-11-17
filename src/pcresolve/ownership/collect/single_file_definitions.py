@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_definitions
+#  Collect definitions and decorators.
+#
+#
 #  Function, lambda, class, decorator, and constructor-field collection.
 #  函数、lambda、类、装饰器和构造函数字段的收集逻辑。
+
+
 
 import ast
 from dataclasses import dataclass

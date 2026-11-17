@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.protocols._caller_inputs
+#  Collect bounded caller-input facts.
+#
+#
 #  Bounded caller literals, independent of library policy and runtime execution.
 #  与库策略和运行时执行无关的有界调用方字面量事实。
+
+
 
 import ast
 import math

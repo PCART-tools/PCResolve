@@ -1,6 +1,12 @@
 ## @package pcresolve.ownership.types
+#  Define public ownership result records.
+#
+#
 #  Shared data types for API ownership and provenance analysis results.
 #  API 归属和符号来源分析结果使用的共享数据类型。
+
+
+
 #
 
 from dataclasses import dataclass, field

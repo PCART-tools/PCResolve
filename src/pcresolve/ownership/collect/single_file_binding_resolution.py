@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.collect.single_file_binding_resolution
+#  Collect local binding facts.
+#
+#
 #  Bind decorated targets, assignment targets, iterators, and finite guards.
 #
 #  The mixin shares SingleFileAnalyzer lexical state so binding time and AST
 #  traversal order remain unchanged.
 #  绑定装饰器、赋值目标和迭代来源，并处理有界条件守卫。
+
+
 
 import ast
 

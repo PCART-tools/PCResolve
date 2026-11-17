@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.collect.single_file_source_resolution
+#  Trace single-file expression sources.
+#
+#
 #  Expression-to-source tracing for the single-file ownership visitor.
 #  为单文件归属访问器追踪表达式来源。
+
+
 
 import ast
 

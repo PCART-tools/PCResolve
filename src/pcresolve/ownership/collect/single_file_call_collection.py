@@ -1,9 +1,14 @@
 ## @package pcresolve.ownership.collect.single_file_call_collection
+#  Collect source call facts.
+#
+#
 #  Collect call-edge and public API-call facts during single-file analysis.
 #
 #  The mixin operates on SingleFileAnalyzer visitor state so call ordering,
 #  lexical bindings, and exact source positions remain snapshot-consistent.
 #  在单文件分析中收集调用边与公开 API 调用事实，并保持调用顺序、词法绑定和源码位置与快照一致。
+
+
 
 import ast
 from dataclasses import replace

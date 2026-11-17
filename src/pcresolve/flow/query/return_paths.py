@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.query.return_paths
-#  Compose return dependencies from an existing flow result.
+#  Compose return dependencies from a flow result.
+#
+#
+#  Traverses recorded dependencies to answer parameter-to-return queries.
+#  沿已记录的依赖关系查询参数到返回值的传播路径。
+
+
 
 import copy
 from dataclasses import asdict

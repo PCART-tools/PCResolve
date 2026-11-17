@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.decorators._decorator_effects
+#  Prove bounded decorator effects.
+#
+#
 #  Private, bounded flow-adapter proof for one source decoration, not ownership.
 #  对单个源码装饰执行私有、有界的 flow adapter 证明，不分析归属。
+
+
 
 import ast
 import copy

@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.return_resolution
-#  Owner-neutral call bindings and bounded return-dependency substitution.
-#  与归属无关的调用绑定和有界返回依赖替换。
+#  Represent call and return dependencies.
+#
+#
+#  Binds supplied values to call inputs and substitutes bounded return dependencies for consumers.
+#  为调用输入绑定值，并向使用方提供有界返回依赖替换。
+
+
 
 from dataclasses import dataclass
 from collections.abc import Mapping

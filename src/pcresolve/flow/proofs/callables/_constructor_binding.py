@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._constructor_binding
+#  Bind an implicit constructor receiver.
+#
+#
 #  Source-only implicit receiver binding for one constructor invocation phase.
 #  仅基于源码为单个构造阶段推导隐式接收者绑定。
+
+
 
 import ast
 import copy

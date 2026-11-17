@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.metadata._metadata_queries
+#  Analyze callable metadata queries.
+#
+#
 #  Conditional source effects for scalar queries of native callable metadata.
 #  分析原生可调用对象元数据标量查询产生的条件源码效果。
+
+
 
 import ast
 import copy

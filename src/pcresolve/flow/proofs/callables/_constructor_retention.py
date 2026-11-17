@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables._constructor_retention
+#  Prove retained writes on fresh receivers.
+#
+#
 #  Partial fresh-receiver write proofs, separate from execution/completion facts.
 #  推导新鲜接收者的部分写入事实，并与执行和完成状态分开。
+
+
 
 import ast
 from dataclasses import asdict

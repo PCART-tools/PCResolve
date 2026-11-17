@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.diagnostics
+#  Represent analysis diagnostics.
+#
+#
 #  Structured diagnostics emitted during analysis.
 #  分析过程中产生的结构化诊断。
+
+
 
 from dataclasses import dataclass
 

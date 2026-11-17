@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.mapping_facts
+#  Track callback mapping facts.
+#
+#
 #  Private literal-mapping facts for local callback edges, not owner sources.
 #  为本地回调边记录私有字面量映射事实，不用于判定所有者来源。
+
+
 
 import ast
 from dataclasses import dataclass, field

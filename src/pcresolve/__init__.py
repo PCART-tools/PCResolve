@@ -1,4 +1,7 @@
 ## @package pcresolve
+#  Expose the PCResolve Python API.
+#
+#
 #  Project-level Python static analysis for API ownership and library usage
 #  provenance.
 #  面向项目级 Python API 归属与库使用来源的静态分析。
@@ -9,6 +12,8 @@
 #    result = pcresolve.analyze_project("/path/to/a.py")  # Select one source.
 #    for call in result.all_api_calls:
 #        print(f"{call.expression} -> {call.top_library}")
+
+
 
 from pcresolve.frontend.scanner import FileScanner, scan_directory
 from pcresolve.frontend.module_mapper import ModuleMapper

@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.builtin_ownership
+#  Classify proven Python builtins.
+#
+#
 #  Proven Python builtin callable and receiver-shape rules for ownership.
 #  基于已证明的 Python 内置可调用对象和接收者形态判断归属。
+
+
 
 import builtins
 

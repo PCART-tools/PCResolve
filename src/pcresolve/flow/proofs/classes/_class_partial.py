@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_partial
+#  Bind literal class-decorator partials.
+#
+#
 #  Literal partial-application bindings used by source class decorators.
 #  源码类装饰器使用的字面量偏函数绑定。
+
+
 
 import ast
 import copy

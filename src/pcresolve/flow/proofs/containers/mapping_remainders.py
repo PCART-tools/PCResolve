@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.containers.mapping_remainders
+#  Prove unchanged mapping remainders.
+#
+#
 #  Bounded source proofs for the unchanged part of an unescaped builtin dict.
 #  为未逃逸的内建字典中保持不变的部分提供有界源码证明。
+
+
 
 import ast
 from dataclasses import dataclass

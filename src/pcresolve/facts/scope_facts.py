@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.scope_facts
-#  Immutable lexical-name facts shared by analysis-specific scope policies.
-#  供各分析器的作用域策略共享的不可变词法名称事实。
+#  Collect lexical scope facts.
+#
+#
+#  Records names and bindings under explicit adapter policies rather than claiming full compiler semantics.
+#  按显式适配器策略记录词法名称和绑定，不声称覆盖编译器的全部作用域语义。
+
+
 
 import ast
 from dataclasses import dataclass

@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces._function_namespace
+#  Analyze function namespace results.
+#
+#
 #  Native function results during class formation, without original-body claims.
 #  建模类创建期间产生的原生函数结果，不推断原函数体的执行效果。
+
+
 
 import ast
 import copy

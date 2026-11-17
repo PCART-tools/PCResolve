@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.symbol_table
+#  Track symbol provenance chains.
+#
+#
 #  Provide per-symbol chain tracking from definition site to ultimate origin.
 #
 #  The SymbolTable class records direct symbol-to-source mappings and
 #  recursively traces each symbol through aliases, assignments, and imports
 #  to determine its primary owner.
 #  跟踪符号定义到最终来源的链，并通过别名、赋值和导入解析主要归属。
+
+
 
 import builtins
 from pcresolve.ownership.fact_versions import VersionedDict

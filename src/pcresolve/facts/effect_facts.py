@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.effect_facts
-#  Owner-neutral builtin-container and straight-line function effect facts.
-#  与归属无关的内置容器和顺序执行函数的效果事实。
+#  Collect shared source effect facts.
+#
+#
+#  Describes supported builtin-container and straight-line function effects without choosing an owner.
+#  描述受支持的内置容器及顺序执行函数效果，不决定调用归属。
+
+
 
 import ast
 from dataclasses import dataclass

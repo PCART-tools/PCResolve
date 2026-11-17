@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.containers.container_predicates
+#  Describe container predicate obligations.
+#
+#
 #  Source obligations for observed builtin-container predicate evaluation.
 #  对内置容器谓词求值进行观察所需的源码证据条件。
+
+
 
 import ast
 from dataclasses import asdict

@@ -1,5 +1,11 @@
 ## @package pcresolve.flow.transfer.summary_expressions
-## @brief Expressions operations for query-local flow summaries.
+#  Transfer Python expressions into flow facts.
+#
+#
+#  Dispatches expression forms and preflight checks within one query-local summary.
+#  在单次查询摘要中分派表达式处理和前置边界检查。
+
+
 
 import ast
 import copy

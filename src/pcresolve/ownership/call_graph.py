@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.call_graph
+#  Represent ownership call-graph facts.
+#
+#
 #  Internal function, class, call-edge and iteration facts used by ownership analysis.
 #  归属分析使用的内部函数、类、调用边和迭代事实。
+
+
 
 from dataclasses import dataclass, field
 from pcresolve.facts.program_facts import FunctionSignature

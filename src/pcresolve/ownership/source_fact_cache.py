@@ -1,6 +1,11 @@
 ## @package pcresolve.ownership.source_fact_cache
+#  Capture and clone source facts.
+#
+#
 #  Detached ownership visitor facts, captured before any project propagation.
 #  在项目级传播前捕获并隔离的归属访问器事实。
+
+
 
 from collections import namedtuple
 import ast

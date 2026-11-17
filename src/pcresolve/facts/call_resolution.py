@@ -1,6 +1,11 @@
 ## @package pcresolve.facts.call_resolution
-#  Internal candidate lookup and call-context facts over opaque adapter payloads.
-#  对适配器不透明数据进行内部候选查找并保存调用上下文事实。
+#  Organize candidate lookup and call contexts.
+#
+#
+#  Keeps source definitions and call-context facts independent of adapter-specific payloads.
+#  组织源码定义与调用上下文事实，候选查找不解释分析适配器持有的数据。
+
+
 
 from dataclasses import dataclass, field
 from types import MappingProxyType

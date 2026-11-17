@@ -1,10 +1,15 @@
 ## @package pcresolve.ownership.analyzer
+#  Orchestrate project ownership analysis.
+#
+#
 #  Provide cross-file project-level API call chain analysis.
 #  提供跨文件的项目级 API 调用链分析。
 #
 #  The ProjectAnalyzer class orchestrates scanning a project, parsing every
 #  .py file, building per-file symbol tables, resolving symbols across files,
 #  and collecting all API calls with their top-level library origins.
+
+
 
 import os
 from pcresolve.runtime.limits import AnalysisBudget

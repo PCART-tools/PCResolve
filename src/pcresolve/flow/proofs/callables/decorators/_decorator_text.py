@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.callables.decorators._decorator_text
+#  Model text operations in decorator proofs.
+#
+#
 #  Bounded immutable text inputs and builtin text operations for decoration proofs.
 #  为装饰器证明提供有界不可变文本输入和内建文本操作模型。
+
+
 
 import ast
 import string

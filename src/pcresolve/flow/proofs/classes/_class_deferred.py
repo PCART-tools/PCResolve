@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_deferred
+#  Bound declaration-time class effects.
+#
+#
 #  Declaration-time effects of private source helpers and fresh function objects.
 #  分析私有源码辅助函数与新建函数对象在声明阶段产生的效果。
+
+
 
 import ast
 import builtins

@@ -1,5 +1,10 @@
 ## @package pcresolve.ownership.resolve.target_metadata
-#  Source-backed metadata for one local call target.
+#  Describe source-backed local call targets.
+#
+#
+#  Extracts candidate names and local function or constructor metadata without proving target identity.
+#  提取候选名称以及本地函数或构造器元数据，候选名称本身不证明目标身份。
+
 
 
 from pcresolve.ownership.sources import SourceSet, normalize_source

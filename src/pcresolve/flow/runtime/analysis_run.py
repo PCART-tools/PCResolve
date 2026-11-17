@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.runtime.analysis_run
+#  Execute one value-flow analysis.
+#
+#
 #  Per-run analysis, call-context propagation and summary merging.
 #  单次运行分析、调用上下文传播和摘要合并。
+
+
 
 import ast
 

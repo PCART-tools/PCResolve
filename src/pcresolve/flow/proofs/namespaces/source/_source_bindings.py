@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.namespaces.source._source_bindings
+#  Trace conditional source bindings.
+#
+#
 #  Conditional declaration references, separate from callable/body preservation.
 #  本模块在有界模块绑定路径中追踪条件式声明引用，不证明调用对象或函数体绑定。
+
+
 
 import ast
 import copy

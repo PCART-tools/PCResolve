@@ -17,6 +17,15 @@ respective sides.
 records, variadic element paths, generator-summary markers, and trusted
 parameter-shape provenance.
 
+For navigation:
+
+- [Example and expansion](#complete-example-pandas-0210-to_datetime)
+- [Snapshot obligations](#consumer-snapshot-obligations)
+- [Supported subset and boundaries](#current-supported-subset-and-boundaries)
+- [Constructor fields and recursive queries](#constructor-fields-containers-and-recursive-return-queries)
+- [Trusted return summaries](#optional-trusted-return-summaries) and [parameter shapes](#optional-trusted-parameter-shapes)
+- [Source updates and resource limits](#source-updates-and-resource-limits)
+
 ```python
 from pcresolve import FlowAnalyzer, FunctionRef
 

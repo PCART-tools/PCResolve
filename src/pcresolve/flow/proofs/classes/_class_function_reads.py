@@ -1,6 +1,11 @@
 ## @package pcresolve.flow.proofs.classes._class_function_reads
+#  Inspect functions read during class decoration.
+#
+#
 #  Plain function metadata lookup at a bounded source class-decorator prefix.
 #  在有界的源码类装饰器前缀中查找普通函数元数据。
+
+
 
 import ast
 import copy

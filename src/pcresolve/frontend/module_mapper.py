@@ -1,10 +1,13 @@
 ## @package pcresolve.frontend.module_mapper
 #  Provide bidirectional mapping between file paths and Python module names.
 #
+#
 #  The ModuleMapper class scans a project directory or selects one file and builds lookup
 #  dictionaries that convert absolute file paths to dotted module names
 #  (e.g. "pkg.sub.module") and vice versa.
 #  为选定项目或单个源码文件建立文件路径与模块名之间的双向映射。
+
+
 
 import os
 from pcresolve.frontend.scanner import FileScanner
