@@ -478,7 +478,7 @@ def test_fancy_arrow_patch_entry_decorator_chain_proves_keyword_forwarding():
     assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
     assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
     assert 'source_identity_decorator_over_source_factory_wrapper' in assumptions
-    assert any(path.endswith('_api\\deprecation.py') for path in dependencies)
+    assert any(Path(path).parts[-2:] == ('_api', 'deprecation.py') for path in dependencies)
 
 
 def test_matplotlib_350_patch_alias_decorator_proves_its_generated_names():
