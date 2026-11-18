@@ -107,5 +107,9 @@ outputs, Windows uses the checked-in frozen fingerprints; Linux captures the
 same fixed pre-refactor revision on Linux before comparing. The reference and
 corpus identities are documented in the [baseline README](../tests/baselines/architecture_1_0_8/README.md).
 These comparisons detect changes from the reference; the reviewed ownership
-corpus and value-flow matrix check specified behavior separately. A performance
-sample affected by resource interference is diagnostic, not a passing result.
+corpus and value-flow matrix check specified behavior separately. The performance
+gate requires five interference-free sample pairs per workload size. CI records
+both measurements from each affected pair for diagnosis and tries to replace
+the pair up to twice. If collection still falls short, the gate reports
+resource interference. It evaluates performance thresholds after collecting
+all required pairs.

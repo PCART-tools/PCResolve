@@ -2,7 +2,12 @@
 #  Performance comparison aggregates every paired sample for a size.
 
 import importlib.util
+import io
+import json
 from pathlib import Path
+import subprocess
+import sys
+import tarfile
 
 import pytest
 
@@ -125,3 +130,74 @@ def test_interference_check_detects_aggregate_external_cpu_pressure():
     assert result['total_external_cpu_fraction_of_interval'] == pytest.approx(0.8)
     assert not any(item['threshold_exceeded']
                    for item in result['external_cpu_processes'])
+
+
+@pytest.mark.parametrize(
+    'interference, candidate_wall, expected_exit, expected_status, attempts',
+    [
+        ([False, True, False, False], 1.01, 0, 'complete', [1, 2, 1]),
+        ([False, True, False, False], 1.30, 1, 'complete', [1, 2, 1]),
+        ([False, False, True, True, True], 1.01, 2, 'interference_retries_exhausted',
+         [1, 1, 2, 3]),
+        ([True], 1.01, 2, 'not_started_due_to_resource_interference', []),
+    ],
+)
+def test_gate_resamples_only_interfered_pairs(
+        monkeypatch, tmp_path, interference, candidate_wall, expected_exit, expected_status,
+        attempts):
+    assessments = iter(interference)
+    worker_calls = []
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode='w'):
+        pass
+
+    def git_archive(command, **kwargs):
+        assert command[:2] == ['git', 'archive']
+        return subprocess.CompletedProcess(command, 0, stdout=archive.getvalue())
+
+    def assess(before, after):
+        return dict(interference_detected=next(assessments))
+
+    def run_worker(script, output, sizes, repeats, samples):
+        assert sizes == [10]
+        assert samples == 1
+        label = 'after' if script == RUNNER.ROOT / 'scripts' / 'perf_scalability.py' else 'before'
+        worker_calls.append(label)
+        wall = candidate_wall if label == 'after' else 1.0
+        return dict(samples=[dict(
+            modules=11, outputs_equal=True,
+            runs=[dict(peak_rss_bytes=100, rows=[dict(variant='flow_cold', wall=wall)])],
+            worker_call=len(worker_calls))])
+
+    monkeypatch.setattr(RUNNER, 'capture_system_state', dict)
+    monkeypatch.setattr(RUNNER, 'load_interference', assess)
+    monkeypatch.setattr(RUNNER, 'run_benchmark', run_worker)
+    monkeypatch.setattr(RUNNER.subprocess, 'run', git_archive)
+    monkeypatch.setattr(sys, 'argv', [str(SCRIPT), '--sizes', '10', '--repeats', '1',
+                                      '--independent-samples', '2',
+                                      '--interference-retries', '2',
+                                      '--output-dir', str(tmp_path)])
+
+    assert RUNNER.main() == expected_exit
+
+    environment = json.loads((tmp_path / 'performance-environment.json').read_text())
+    comparison = json.loads((tmp_path / 'performance-comparison.json').read_text())
+    snapshots = environment['snapshots']
+    accepted = [not rejected for rejected in interference[1:]]
+    assert environment['status'] == comparison['environment_status'] == expected_status
+    assert [entry['attempt'] for entry in snapshots] == attempts
+    assert [entry['accepted'] for entry in snapshots] == accepted
+    assert comparison['environment_valid'] == (expected_exit != 2)
+    assert comparison['passed'] == (expected_exit == 0)
+    assert bool(comparison['comparisons']) == (expected_exit != 2)
+    if expected_exit == 1:
+        assert [row['metric'] for row in comparison['comparisons']
+                if not row['passed']] == ['wall_seconds']
+    discarded = [entry['discarded_samples'] for entry in snapshots if not entry['accepted']]
+    for label in ('before', 'after'):
+        report = json.loads((tmp_path / ('performance-%s.json' % label)).read_text())
+        assert report['samples_completed'] == len(report['samples']) == sum(accepted)
+        assert {sample['worker_call'] for sample in report['samples']}.isdisjoint(
+            pair[label]['worker_call'] for pair in discarded)
+    if expected_status == 'complete':
+        assert worker_calls == ['before', 'after', 'before', 'after', 'after', 'before']

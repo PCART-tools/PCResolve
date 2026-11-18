@@ -55,7 +55,7 @@ jobs:
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/output-gate.json -- python scripts/compare_analysis_baseline.py --compare tests/baselines/architecture_1_0_8/analysis.json --output reports/architecture-1.0.8/after.json
       - name: Compare isolated-process performance thresholds
         if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
-        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/performance-gate.json -- python scripts/compare_architecture_performance.py --baseline-ref 7444cc9d4e75f0e71575f4d38e95423c45f60a3f --sizes 10 100 500 --repeats 5 --independent-samples 5
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/performance-gate.json -- python scripts/compare_architecture_performance.py --baseline-ref 7444cc9d4e75f0e71575f4d38e95423c45f60a3f --sizes 10 100 500 --repeats 5 --independent-samples 5 --interference-retries 2
       - name: Upload verification reports
         if: always()
         uses: actions/upload-artifact@v4
