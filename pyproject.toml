@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pcresolve"
-version = "1.0.7"
+version = "1.0.8"
 description = "Project-level Python static analysis for API ownership and library usage provenance"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 license-files = ["LICENSE"]
+
+[project.optional-dependencies]
+dev = ["build>=1.2,<2", "pytest>=7", "psutil>=5.9"]
 
 [project.urls]
 Homepage = "https://github.com/PCART-tools/PCResolve"
@@ -21,7 +24,10 @@ pcresolve = "pcresolve.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["pcresolve"]
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pcresolve", "pcresolve.*"]
+namespaces = false
 
 [tool.pytest.ini_options]
-norecursedirs = ["tests/fixtures/tested_projects"]
+norecursedirs = ["tests/fixtures/tested_projects", ".local-verification"]

@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import pytest
 from pcresolve import analyze_project
-from pcresolve.sources import SourceSet
+from pcresolve.ownership.sources import SourceSet
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "regression_branch_imports")
 

@@ -4,7 +4,10 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow
+from tests.flow_test_support import set_class_binding_limit, set_decorator_effect_limit
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.index.definitions as flow_definitions
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_decorator_data'
@@ -113,13 +116,13 @@ def test_budget_and_query_contexts_do_not_reuse_partial_cache_proof(monkeypatch)
     assert original['body_binding_status'] == 'preserved'
     assert fact('overridden', analyzer)['body_binding_status'] == 'unknown'
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_DECORATOR_EFFECT_NODE_LIMIT', 5)
+        set_decorator_effect_limit(patch, 5)
         assert fact('documented', analyzer)['body_binding_status'] == 'unknown'
     assert fact('documented', analyzer) == original
 
 
 def test_inherited_method_scan_budget_is_an_explicit_boundary(monkeypatch):
-    monkeypatch.setattr(flow, '_CLASS_BINDING_NODE_LIMIT', 1)
+    set_class_binding_limit(monkeypatch, 1)
     result = analyze('Cache.__missing__')
     call = result.find_calls(callee_name='self.setdefault')[0]
     assert not call.effects and not call.receiver_type_evidence

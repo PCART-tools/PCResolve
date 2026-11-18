@@ -1,0 +1,220 @@
+{
+  "exports": {
+    "AnalysisLimitExceeded": {
+      "module": "pcresolve.analysis_limits",
+      "qualname": "AnalysisLimitExceeded",
+      "signature": "(reason, work)"
+    },
+    "AnalysisLimits": {
+      "module": "pcresolve.analysis_limits",
+      "qualname": "AnalysisLimits",
+      "signature": "(max_seconds: Optional[float] = None, max_work: Optional[int] = None, max_memory_mb: Optional[float] = None) -> None"
+    },
+    "ApiCall": {
+      "module": "pcresolve.types",
+      "qualname": "ApiCall",
+      "signature": "(expression: str, top_library: str, base_symbol: str, chain: list, file_path: str = '', lineno: int = 0, col_offset: int = 0, end_lineno: int = 0, end_col_offset: int = 0, func_name: str = '', parameters: str = '', resolved_func: str = '', resolved_chain: list = <factory>, reason: str = '', confidence: float = 1.0, alternatives: list = <factory>, decorated_by: list = <factory>) -> None"
+    },
+    "FileAnalysis": {
+      "module": "pcresolve.types",
+      "qualname": "FileAnalysis",
+      "signature": "(file_path: str, module_name: str, symbols: dict, chains: dict, api_calls: list, diagnostics: list = <factory>, symbol_provenance: list = <factory>) -> None"
+    },
+    "FileScanner": {
+      "module": "pcresolve.scanner",
+      "qualname": "FileScanner",
+      "signature": "()"
+    },
+    "FlowAnalysis": {
+      "module": "pcresolve.flow",
+      "qualname": "FlowAnalysis",
+      "signature": "(entry: pcresolve.flow.FunctionRef, inputs: dict, functions: list = <factory>, calls: list = <factory>, boundaries: list = <factory>, schema_version: str = 'flow-0.2') -> None"
+    },
+    "FlowAnalyzer": {
+      "module": "pcresolve.flow",
+      "qualname": "FlowAnalyzer",
+      "signature": "(source_files=None, import_roots=None, project_root=None, return_summaries=None, parameter_shapes=None, analysis_limits=None, support_source_protocols=False, source_store=None)"
+    },
+    "FlowCall": {
+      "module": "pcresolve.flow",
+      "qualname": "FlowCall",
+      "signature": "(id: str, caller: pcresolve.flow.FunctionRef, callee_name: str, lineno: int, col_offset: int, end_lineno: int = 0, end_col_offset: int = 0, target: object = None, target_candidates: list = <factory>, parameter_bindings: list = <factory>, parameter_flows: list = <factory>, return_flows: list = <factory>, argument_sources: list = <factory>, argument_flows: list = <factory>, capture_bindings: list = <factory>, return_dependencies: list = <factory>, receiver_sources: list = <factory>, receiver_type_evidence: list = <factory>, callable_instance_evidence: dict = <factory>, decorator_identity_evidence: list = <factory>, analysis_status: str = 'analyzed', target_status: str = 'definition_unavailable', mutation_flows: list = <factory>, effects: list = <factory>, result_sources: list = <factory>, binding_status: str = 'unavailable', binding_issues: list = <factory>, callable_sources: list = <factory>, analysis_contexts: list = <factory>, conditional_returns: list = <factory>, class_method_bindings: list = <factory>, constructor_bindings: list = <factory>, instance_method_bindings: list = <factory>, implicit_protocol: dict = <factory>, class_metadata_bindings: list = <factory>, class_read_bindings: list = <factory>, conditional_source_bindings: list = <factory>, candidate_paths: list = <factory>, conditions: list = <factory>) -> None"
+    },
+    "FunctionRef": {
+      "module": "pcresolve.flow",
+      "qualname": "FunctionRef",
+      "signature": "(module: str = '', qualname: str = '', file_path: str = '', lineno: int = 0) -> None"
+    },
+    "ModuleMapper": {
+      "module": "pcresolve.module_mapper",
+      "qualname": "ModuleMapper",
+      "signature": "(project_root)"
+    },
+    "ProjectAnalysis": {
+      "module": "pcresolve.types",
+      "qualname": "ProjectAnalysis",
+      "signature": "(project_root: str, files: list, all_api_calls: list, schema_version: str = '1.0', diagnostics: list = <factory>, stats: dict = <factory>, all_symbol_provenance: list = <factory>, library_usage: dict = <factory>) -> None"
+    },
+    "ProjectAnalyzer": {
+      "module": "pcresolve.cross_file",
+      "qualname": "ProjectAnalyzer",
+      "signature": "(project_root, analysis_limits=None, reuse_source_facts=False)"
+    },
+    "SingleFileAnalyzer": {
+      "module": "pcresolve.single_file",
+      "qualname": "SingleFileAnalyzer",
+      "signature": "(module_name=None, is_package=False, file_path='', analysis_budget=None)"
+    },
+    "SourceSpan": {
+      "module": "pcresolve.program_facts",
+      "qualname": "SourceSpan",
+      "signature": "(file_path: str, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> None"
+    },
+    "SymbolChain": {
+      "module": "pcresolve.types",
+      "qualname": "SymbolChain",
+      "signature": "(symbol: str, chain: list, top: str) -> None"
+    },
+    "SymbolTable": {
+      "module": "pcresolve.symbol_table",
+      "qualname": "SymbolTable",
+      "signature": "(return_sources=None)"
+    },
+    "analyze_project": {
+      "module": "pcresolve.cross_file",
+      "qualname": "analyze_project",
+      "signature": "(project_root, analysis_limits=None, reuse_source_facts=False)"
+    },
+    "analyze_source": {
+      "module": "pcresolve.single_file",
+      "qualname": "analyze_source",
+      "signature": "(source, file_path='<string>')"
+    },
+    "scan_directory": {
+      "module": "pcresolve.scanner",
+      "qualname": "scan_directory",
+      "signature": "(root_dir, include_pyi=True)"
+    }
+  },
+  "hash_seed": "0",
+  "legacy_modules": {
+    "analysis_limits": "runtime.limits",
+    "builtin_ownership": "ownership.builtin_ownership",
+    "call_graph": "ownership.call_graph",
+    "call_resolution": "facts.call_resolution",
+    "call_result_resolution": "ownership.resolve.call_result_resolution",
+    "class_attribute_effects": "flow.proofs.class_attribute_effects",
+    "classification": "ownership.classification",
+    "container_resolution": "ownership.resolve.container_resolution",
+    "cross_file": "ownership.analyzer",
+    "decorator_provenance": "ownership.decorator_provenance",
+    "diagnostics": "ownership.diagnostics",
+    "effect_facts": "facts.effect_facts",
+    "entry_alias": "flow.proofs.entry_alias",
+    "fact_versions": "ownership.fact_versions",
+    "import_facts": "facts.import_facts",
+    "instance_method_resolution": "ownership.resolve.instance_method_resolution",
+    "ir": "ownership.ir",
+    "library_usage": "ownership.library_usage",
+    "mapping_facts": "ownership.mapping_facts",
+    "module_mapper": "frontend.module_mapper",
+    "ownership_contracts": "ownership.ownership_contracts",
+    "ownership_model": "ownership.ownership_model",
+    "program_facts": "facts.program_facts",
+    "project_call_classification": "ownership.resolve.project_call_classification",
+    "project_call_context": "ownership.resolve.project_call_context",
+    "project_local_classes": "ownership.resolve.project_local_classes",
+    "project_method_ownership": "ownership.resolve.project_method_ownership",
+    "project_result_binding": "ownership.resolve.project_result_binding",
+    "project_source_tracing": "ownership.resolve.project_source_tracing",
+    "return_resolution": "facts.return_resolution",
+    "scanner": "frontend.scanner",
+    "scope": "ownership.scope",
+    "scope_facts": "facts.scope_facts",
+    "single_file": "ownership.collect.single_file",
+    "single_file_argparse": "ownership.collect.single_file_argparse",
+    "single_file_assignment": "ownership.collect.single_file_assignment",
+    "single_file_binding_resolution": "ownership.collect.single_file_binding_resolution",
+    "single_file_builtins": "ownership.collect.single_file_builtins",
+    "single_file_call_collection": "ownership.collect.single_file_call_collection",
+    "single_file_container_shapes": "ownership.collect.single_file_container_shapes",
+    "single_file_control_flow": "ownership.collect.single_file_control_flow",
+    "single_file_definitions": "ownership.collect.single_file_definitions",
+    "single_file_method_resolution": "ownership.collect.single_file_method_resolution",
+    "single_file_parameter_dependency": "ownership.collect.single_file_parameter_dependency",
+    "single_file_receiver_resolution": "ownership.collect.single_file_receiver_resolution",
+    "single_file_returns": "ownership.collect.single_file_returns",
+    "single_file_source_resolution": "ownership.collect.single_file_source_resolution",
+    "source_resolution": "ownership.source_resolution",
+    "source_snapshot": "frontend.source_snapshot",
+    "source_syntax": "frontend.source_syntax",
+    "sources": "ownership.sources",
+    "star_imports": "facts.star_imports",
+    "symbol_table": "ownership.symbol_table",
+    "syntax_facts": "flow.proofs.syntax_facts",
+    "types": "ownership.types",
+    "views": "ownership.views"
+  },
+  "legacy_original_modules": {
+    "analysis_limits": "pcresolve.analysis_limits",
+    "builtin_ownership": "pcresolve.builtin_ownership",
+    "call_graph": "pcresolve.call_graph",
+    "call_resolution": "pcresolve.call_resolution",
+    "call_result_resolution": "pcresolve.call_result_resolution",
+    "class_attribute_effects": "pcresolve.class_attribute_effects",
+    "classification": "pcresolve.classification",
+    "container_resolution": "pcresolve.container_resolution",
+    "cross_file": "pcresolve.cross_file",
+    "decorator_provenance": "pcresolve.decorator_provenance",
+    "diagnostics": "pcresolve.diagnostics",
+    "effect_facts": "pcresolve.effect_facts",
+    "entry_alias": "pcresolve.entry_alias",
+    "fact_versions": "pcresolve.fact_versions",
+    "import_facts": "pcresolve.import_facts",
+    "instance_method_resolution": "pcresolve.instance_method_resolution",
+    "ir": "pcresolve.ir",
+    "library_usage": "pcresolve.library_usage",
+    "mapping_facts": "pcresolve.mapping_facts",
+    "module_mapper": "pcresolve.module_mapper",
+    "ownership_contracts": "pcresolve.ownership_contracts",
+    "ownership_model": "pcresolve.ownership_model",
+    "program_facts": "pcresolve.program_facts",
+    "project_call_classification": "pcresolve.project_call_classification",
+    "project_call_context": "pcresolve.project_call_context",
+    "project_local_classes": "pcresolve.project_local_classes",
+    "project_method_ownership": "pcresolve.project_method_ownership",
+    "project_result_binding": "pcresolve.project_result_binding",
+    "project_source_tracing": "pcresolve.project_source_tracing",
+    "return_resolution": "pcresolve.return_resolution",
+    "scanner": "pcresolve.scanner",
+    "scope": "pcresolve.scope",
+    "scope_facts": "pcresolve.scope_facts",
+    "single_file": "pcresolve.single_file",
+    "single_file_argparse": "pcresolve.single_file_argparse",
+    "single_file_assignment": "pcresolve.single_file_assignment",
+    "single_file_binding_resolution": "pcresolve.single_file_binding_resolution",
+    "single_file_builtins": "pcresolve.single_file_builtins",
+    "single_file_call_collection": "pcresolve.single_file_call_collection",
+    "single_file_container_shapes": "pcresolve.single_file_container_shapes",
+    "single_file_control_flow": "pcresolve.single_file_control_flow",
+    "single_file_definitions": "pcresolve.single_file_definitions",
+    "single_file_method_resolution": "pcresolve.single_file_method_resolution",
+    "single_file_parameter_dependency": "pcresolve.single_file_parameter_dependency",
+    "single_file_receiver_resolution": "pcresolve.single_file_receiver_resolution",
+    "single_file_returns": "pcresolve.single_file_returns",
+    "single_file_source_resolution": "pcresolve.single_file_source_resolution",
+    "source_resolution": "pcresolve.source_resolution",
+    "source_snapshot": "pcresolve.source_snapshot",
+    "source_syntax": "pcresolve.source_syntax",
+    "sources": "pcresolve.sources",
+    "star_imports": "pcresolve.star_imports",
+    "symbol_table": "pcresolve.symbol_table",
+    "syntax_facts": "pcresolve.syntax_facts",
+    "types": "pcresolve.types",
+    "views": "pcresolve.views"
+  },
+  "legacy_target_provenance": "approved refactor relocation mapping, checked against pre-refactor importability",
+  "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+  "revision": "7444cc9d4e75f0e71575f4d38e95423c45f60a3f",
+  "source_sha256": "e77ca58d9d175e0ef06d177f523d0ecb697694211faf229f5becbe0f27dc510f"
+}

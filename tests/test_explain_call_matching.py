@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import analyze_project
-from pcresolve.views import build_explain_call_view
+from pcresolve.ownership.views import build_explain_call_view
 
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'explain_call_matching'

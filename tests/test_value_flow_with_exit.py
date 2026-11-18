@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+from pcresolve.flow.transfer.summary_context_managers import ContextManagersMixin
 
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_with_exit'
@@ -67,6 +68,47 @@ def test_cleanup_reverses_successful_entry_order_and_mutates_shared_object(name)
     calls = [call for call in exits(result) if call.implicit_protocol['incoming_exit']['kind'] == 'return']
     assert [call.target.qualname.rsplit('.', 2)[-2] for call in sorted(
         calls, key=lambda call: call.implicit_protocol['cleanup_order'])] == ['Clear', 'Restore']
+    cleanup_orders = [call.implicit_protocol['cleanup_order'] for call in exits(result)]
+    assert sorted(cleanup_orders) == list(range(len(cleanup_orders)))
+
+
+def test_recursive_exit_summary_shares_counter_and_resets_for_next_query():
+    analyzer = FlowAnalyzer(project_root=ROOT)
+
+    def run():
+        return analyzer.analyze(FunctionRef(module='cases', qualname='nested_exit_summary'),
+                                max_depth=3)
+
+    first = run()
+    second = run()
+    for result in (first, second):
+        calls = exits(result)
+        by_target = {call.target.qualname: call.implicit_protocol['cleanup_order']
+                     for call in calls if call.target is not None}
+        assert by_target['nested_exit_summary.Outer.__exit__'] == 0
+        assert any(call.target is not None and call.target.qualname == 'Noop.__exit__'
+                   and call.implicit_protocol['cleanup_order'] == 1 for call in calls)
+
+
+def test_exit_stack_is_restored_when_child_summary_raises(monkeypatch):
+    analyzer = FlowAnalyzer(project_root=ROOT)
+    original_block = ContextManagersMixin.block
+
+    def raising_block(summary, statements, env):
+        if summary.context_execution:
+            raise RuntimeError('injected child failure')
+        return original_block(summary, statements, env)
+
+    monkeypatch.setattr(ContextManagersMixin, 'block', raising_block)
+    with pytest.raises(RuntimeError, match='injected child failure'):
+        analyzer.analyze(FunctionRef(module='cases', qualname='nested_exit_summary'),
+                         max_depth=3)
+
+    assert analyzer._context_exit_stack == []
+    monkeypatch.setattr(ContextManagersMixin, 'block', original_block)
+    result = analyzer.analyze(FunctionRef(module='cases', qualname='nested_exit_summary'),
+                              max_depth=3)
+    assert exits(result)
 
 
 def test_failure_of_later_enter_cleans_only_successfully_entered_managers():

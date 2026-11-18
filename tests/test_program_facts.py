@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef, analyze_project
-from pcresolve.call_graph import FunctionId, FunctionSummary, CallEdge, CallContext, ModuleCallGraph
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.ir import CallSite
-from pcresolve.program_facts import (SourceSpan, FunctionSignature, bind_ast_call,
+from pcresolve.ownership.call_graph import FunctionId, FunctionSummary, CallEdge, CallContext, ModuleCallGraph
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.ir import CallSite
+from pcresolve.facts.program_facts import (SourceSpan, FunctionSignature, bind_ast_call,
                                      bind_parameter_sources, CONTEXT_BINDING,
                                      OWNERSHIP_BINDING)
 

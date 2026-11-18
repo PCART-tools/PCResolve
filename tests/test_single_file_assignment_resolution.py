@@ -1,7 +1,7 @@
 ## @package tests.test_single_file_assignment_resolution
 #  Characterize assignment facts before extracting the visitor stage.
 
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 def test_assignments_preserve_direct_container_and_unpack_sources(tmp_path):

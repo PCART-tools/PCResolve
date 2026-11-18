@@ -1,7 +1,7 @@
 ## @package tests.test_single_file_source_resolution
 #  Characterize expression source tracing after extracting the subsystem.
 
-from pcresolve.single_file import analyze_source
+from pcresolve.ownership.collect.single_file import analyze_source
 
 
 def test_source_resolution_preserves_dynamic_import_and_container_item_owners():

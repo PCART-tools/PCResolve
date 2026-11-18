@@ -205,20 +205,20 @@ def test_class_return_target_resolution_preserves_finite_mapping_branch_sources(
     assert all(source.get('conditions') for source in sources)
 
 
-def test_shared_allocator_preserves_unknown_context_in_merged_status_and_results():
+def test_shared_explicit_allocator_bypasses_custom_new_in_each_context():
     result = analyze('mixed_allocator_contexts')
     allocated = call_named(result, 'object.__new__', 'ContextAllocator.allocate')
-    assert allocated.target_status == 'receiver_unresolved'
+    assert allocated.target_status == 'builtin_allocation'
     assert allocated.target is None
     typed_sources = [source for source in allocated.result_sources
                      if source.get('instance_type')]
-    assert typed_sources
-    assert all(source.get('value_incomplete') for source in typed_sources)
+    assert {source['instance_type']['qualname'] for source in typed_sources} == {
+        'ContextKnown', 'ContextCustomNew'}
+    assert not any(source.get('value_incomplete') for source in typed_sources)
     initialized = call_named(result, 'instance.initialize', 'ContextAllocator.allocate')
-    assert initialized.target_status == 'receiver_unresolved'
+    assert initialized.target_status == 'bounded_alternatives'
     assert initialized.target is None
-    assert any(boundary.get('call_id') == initialized.id
-               and boundary['reason'] == 'receiver_unresolved'
-               for boundary in result.boundaries)
+    assert {target['qualname'] for target in initialized.target_candidates} == {
+        'ContextKnown.initialize', 'ContextCustomNew.initialize'}
     assert any(source.get('output_path') == ['*']
                for source in kwargs_sources(initialized))

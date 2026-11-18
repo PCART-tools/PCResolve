@@ -2,15 +2,21 @@
 #  Indexed lookups retain conservative answers across mutable fact generations.
 
 import ast
+import gc
+import weakref
 from dataclasses import replace
 
 import pytest
 
 from pcresolve import ProjectAnalyzer
-from pcresolve.cross_file import _is_import_origin
-from pcresolve.ir import SymbolRef
-from pcresolve.single_file import SingleFileAnalyzer
-from pcresolve.sources import CallResult, SourceSet
+from pcresolve.ownership.analyzer import _is_import_origin
+from pcresolve.ownership.ir import SymbolRef
+from pcresolve.ownership.collect.single_file import SingleFileAnalyzer
+from pcresolve.ownership.call_graph import ProjectCallGraph
+from pcresolve.ownership.ownership_model import build_ownership_definition_index
+from pcresolve.ownership.sources import CallResult, SourceSet
+from pcresolve.ownership.resolve.target_metadata import edge_callable_names
+from pcresolve.ownership.sources import normalize_source
 
 
 def project(tmp_path):
@@ -37,6 +43,132 @@ def test_method_candidates_are_indexed_and_read_live_returns(tmp_path):
     assert analyzer._get_method_result_index() is not indexed
 
 
+def test_definition_index_belongs_to_run_and_tracks_graph_identity_and_version(tmp_path):
+    analyzer, tracers = project(tmp_path)
+    run = analyzer._ownership_run
+    first = analyzer._get_ownership_definition_index()
+    assert run.definition_index is first
+    assert analyzer._get_definition_index() is first.definitions
+    assert analyzer._get_ownership_definition_index() is first
+    assert first.target_names['make']
+    tracers['main'].module_cg.functions.clear()
+    changed = analyzer._get_ownership_definition_index()
+    assert changed is run.definition_index and changed is not first
+    assert changed.graph is analyzer.project_cg
+
+    empty1, empty2 = ProjectCallGraph(), ProjectCallGraph()
+    assert empty1.version == empty2.version
+    analyzer.project_cg = empty1
+    first_empty = analyzer._get_ownership_definition_index()
+    analyzer.project_cg = empty2
+    second_empty = analyzer._get_ownership_definition_index()
+    assert first_empty is not second_empty
+    assert second_empty.graph is empty2 and run.definition_index is second_empty
+
+
+def test_definition_index_builder_rejects_missing_module_metadata(tmp_path):
+    analyzer, _ = project(tmp_path)
+    run = analyzer._ownership_run
+    old_index = analyzer._get_ownership_definition_index()
+    with pytest.raises(ValueError, match='definition module is missing'):
+        build_ownership_definition_index(analyzer.project_cg, lambda module, name: None)
+    assert run.definition_index is old_index
+    assert analyzer._get_ownership_definition_index() is old_index
+
+
+def test_actual_definition_index_builder_is_used_and_preserves_records(tmp_path, monkeypatch):
+    analyzer, _ = project(tmp_path)
+    import pcresolve.ownership.resolve.project_call_context as context
+    original = context.build_ownership_definition_index
+    observed = []
+    def observe(graph, metadata):
+        result = original(graph, metadata)
+        observed.append((graph, metadata.__self__, result))
+        return result
+    monkeypatch.setattr(context, 'build_ownership_definition_index', observe)
+    analyzer._ownership_run.definition_index = None
+    index = analyzer._get_ownership_definition_index()
+    assert observed == [(analyzer.project_cg, analyzer, index)]
+    assert index.generation == analyzer.project_cg.version
+    assert [record.qualname for record in index.definitions.records if record.kind == 'function'] == [
+        'A.make', 'B.make']
+
+
+def test_definition_index_build_during_graph_mutation_does_not_publish(tmp_path, monkeypatch):
+    analyzer, tracers = project(tmp_path)
+    old_index = analyzer._get_ownership_definition_index()
+    tracers['main'].module_cg.edges.append(replace(tracers['main'].module_cg.edges[0]))
+    original = analyzer._local_target_metadata
+    modified = []
+    def mutate_once(module, name):
+        metadata = original(module, name)
+        if not modified:
+            tracers['main'].module_cg.edges.append(replace(tracers['main'].module_cg.edges[0]))
+            modified.append(True)
+        return metadata
+    monkeypatch.setattr(analyzer, '_local_target_metadata', mutate_once)
+    with pytest.raises(RuntimeError, match='call graph changed during definition indexing'):
+        analyzer._get_ownership_definition_index()
+    assert modified == [True]
+    assert analyzer._ownership_run.definition_index is old_index
+    second = analyzer._get_ownership_definition_index()
+    assert second is not old_index and second.generation == analyzer.project_cg.version
+
+
+def test_target_metadata_real_analyzer_uses_current_graph(tmp_path):
+    (tmp_path / 'main.py').write_text(
+        'class Item:\n'
+        ' def __init__(self): pass\n'
+        ' def process(self): pass\n'
+        'def top(): pass\n', encoding='utf-8')
+    analyzer = ProjectAnalyzer(str(tmp_path))
+    assert analyzer._local_target_metadata('main', 'Item.process') is None
+    analyzer.analyze()
+    module_graph = analyzer.project_cg.modules['main']
+    assert analyzer._local_target_metadata('main', 'Item.__init__') == (
+        module_graph, 'Item', '__init__', True, False)
+    assert analyzer._local_target_metadata('main', 'Item.process') == (
+        module_graph, 'Item', 'process', False, True)
+    assert analyzer._local_target_metadata('main', 'top') == (
+        module_graph, '', 'top', False, False)
+    assert analyzer._local_target_metadata('other', 'top') is None
+    del module_graph.classes['Item'].methods['process']
+    assert analyzer._local_target_metadata('main', 'Item.process') == (
+        module_graph, 'Item', 'process', False, False)
+
+
+def test_method_index_belongs_to_run_and_releases_previous_graph(tmp_path):
+    analyzer, tracers = project(tmp_path)
+    first_run = analyzer._ownership_run
+    first_graph = first_run.program.call_graph
+    graph_ref = weakref.ref(first_graph)
+    index = analyzer._get_method_result_index()
+    assert first_run.method_result_index.data is index
+    assert first_run.method_result_index.graph is first_graph
+    del tracers, index, first_run, first_graph
+    (tmp_path / 'main.py').write_text('value = 1\n', encoding='utf-8')
+    analyzer.analyze()
+    assert (analyzer._ownership_run.method_result_index is None
+            or analyzer._ownership_run.method_result_index.graph is analyzer.project_cg)
+    gc.collect()
+    assert graph_ref() is None
+
+
+def test_pre_run_method_index_does_not_survive_into_run(tmp_path):
+    (tmp_path / 'main.py').write_text('value = 1\n', encoding='utf-8')
+    analyzer = ProjectAnalyzer(str(tmp_path))
+    graph = ProjectCallGraph()
+    graph_ref = weakref.ref(graph)
+    analyzer.project_cg = graph
+    analyzer._get_method_result_index()
+    assert analyzer._initial_method_result_index.graph is graph
+    analyzer.analyze()
+    assert analyzer._initial_method_result_index is None
+    del graph
+    gc.collect()
+    assert graph_ref() is None
+
+
 def test_method_aliases_retain_existing_order_and_live_bindings(tmp_path):
     analyzer, tracers = project(tmp_path)
     tracer = tracers['main']
@@ -55,6 +187,8 @@ def test_method_aliases_retain_existing_order_and_live_bindings(tmp_path):
 def test_edge_index_constant_cost_hit_and_structural_invalidation(tmp_path, monkeypatch):
     analyzer, tracers = project(tmp_path)
     indexed = analyzer._get_edge_lookup()
+    assert analyzer._ownership_run.edge_index.data is indexed
+    assert analyzer._ownership_run.edge_index.graph is analyzer.project_cg
     graph = analyzer.project_cg
     original_items = graph.modules.items
     def reject_scan():
@@ -72,6 +206,93 @@ def test_edge_index_constant_cost_hit_and_structural_invalidation(tmp_path, monk
     assert analyzer._get_edge_lookup()[0] == []
     graph.modules.clear()
     assert analyzer._get_edge_lookup()[0] == []
+
+
+@pytest.mark.parametrize(('source', 'expected'), [
+    ('package.module.function', {'invoke', 'function'}),
+    (SourceSet(('package.alpha', 'other.beta', ('name_source', 'ignored'))),
+     {'invoke', 'alpha', 'beta'}),
+    (('source_set', ('package.first', 'other.second'), ''), {'invoke', 'first', 'second'}),
+    (None, {'invoke'}),
+])
+def test_edge_names_real_analyzer_and_explicit_normalizer(tmp_path, source, expected):
+    analyzer, tracers = project(tmp_path)
+    edge = replace(tracers['main'].module_cg.edges[0], callee_name='object.invoke',
+                   callee_source=source)
+    assert analyzer._edge_callable_names(edge) == expected
+    assert edge_callable_names(edge, normalize_source) == expected
+
+
+def test_edge_index_rejects_same_version_other_graph(tmp_path):
+    analyzer, _ = project(tmp_path)
+    first, second = ProjectCallGraph(), ProjectCallGraph()
+    assert first.version == second.version
+    analyzer.project_cg = first
+    first_index = analyzer._get_ownership_edge_index()
+    analyzer.project_cg = second
+    second_index = analyzer._get_ownership_edge_index()
+    assert second_index is not first_index
+    assert second_index.graph is second
+    assert analyzer._ownership_run.edge_index is second_index
+
+
+def test_edge_index_real_builder_keeps_old_index_when_name_resolution_fails(tmp_path, monkeypatch):
+    analyzer, tracers = project(tmp_path)
+    first = analyzer._get_ownership_edge_index()
+    tracers['main'].module_cg.edges.append(replace(tracers['main'].module_cg.edges[0]))
+    def fail(edge):
+        raise RuntimeError('injected edge name failure')
+    with monkeypatch.context() as patch:
+        patch.setattr(analyzer, '_edge_callable_names', fail)
+        with pytest.raises(RuntimeError, match='injected edge name failure'):
+            analyzer._get_ownership_edge_index()
+    assert analyzer._ownership_run.edge_index is first
+    updated = analyzer._get_ownership_edge_index()
+    assert updated is not first and updated.generation == analyzer.project_cg.version
+
+
+def test_edge_index_build_during_graph_mutation_does_not_publish(tmp_path, monkeypatch):
+    analyzer, tracers = project(tmp_path)
+    old_index = analyzer._get_ownership_edge_index()
+    tracers['main'].module_cg.edges.append(replace(tracers['main'].module_cg.edges[0]))
+    original = analyzer._edge_callable_names
+    changed = []
+    def mutate_once(edge):
+        names = original(edge)
+        if not changed:
+            tracers['main'].module_cg.edges.append(replace(edge, call_lineno=edge.call_lineno + 1000))
+            changed.append(True)
+        return names
+    monkeypatch.setattr(analyzer, '_edge_callable_names', mutate_once)
+    with pytest.raises(RuntimeError, match='call graph changed during edge indexing'):
+        analyzer._get_ownership_edge_index()
+    assert changed == [True]
+    assert analyzer._ownership_run.edge_index is old_index
+    second = analyzer._get_ownership_edge_index()
+    assert second is not old_index and second.generation == analyzer.project_cg.version
+
+
+def test_callable_index_is_run_local_and_invalidates_by_graph_and_rewrite(tmp_path):
+    analyzer, tracers = project(tmp_path)
+    run = analyzer._ownership_run
+    first = analyzer._ensure_callable_lookup()
+    assert run.callable_index is first
+    assert analyzer._ensure_callable_lookup() is first
+    analyzer._invalidate_edge_lookup(tracers['main'].module_cg.edges[0])
+    assert run.callable_index is None
+    second = analyzer._ensure_callable_lookup()
+    assert second is not first and second.graph is analyzer.project_cg
+    tracers['main'].module_cg.edges.append(replace(tracers['main'].module_cg.edges[0]))
+    third = analyzer._ensure_callable_lookup()
+    assert third is not second and third.generation == analyzer.project_cg.version
+    replacement1, replacement2 = ProjectCallGraph(), ProjectCallGraph()
+    analyzer.project_cg = replacement1
+    first_empty = analyzer._ensure_callable_lookup()
+    analyzer.project_cg = replacement2
+    second_empty = analyzer._ensure_callable_lookup()
+    assert replacement1.version == replacement2.version
+    assert first_empty is not second_empty and second_empty.graph is replacement2
+    assert run.callable_index is second_empty
 
 
 @pytest.mark.parametrize('values', [[], ['json'], ['json.tool', '', '.x'],

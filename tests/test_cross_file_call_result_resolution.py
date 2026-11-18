@@ -1,8 +1,8 @@
 ## @package tests.test_cross_file_call_result_resolution
 #  Characterize CallResult source resolution before extracting its branch.
 
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.sources import (
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.sources import (
     CallResult,
     DerivedResult,
     InstanceMethod,

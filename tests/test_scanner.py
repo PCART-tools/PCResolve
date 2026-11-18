@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pcresolve.scanner import FileScanner, scan_directory
+from pcresolve.frontend.scanner import FileScanner, scan_directory
 
 
 def test_scanner_with_tmp_path(tmp_path):

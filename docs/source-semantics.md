@@ -4,6 +4,12 @@ This document defines the structured source evidence consumed by ownership
 resolution. These types are internal: they explain how evidence is represented
 but do not become public JSON fields automatically.
 
+The source objects and compatibility conversion live in
+`pcresolve.ownership.sources`; primary convergence is implemented in
+`pcresolve.ownership.source_resolution`. For the public result fields, see
+[Output Contract](output-contract.md); for the surrounding tracing sequence,
+see [Trace Contract](trace-contract.md).
+
 ## Source IR types
 
 | Type | Meaning | Example |

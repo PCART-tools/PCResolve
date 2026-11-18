@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import ast
-from pcresolve.single_file import analyze_source, SingleFileAnalyzer
+from pcresolve.ownership.collect.single_file import analyze_source, SingleFileAnalyzer
 
 
 def test_basic_imports():
@@ -263,7 +263,7 @@ app.logger.info("hello")
     assert info_calls, "info(...) call not found in api_calls"
     # app.logger.info should have base = InstanceMethod(receiver="Flask", method="info")
     # since the root "app" traces to Flask, an imported class
-    from pcresolve.sources import InstanceMethod as IM
+    from pcresolve.ownership.sources import InstanceMethod as IM
     base = info_calls[0]["base"]
     assert isinstance(base, IM), f"Expected InstanceMethod base, got {type(base)}: {base!r}"
 
@@ -279,7 +279,7 @@ request.headers.get("Authorization")
     assert get_calls, ".get(...) call not found in api_calls"
     # request.headers.get should have base = InstanceMethod(receiver="request", method="get")
     # since the root "request" is directly imported from flask
-    from pcresolve.sources import InstanceMethod as IM
+    from pcresolve.ownership.sources import InstanceMethod as IM
     base = get_calls[0]["base"]
     assert isinstance(base, IM), f"Expected InstanceMethod base, got {type(base)}: {base!r}"
 

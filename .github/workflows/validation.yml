@@ -1,0 +1,65 @@
+name: Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+        python: ['3.9', '3.13.9']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Verify source syntax, public imports, and frozen inputs
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/preflight.json -- python scripts/verify_architecture_inputs.py
+      - name: Build and verify release artifacts
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/artifacts-gate.json -- python scripts/verify_release_artifacts.py --dist-dir "${{ runner.temp }}/pcresolve-dist" --report reports/architecture-1.0.8/artifacts.json
+      - name: Run tests including unresolved architecture gates
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/pytest-gate.json -- python -m pytest -q --runxfail --junitxml=reports/architecture-1.0.8/pytest.xml
+      - name: Evaluate ownership ground truth
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/ground-truth.json -- python scripts/evaluate_ground_truth.py --view all
+      - name: Check ownership ground truth coverage
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/coverage.json -- python scripts/verify_ground_truth_calls.py --coverage-only
+      - name: Check ground truth verification levels
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/verification-levels.json -- python scripts/add_verification_levels.py --check
+      - name: Check frozen ground truth snapshots
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/snapshots.json -- python scripts/refresh_ground_truth_snapshots.py --all --check
+      - name: Check ownership release dispositions
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/dispositions.json -- python scripts/classify_ground_truth_failures.py --release-check
+      - name: Check value-flow matrix
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/flow-matrix.json -- python scripts/evaluate_value_flow_matrix.py --strict
+      - name: Compare frozen API baseline
+        if: matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/api-gate.json -- python scripts/compare_public_api.py --baseline tests/baselines/architecture_1_0_8/api.json --output reports/architecture-1.0.8/api-after.json
+      - name: Capture fixed reference on Linux
+        if: matrix.os == 'ubuntu-24.04' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/platform-baseline-gate.json -- python scripts/capture_platform_baseline.py --output reports/architecture-1.0.8/platform-baseline.json
+      - name: Compare complete output baseline (Linux)
+        if: matrix.os == 'ubuntu-24.04' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/output-gate.json -- python scripts/compare_analysis_baseline.py --compare reports/architecture-1.0.8/platform-baseline.json --output reports/architecture-1.0.8/after.json
+      - name: Compare complete output baseline (Windows)
+        if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/output-gate.json -- python scripts/compare_analysis_baseline.py --compare tests/baselines/architecture_1_0_8/analysis.json --output reports/architecture-1.0.8/after.json
+      - name: Compare isolated-process performance thresholds
+        if: matrix.os == 'windows-latest' && matrix.python == '3.13.9'
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/performance-gate.json -- python scripts/compare_architecture_performance.py --baseline-ref 7444cc9d4e75f0e71575f4d38e95423c45f60a3f --sizes 10 100 500 --repeats 5 --independent-samples 5
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-verification-${{ matrix.os }}-${{ matrix.python }}
+          path: reports/architecture-1.0.8/
+          if-no-files-found: warn

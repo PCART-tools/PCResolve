@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from pcresolve import ProjectAnalyzer, analyze_project
-from pcresolve.module_mapper import ModuleMapper
-from pcresolve.views import build_full_view
+from pcresolve.frontend.module_mapper import ModuleMapper
+from pcresolve.ownership.views import build_full_view
 
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'single_file_input'

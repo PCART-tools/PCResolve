@@ -91,13 +91,19 @@ implementation owner.
 
 ## Python API
 
+Import the analysis entry points and result types from `pcresolve` for new
+code. In 1.0.8, existing Python imports such as
+`from pcresolve.cross_file import analyze_project` and
+`from pcresolve.single_file import analyze_source` still work at runtime
+through module aliases.
+
 The stable entry points use these signatures:
 
 ```python
 analyze_project(project_root, analysis_limits=None, reuse_source_facts=False)
 analyze_source(source, file_path="<string>")
 ProjectAnalyzer(project_root, analysis_limits=None, reuse_source_facts=False)
-SingleFileAnalyzer(module_name=None, is_package=False, file_path="")
+SingleFileAnalyzer(module_name=None, is_package=False, file_path="", analysis_budget=None)
 ```
 
 `analyze_project` and `ProjectAnalyzer` also accept a `.py`/`.pyi` file path,
@@ -106,6 +112,9 @@ CLI. They return the existing `ProjectAnalysis` result for that single file.
 
 `analyze_source` accepts Python source text. Its `file_path` parameter supplies
 location metadata; it does not select or read a file from disk.
+`SingleFileAnalyzer` is a lower-level AST visitor. Its `analysis_budget` is
+the internal cooperative budget used by project analysis; ordinary callers can
+use `analyze_source` or configure `AnalysisLimits` on `ProjectAnalyzer`.
 
 PCResolve uses one lexical scope model. There is no public scope-model selector
 or `stats.scope_model` field.
@@ -120,6 +129,14 @@ for cache invalidation and resource-check details.
 
 ### Experimental value-flow contract
 
+Experimental value-flow `calls[*].effects` can additionally contain
+`mapping_remainder` records: `excluded_paths` bounds possibly changed string
+keys, `value_completeness="unaffected_keys_only"` limits retained input origins,
+and `return_path` selects a direct or fixed tuple alias when proved. These are
+normal-return provenance facts, not final key-absence facts or complete helper
+effect summaries. `mapping_values_partial` boundaries remain visible. See
+[finite-key mapping remainders](value-flow.md#finite-key-mapping-remainders).
+
 Value-flow analysis is an additive, experimental API. It does not change the
 ownership entry points or the ownership JSON schema below:
 
@@ -130,16 +147,29 @@ FlowAnalyzer(
     project_root=None,
     return_summaries=None,
     parameter_shapes=None,
+    analysis_limits=None,
+    support_source_protocols=False,
+    source_store=None,
 )
 FlowAnalyzer.analyze(entry, max_depth=1, max_functions=500,
-                     max_call_contexts=2000)
-FlowAnalyzer.expand(result, call_id, additional_depth=1)
+                     max_call_contexts=2000, conditional_source_state=False,
+                     max_class_effect_steps=8000)
+FlowAnalyzer.expand(result, call_id, additional_depth=1, isolate=False,
+                    preserve_lineage=False)
 ```
 
 Exactly one of `project_root` and `source_files` is required. `entry` is a
 `FunctionRef`; its `module` and dotted `qualname` identify a function, nested
 function, or method. File path and definition line can disambiguate duplicate
 definitions in the Python API.
+
+`analysis_limits` applies cooperative resource limits to an analysis run.
+`support_source_protocols` opts in to separately versioned supporting-source
+proofs, and `source_store` can provide a shared source store. The boolean
+`conditional_source_state` opts in to conditional class-state facts;
+`max_class_effect_steps` bounds class-effect proof work. For `expand`,
+`preserve_lineage=True` requires `isolate=True`. Expansion returns a new
+snapshot and validates its source and contract dependencies.
 
 `FlowAnalysis.to_dict()` emits `schema_version="flow-0.2"` with `entry`,
 `inputs`, `functions`, `calls`, and `boundaries`. `find_calls()` and
@@ -200,9 +230,12 @@ do not authorize an open container merely from its lexical name.
 | instantiated helper mapping effects | `completion`, `may_raise`, `binding`, `call_id`, `call_evidence` | A complete straight-line constant-string-key dict removal instantiated from a proven ordinary argument. `completion="normal_return"` excludes exceptional completion; `may_raise="KeyError"` applies to required-key pop/delete. Binding and both source sites explain which actual object was modified. |
 | `functions[*].return_objects[*]` | `requires_shapes`, `completion` | Optional receiver-parameter shape constraints and normal-completion scope for a symbolic alias proof that includes fully modeled effects. No caller-local object IDs are stored in the symbolic summary. |
 | `functions[*]` | `receiver_contexts` | Source class receiver contexts used for classmethod/`__new__` summaries. Multiple contexts merge conservatively into one source-call record; conflicting targets remain bounded alternatives. |
+| provenance values | `source_class_origin` | Optional source-symbol class identity, definition/use evidence and ordered incoming `call_context` edge IDs. Exact ordinary-parameter or proven implicit classmethod binding preserves it in `analysis_contexts.parameter_facts`. Nominal receiver types alone do not create it. Writes/deletes, incomplete alternatives and unmodeled direct/container escapes invalidate its use as a binding proof. Existing budgets bound propagation. |
 | `functions[*]` | `decorator_effects` | Bounded source-decoration facts on the exact original FunctionRef, including entries. Separates `identity_status` from `body_binding_status` (`preserved`, `modified`, `unknown`); records expression/target, optional constructor/receiver facts, input-function attribute effects, conditions, source evidence/hashes, assumptions and unresolved boundaries. `runtime_target_confirmed` remains false; a same-object return alone is not body/binding preservation. |
 | `calls[*]` | `callable_sources` | Callable expression provenance, including an optional source-proven `callable_type` and `callable_evidence` on ordinary parameter roots. String values or annotations do not establish callable identity. |
 | `calls[*]` | `class_method_bindings` | Source-snapshot classmethod lookup/binding explanations. `source_bound` requires a direct source class/import/alias, a proven builtin descriptor, matching local member or source MRO, and no recognized mutation/escape/customization. Records receiver versus definition class, implicit binding, source hashes/evidence, conditions, assumptions and issues; `runtime_target_confirmed` is always false. `unconfirmed` is not a binding proof. |
+| `calls[*]` | `class_metadata_bindings` | Optional `class_name_literal` facts for an exact source class's canonical `__name__` at a bound helper's `call_entry`. A `source_bound` literal requires restricted standard class creation, source MRO and snapshot metadata preservation. Records the helper/call/parameter, full selected source hashes, assumptions and issues; `runtime_value_confirmed=false`. An `unconfirmed` record supplies no literal. Metadata-derived partial class-write effects retain the premise as `name_metadata` with `name_basis` and source `name_evidence`; this establishes neither cache contents nor complete helper effects. |
+| `calls[*]` | `constructor_bindings` | Optional source-snapshot proof of the implicit class argument to a selected source `__new__` invocation. Records actual versus definition class, `phase="__new__"`, `execution_scope="new_invocation_only"`, `body_execution` (`synchronous`/`deferred`), call/source evidence, assumptions and issues. `instance_state="unmodeled"` and `runtime_target_confirmed=false` exclude initialized state or a complete constructor lifecycle. A proven binding adds an exact `argument={"constructor_class":true}` record for the first formal; other arguments can remain uncertain or invalid. Per-edge contexts retain their own constructor facts. |
 | `calls[*]` | `analysis_contexts` | Per-expansion facts tied to `incoming_call_id`: symbolic `parameter_facts`, target/candidates/status, binding status, argument/callable/result sources, effects, conditional returns and conditions. The top-level call is a conservative union; do not combine facts from different contexts. |
 | `calls[*]` | `conditional_returns` | Guarded ordinary-parameter alias facts for a supported early-return path, with `requires_literal_guard`. Proven incoming objects optionally add `container_shape`, caller-local `object_source`, `binding` and `input_evidence`. `completeness="partial_paths"` does not authorize unconditional alias/content updates or prove the whole helper pure. |
 | `calls[*].argument_sources[*]` | `literal`, `value_evidence` | Bounded source-proven builtin scalar/tuple/list values used for branch selection and finite-key constraints, separate from dependency roots. Mutable-container writes and unknown escapes invalidate stale literal facts. |
@@ -211,6 +244,19 @@ do not authorize an open container merely from its lexical name.
 | class/instance sources | `attribute_provenance`, `instance_candidates` | Restricted class-attribute write/read evidence and source allocation alternatives. `value_incomplete=true` marks an open configuration state; the downstream call remains unresolved even when known source candidates exist. Initial `None` is not a runtime configuration proof. |
 | `boundaries[*]` | `affected_scope`, `affected_values` | Known roots and element paths affected by the boundary, or explicit `none`/`unknown` scope. |
 | source boundaries | `entry_relation`, `relation_basis`, `unaffected_values` | Static import reachability and entry parameters excluded from value impact because they are never read in the entry body; reflection suppresses exclusions. Neither is a runtime reachability proof. |
+
+Source class-call targets select the MRO allocator before an initializer.
+`constructor_initialization_unmodeled` marks the later `__init__` phase when
+selecting a source `__new__`; it does not assert that initialization executes.
+An unresolved/custom allocator cannot be replaced by an initializer target.
+Source initializer targets require ordinary builtin allocation assumptions.
+
+For a source class query, optional `inputs.entry_binding` identifies the actual
+class and source MRO, selected `target`/`phase`, exact first receiver parameter,
+source hashes, definition evidence and assumptions. `query_kind="source_class_call"`
+distinguishes it from a call-site record. `source_bound` permits only the stated
+`new_invocation_only` or `init_invocation_only` phase. Unconfirmed entry bindings
+retain a boundary and do not expose body calls. Generic method entries are unchanged.
 
 Existing fields and `schema_version="flow-0.2"` are unchanged. Consumers must
 continue to treat a selected method or decorated target/class as conservative
@@ -236,9 +282,27 @@ remain. These facts neither confirm runtime targets nor claim the decorator pure
 Additive decoration effects distinguish `documentation_cache` construction,
 conditional `setdefault` and formatting `mapping_lookup` from writes to
 `input_function`. Source `helper_call` effects retain exact targets/bindings;
-partial effects never substitute for positive body/binding proof. Method-specific
-`builtin_method_binding` evidence in effects or `receiver_type_evidence` does not
-give a dict subclass builtin container shape. An inherited builtin method has
+partial effects never substitute for positive body/binding proof.
+
+Constructor argument records can additionally expose
+`value_provenance.kind="source_function_documentation"` with the exact source
+FunctionRef, expression evidence and `python_shape="str_or_none"`. The source
+file participates in the proof hashes; neither document content nor runtime
+function identity is asserted. Known builtin scalar comparisons can prune
+unreachable initializer effects, while unknown/custom protocols retain issues.
+
+`construction.lifetime` separates a `single_decoration` constructor from a
+`shared_source_instance`. Closed proofs can include unconditional scalar field
+updates on the former (`target="decorator_instance"`, `operation="attribute_write"`,
+`impact="data_only"`, `before_shapes`, `after_shapes`) and finite builtin string
+joins (`target="str.join"`, `operation="builtin_call"`, `impact="data_only"`,
+`receiver_shape`, `sequence_shape`, `element_shapes`). Each retains its source
+and conditions. These effects neither prove arbitrary receiver mutation safe
+nor remove an unknown outer helper's boundary.
+
+Method-specific `builtin_method_binding` evidence in effects or
+`receiver_type_evidence` does not give a dict subclass builtin container shape.
+An inherited builtin method has
 no fabricated Python target; `builtin_method_candidate` retains dynamic/unknown
 key boundaries and does not perform a heap strong update. Source-unavailable
 decoration calls can include `source_target`, `source_available` and

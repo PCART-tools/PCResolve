@@ -833,7 +833,7 @@ def test_method_result_object_keeps_library_for_followup_call():
 
 def _run_code_with_cg(code):
     """Analyze code and return (result, project_cg)."""
-    from pcresolve.cross_file import ProjectAnalyzer
+    from pcresolve.ownership.analyzer import ProjectAnalyzer
     with tempfile.TemporaryDirectory() as td:
         with open(os.path.join(td, "main.py"), "w") as f:
             f.write(code)
@@ -1027,7 +1027,7 @@ def test_parameter_return_does_not_guess_direct_chain_owner():
 
 def test_same_name_function_across_modules_not_polluted():
     """a.py: make_arr -> numpy; b.py: make_arr -> local list; b calls own, must not become numpy."""
-    from pcresolve.cross_file import ProjectAnalyzer
+    from pcresolve.ownership.analyzer import ProjectAnalyzer
     with tempfile.TemporaryDirectory() as td:
         # Module a: make_arr returns numpy array
         with open(os.path.join(td, "a.py"), "w") as f:

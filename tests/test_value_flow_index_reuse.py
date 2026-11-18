@@ -7,7 +7,8 @@ import os
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-import pcresolve.flow as flow_module
+import pcresolve.flow.analyzer as flow_module
+import pcresolve.flow.index.source as flow_source
 
 
 ENTRY = FunctionRef(module='main', qualname='entry')
@@ -24,7 +25,7 @@ def test_repeated_flow_queries_build_definition_index_once(tmp_path, monkeypatch
         indexed.append(len(records))
         return original(records)
 
-    monkeypatch.setattr(flow_module, 'DefinitionIndex', build)
+    monkeypatch.setattr(flow_source, 'DefinitionIndex', build)
     analyzer = FlowAnalyzer(project_root=tmp_path)
     before = analyzer.analyze(ENTRY, max_depth=2)
     tree = ast.dump(analyzer._source_snapshot.documents[str(tmp_path / 'main.py')].tree,

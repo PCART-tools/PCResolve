@@ -10,6 +10,11 @@ containers. Classification converts the resolved evidence into the stable
 may invent an owner from a variable name, method name, project name, or
 unverified library convention.
 
+The tracing and classification components are in `pcresolve.ownership.resolve`
+and `pcresolve.ownership.classification`. Their internal source records are
+described in [Source Semantics](source-semantics.md); the public output is
+defined by [Output Contract](output-contract.md).
+
 ## Trace pipeline
 
 ```text

@@ -128,7 +128,6 @@ def test_finite_input_stays_finite_after_identity_return():
     ('negative_boolean', 'returned.clear'),
     ('negative_mixed', 'returned.clear'),
     ('negative_implicit', 'returned.clear'),
-    ('negative_mutate', 'returned.pop'),
     ('negative_escape', 'returned.clear'),
     ('negative_finalized', 'returned.clear'),
     ('negative_recursive', 'returned.clear'),
@@ -146,6 +145,16 @@ def test_unproven_return_is_not_an_original_container_alias(entry, method):
     assert sources(named(result, 'sink', entry), 'kwargs')
     assert any(boundary['reason'] == 'container_return_unproven'
                for boundary in result.boundaries)
+
+
+def test_finite_write_preserves_only_unchanged_keys_of_the_original_object():
+    result = analyze('negative_mutate')
+    call = named(result, 'mutate', 'negative_mutate')
+    assert call.effects[0]['kind'] == 'mapping_remainder'
+    assert call.effects[0]['excluded_paths'] == [['changed']]
+    assert named(result, 'returned.pop', 'negative_mutate').target_status == 'local_container_protocol'
+    remaining = sources(named(result, 'sink', 'negative_mutate'), 'kwargs')
+    assert remaining and all(['changed'] in value.get('excluded_paths', []) for value in remaining)
 
 
 @pytest.mark.parametrize('entry', ['unknown_input', 'uncertain_binding'])

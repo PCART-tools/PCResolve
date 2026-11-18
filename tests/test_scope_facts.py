@@ -5,8 +5,8 @@ import ast
 from pathlib import Path
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.mapping_facts import bound_names
-from pcresolve.scope_facts import (FLOW_SCOPE, MAPPING_SCOPE,
+from pcresolve.ownership.mapping_facts import bound_names
+from pcresolve.facts.scope_facts import (FLOW_SCOPE, MAPPING_SCOPE,
                                    LexicalScopeFacts, captured_names,
                                    function_scope_facts,
                                    statement_scope_facts)

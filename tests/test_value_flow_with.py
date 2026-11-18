@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
+from tests.flow_test_support import set_context_protocol_limit
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 ROOT = Path(__file__).parent / 'fixtures/value_flow_with'
@@ -220,8 +222,8 @@ def test_fresh_enter_allocations_are_instantiated_per_call_not_cached_objects():
 
 
 def test_enter_proof_budget_exhaustion_keeps_an_explicit_boundary(monkeypatch):
-    import pcresolve.flow as flow
-    monkeypatch.setattr(flow, '_CONTEXT_PROTOCOL_NODE_LIMIT', 1, raising=False)
+    import pcresolve.flow.analyzer as flow
+    set_context_protocol_limit(monkeypatch, 1)
     result = analyze('protocol_narrowing')
     call = result.find_calls(callee_name='session.request')[0]
     assert call.target is None and call.target_status == 'receiver_unresolved'

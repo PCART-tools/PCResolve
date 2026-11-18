@@ -1,6 +1,7 @@
 ## @package tests.test_pcbench_real_sources
 #  Optional regressions against the hash-checked PCBench source inventory.
 
+import ast
 import hashlib
 import json
 import os
@@ -8,13 +9,101 @@ from pathlib import Path
 
 import pytest
 
-from pcresolve import FlowAnalyzer, FunctionRef
+from pcresolve import FlowAnalyzer, FunctionRef, SourceSpan
+from pcresolve.flow.proofs._class_definition import source_identity_factory_wrapper_chain
+from pcresolve.flow.proofs._constructor_entry import source_member
+from pcresolve.flow.proofs._class_decoration import constructor_decorations
+from pcresolve.flow.proofs._source_protocols import SourceProtocolResolver
+from pcresolve.flow.proofs._native_class_protocol import _public_helper_export
 
 
 INVENTORY = Path('C:/GitHub/VPPDetector/tmp/pcbench_sources/sources.json')
 FIXTURES = Path(__file__).parent / 'fixtures' / 'pcbench_regressions'
 CLASSMETHOD_CLOSURE = (Path(__file__).parent / 'fixtures' / 'value_flow_classmethod_binding'
                       / 'pandas-2.0.0-import-closure.json')
+
+
+def test_target_environment_iterability_implementation_has_source_protocol():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    if not (root / 'numpy' / 'lib' / 'function_base.py').is_file():
+        pytest.skip('Matplotlib target environment NumPy sources are unavailable')
+    resolver = SourceProtocolResolver([root], analyzer_factory=FlowAnalyzer)
+    fact = resolver.iterability('numpy.lib', 'iterable')
+    assert fact is not None, resolver.last_boundary
+    assert fact['source_binding']['target']['module'] == 'numpy.lib.function_base'
+    assert fact['source_binding']['target']['qualname'] == 'iterable'
+    assert fact['result'] is False
+
+
+def test_target_environment_public_iterability_reexport_has_a_source_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    if not (root / 'numpy' / 'lib' / 'function_base.py').is_file():
+        pytest.skip('Matplotlib target environment NumPy sources are unavailable')
+    resolver = SourceProtocolResolver([root], analyzer_factory=FlowAnalyzer)
+
+    fact = _public_helper_export(resolver, 'numpy', 'iterable')
+
+    assert fact is not None
+    assert fact['status'] == 'source_bound'
+    assert fact['target'] == 'numpy.lib.function_base.iterable'
+    assert fact['runtime_binding_confirmed'] is False
+    sources = [Path(path).as_posix() for path in fact['source_hashes']]
+    assert any(path.endswith('/numpy/__init__.py') for path in sources)
+    assert any(path.endswith('/numpy/lib/__init__.py') for path in sources)
+    assert any(path.endswith('/numpy/lib/function_base.py') for path in sources)
+
+
+def test_artist_inspector_callsite_uses_numpy_public_iterability_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    package = root / 'matplotlib'
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib target environment sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[root],
+                            support_source_protocols=True)
+    analyzer._index()
+    path = package / 'artist.py'
+    tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+    function = next(node for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef) and node.name == '__init__'
+                    and node.lineno > 1300)
+    call = next(node for node in ast.walk(function)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'iterable')
+
+    fact = analyzer.source_call_protocol(
+        FunctionRef('matplotlib.artist', 'ArtistInspector.__init__',
+                    str(path), function.lineno),
+        SourceSpan(str(path), call.lineno, call.col_offset,
+                   call.end_lineno, call.end_col_offset))
+
+    assert fact is not None
+    assert fact['target'] == 'numpy.iterable'
+    assert fact['fact']['result'] is False
+    assert fact['fact']['source_binding']['target']['module'] == 'numpy.lib.function_base'
+    assert fact['fact']['source_binding']['target']['qualname'] == 'iterable'
+
+
+def test_target_environment_decorated_constructor_has_source_entry_binding():
+    root = Path('C:/Users/xiaog/anaconda3/envs/matplotlib3.6.0/Lib/site-packages')
+    package = root / 'matplotlib'
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib target environment sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[root],
+                            support_source_protocols=True)
+
+    result = analyzer.analyze(FunctionRef('matplotlib.patches', 'FancyArrowPatch'))
+
+    binding = result.inputs['entry_binding']
+    assert binding['status'] == 'source_bound'
+    wrapper = binding['constructor_wrapper_forwarding']
+    assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
+    assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
 
 
 def source(source_id):
@@ -124,14 +213,17 @@ def test_tornado_inherited_new_preserves_class_context_and_unknown_configuration
         assert any(boundary['reason'] == 'class_attribute_state_unknown'
                    for boundary in result.boundaries)
 
-    for name in ('super(Configurable, cls).__new__', 'instance.initialize'):
-        call = result.find_calls(callee_name=name)[0]
-        assert call.target is None
-        assert call.target_candidates == []
-        assert call.target_status == 'receiver_unresolved'
-        assert any(boundary.get('call_id') == call.id
-                   and boundary['reason'] == 'receiver_unresolved'
-                   for boundary in result.boundaries)
+    allocator = result.find_calls(callee_name='super(Configurable, cls).__new__')[0]
+    assert allocator.target is None and allocator.target_status == 'builtin_allocation'
+    assert all(value.get('value_incomplete') and value.get('conditions')
+               and value.get('attribute_provenance') for value in allocator.result_sources)
+    call = result.find_calls(callee_name='instance.initialize')[0]
+    assert call.target is None and call.target_status == 'receiver_unresolved'
+    assert {target['qualname'] for target in call.target_candidates} == {
+        'AsyncHTTPClient.initialize', 'SimpleAsyncHTTPClient.initialize'}
+    assert any(boundary.get('call_id') == call.id
+               and boundary['reason'] == 'class_attribute_state_unknown'
+               for boundary in result.boundaries)
 
     update = next(call for call in result.find_calls(callee_name='args.update')
                   if any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
@@ -308,18 +400,15 @@ def test_aiohttp_assignment_boundaries_do_not_name_kwargs():
                                for root in item['affected_values']}
                for item in assignments)
     assert all(item['affected_scope'] == 'known' for item in assignments)
-    full = FlowAnalyzer(project_root=source('aiohttp-0.8.2').parent).analyze(
+    analyzer = FlowAnalyzer(project_root=source('aiohttp-0.8.2').parent)
+    full = analyzer.analyze(
         FunctionRef(module='aiohttp.connector', qualname='BaseConnector.__init__'))
     unavailable = [item for item in full.boundaries
                    if item['reason'] == 'source_unavailable']
-    assert unavailable
-    assert any(item['affected_scope'] == 'none'
-               and item['entry_relation'] == 'unrelated'
-               for item in unavailable)
-    assert all(item['affected_scope'] == 'none' or
-               {'kind': 'parameter', 'name': 'kwargs',
-                'element_path': []} in item['unaffected_values']
-               for item in unavailable)
+    assert not unavailable
+    legacy = [document for document in analyzer._source_snapshot.documents.values()
+              if document.syntax_features == ('legacy_keyword_attributes',)]
+    assert legacy and any(document.file_path.endswith('client.py') for document in legacy)
 
 
 def test_keras_and_dask_mapping_element_facts():
@@ -367,6 +456,52 @@ def test_matplotlib_decorated_super_has_source_candidate_and_boundary(source_id,
                for item in result.boundaries)
 
 
+def test_fancy_arrow_patch_entry_decorator_chain_proves_keyword_forwarding():
+    package = source('matplotlib-3.6.0')
+    selected = [package / name for name in (
+        'patches.py', '_docstring.py', 'artist.py', '__init__.py',
+        '_api/__init__.py', '_api/deprecation.py')]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Matplotlib constructor decorator sources are unavailable')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent],
+                            support_source_protocols=True)
+    analyzer._index()
+    owner, cls = analyzer._definition_index.find(
+        'matplotlib.patches', 'FancyArrowPatch', kind='class')[0]
+    target = source_member(analyzer, owner, cls, '__init__')
+    assert target is not None
+    dependencies = set()
+    assumptions = set()
+    wrapper = source_identity_factory_wrapper_chain(
+        analyzer, owner, target, dependencies, assumptions)
+    assert wrapper['kind'] == 'source_function_factory_wrapper_creation'
+    assert wrapper['forwarding']['forwarded_function']['qualname'] == 'FancyArrowPatch.__init__'
+    assert wrapper['forwarding']['argument_scope'] == 'same_args_and_kwargs'
+    assert 'source_identity_decorator_over_source_factory_wrapper' in assumptions
+    assert any(Path(path).parts[-2:] == ('_api', 'deprecation.py') for path in dependencies)
+
+
+def test_matplotlib_350_patch_alias_decorator_proves_its_generated_names():
+    report = Path('C:/GitHub/VPPDetector/evaluation/pcbench/shadow-chain-9f6f877-20261011.json')
+    if not report.is_file():
+        pytest.skip('Frozen Shadow source closure is not available')
+    hashes = json.loads(report.read_text(encoding='utf-8'))['source_hashes']
+    selected = [Path(path) for path in hashes]
+    if not all(path.is_file() for path in selected):
+        pytest.skip('Frozen Shadow source files are not available')
+    package = next(path.parent for path in selected if path.name == 'docstring.py')
+    analyzer = FlowAnalyzer(source_files=selected, import_roots=[package.parent])
+    analyzer._index()
+    owner, cls = analyzer._definition_index.find(
+        'matplotlib.patches', 'Patch', kind='class')[0]
+    facts = constructor_decorations(analyzer, (owner, cls))
+    assert facts is not None
+    assert any(fact.get('kind') == 'source_class_alias_decoration'
+               and fact.get('identity_status') == 'preserved'
+               and 'set_aa' in fact.get('attributes', [])
+               for fact in facts)
+
+
 def test_matplotlib_shadow_receiver_candidate_retains_decorated_class_boundary():
     result = analyze('matplotlib-3.5.0', ['patches.py', 'artist.py'],
                      'matplotlib.patches', 'Shadow.__init__')
@@ -387,13 +522,15 @@ def test_matplotlib_colorbar_external_receiver_remains_unresolved():
                for item in result.boundaries)
 
 
-@pytest.mark.parametrize('source_id,files,module,entry,target,identity', [
+@pytest.mark.parametrize('source_id,files,module,entry,target,identity,frontier,protocols', [
     ('pandas-2.0.0', ['core/series.py', 'core/generic.py', 'util/_decorators.py'],
-     'pandas.core.series', 'Series.take', 'Appender.__call__', 'unknown'),
-    ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py'],
-     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved')])
+     'pandas.core.series', 'Series.take', 'Appender.__call__', 'unknown',
+     'decorator_call_unresolved', set()),
+    ('matplotlib-3.7.0', ['patches.py', '_docstring.py', 'artist.py', '__init__.py', '_api/__init__.py'],
+     'matplotlib.patches', 'FancyBboxPatch.__init__', '_ArtistPropertiesSubstitution.__call__', 'preserved',
+     'decorator_expression_unsupported', {'str.endswith', 'len', 'str.__getitem__', 'KeyError'})])
 def test_real_decorated_entries_expose_identity_and_unclosed_effects(
-        source_id, files, module, entry, target, identity):
+        source_id, files, module, entry, target, identity, frontier, protocols):
     result = analyze(source_id, files, module, entry)
     fact = result.functions[0]['decorator_effects'][0]
     assert fact['function'] == result.to_dict()['entry']
@@ -403,7 +540,26 @@ def test_real_decorated_entries_expose_identity_and_unclosed_effects(
     assert fact['runtime_target_confirmed'] is False
     assert any(item['element_path'] == ['__doc__'] and item['impact'] == 'documentation'
                for item in fact['effects'])
-    assert any(item['reason'] == 'decorator_call_unresolved' for item in fact['boundaries'])
+    assert any(item['reason'] == frontier for item in fact['boundaries'])
+    assert protocols <= {effect['target'] for effect in fact['effects']
+                         if isinstance(effect['target'], str)}
+    if module == 'matplotlib.patches':
+        imported = next(effect['binding'] for effect in fact['effects']
+                        if effect['operation'] == 'cached_import')
+        assert imported['bindings'] == [
+            {'name': 'Artist', 'module': 'matplotlib.artist', 'attribute': 'Artist'},
+            {'name': 'kwdoc', 'module': 'matplotlib.artist', 'attribute': 'kwdoc'}]
+        assert imported['initialization_function'] == fact['function']
+        translated = next(effect for effect in fact['effects']
+                          if effect.get('exception_translation'))
+        assert translated['exception_translation']['caught_types'] == ['ValueError']
+        assert translated['exception_translation']['cause_kind'] == 'caught_exception'
+        assert any(boundary['reason'] == 'decorator_expression_unsupported'
+                   and boundary['evidence']['source_text'].startswith('[cls for cls in')
+                   for boundary in fact['boundaries'])
+        assert not any(boundary['reason'] == 'decorator_statement_unsupported'
+                       and boundary['evidence']['source_text'].startswith('try:')
+                       for boundary in fact['boundaries'])
     assert fact['source_hashes'] and fact['evidence']
     assert any(item['reason'] == 'decorator_effect_unconfirmed'
                and item['function'] == fact['function'] for item in result.boundaries)
@@ -519,9 +675,11 @@ def test_real_shadow_cache_and_helper_proofs_keep_unclosed_protocol_boundaries(i
         assert any(item['function']['qualname'] == 'cleandoc'
                    and item['reason'] == 'decorator_statement_unsupported' for item in fact['boundaries'])
     else:
-        helper = next(item for item in fact['boundaries'] if item.get('source_target') == 'inspect.cleandoc')
-        assert helper['source_available'] is False
-        assert helper['affected_roles'] == ['documentation_data']
+        helper = next(item for item in fact['effects']
+                      if item.get('target') == 'inspect.cleandoc')
+        assert helper['protocol'] == 'stdlib_text_normalization'
+        assert helper['input_shapes'] == [['str']]
+        assert fact['body_binding_status'] == 'unknown'
     loader = analyzer.analyze(FunctionRef(module='matplotlib.docstring', qualname='_ArtistKwdocLoader.__missing__'))
     call = loader.find_calls(callee_name='self.setdefault')[0]
     assert call.target_status == 'builtin_method_candidate'
@@ -558,8 +716,9 @@ def test_shadow_original_frozen_import_closure_preserves_partial_proof():
     fact = result.functions[0]['decorator_effects'][0]
     assert fact['identity_status'] == 'preserved' and fact['body_binding_status'] == 'unknown'
     assert not analyzer._class_binding_writes(include_escapes=True)[1]
-    assert any(item.get('source_target') == 'inspect.cleandoc' and item['source_available'] is False
-               for item in fact['boundaries'])
+    assert any(item.get('target') == 'inspect.cleandoc'
+               and item.get('protocol') == 'stdlib_text_normalization'
+               for item in fact['effects'])
     assert any(item['operation'] == 'construction' and item['target'] == 'documentation_cache'
                for item in fact['effects'])
     assert any(item['function']['qualname'] == '_ArtistKwdocLoader.__missing__'
@@ -569,7 +728,7 @@ def test_shadow_original_frozen_import_closure_preserves_partial_proof():
 
 
 @pytest.mark.parametrize('entry', ['cdist', 'pdist'])
-def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry):
+def test_scipy_helpers_preserve_only_the_finite_key_remainder(entry):
     result = analyze('scipy-1.0.0', ['spatial/distance.py'],
                      'scipy.spatial.distance', entry, max_depth=2)
     helper = result.find_calls(callee_name='_args_to_kwargs_xdist')[0]
@@ -578,28 +737,24 @@ def test_scipy_mutating_mapping_helper_does_not_acquire_an_identity_return(entry
     assert helper.conditional_returns
     assert helper.conditional_returns[0]['parameter'] == 'kwargs'
     assert helper.conditional_returns[0]['completeness'] == 'partial_paths'
-    assert not any(value.get('container_object') for value in helper.result_sources)
+    assert helper.result_sources[0]['container_object']['identity'] == 'argument_alias'
     assert any(value['kind'] == 'parameter' and value['source'] == 'kwargs'
                and value.get('output_path') == ['*']
                for argument in helper.argument_sources for value in argument['sources'])
     pop = next(call for call in result.find_calls(callee_name='kwargs.pop')
                if call.caller.qualname == entry)
-    assert pop.target_status == 'receiver_unresolved' and not pop.effects
+    assert pop.target_status == 'local_container_protocol' and pop.effects
     assert any(value['kind'] == 'call_result' and value['source'] == helper.id
                for value in pop.receiver_sources)
     for call in (helper, result.find_calls(callee_name='_filter_deprecated_kwargs')[0]):
-        assert not call.effects
-        boundary = next(value for value in result.boundaries
-                        if value['reason'] == 'container_return_unproven'
-                        and value.get('call_id') == call.id)
-        assert boundary['detail'] == 'unmodeled_helper_effects'
-        assert boundary['affected_scope'] == 'known'
-        assert any(value['name'] == 'kwargs' for value in boundary['affected_values'])
-        effect_boundary = next(value for value in result.boundaries
-                               if value['reason'] == 'mapping_effect_unproven'
-                               and value.get('call_id') == call.id)
-        assert effect_boundary['detail'] == 'unsupported_helper_body'
-        assert any(value['name'] == 'kwargs' for value in effect_boundary['affected_values'])
+        effect = next(effect for effect in call.effects if effect['kind'] == 'mapping_remainder')
+        assert effect['value_completeness'] == 'unaffected_keys_only'
+        assert effect['excluded_paths'] == [['V'], ['VI'], ['p'], ['w']]
+        assert 'state_after' not in effect
+        assert any(value['reason'] == 'mapping_values_partial'
+                   and value.get('call_id') == call.id for value in result.boundaries)
+    assert any(call.callee_name == 'metric' and call.target_status == 'definition_unavailable'
+               for call in result.calls)
 
 
 @pytest.mark.parametrize('entry', ['callback_control', 'early_control', 'deletion_control'])
@@ -625,10 +780,10 @@ def test_scipy_source_controls_instantiate_only_proven_incoming_context(entry):
                    for value in result.trace_parameter('kwargs')['return_paths'])
     else:
         call = result.find_calls(callee_name='_filter_deprecated_kwargs')[0]
-        assert {tuple(effect['element_path']) for effect in call.effects} == {('out',), ('p',)}
-        assert all(effect['completion'] == 'unproven' and effect['state_after'] == 'unknown'
-                   for effect in call.effects)
-        assert any(boundary['reason'] == 'mapping_effect_unproven'
+        assert call.effects[0]['excluded_paths'] == [['out'], ['p']]
+        assert call.effects[0]['kind'] == 'mapping_remainder'
+        assert 'state_after' not in call.effects[0]
+        assert any(boundary['reason'] == 'mapping_values_partial'
                    and boundary.get('call_id') == call.id for boundary in result.boundaries)
-        assert all(not value.get('excluded_paths')
+        assert all(['out'] in value.get('excluded_paths', [])
                    for value in result.trace_parameter('kwargs')['return_paths'])

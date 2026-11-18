@@ -9,11 +9,80 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.module_mapper import ModuleMapper
-from pcresolve.source_snapshot import (SourceStore, ModuleIndex, module_name_for_path,
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.frontend.module_mapper import ModuleMapper
+from pcresolve.frontend.source_snapshot import (SourceStore, ModuleIndex, module_name_for_path,
                                       OWNERSHIP_SOURCE, FLOW_SOURCE,
                                       OWNERSHIP_MODULES, FLOW_MODULES)
+
+
+def test_incremental_documents_share_parse_with_flow_without_skipping_refresh(tmp_path, monkeypatch):
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
+    import pcresolve.frontend.source_snapshot as sources
+    path = tmp_path / 'module.py'
+    path.write_text('def entry(x): return x\n', encoding='utf-8')
+    store = SourceStore()
+    parser = sources.ast.parse
+    calls = []
+    def counted(text, *args, **kwargs):
+        calls.append(text)
+        return parser(text, *args, **kwargs)
+    monkeypatch.setattr(sources.ast, 'parse', counted)
+    first = store.read_document(str(path), SourceReadPolicy('tokenize', True))
+    analyzer = FlowAnalyzer(source_files=[path], import_roots=[tmp_path], source_store=store)
+    result = analyzer.analyze(FunctionRef('module', 'entry'))
+    assert result.inputs['sha256'][str(path)] == first.sha256
+    assert len(calls) == 1
+    path.write_text('def entry(x): return 0\n', encoding='utf-8')
+    changed = analyzer.analyze(FunctionRef('module', 'entry'))
+    assert changed.inputs['sha256'][str(path)] != first.sha256
+    assert len(calls) == 2
+
+
+def test_declared_encoding_does_not_make_flow_accept_non_utf8(tmp_path):
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
+    path = str(tmp_path / 'latin.py')
+    Path(path).write_bytes(b'# coding: latin-1\nvalue = "\xe9"\n')
+    store = SourceStore()
+    document = store.read_document(path, SourceReadPolicy('tokenize', True))
+    assert document.error is None
+    assert store.snapshot([path], FLOW_SOURCE).documents[path].error_stage == 'read'
+
+
+def test_shared_reader_does_not_widen_analyzer_source_scope(tmp_path):
+    paths = [tmp_path / name for name in ('selected.py', 'outside.py')]
+    for path in paths:
+        path.write_text('def entry(): return 0\n', encoding='utf-8')
+    store = SourceStore()
+    for path in paths:
+        store.read_document(str(path), FLOW_SOURCE)
+    result = FlowAnalyzer(source_files=paths[:1], import_roots=[tmp_path], source_store=store).analyze(
+        FunctionRef('selected', 'entry'))
+    assert result.inputs['source_files'] == [str(paths[0])]
+
+
+def test_shared_reader_preserves_analysis_limits(tmp_path):
+    from pcresolve import AnalysisLimits, AnalysisLimitExceeded
+    path = tmp_path / 'module.py'
+    path.write_text('def entry(x):\n    return x + 1\n', encoding='utf-8')
+    store = SourceStore()
+    store.read_document(str(path), FLOW_SOURCE)
+    analyzer = FlowAnalyzer(source_files=[path], import_roots=[tmp_path], source_store=store,
+                            analysis_limits=AnalysisLimits(max_work=1))
+    with pytest.raises(AnalysisLimitExceeded):
+        analyzer.analyze(FunctionRef('module', 'entry'))
+
+
+def test_strict_syntax_query_does_not_evict_compatible_historical_ast(tmp_path):
+    from pcresolve.frontend.source_snapshot import SourceReadPolicy
+    path = str(tmp_path / 'legacy.py')
+    Path(path).write_text('x.async()\n', encoding='utf-8')
+    store = SourceStore()
+    historical = store.read_document(path, FLOW_SOURCE)
+    assert historical.error is None
+    strict = store.read_document(path, SourceReadPolicy('tokenize'))
+    assert isinstance(strict.error, SyntaxError)
+    assert store.read_document(path, FLOW_SOURCE) is historical
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'source_snapshot'
@@ -81,7 +150,7 @@ def test_cache_recovers_from_syntax_error_and_preserves_old_error_snapshot(tmp_p
 
 
 def test_new_snapshot_rereads_content_but_does_not_reparse_unchanged_source(monkeypatch):
-    import pcresolve.source_snapshot as snapshots
+    import pcresolve.frontend.source_snapshot as snapshots
     path = str(ROOT / 'pkg/helpers.py')
     parser = snapshots.ast.parse
     calls = []
@@ -134,6 +203,21 @@ def test_import_root_order_and_fallback_do_not_expand_source_set():
     index = ModuleIndex.build([path], [str(ROOT)], FLOW_MODULES)
     assert tuple(index.file_to_module) == (path,)
     assert 'pkg.main' not in index.module_to_file
+
+
+def test_flow_module_names_skip_roots_on_another_drive(monkeypatch):
+    path = str(ROOT / 'pkg/helpers.py')
+    unrelated_root = 'different-drive'
+    commonpath = os.path.commonpath
+
+    def cross_drive(paths):
+        if paths[0] == unrelated_root:
+            raise ValueError("Paths don't have the same drive")
+        return commonpath(paths)
+
+    monkeypatch.setattr(os.path, 'commonpath', cross_drive)
+    assert module_name_for_path(path, [unrelated_root, str(ROOT)], FLOW_MODULES) == 'pkg.helpers'
+    assert module_name_for_path(path, [unrelated_root], FLOW_MODULES) == 'helpers'
 
 
 def test_module_index_retains_duplicate_candidates_and_existing_last_file_winner():

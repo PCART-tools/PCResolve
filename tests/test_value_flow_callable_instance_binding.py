@@ -4,7 +4,7 @@ import copy
 from pathlib import Path
 
 import pytest
-import pcresolve._callable_instance_binding as instance_binding
+import pcresolve.flow.proofs._callable_instance_binding as instance_binding
 
 from pcresolve import FlowAnalyzer, FunctionRef
 

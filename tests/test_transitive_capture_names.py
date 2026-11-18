@@ -4,7 +4,7 @@ import ast
 
 import pytest
 
-from pcresolve.scope_facts import transitive_captured_names
+from pcresolve.facts.scope_facts import transitive_captured_names
 
 
 @pytest.mark.parametrize(('source', 'expected'), [

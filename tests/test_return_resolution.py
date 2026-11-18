@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.return_resolution import (CallBinding, ReturnCall,
+from pcresolve.facts.return_resolution import (CallBinding, ReturnCall,
                                           ResolutionLimits,
                                           first_bound_value,
                                           resolve_return_dependencies,

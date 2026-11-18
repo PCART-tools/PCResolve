@@ -1,0 +1,213 @@
+## @package pcresolve.ownership.symbol_table
+#  Track symbol provenance chains.
+#
+#
+#  Provide per-symbol chain tracking from definition site to ultimate origin.
+#
+#  The SymbolTable class records direct symbol-to-source mappings and
+#  recursively traces each symbol through aliases, assignments, and imports
+#  to determine its primary owner.
+#  跟踪符号定义到最终来源的链，并通过别名、赋值和导入解析主要归属。
+
+
+
+import builtins
+from pcresolve.ownership.fact_versions import VersionedDict
+from pcresolve.ownership.sources import (CallResult, PythonShape, SourceSet, normalize_source,
+                      source_display)
+
+
+## Tracks symbol definitions and resolves each to its top-level source.
+## 跟踪符号定义并将其解析到顶层来源。
+#
+#  Maintains three data structures:
+#  - direct: immediate source of each symbol (module name, "local", etc.)
+#  - chains: full resolution chain from symbol to origin
+#  - top: cached top-level origin for each symbol
+class SymbolTable:
+    ## Direct facts expose a mutation generation for source lookup indexes.
+    ## 直接来源事实提供修改版本，供来源查找索引使用。
+    #
+    #  @return Versioned mapping of symbols to their immediate sources.
+    @property
+    def direct(self):
+        return self._direct
+
+    ## Replace direct facts with a version-tracked mapping.
+    ## 用带版本跟踪的映射替换直接来源事实。
+    #
+    #  @param values Symbol-to-source mappings to install.
+    #  @return None.
+    @direct.setter
+    def direct(self, values):
+        self._direct = VersionedDict(values)
+
+    ## Initialize an empty symbol table.
+    ## 初始化空符号表。
+    #
+    #  @param return_sources Optional function return-source mapping to consult.
+    #  @return None.
+    def __init__(self, return_sources=None):
+        self.direct = {}
+        self.top = {}
+        self.chains = {}
+        self.return_sources = return_sources if return_sources is not None else {}
+
+    ## Recursively trace a symbol to build its resolution chain.
+    ## 递归追踪符号并构建解析链。
+    #
+    #  Follows the direct-source mapping until a terminal symbol is reached.
+    #
+    #  @param symbol The symbol to trace.
+    #  @param visited Set of already-visited symbols to detect cycles.
+    #  @return Ordered list forming the resolution chain.
+    def trace(self, symbol, visited=None):
+        if visited is None:
+            visited = set()
+        symbol = normalize_source(symbol)
+        # A result-specific source takes precedence over tracing its callee.
+        # 返回对象的专属来源优先于对被调用对象的追踪。
+        if isinstance(symbol, CallResult):
+            if symbol in visited:
+                return []
+            visited.add(symbol)
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            #  Use it for the chain when set; otherwise fall back to callee tracing.
+            rs = getattr(symbol, 'result_source', None)
+            if rs is not None:
+                from pcresolve.ownership.sources import UnknownSource
+                if isinstance(rs, UnknownSource):
+                    return [source_display(symbol), "unknown"]
+                if isinstance(rs, PythonShape):
+                    return [source_display(symbol), "python"]
+                if rs == "python":
+                    return [source_display(symbol), "python"]
+                if isinstance(rs, str):
+                    return [source_display(symbol), rs]
+                # Structured result (DerivedResult, etc.): display only.
+                return [source_display(symbol)]
+            callee = symbol.callee
+            rs = self.return_sources.get(callee)
+            if rs:
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
+                    return self.trace(rs, visited)
+                if isinstance(rs, SourceSet):
+                    for src in rs.sources:
+                        sub = self.trace(src, visited)
+                        if sub and sub != [source_display(src)]:
+                            return sub
+                if isinstance(rs, str):
+                    return self.trace(rs, visited)
+            return self.trace(callee, visited)
+        # Stop cyclic aliases before following the direct-source mapping.
+        # 在沿直接来源映射继续追踪前终止循环别名。
+        if symbol in visited:
+            return []
+        visited.add(symbol)
+        if not isinstance(symbol, str):
+            return [source_display(symbol)]
+        if symbol not in self.direct:
+            return [symbol]
+        source = normalize_source(self.direct[symbol])
+        if isinstance(source, CallResult):
+            ## 1.0.5 P2: explicit result_source carries result-object ownership.
+            rs = getattr(source, 'result_source', None)
+            if rs is not None:
+                from pcresolve.ownership.sources import UnknownSource
+                if isinstance(rs, UnknownSource):
+                    sub = self.trace("unknown", visited)
+                elif isinstance(rs, PythonShape):
+                    sub = ["python"]
+                elif rs == "python":
+                    sub = ["python"]
+                elif isinstance(rs, str):
+                    sub = self.trace(rs, visited)
+                else:
+                    sub = [source_display(source)]
+                return [symbol] + [source_display(source)] + sub
+            callee = source.callee
+            rs = self.return_sources.get(callee)
+            if rs:
+                rs = normalize_source(rs)
+                if isinstance(rs, CallResult):
+                    sub = self.trace(rs, visited)
+                elif isinstance(rs, SourceSet):
+                    sub = None
+                    for src in rs.sources:
+                        sub = self.trace(src, visited)
+                        if sub and sub != [source_display(src)]:
+                            break
+                    if not sub:
+                        sub = self.trace(callee, visited)
+                elif isinstance(rs, str):
+                    sub = self.trace(rs, visited)
+                else:
+                    sub = self.trace(callee, visited)
+            else:
+                sub = self.trace(callee, visited)
+            return [symbol] + sub
+        if not isinstance(source, str):
+            return [symbol, source_display(source)]
+        subchain = self.trace(source, visited)
+        return [symbol] + subchain
+
+    ## Get the top-level origin for a symbol.
+    ## 获取符号的顶层来源。
+    #
+    #  Resolves through the chain and returns the last element.
+    #
+    #  @param symbol The symbol to look up.
+    #  @return Top-level source string, or None.
+    def get_top(self, symbol):
+        if symbol in self.top:
+            return self.top[symbol]
+        chain = self.trace(symbol)
+        if chain:
+            self.top[symbol] = chain[-1]
+            return chain[-1]
+        return None
+
+    ## Get the full resolution chain for a symbol.
+    ## 获取符号的完整解析链。
+    #
+    #  @param symbol The symbol to look up.
+    #  @return Resolution chain list, or empty list.
+    def get_chain(self, symbol):
+        return self.chains.get(symbol, [])
+
+    ## Add a symbol-to-source mapping and update chains.
+    ## 添加符号到来源的映射并更新解析链。
+    #
+    #  Records the direct source, then recomputes the chain and top origin.
+    #
+    #  @param symbol The symbol being defined.
+    #  @param source The immediate source (module name, "local", etc.).
+    #  @return None.
+    def add(self, symbol, source):
+        if not symbol or not source:
+            return
+        self.direct[symbol] = source
+        chain = self.trace(symbol)
+        self.chains[symbol] = chain
+        if chain:
+            last = chain[-1]
+            self.top[symbol] = last if isinstance(last, str) else str(last)
+
+    ## Snapshot direct/chains/top for branch analysis rollback.
+    ## 为分支分析回滚保存 direct、chains 和 top 的快照。
+    #
+    #  @return Tuple of (direct, chains, top) dict copies.
+    def snapshot(self):
+        return (dict(self.direct), dict(self.chains), dict(self.top))
+
+    ## Restore direct/chains/top from a snapshot.
+    ## 从快照恢复 direct、chains 和 top。
+    #
+    #  @param state Tuple of (direct, chains, top) dicts.
+    #  @return None.
+    def restore(self, state):
+        direct, chains, top = state
+        self.direct = dict(direct)
+        self.chains = dict(chains)
+        self.top = dict(top)

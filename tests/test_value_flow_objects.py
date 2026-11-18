@@ -54,7 +54,7 @@ def test_cross_call_return_projection_does_not_mix_tuple_elements():
 def test_boundary_records_are_unique():
     root = Path(__file__).resolve().parents[1] / 'src'
     result = FlowAnalyzer(project_root=root).analyze(FunctionRef(
-        module='pcresolve.project_source_tracing',
+        module='pcresolve.ownership.resolve.project_source_tracing',
         qualname='ProjectSourceTracingMixin.trace_symbol'), max_depth=3)
     records = [json.dumps(b, sort_keys=True) for b in result.boundaries]
     assert len(records) == len(set(records))

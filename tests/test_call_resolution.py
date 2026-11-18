@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve.call_graph import CallContext as LegacyContext, FunctionId, ProjectCallGraph
-from pcresolve.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.program_facts import SourceSpan
-from pcresolve.sources import ParameterSource
+from pcresolve.ownership.call_graph import CallContext as LegacyContext, FunctionId, ProjectCallGraph
+from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.facts.program_facts import SourceSpan
+from pcresolve.ownership.sources import ParameterSource
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'call_resolution'

@@ -93,3 +93,19 @@ maintained documentation.
   incomplete.
 - Missing evidence is reported conservatively. It must not be interpreted as
   proof that an owner or dependency does not exist at runtime.
+
+## Continuous integration and compatibility
+
+The Validation workflow runs Python 3.9 and 3.13.9 on Windows and Ubuntu
+24.04. It builds and installs release artifacts, runs the test and ownership
+gates, and evaluates the strict value-flow matrix. Python 3.13.9 additionally
+compares public API and complete output fingerprints; the Windows 3.13.9 job
+also runs the isolated-process performance comparison.
+
+The API baseline checks exports and legacy import mappings. For complete
+outputs, Windows uses the checked-in frozen fingerprints; Linux captures the
+same fixed pre-refactor revision on Linux before comparing. The reference and
+corpus identities are documented in the [baseline README](../tests/baselines/architecture_1_0_8/README.md).
+These comparisons detect changes from the reference; the reviewed ownership
+corpus and value-flow matrix check specified behavior separately. A performance
+sample affected by resource interference is diagnostic, not a passing result.

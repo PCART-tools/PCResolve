@@ -1,7 +1,7 @@
 ## @package tests.test_single_file_method_resolution
 #  Characterize receiver-method source collection before extraction.
 
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 def test_method_resolution_preserves_receiver_kinds(tmp_path):

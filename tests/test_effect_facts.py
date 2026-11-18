@@ -5,7 +5,7 @@ import ast
 
 import pytest
 
-from pcresolve.effect_facts import (container_method_effect, contains_yield,
+from pcresolve.facts.effect_facts import (container_method_effect, contains_yield,
                                     function_effects)
 
 

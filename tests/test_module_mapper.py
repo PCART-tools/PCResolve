@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pcresolve.module_mapper import ModuleMapper
+from pcresolve.frontend.module_mapper import ModuleMapper
 
 
 def test_file_to_module_mapping(tmp_path):

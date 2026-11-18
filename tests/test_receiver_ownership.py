@@ -1,7 +1,7 @@
 """Targeted regression tests: pandas/numpy/scipy receiver ownership."""
 
 import pytest
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 import os
 
 FIXTURE = os.path.join(os.path.dirname(__file__),

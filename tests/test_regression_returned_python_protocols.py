@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from pcresolve import analyze_project
-from pcresolve.cross_file import ProjectAnalyzer
-from pcresolve.sources import InstanceMethod, PythonShape, UnknownSource
+from pcresolve.ownership.analyzer import ProjectAnalyzer
+from pcresolve.ownership.sources import InstanceMethod, PythonShape, UnknownSource
 
 
 HELPERS = Path(__file__).parent / 'fixtures' / 'returned_python_protocols' / 'helpers.py'

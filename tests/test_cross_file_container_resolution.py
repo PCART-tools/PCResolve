@@ -1,7 +1,7 @@
 ## @package tests.test_cross_file_container_resolution
 #  Characterize container item and iteration ownership before extraction.
 
-from pcresolve.cross_file import analyze_project
+from pcresolve.ownership.analyzer import analyze_project
 
 
 def test_container_resolution_preserves_item_and_iteration_sources(tmp_path):

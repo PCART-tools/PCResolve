@@ -78,7 +78,7 @@ def test_pymysql_singleton_receiver_calls(result):
     matches = {
         call.expression: call
         for call in result.all_api_calls
-        if call.file_path.endswith("allnews_am\\db.py")
+        if call.file_path.endswith(os.path.join("allnews_am", "db.py"))
     }
     for expression in (
             "self.connection.cursor()",
@@ -92,7 +92,7 @@ def test_tuple_comprehension_regex_receivers_preserve_re(result):
     """Tuple fields from a module-level pattern comprehension keep re owner."""
     calls = [
         call for call in result.all_api_calls
-        if call.file_path.endswith("wikiextractor\\WikiExtractor.py")
+        if call.file_path.endswith(os.path.join("wikiextractor", "WikiExtractor.py"))
     ]
     assert any(
         call.lineno == 786

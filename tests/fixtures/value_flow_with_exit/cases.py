@@ -197,6 +197,16 @@ def exception_sensitive(**kwargs):
     return kwargs
 
 
+def nested_exit_summary(**kwargs):
+    class Outer(Noop):
+        def __exit__(self, *exc):
+            with Noop():
+                pass
+
+    with Outer():
+        return kwargs
+
+
 def normal_sensitive(**kwargs):
     class Conditional(Noop):
         def __exit__(self, exc_type, exc, tb):

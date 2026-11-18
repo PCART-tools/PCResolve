@@ -5,8 +5,10 @@ from pathlib import Path
 import pytest
 
 from pcresolve import FlowAnalyzer, FunctionRef
-from pcresolve._decorator_effects import _DecoratorEffects, _data, _data_shapes
-import pcresolve.flow as flow
+from tests.flow_test_support import set_decorator_effect_limit
+from pcresolve.flow.proofs._decorator_effects import _DecoratorEffects, _data, _data_shapes
+import pcresolve.flow.analyzer as flow
+import pcresolve.flow.analysis.proof_context as flow_proof_context
 
 
 ROOT = Path(__file__).parent / 'fixtures' / 'value_flow_decorator_boolop'
@@ -184,7 +186,7 @@ def test_short_circuit_proof_remains_bounded(monkeypatch):
     analyzer = FlowAnalyzer(project_root=ROOT)
     original = fact('factory_entry', analyzer)
     with monkeypatch.context() as patch:
-        patch.setattr(flow, '_DECORATOR_EFFECT_NODE_LIMIT', 5)
+        set_decorator_effect_limit(patch, 5)
         bounded = fact('factory_entry', analyzer)
         assert bounded['body_binding_status'] == 'unknown'
         assert any(item['reason'] == 'decorator_effect_budget' for item in bounded['boundaries'])

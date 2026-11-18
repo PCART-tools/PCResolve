@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 from pcresolve import cli
-from pcresolve.diagnostics import Diagnostic
-from pcresolve.types import ProjectAnalysis
+from pcresolve.ownership.diagnostics import Diagnostic
+from pcresolve.ownership.types import ProjectAnalysis
 
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'cli_options'

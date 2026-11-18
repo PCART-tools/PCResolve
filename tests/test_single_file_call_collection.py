@@ -1,7 +1,7 @@
 ## @package tests.test_single_file_call_collection
 #  Characterize single-file call collection before extracting the stage.
 
-from pcresolve.single_file import analyze_source
+from pcresolve.ownership.collect.single_file import analyze_source
 
 
 def test_call_collection_preserves_builtin_import_and_local_owners():
