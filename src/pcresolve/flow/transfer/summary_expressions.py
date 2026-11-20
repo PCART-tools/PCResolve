@@ -15,7 +15,15 @@ from pcresolve.flow.transfer._summary_support import _unique
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 
 
+## Dispatch expression syntax into dependency alternatives.
+## 将表达式语法分派为依赖候选。
 class ExpressionsMixin:
+    ## Evaluate an expression into dependencies under one environment.
+    ## 在给定环境下将表达式求值为依赖候选。
+    #
+    #  @param node Expression syntax being evaluated; None yields no dependencies.
+    #  @param env Abstract environment used for name and attribute lookups.
+    #  @return Dependency alternatives, or an empty list when unresolved.
     def expression(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()

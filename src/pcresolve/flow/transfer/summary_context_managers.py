@@ -31,7 +31,15 @@ from pcresolve.flow.transfer.recursive_summary import (
 )
 
 
+## Transfer context-manager entry, body and exit effects.
+## 传播上下文管理器的进入、主体和退出效果。
 class ContextManagersMixin:
+    ## Execute body statements and collect their non-normal exits.
+    ## 执行主体语句并收集其中的非正常出口。
+    #
+    #  @param statements Body syntax nodes executed in source order.
+    #  @param env Environment merged from all still-active paths.
+    #  @return Exit tuples of kind, state, values and payload.
     def block(self, statements, env):
         # Exit tuples carry pending returns through finally without committing
         # them to the function summary prematurely.
@@ -47,6 +55,12 @@ class ContextManagersMixin:
         exits.extend(('normal', e, [], None) for e in active)
         return exits
 
+    ## Resolve one context-manager protocol method on a single receiver class.
+    ## 在唯一接收者类上解析一个上下文管理器协议方法。
+    #
+    #  @param values Receiver value facts supplied by the context expression.
+    #  @param method Protocol method name, either __enter__ or __exit__.
+    #  @return Target definition, receiver reference and unresolved issue codes.
     def context_protocol(self, values, method):
         identities = _unique([value.get('instance_type') for value in values])
         if (not values or len(identities) != 1 or not identities[0]
@@ -129,6 +143,12 @@ class ContextManagersMixin:
             return None, receiver, ['visible_protocol_write']
         return target, receiver, []
 
+    ## Check that a protocol method accepts the receiver plus the given count.
+    ## 检查协议方法能否精确接受接收者及给定数量的参数。
+    #
+    #  @param target Resolved protocol definition pair, or None when unresolved.
+    #  @param arguments Number of explicit positional arguments after the receiver.
+    #  @return True when every binding is exact and no binding issue is reported.
     def context_signature_valid(self, target, arguments):
         if target is None:
             return False
@@ -137,6 +157,12 @@ class ContextManagersMixin:
         records, reasons = bind_ast_call(call, FunctionSignature.from_ast(target[1].args))
         return not reasons and all(record['status'] == 'exact' for record in records)
 
+    ## Check that an exit body performs no observable work.
+    ## 检查退出方法体是否不执行可观察的工作。
+    #
+    #  @param target Resolved __exit__ definition pair, or None when unresolved.
+    #  @return True for an exactly bound body that only passes, documents itself
+    #          or returns None or False.
     def context_exit_noop(self, target):
         if not self.context_signature_valid(target, 3):
             return False
@@ -152,6 +178,11 @@ class ContextManagersMixin:
             return False
         return True
 
+    ## Invalidate confirmed facts after an unmodeled context-manager effect.
+    ## 在无法建模的上下文管理器效果之后使已确认事实失效。
+    #
+    #  @param env Environment whose container contents and attributes are reset.
+    #  @return None
     def unknown_context_effects(self, env):
         self.unknown_container_contents([value for items in env.values() for value in items], env)
         self.invalidate_attributes(env)
@@ -161,6 +192,13 @@ class ContextManagersMixin:
                          or value.get('class_type') or value.get('callable_type') else value
                          for value in values]
 
+    ## Update temporary receiver attributes for bounded context-manager effects.
+    ## 为有界上下文管理器效果更新临时接收者的属性。
+    #
+    #  @param env Environment holding values bound to the receiver parameter.
+    #  @param effect Temporary receiver effect with origins and attribute sets.
+    #  @param entering True when entering the context, False when leaving it.
+    #  @return None
     def apply_temporary_receiver_attributes(self, env, effect, entering):
         receiver = effect['receiver_parameter']
         expected = effect['receiver_origin']
@@ -183,6 +221,12 @@ class ContextManagersMixin:
         if updated:
             env[receiver] = _unique(updated)
 
+    ## Evaluate a condition that guards context-manager cleanup paths.
+    ## 求值用于约束上下文管理器清理路径的条件。
+    #
+    #  @param node Condition expression to evaluate.
+    #  @param env Environment supplying name bindings and literal facts.
+    #  @return Proved Boolean truth, or None when the condition is unresolved.
     def context_truth(self, node, env):
         literal = self.literal_fact(node, env)
         if literal is not None:
@@ -203,6 +247,14 @@ class ContextManagersMixin:
                 return equal if isinstance(node.ops[0], ast.Is) else not equal
         return None
 
+    ## Model mapping accesses that can raise during context cleanup.
+    ## 建模上下文清理期间可能抛出的映射访问。
+    #
+    #  @param node Expression or target performing the mapping access.
+    #  @param previous State snapshot taken before the operation.
+    #  @param env State receiving recorded boundaries.
+    #  @param exceptional Existing exceptional exits to keep when unmodeled.
+    #  @return Exceptional exits and whether normal completion remains possible.
     def context_operation_exits(self, node, previous, env, exceptional=None):
         receiver, key = None, None
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
@@ -229,6 +281,13 @@ class ContextManagersMixin:
         state = self.mapping_key_state(reference, literal['value'], previous)
         return ([] if state == 'present' else [('raise', previous, [], 'KeyError')], state != 'absent')
 
+    ## Execute one resolved __exit__ body against the pending exit state.
+    ## 在待处理的退出状态上执行一个已解析的 __exit__ 方法体。
+    #
+    #  @param target Resolved exit definition pair, or None when unresolved.
+    #  @param call Recorded implicit exit call carrying argument bindings.
+    #  @param state Exit state supplying frame values and preserved locals.
+    #  @return Completed exit outcomes, or None with the blocking issue codes.
     def execute_context_exit(self, target, call, state):
         if target is None or call.binding_status != 'complete':
             return None, ['context_exit_binding_unconfirmed']
@@ -323,6 +382,14 @@ class ContextManagersMixin:
             completed.append((kind, updated, values, payload))
         return completed, []
 
+    ## Build and evaluate the implicit __exit__ call for one manager item.
+    ## 为一个管理项构建并求值隐式的 __exit__ 调用。
+    #
+    #  @param node With statement node that supplies source locations.
+    #  @param record Recorded context-manager item being cleaned up.
+    #  @param outcome Incoming exit tuple driving the __exit__ arguments.
+    #  @param origin Source label stored in the exit proof.
+    #  @return Resolved exit target and the recorded implicit exit call, if any.
     def context_exit_call(self, node, record, outcome, origin):
         kind, state, values, exception = outcome
         target_ref = record['exit']['target']
@@ -385,6 +452,14 @@ class ContextManagersMixin:
                     boundary['callee_name'] = call.callee_name
         return target, call
 
+    ## Unwind pending context-manager exits around the current outcomes.
+    ## 围绕当前出口展开尚未处理的上下文管理器退出。
+    #
+    #  @param node With statement node that owns the manager records.
+    #  @param outcomes Exit outcomes entering the cleanup.
+    #  @param records Context-manager records unwound in reverse order.
+    #  @param origin Source label for the incoming exit proof.
+    #  @return Exit outcomes after every pending manager has been cleaned up.
     def cleanup_context_exits(self, node, outcomes, records, origin='body'):
         before = copy.deepcopy(self.conditions)
         for record in reversed(records):
@@ -498,6 +573,17 @@ class ContextManagersMixin:
         self.conditions = before
         return outcomes
 
+    ## Evaluate the implicit __enter__ call for one context-manager item.
+    ## 为一个上下文管理项求值隐式的 __enter__ 调用。
+    #
+    #  @param item With item that supplies the context expression.
+    #  @param index Position of the item within its with statement.
+    #  @param node With statement node that supplies source locations.
+    #  @param values Manager values bound to the temporary receiver name.
+    #  @param target Resolved protocol target pair, or None when unresolved.
+    #  @param env Environment used for the implicit call evaluation.
+    #  @param proof Protocol proof metadata attached to the implicit call.
+    #  @return Recorded implicit enter call, or None when none was created.
     def context_enter_call(self, item, index, node, values, target, env, proof):
         temporary = '$with:%s:%s' % (_call_key(self.ref.file_path, node), index)
         env[temporary] = copy.deepcopy(values) if target else [dict(value, value_incomplete=True)
@@ -520,6 +606,12 @@ class ContextManagersMixin:
                     boundary['callee_name'] = call.callee_name
         return call
 
+    ## Execute one with statement including entry, body and exit cleanup.
+    ## 执行一个 with 语句，包括进入、主体和退出清理。
+    #
+    #  @param node With statement node to execute.
+    #  @param env Environment before the statement body.
+    #  @return Exceptional outcomes plus body outcomes after cleanup.
     def with_statement(self, node, env):
         before = copy.deepcopy(self.conditions)
         exceptions = []

@@ -12,6 +12,8 @@ from pcresolve.flow.proofs.namespaces.modules._module_class_effects_core import 
 
 
 ## Evaluate module class effects using the standard class-creation proof.
+## 使用标准类创建证明评估模块类效果。
+#
 #  @param analyzer Fixed source generation and budgets.
 #  @param target Exact source root-class declaration.
 #  @param call Standalone module-level classmethod call.

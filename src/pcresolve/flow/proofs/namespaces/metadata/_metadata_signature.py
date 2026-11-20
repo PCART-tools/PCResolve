@@ -138,6 +138,7 @@ def _module_literal_default(analyzer, caller, expression):
 #  @param caller_ref Source reference containing the signature construction.
 #  @param decorator_evidence Mutable destination for decorator proof facts.
 #  @param receiver_class Optional source receiver class constraint.
+#  @param fresh_decoration Optional provider of fresh-decoration facts for decorator proofs.
 #  @return True when every protected alias use is closed and stable.
 def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver_class=None,
                          fresh_decoration = None):
@@ -624,6 +625,12 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 
     ## Preserve the diagnostic for an alias whose use is outside the closed grammar.
     ## 保留别名用法超出封闭语法时的诊断信息。
+    #
+    #  @param module Source module containing the alias use.
+    #  @param node Alias load node outside the supported grammar.
+    #  @param parent Parent AST node that consumes the alias.
+    #  @param scope Lexical scope of the alias use.
+    #  @return None; prints a diagnostic when kind-alias tracing is enabled.
     def debug_alias_use(module, node, parent, scope):
         if not getattr(analyzer, '_debug_kind_aliases', False):
             return
@@ -691,6 +698,7 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
 #  @param call Actual outer Signature invocation, never a target runtime value.
 #  @param native_lists Source-bound private query results keyed by internal names.
 #  @param receiver_class Optional source class associated with the call context.
+#  @param fresh_decoration Optional provider of fresh-decoration facts for kind-alias checks.
 #  @return Source-bound normal-return formation evidence or None for open inputs.
 def signature_creation(analyzer, caller, call, native_lists=None, receiver_class=None,
                        fresh_decoration = None):

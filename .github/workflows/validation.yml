@@ -26,7 +26,7 @@ jobs:
       - name: Verify source syntax, public imports, and frozen inputs
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/preflight.json -- python scripts/verify_architecture_inputs.py
       - name: Check source comment coverage
-        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/comment-coverage.json -- python scripts/check_comment_coverage.py --baseline tests/baselines/comment_coverage.json
+        run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/comment-coverage.json -- python scripts/check_comment_coverage.py
       - name: Build and verify release artifacts
         run: python scripts/run_ci_gate.py --report reports/architecture-1.0.8/artifacts-gate.json -- python scripts/verify_release_artifacts.py --dist-dir "${{ runner.temp }}/pcresolve-dist" --report reports/architecture-1.0.8/artifacts.json
       - name: Run tests including unresolved architecture gates

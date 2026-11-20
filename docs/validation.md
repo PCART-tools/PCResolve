@@ -84,14 +84,12 @@ maintained documentation.
 
 ## Source comment gate
 
-CI runs `python scripts/check_comment_coverage.py --baseline
-tests/baselines/comment_coverage.json`. The checker reports mechanically
-detectable Doxygen gaps and compares per-file gap counts with the frozen
-baseline, so only gaps that exceed the baseline fail. The baseline records
-existing gaps rather than claiming that they are acceptable; refresh it with
-`python scripts/check_comment_coverage.py --update-baseline
-tests/baselines/comment_coverage.json` after resolving gaps and commit both
-changes together.
+CI runs `python scripts/check_comment_coverage.py`, which enforces the
+production comment convention across `src/pcresolve`: a `## @package` header,
+bilingual `##` summaries, a `#` separator before tags, one `@param` per
+declared parameter and exactly one `@return` tag. The gate fails on any
+reported gap. The checker also accepts explicit paths and a `--baseline PATH`
+mode for temporary debt tracking; neither is used by the CI step.
 
 ## Interpretation boundary
 

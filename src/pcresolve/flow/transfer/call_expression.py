@@ -32,6 +32,8 @@ from pcresolve.flow.transfer.call_binding_state import (
 )
 
 
+## Implement call-expression transfer phases for flow summaries.
+## 实现数据流摘要中的调用表达式转移阶段。
 class CallExpressionMixin(CallEntryMixin):
     # Query-local state provided by the composed summary, not by each phase.
 
@@ -460,6 +462,10 @@ class CallExpressionMixin(CallEntryMixin):
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
     #  @param fresh_instance_method_bindings Facts returned by callable binding.
+    #  @param nominal_target Callable target before any global rebinding check.
+    #  @param decoration Decoration facts and candidates from callable binding.
+    #  @param global_declarations Module globals that may rebind the target.
+    #  @param global_rebound Whether those declarations leave the target unconfirmed.
     #  @return Constructor values consumed by the effects phase.
     def _create_flow_call_record(self, state, fresh_instance_method_bindings,
                                  nominal_target, decoration, global_declarations,
@@ -596,6 +602,10 @@ class CallExpressionMixin(CallEntryMixin):
     ## 确定目标状态并附加有界调用元数据。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @param current_descriptor Descriptor kind of the enclosing function, if any.
+    #  @param callable_instance_cause Reason a callable instance stayed unresolved.
+    #  @param decoration Decoration facts used for decorator boundary evidence.
+    #  @param field_evidence Constructor field source selected by receiver dispatch.
     #  @return Whether the call is a literal string join, consumed by argument mapping.
     def _complete_call_target_metadata(self, state, current_descriptor,
                                        callable_instance_cause, decoration,
@@ -1187,6 +1197,7 @@ class CallExpressionMixin(CallEntryMixin):
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
     #  @param effects Result produced by the effects phase.
+    #  @param allocation_values Class values used as allocation evidence.
     #  @return Resolved call-result facts, possibly empty.
     def _resolve_return_sources(self, state, effects,
                                 allocation_values):

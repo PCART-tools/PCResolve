@@ -228,6 +228,8 @@ from pcresolve.flow.index.source import SourceIndexMixin
 from pcresolve.flow.index.definitions import ClassFactsMixin
 from pcresolve.flow.analysis.proof_context import ProofContextMixin
 from pcresolve.flow.runtime.analysis_run import FlowRunMixin
+## Compose indexing, proof and per-run components for explicit source analysis.
+## 为显式源码分析组合索引、证明与单次运行组件。
 class FlowAnalyzer(SourceIndexMixin, ClassFactsMixin, ProofContextMixin, FlowRunMixin):
     ## Configure available sources; import roots do not enlarge the source set.
     ## 配置可用源码；导入根目录不会扩大源码集合。

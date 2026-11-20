@@ -55,7 +55,15 @@ from pcresolve.flow.transfer.environment import (
 )
 
 
+## Transfer statements and control flow for one function summary.
+## 为单个函数摘要转移语句和控制流。
 class StatementsMixin:
+    ## Evaluate one statement and return the outcome tuples it produces.
+    ## 求值单条语句并返回其产生的结果元组。
+    #
+    #  @param node Statement node to evaluate.
+    #  @param env Abstract environment read and updated in place.
+    #  @return Outcome tuples tagged normal, return, raise, break, continue or unknown.
     def statement(self, node, env):
         if self.analyzer._analysis_budget is not None:
             self.analyzer._analysis_budget.checkpoint()
@@ -319,6 +327,14 @@ class StatementsMixin:
         self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_statement', 'evidence': self.evidence(node)})
         return [('unknown', env, [], None)]
 
+    ## Bind value facts to one assignment target in the environment.
+    ## 将一个赋值目标的值事实绑定到环境中。
+    #
+    #  @param target Assignment target node to bind.
+    #  @param values Value facts assigned to the target.
+    #  @param env Environment receiving the new bindings.
+    #  @param node Source statement providing assignment evidence.
+    #  @return None
     def assign_target(self, target, values, env, node):
         attribute = self.attribute_key(target, env)
         self.invalidate_class_origins([value for name in _attribute_write_roots(target)
@@ -416,6 +432,12 @@ class StatementsMixin:
             self.add_boundary('unsupported_assignment', node, env,
                               list(values) + list(target_values))
 
+    ## Resolve a single stable source function used as a guard operand.
+    ## 解析守卫操作数中使用的唯一稳定源码函数。
+    #
+    #  @param node Guard operand expression to resolve.
+    #  @param env Environment holding the receiver bindings.
+    #  @return Sole stable function candidate, or None when unresolved or unstable.
     def guard_callable(self, node, env):
         root = node
         while isinstance(root, ast.Attribute):
@@ -438,6 +460,14 @@ class StatementsMixin:
             return None
         return candidates[0]
 
+    ## Refine environment facts under a guard branch and report its feasibility.
+    ## 在守卫分支下收紧环境事实并报告该分支是否可行。
+    #
+    #  @param test Guard test expression being evaluated.
+    #  @param env Environment refined for the selected branch.
+    #  @param positive True when refining the branch where the test holds.
+    #  @param allow_callable Whether callable identity facts may be used.
+    #  @return False when known facts contradict the branch, otherwise True.
     def refine_guard(self, test, env, positive=True, allow_callable=True):
         if (getattr(self.analyzer, '_conditional_source_state', False)
                 and isinstance(test, ast.Constant) and bool(test.value) != positive):
@@ -523,6 +553,12 @@ class StatementsMixin:
                              for v in env.get(name, [])]
         return True
 
+    ## Evaluate a try statement including its handlers and final body.
+    ## 求值 try 语句，包括异常处理器和 finally 代码块。
+    #
+    #  @param node Try statement node to evaluate.
+    #  @param env Environment entering the try statement.
+    #  @return Outcome tuples for normal completions, handled exceptions and escapes.
     def try_statement(self, node, env):
         outcomes = self.block(node.body, copy.deepcopy(env))
         completed = []
@@ -578,6 +614,10 @@ class StatementsMixin:
                     finalized.append((final_kind, final_env, final_values, final_exc))
         return finalized
 
+    ## Execute the summarized function and populate its analysis result.
+    ## 执行被摘要的函数并填充其分析结果。
+    #
+    #  @return None
     def run(self):
         if getattr(self.node, '_flow_branch_budget', None) is not None:
             self.result.boundaries.append({'function': asdict(self.ref),

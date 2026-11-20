@@ -98,6 +98,11 @@ _NESTED_MOVES.update({
 })
 
 
+## Map every supported old module name to its current implementation path.
+## 将每个受支持的旧模块名映射到当前实现路径。
+#
+#  @param package_name Name of the loaded PCResolve package.
+#  @return Mapping of fully qualified old names to relative target paths.
 def _targets(package_name):
     targets = dict(_RENAMED_MODULES)
     targets.update(_NESTED_MOVES)
@@ -107,22 +112,54 @@ def _targets(package_name):
             for old, target in targets.items() if old != target}
 
 
+## Serve a legacy module name from its current implementation path.
+## 从当前实现路径提供旧模块名。
 class _LegacyLoader(Loader):
+    ## Configure the loader for one legacy name and its target.
+    ## 为单个旧模块名及其目标配置加载器。
+    #
+    #  @param package_name Root package used for the relative target import.
+    #  @param target Relative implementation path that provides the module.
+    #  @return None
     def __init__(self, package_name, target):
         self.package_name = package_name
         self.target = target
 
+    ## Import the current implementation instead of the legacy module.
+    ## 导入当前实现，而不是旧模块本身。
+    #
+    #  @param spec Module specification supplied by the import system; not inspected.
+    #  @return Imported implementation module.
     def create_module(self, spec):
         return import_module('.' + self.target, self.package_name)
 
+    ## Skip execution because the target module was already imported.
+    ## 跳过执行，因为目标模块已经被导入。
+    #
+    #  @param module Module created from the target; no code is executed again.
+    #  @return None
     def exec_module(self, module):
         return None
 
 
+## Resolve legacy module names to their current implementations.
+## 将旧模块名解析到当前实现。
 class _LegacyFinder(MetaPathFinder):
+    ## Configure the finder for one loaded PCResolve package.
+    ## 为单个已加载的 PCResolve 包配置查找器。
+    #
+    #  @param package_name Root package whose old module names are aliased.
+    #  @return None
     def __init__(self, package_name):
         self.package_name = package_name
 
+    ## Build a spec only when the requested name has a legacy alias.
+    ## 仅当请求的名称存在旧别名时构建模块规范。
+    #
+    #  @param fullname Fully qualified module name requested by the import system.
+    #  @param path Parent package path supplied by the import system; not used.
+    #  @param target Module object being reloaded; not used for alias lookup.
+    #  @return Module spec backed by the legacy loader, or None for other names.
     def find_spec(self, fullname, path=None, target=None):
         destination = _targets(self.package_name).get(fullname)
         if destination is None:
@@ -135,6 +172,7 @@ class _LegacyFinder(MetaPathFinder):
 ## 为旧模块路径安装延迟别名。
 #
 #  @param package_name Name of the loaded PCResolve package.
+#  @return None
 def register_legacy_imports(package_name):
     if not any(isinstance(finder, _LegacyFinder) and finder.package_name == package_name
                for finder in sys.meta_path):

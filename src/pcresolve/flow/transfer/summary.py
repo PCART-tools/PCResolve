@@ -22,8 +22,21 @@ from pcresolve.flow.transfer.summary_context_managers import ContextManagersMixi
 from pcresolve.flow.transfer.summary_statements import StatementsMixin
 
 
+## Compose the transfer phases that build and query one function summary.
+## 组合构建和查询单个函数摘要所使用的各转移阶段。
 class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidenceMixin, ExpressionsMixin, ContainersMixin, EffectsMixin, ContextManagersMixin, StatementsMixin):
 
+    ## Initialize one summary from explicit analysis inputs.
+    ## 使用显式的分析输入初始化单个摘要。
+    #
+    #  @param analyzer Flow analyzer providing texts, indexes and proof caches.
+    #  @param result Analysis result receiving calls, returns and boundaries.
+    #  @param ref Function identity represented by this summary.
+    #  @param node Function syntax node whose body is evaluated.
+    #  @param remaining Remaining budget for nested call analysis.
+    #  @param receiver_class Optional class context for receiver-bound evaluation.
+    #  @param incoming Optional incoming dependency facts keyed by parameter name.
+    #  @return None
     def __init__(self, analyzer, result,
                  ref, node, remaining,
                  receiver_class = None,

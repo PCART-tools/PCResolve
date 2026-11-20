@@ -14,7 +14,15 @@ from pcresolve.flow.transfer.call_binding_state import CallBindingMixin
 from pcresolve.flow.transfer.source_evidence import SourceEvidenceMixin
 
 
+## Record call-site evidence and analysis boundaries on flow summaries.
+## 在流摘要中记录调用点证据和分析边界。
 class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
+    ## Build constructor call evidence for a module-level callable assignment.
+    ## 为模块级可调用赋值构造其构造调用证据。
+    #
+    #  @param facts Collected module callable facts with reference and arguments.
+    #  @param node Source call node that produced the assignment.
+    #  @return Evidence with qualified name, constructor arguments and assignment.
     def module_callable_evidence(self, facts, node):
         ref = facts['module_ref']
         arguments = []
@@ -58,6 +66,13 @@ class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
                 'constructor_arguments': arguments,
                 'call': self.evidence(node)}
 
+    ## Annotate values with a relation, the node's evidence and conditions.
+    ## 为值补充关系、节点证据和当前条件。
+    #
+    #  @param values Value facts to annotate.
+    #  @param node Source node whose evidence is appended.
+    #  @param relation Optional relation replacing the value's own relation.
+    #  @return Annotated copies; non-direct relations drop shape hints.
     def marked(self, values, node, relation=None):
         result = [dict(v, relation=relation or v['relation'], evidence=v['evidence'] + [self.evidence(node)],
                        conditions=v.get('conditions', []) + list(self.conditions)) for v in values]
@@ -67,6 +82,12 @@ class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
                 value.pop('container_object', None)
         return result
 
+    ## Collect the parameter and capture roots reached by the given values.
+    ## 收集给定值可达的参数根与捕获根。
+    #
+    #  @param values Value facts whose dependencies are inspected.
+    #  @param env Environment used to materialize values and call results.
+    #  @return Parameter and capture roots plus an unknown-source flag.
     def affected_values(self, values, env):
         roots = []
         unknown = False
@@ -106,6 +127,15 @@ class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
                 unknown = True
         return roots, unknown
 
+    ## Append a boundary record with the scope affected by the given values.
+    ## 追加边界记录，并标注给定值受影响的范围。
+    #
+    #  @param reason Stable boundary reason stored in the summary.
+    #  @param node Source node that triggered the boundary.
+    #  @param env Environment used to resolve affected values.
+    #  @param values Value facts describing the affected scope.
+    #  @param fields Extra boundary fields merged into the record.
+    #  @return None
     def add_boundary(self, reason, node, env, values=(), **fields):
         roots, unknown = self.affected_values(values, env)
         record = {'function': asdict(self.ref), 'reason': reason,
@@ -116,6 +146,13 @@ class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
         record.update(fields)
         self.result.boundaries.append(record)
 
+    ## Build a callable value fact for a resolved source function.
+    ## 为已解析的源码函数构造可调用值事实。
+    #
+    #  @param target Function reference stored as the value source.
+    #  @param node Source node providing the callable evidence.
+    #  @param defaults Optional default value facts keyed by parameter name.
+    #  @return Callable value fact with identity, defaults and conditions.
     def callable_value(self, target, node, defaults=None):
         return {'kind': 'callable', 'source': target.qualname, 'module': target.module,
                 'defaults': defaults or {}, 'relation': 'direct',

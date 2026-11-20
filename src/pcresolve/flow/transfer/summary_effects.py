@@ -18,7 +18,19 @@ from pcresolve.flow.proofs.containers.mapping_remainders import (
 from pcresolve.flow.transfer._summary_support import _loop_env, _unique
 
 
+## Apply supported function and mapping effects inside flow summaries.
+## 在流摘要中应用受支持的函数效果和映射效果。
 class EffectsMixin:
+    ## Apply a resolved function's supported effects to the caller environment.
+    ## 将已解析函数支持的效果应用到调用方环境。
+    #
+    #  @param definition Resolved function reference and its source function node.
+    #  @param actuals Value facts supplied for each parameter name.
+    #  @param captures Value facts bound to lexical captures.
+    #  @param call Call record receiving effects and mutation flows.
+    #  @param env Caller environment updated for writes and container mutations.
+    #  @param node Source call node providing evidence for applied effects.
+    #  @return True when every supported effect was applied exactly, otherwise False.
     def apply_effects(self, definition, actuals, captures, call, env, node):
         # Apply complete summaries to proven objects on normal completion.
         # Unsupported mapping effects widen exclusions without inventing writes.
@@ -297,6 +309,15 @@ class EffectsMixin:
                                      target_ref, effect.statement)]})
         return complete
 
+    ## Prove and apply the unaffected-key remainder of a mapping helper call.
+    ## 证明并应用映射辅助调用中未受影响键的余项。
+    #
+    #  @param definition Resolved function reference and its source function node.
+    #  @param actuals Value facts supplied for each parameter name.
+    #  @param call Call record receiving the remainder effect.
+    #  @param env Environment holding the proven mapping object.
+    #  @param node Source call node providing call and boundary evidence.
+    #  @return True when the remainder proof was applied, otherwise False.
     def mapping_remainder_effect(self, definition, actuals, call, env, node):
         ref, target = definition
         if (call.binding_status != 'complete' or call.target_status != 'resolved'
@@ -432,6 +453,12 @@ class EffectsMixin:
                 'conditions': copy.deepcopy(self.conditions)}]
         return True
 
+    ## Add owning parameter roots to the roots affected by the given values.
+    ## 为给定值影响到的根补充其所属的参数根。
+    #
+    #  @param values Value facts whose affected roots are collected.
+    #  @param env Environment used to resolve the value facts.
+    #  @return Affected roots with owner parameters, and an unknown flag.
     def mapping_affected_values(self, values, env):
         roots, unknown = self.affected_values(values, env)
         for reference in self.container_values(values):
@@ -442,6 +469,12 @@ class EffectsMixin:
                 roots.append({'kind': 'parameter', 'name': name, 'element_path': []})
         return roots, unknown
 
+    ## Widen dict exclusions so unproven mutations stay conservative.
+    ## 扩大字典排除范围，使未证明的修改保持保守。
+    #
+    #  @param actuals Value facts supplied for each parameter name.
+    #  @param env Environment holding the affected mapping containers.
+    #  @return None
     def widen_mapping_exclusions(self, actuals, env):
         for inputs in actuals.values():
             for reference in self.container_values(inputs):

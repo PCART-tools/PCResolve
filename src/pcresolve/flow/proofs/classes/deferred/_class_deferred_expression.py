@@ -39,11 +39,18 @@ def rewrite_deferred_expression(node, bindings, values, parameter, *, string_val
     ## Rewrite only class-safe observations and immediately invoked helpers.
     ## 仅改写类安全观察及立即调用的辅助函数。
     class Inline(ast.NodeTransformer):
+        ## Initialize the set of helpers currently being inlined.
+        ## 初始化当前正在内联的辅助函数集合。
+        #
+        #  @return None
         def __init__(self):
             self.active = set()
 
         ## Keep deferred callable bodies opaque during expression rewriting.
         ## 表达式改写期间保持延后执行的可调用函数体不透明。
+        #
+        #  @param item Callable body node to leave unchanged.
+        #  @return The same node, unchanged.
         def visit_Lambda(self, item):
             return item
 
@@ -54,6 +61,9 @@ def rewrite_deferred_expression(node, bindings, values, parameter, *, string_val
 
         ## Rewrite a guarded native vars(class) membership check.
         ## 改写受保护的原生 vars(class) 成员检查。
+        #
+        #  @param item Comparison expression to inspect.
+        #  @return Rewritten membership marker, or the visited original.
         def visit_Compare(self, item):
             if (len(item.ops) == 1 and isinstance(item.ops[0], (ast.In, ast.NotIn))
                     and len(item.comparators) == 1
@@ -74,6 +84,9 @@ def rewrite_deferred_expression(node, bindings, values, parameter, *, string_val
 
         ## Validate native lookups and inline one exact private helper call.
         ## 校验原生查找并内联一个精确的私有辅助函数调用。
+        #
+        #  @param call Call expression to validate and possibly inline.
+        #  @return Rewritten call, inlined expression, or the visited original.
         def visit_Call(self, call):
             if (isinstance(call.func, ast.Name) and call.func.id == 'getattr'
                     and len(call.args) == 3 and not call.keywords
@@ -138,6 +151,9 @@ def rewrite_deferred_expression(node, bindings, values, parameter, *, string_val
 
 ## Return function statements other than an inert leading docstring.
 ## 返回函数体语句并移除惰性的首个文档字符串。
+#
+#  @param node Function definition whose body is filtered.
+#  @return Body statements without a leading string-expression docstring.
 def _body(node):
     return [statement for statement in node.body if not (
         isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
@@ -146,6 +162,9 @@ def _body(node):
 
 ## Check that a helper declaration has the restricted supported shape.
 ## 检查辅助函数声明是否符合受限的支持形态。
+#
+#  @param node Candidate helper definition.
+#  @return True when the definition has no decorators, defaults, or annotations.
 def _declaration(node):
     if not isinstance(node, ast.FunctionDef):
         return False

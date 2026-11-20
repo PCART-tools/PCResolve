@@ -7,6 +7,11 @@
 
 
 
+## Deduplicate values while keeping their first occurrence order.
+## 对值去重并保留首次出现的顺序。
+#
+#  @param values Values whose duplicate entries are dropped.
+#  @return Unique values in their original order.
 def _unique(values):
     result = []
     for value in values:

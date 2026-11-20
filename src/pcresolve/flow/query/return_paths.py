@@ -13,6 +13,8 @@ from pcresolve.facts.return_resolution import CallBinding, ReturnCall, resolve_r
 
 
 ## Trace one entry parameter without modifying the result.
+## 在不修改结果的前提下追踪一个入口参数。
+#
 #  @param result Existing value-flow result.
 #  @param parameter Entry parameter name.
 #  @param function_type Function identity type, inferred from the entry by default.
