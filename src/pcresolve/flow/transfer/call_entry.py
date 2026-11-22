@@ -27,8 +27,15 @@ CallableBindingResult = namedtuple(
     'CallableBindingResult', ('fresh_instance_method_bindings', 'callable_instance_cause', 'decoration'))
 
 
+## Admit calls against the active budgets and run ordered transfer phases.
+## 按当前预算接纳调用并有顺序地执行各转移阶段。
 class CallEntryMixin:
     ## Execute one call through the ordered transfer stages.
+    ## 按顺序执行一次调用的各个转移阶段。
+    #
+    #  @param node Call expression syntax transferred by this summary.
+    #  @param env Abstract environment in which the call is evaluated.
+    #  @return Resolved result sources, or an empty list for an admitted boundary.
     def call_expression(self, node,
                         env):
         location = _call_span(node)

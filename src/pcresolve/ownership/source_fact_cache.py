@@ -89,18 +89,39 @@ class SingleFileVisitorFacts:
         'mapping_facts_literals',
     )
 
+    ## Validate and store the complete declared source fact set.
+    ## 校验并保存完整的已声明源码事实集合。
+    #
+    #  @param values Exactly one value for every declared fact slot.
+    #  @return None
     def __init__(self, **values):
         if values.keys() != set(self.__slots__):
             raise TypeError('source facts must contain exactly the declared fields')
         for name in self.__slots__:
             object.__setattr__(self, name, values[name])
 
+    ## Reject reassignment so captured source facts stay immutable.
+    ## 拒绝重新赋值，使已捕获的源码事实保持不变。
+    #
+    #  @param name Declared fact field name.
+    #  @param value Rejected replacement value.
+    #  @return None; the call always raises AttributeError.
     def __setattr__(self, name, value):
         raise AttributeError('source fact fields cannot be reassigned')
 
+    ## Reject field deletion so captured source facts stay immutable.
+    ## 拒绝删除字段，使已捕获的源码事实保持不变。
+    #
+    #  @param name Declared fact field name.
+    #  @return None; the call always raises AttributeError.
     def __delattr__(self, name):
         raise AttributeError('source fact fields cannot be deleted')
 
+    ## Copy this record and every field through the shared deepcopy memo.
+    ## 通过共享 deepcopy 备忘复制该记录及其全部字段。
+    #
+    #  @param memo Deepcopy map reused for nested fact values.
+    #  @return Independent copy whose fields are deeply copied.
     def __deepcopy__(self, memo):
         copied = object.__new__(type(self))
         memo[id(self)] = copied
@@ -126,16 +147,34 @@ SingleFileFacts = namedtuple(
     'SingleFileFacts', ('module_name', 'is_package', 'file_path', 'document', 'visitor', 'fact_structures', 'fact_edges', 'versioned_edges'))
 
 
+## One cached source version together with its detached source facts.
+## 一条缓存源码版本及其分离后的源码事实。
 class SourceFactCacheEntry(namedtuple(
         'SourceFactCacheEntry', ('document', 'module_name', 'is_package', 'facts'))):
     __slots__ = ()
 
+    ## Test whether this entry was built for the supplied source context.
+    ## 判断该条目是否由给定的源码上下文构建。
+    #
+    #  @param document Source document that must match by identity.
+    #  @param module_name Import-qualified module identity to compare.
+    #  @param is_package Package-initializer flag to compare.
+    #  @return True when document identity, module name, and package flag match.
     def matches(self, document, module_name,
                 is_package):
         return (self.document is document and self.module_name == module_name
                 and self.is_package == is_package)
 
 
+## Look up a reusable cache entry for one path and source context.
+## 查找某个路径和源码上下文对应的可复用缓存条目。
+#
+#  @param cache Per-run mapping from a source path to its cache entry.
+#  @param path Source path used as the cache key.
+#  @param document Source document that must match by identity.
+#  @param module_name Module identity recorded for the source.
+#  @param is_package Whether the source is a package initializer.
+#  @return Matching entry, or None on a cache miss or context mismatch.
 def find_source_fact_entry(cache, path,
                            document, module_name,
                            is_package):
@@ -156,6 +195,11 @@ def find_source_fact_entry(cache, path,
 _ATOMIC_TYPES = frozenset((type(None), str, bytes, int, float, bool))
 
 
+## Yield slot values without invoking arbitrary properties.
+## 在不触发任意属性的前提下产出槽位值。
+#
+#  @param value Instance whose member descriptors are read.
+#  @return Slot values found across the instance type hierarchy.
 def _slot_values(value):
     # Member descriptors avoid executing arbitrary properties while traversing slots.
     for cls in type(value).__mro__:
@@ -167,12 +211,23 @@ def _slot_values(value):
                     pass
 
 
+## Report whether a value is an executable callback rather than a source fact.
+## 判断一个值是可执行回调而非源码事实。
+#
+#  @param value Traversed value to classify.
+#  @return True for plain functions, bound methods and partials.
 def _is_callback(value):
     # Arbitrary executable callbacks are not source facts. Known observer
     # callbacks are rebuilt from the recorded fact graph during cloning.
     return isinstance(value, (FunctionType, MethodType, partial))
 
 
+## Build a deepcopy memo that preserves every AST node identity.
+## 构建保留全部 AST 节点身份的 deepcopy 备忘。
+#
+#  @param document Source document whose parsed tree is walked.
+#  @param budget Optional resource budget checked for each visited node.
+#  @return Memo mapping AST node ids to the nodes themselves.
 def _ast_memo(document, budget):
     if not isinstance(document.tree, ast.AST):
         raise TypeError('source document must contain a parsed AST')

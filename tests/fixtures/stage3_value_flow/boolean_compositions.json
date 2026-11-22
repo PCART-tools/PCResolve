@@ -1,0 +1,4418 @@
+[
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = False\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = False\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not False\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not False\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not False\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not False\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not False\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not False\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = False\n        y = not not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = True\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = True\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not True\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not True\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not True\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not True\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not True\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not True\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = True\n        y = not not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not x\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            6,
+            true
+          ]
+        ],
+        "return_line": 7,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            6,
+            false
+          ]
+        ],
+        "return_line": 8,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        y = not not not x\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not not t\n    if q(y):\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            7,
+            true
+          ]
+        ],
+        "return_line": 8,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            7,
+            false
+          ]
+        ],
+        "return_line": 9,
+        "returned": 0
+      }
+    ]
+  },
+  {
+    "code": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    if p(x):\n        t = x\n        y = not not not t\n    a = q(y)\n    if a:\n        return 1\n    return 0\n",
+    "runtime": [
+      {
+        "x": false,
+        "y": false,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": false,
+        "y": true,
+        "guards": [
+          [
+            4,
+            false
+          ],
+          [
+            8,
+            true
+          ]
+        ],
+        "return_line": 9,
+        "returned": 1
+      },
+      {
+        "x": true,
+        "y": false,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      },
+      {
+        "x": true,
+        "y": true,
+        "guards": [
+          [
+            4,
+            true
+          ],
+          [
+            8,
+            false
+          ]
+        ],
+        "return_line": 10,
+        "returned": 0
+      }
+    ]
+  }
+]

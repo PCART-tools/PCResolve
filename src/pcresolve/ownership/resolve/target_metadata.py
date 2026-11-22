@@ -10,6 +10,12 @@
 from pcresolve.ownership.sources import SourceSet, normalize_source
 
 
+## Select candidate callable names for one source edge.
+## 为一个源码边选择候选可调用名称。
+#
+#  @param edge Edge fact supplying the callee name and callee source.
+#  @param normalize Normalizer applied to every candidate source value.
+#  @return Candidate short names; membership does not prove the target.
 def edge_callable_names(edge, normalize):
     # These names select candidates only; they do not prove a target.
     names = set()
@@ -25,7 +31,14 @@ def edge_callable_names(edge, normalize):
     return names
 
 
+## Mixin describing source-backed local call targets.
+## 描述有源码依据的本地调用目标的混入类。
 class TargetMetadataMixin:
+    ## Select candidate callable names for one edge with the shared normalizer.
+    ## 使用共享归一化器为一个边选择候选可调用名称。
+    #
+    #  @param edge Edge fact whose callee names are inspected.
+    #  @return Candidate short names for the edge.
     def _edge_callable_names(self, edge):
         return edge_callable_names(edge, normalize_source)
 

@@ -21,7 +21,14 @@ from pcresolve.flow.transfer.recursive_summary import (
 )
 
 
+## Track value and source-class facts used by one summary.
+## 跟踪单个摘要使用的值与来源类事实。
 class ValuesMixin:
+    ## Resolve candidate callable values to unique indexed targets.
+    ## 将候选可调用值解析为唯一的已索引目标。
+    #
+    #  @param values Candidate callable value facts to resolve.
+    #  @return Unique targets and whether every candidate was fully confirmed.
     def callable_targets(self, values):
         if len(values) > 64:
             self.result.boundaries.append({'function': asdict(self.ref),
@@ -52,6 +59,12 @@ class ValuesMixin:
             complete = complete and not value.get('value_incomplete')
         return _unique(targets), complete
 
+    ## Read the single literal value represented by an expression or binding.
+    ## 读取表达式或绑定所表示的单一字面量值。
+    #
+    #  @param node Expression expected to denote one bounded literal.
+    #  @param env Environment supplying bindings for name expressions.
+    #  @return Literal type and value fact, or None when no single literal exists.
     def literal_fact(self, node, env):
         if isinstance(node, ast.Name):
             values = env.get(node.id, [])
@@ -77,6 +90,12 @@ class ValuesMixin:
             return {'type': type(value).__name__, 'value': list(value)}
         return None
 
+    ## Drop literal facts derived from the given container values.
+    ## 丢弃由给定容器值派生的字面量事实。
+    #
+    #  @param values Values whose container sources no longer hold literals.
+    #  @param env Environment updated in place.
+    #  @return None
     def invalidate_literals(self, values, env):
         identities = {value['source'] for value in self.container_values(values)
                       if value.get('kind') == 'container'}
@@ -84,6 +103,12 @@ class ValuesMixin:
             env[name] = [{key: item for key, item in value.items() if key != 'literal'}
                          if value.get('source') in identities else value for value in items]
 
+    ## Resolve a module-level dispatch table to its bounded entry values.
+    ## 将模块级分派表解析为有界表项值。
+    #
+    #  @param name Module-level name of the dispatch table.
+    #  @param env Environment used for boundary recording and propagation.
+    #  @return Dispatch values, or an empty list when the table is unsupported.
     def module_dispatch(self, name, env):
         if name in env:
             return env[name]
@@ -138,6 +163,13 @@ class ValuesMixin:
         values = propagate_child_expression(self, env, execution)
         return self.marked(values, assignment)
 
+    ## Build a class value fact for one referenced source class.
+    ## 为一个被引用的源码类构建类值事实。
+    #
+    #  @param class_ref Source identity of the referenced class.
+    #  @param node Expression that produced the class reference.
+    #  @param env Environment used to detect lookup mutations and invalidity.
+    #  @return Class value fact with evidence and optional lookup mutations.
     def class_value(self, class_ref, node, env):
         value = {'kind': 'class', 'module': class_ref.module,
                 'source': class_ref.qualname, 'class_type': asdict(class_ref),
@@ -152,6 +184,13 @@ class ValuesMixin:
             value['class_lookup_mutations'] = copy.deepcopy(effects)
         return value
 
+    ## Resolve candidate value facts to unique source class facts.
+    ## 将候选值事实解析为唯一的源码类事实。
+    #
+    #  @param values Candidate value facts expected to denote classes.
+    #  @param allow_incomplete Whether incomplete returned instances remain usable.
+    #  @param env Environment used to attach lookup effects, or None.
+    #  @return Unique class facts, or an empty list when a candidate is unsupported.
     def class_values(self, values, allow_incomplete=False, env=None):
         known = []
         for value in values:
@@ -216,6 +255,12 @@ class ValuesMixin:
                     value['value_incomplete'] = True
         return _unique(known)
 
+    ## Build the state key for a plain attribute read on a unique class.
+    ## 为唯一类上的普通属性读取构建状态键。
+    #
+    #  @param node Attribute expression being evaluated.
+    #  @param env Environment supplying the receiver binding.
+    #  @return Attribute state key and class identity, or None when unresolved.
     def attribute_key(self, node, env):
         if not isinstance(node, ast.Attribute) or not isinstance(node.value, ast.Name):
             return None
@@ -236,16 +281,55 @@ class ValuesMixin:
             attribute = '_' + owner + attribute
         return '$attribute:%s:%s:%s' % (identity['module'], identity['qualname'], attribute), identity
 
+    ## Build field-state keys for a uniquely identified instance receiver.
+    ## 为身份唯一的实例接收者构造字段状态键。
+    #
+    #  @param values Abstract receiver values at the current program point.
+    #  @param attribute Direct instance attribute name.
+    #  @param preserve_identity Allow field reads through an incomplete receiver value
+    #                           when its source-level object identity is retained.
+    #  @return Field keys when every alternative has a stable object identity.
+    def instance_field_keys(self, values, attribute, preserve_identity=False):
+        identities = []
+        for value in values:
+            if (value.get('kind') not in ('parameter', 'call_result', 'constructor_instance')
+                    or (value.get('value_incomplete') and not preserve_identity)
+                    or value.get('import_incomplete')
+                    or value.get('projection') or value.get('output_path')):
+                return []
+            identities.append((value['kind'], value.get('source')))
+        if not identities or any(not source for _, source in identities):
+            return []
+        return _unique('$instance-field:%s:%s:%s' % (kind, source, attribute)
+                       for kind, source in identities)
+
+    ## Clear every attribute state key after an unknown mutation.
+    ## 在未知变更之后清空所有属性状态键。
+    #
+    #  @param env Environment whose attribute keys are emptied.
+    #  @return None
     def invalidate_attributes(self, env):
         for key in list(env):
             if key.startswith('$attribute:'):
                 env[key] = []
 
+    ## Collect class lookup effects recorded for a class and its bases.
+    ## 收集为某个类及其基类记录的类查找效果。
+    #
+    #  @param identity Class identity whose hierarchy supplies the effects.
+    #  @param env Environment holding class lookup effect facts.
+    #  @return Unique lookup effects applicable to the class hierarchy.
     def class_lookup_effects(self, identity, env):
         hierarchy = self.analyzer._class_mro(identity['module'], identity['qualname'])
         owners = [asdict(ref) for ref, _ in hierarchy] if hierarchy else [identity]
         return _unique([effect for owner in owners for effect in env.get(_class_lookup_key(owner), [])])
 
+    ## Record one class lookup effect and attach it to affected values.
+    ## 记录一处类查找效果并将其附加到受影响的值。
+    #
+    #  @param effect Lookup effect carrying the mutated receiver class.
+    #  @param env Environment updated with the effect and its mutations.
+    #  @return None
     def register_class_lookup_effect(self, effect, env):
         key = _class_lookup_key(effect['receiver_class'])
         env[key] = _unique(env.get(key, []) + [copy.deepcopy(effect)])
@@ -259,6 +343,12 @@ class ValuesMixin:
                     if effects else value)
             env[name] = updated
 
+    ## Check whether recorded lookup effects touch any of the given attributes.
+    ## 检查已记录的查找效果是否涉及给定属性中的任意一个。
+    #
+    #  @param values Value facts carrying class lookup mutations.
+    #  @param attributes Attribute names to test against those mutations.
+    #  @return True when one mutation contains a matching attribute name.
     def class_lookup_affected(self, values, attributes):
         return any(set(effect.get('attributes', [])) & set(attributes)
                    for value in values for effect in value.get('class_lookup_mutations', []))

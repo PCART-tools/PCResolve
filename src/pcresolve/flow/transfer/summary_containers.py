@@ -15,7 +15,15 @@ from pcresolve.facts.return_resolution import select_dependencies
 from pcresolve.flow.transfer._summary_support import _loop_env, _unique
 
 
+## Model supported builtin container operations in flow summaries.
+## 在数据流摘要中建模受支持的内置容器操作。
 class ContainersMixin:
+    ## Normalize values that reference a proven container object into container facts.
+    ## 将引用已证明容器对象的值规范化为容器事实。
+    #
+    #  @param values Abstract values to normalize in their original order.
+    #  @param allow_contained Also convert values that already carry an output path.
+    #  @return Values with eligible receivers replaced by container facts.
     def container_values(self, values, allow_contained=False):
         converted = []
         for value in values:
@@ -31,6 +39,14 @@ class ContainersMixin:
                 converted.append(value)
         return converted
 
+    ## Prove copying an exact incoming dict parameter under conservative alias premises.
+    ## 在保守别名前提下证明对精确传入字典参数的复制。
+    #
+    #  @param node Copy call expression supplying the argument shape and evidence.
+    #  @param values Receiver values expected to name direct incoming parameters.
+    #  @param call Current call record whose id names the synthetic container.
+    #  @param env Abstract environment receiving the copied contents and keys.
+    #  @return Synthetic dict receiver value list, or None when unproven.
     def incoming_copy_receiver(self, node, values, call, env):
         if node.args or node.keywords or not values or not all(
                 value.get('kind') == 'parameter' and value.get('relation') == 'direct'
@@ -60,6 +76,16 @@ class ContainersMixin:
         return [{'kind': 'container', 'source': heap, 'container_shape': 'dict',
                  'relation': 'direct', 'evidence': [self.evidence(node.func.value)], 'conditions': []}]
 
+    ## Prove that a call returns one of its container arguments by identity.
+    ## 证明调用按同一对象返回其某个容器实参。
+    #
+    #  @param target Selected callee definition, or None when unresolved.
+    #  @param call Current call record supplying effects, binding status and id.
+    #  @param actuals Bound actual values keyed by parameter name.
+    #  @param env Abstract environment holding the argument containers.
+    #  @param node Call expression supplying result evidence.
+    #  @param effects_complete Whether callee effects were fully modeled.
+    #  @return Argument-alias container object, or None when unproven.
     def returned_container(self, target, call, actuals, env, node, effects_complete=False):
         references = [value for values in actuals.values()
                       for value in self.container_values(values)
@@ -103,9 +129,18 @@ class ContainersMixin:
                                     for item in value.get('evidence', [])] +
                     [self.evidence_at(target[0], statement) for statement in fact['evidence']])}
 
+    ## Flatten container values into elements, stopping cycles and skipping control paths.
+    ## 将容器值展开为包含元素，同时停止对象环并跳过控制路径。
+    #
+    #  @param values Values to flatten, including non-container values.
+    #  @param env Abstract environment holding container contents by source.
+    #  @param visited Container sources already expanded on the current path.
+    #  @return Flattened values with accumulated output paths and evidence.
     def materialize(self, values, env, visited=()):
         result = []
         for value in values:
+            if value.get('kind') == 'control_path':
+                continue
             if value.get('container_object'):
                 converted = self.container_values([value], allow_contained=True)[0]
                 if converted['kind'] == 'container':
@@ -129,6 +164,13 @@ class ContainersMixin:
                 result.append(materialized)
         return result
 
+    ## Project values through one mapping key, sequence index or wildcard path.
+    ## 按单个映射键、序列下标或通配路径投影值。
+    #
+    #  @param values Values to project, including container references.
+    #  @param index Literal key or sequence position, or '*' for any element.
+    #  @param env Abstract environment holding container contents.
+    #  @return Projected dependency values in input order.
     def project(self, values, index, env):
         result = []
         for value in self.container_values(values):
@@ -141,6 +183,21 @@ class ContainersMixin:
                     continue
                 content = [item for item in env.get(value['source'], [])
                            if item.get('container_role') != 'key']
+                field_provenance = value.get('instance_field_provenance')
+
+                ## Keep enclosing field-write evidence on projected elements.
+                ## 在投影后的元素上保留外层字段写入证据。
+                #
+                #  @param items Selected element dependencies.
+                #  @return None
+                def append_projected(items):
+                    for item in items:
+                        if field_provenance:
+                            inherited = copy.deepcopy(item.get('container_provenance', []))
+                            inherited.append(copy.deepcopy(field_provenance))
+                            item['container_provenance'] = inherited
+                        result.append(item)
+
                 if value.get('parameter_container') and index != '*':
                     for item in content:
                         if item.get('output_path') == ['*']:
@@ -149,15 +206,21 @@ class ContainersMixin:
                             projected = dict(
                                 item, projection=item.get('projection', []) + [index])
                             projected.pop('output_path', None)
-                            result.append(projected)
+                            append_projected([projected])
                         else:
-                            result.extend(select_dependencies([item], [index]))
+                            append_projected(select_dependencies([item], [index]))
                 else:
-                    result.extend(select_dependencies(content, [index]))
+                    append_projected(select_dependencies(content, [index]))
             else:
                 result.extend(select_dependencies([value], [index]))
         return result
 
+    ## Mark the contents and key markers of supplied container objects as unknown.
+    ## 将传入容器对象的内容与键标记为未知。
+    #
+    #  @param values Values whose container objects should be widened.
+    #  @param env Abstract environment widened in place.
+    #  @return None
     def unknown_container_contents(self, values, env):
         for reference in self.container_values(values):
             if reference.get('kind') != 'container' or reference['source'] not in env:
@@ -172,6 +235,13 @@ class ContainersMixin:
                 for marker in env.get(source + '$keys', [])] +
                 [{'kind': 'key', 'source': '*', 'key': '*'}])
 
+    ## Return the single exact container shared by all supplied values.
+    ## 返回由全部传入值共享的唯一精确容器。
+    #
+    #  @param values Candidate values expected to reference direct containers.
+    #  @param shapes Accepted container shapes such as dict, list or tuple.
+    #  @param env Abstract environment that must hold the container source.
+    #  @return Shared container reference, or None when the premise fails.
     def exact_container(self, values, shapes, env):
         references = self.container_values(values)
         if (not references or not all(value.get('kind') == 'container'
@@ -183,6 +253,13 @@ class ContainersMixin:
             return None
         return references[0]
 
+    ## Build the call-result endpoint for a container-returning operation.
+    ## 为返回容器的操作构造调用结果端点。
+    #
+    #  @param call Current call record whose id identifies the result.
+    #  @param node Call expression supplying source evidence.
+    #  @param obj Optional container object attached to the result.
+    #  @return Call-result value carrying evidence and conditions.
     def container_endpoint(self, call, node, obj=None):
         value = {'kind': 'call_result', 'source': call.id, 'relation': 'direct',
                  'object_only': True, 'evidence': [self.evidence(node)],
@@ -191,6 +268,15 @@ class ContainersMixin:
             value['container_object'] = obj
         return value
 
+    ## Model a supported dict copy or list/tuple construction from one exact container.
+    ## 对单个精确容器建模受支持的字典复制或列表、元组构造。
+    #
+    #  @param values Argument values that should resolve to the source container.
+    #  @param shape Target container shape: dict, list or tuple.
+    #  @param node Call expression supplying source evidence.
+    #  @param call Current call record receiving result sources and effects.
+    #  @param env Abstract environment holding and receiving container contents.
+    #  @return Single-element call-result list, or None with a recorded boundary.
     def copy_container(self, values, shape, node, call, env):
         allowed = ('dict',) if shape == 'dict' else ('list', 'tuple')
         reference = self.exact_container(values, allowed, env)
@@ -229,6 +315,14 @@ class ContainersMixin:
             self.mapping_effects.append(effect)
         return [result]
 
+    ## Model a call to the builtin dict, list or tuple constructor over one argument.
+    ## 建模对单个实参调用内置 dict、list 或 tuple 构造器。
+    #
+    #  @param node Call expression using a bare builtin constructor name.
+    #  @param call Current call record receiving result sources and effects.
+    #  @param env Abstract environment holding the argument container.
+    #  @param actuals Protocol argument values keyed by positional index.
+    #  @return Call-result list from the copy proof, or None when unsupported.
     def container_constructor(self, node, call, env, actuals):
         name = node.func.id
         if (name not in ('dict', 'list', 'tuple')
@@ -249,6 +343,13 @@ class ContainersMixin:
             flow['target_parameter'] = 'object'
         return result
 
+    ## Classify one dict key as present, absent or unknown from recorded markers.
+    ## 根据已记录标记将一个字典键分类为存在、缺失或未知。
+    #
+    #  @param reference Exact dict container reference whose markers are read.
+    #  @param key Literal key to classify, or '*' for any key.
+    #  @param env Abstract environment holding state and key markers.
+    #  @return present, absent, or unknown.
     def mapping_key_state(self, reference, key, env):
         if key == '*' or any(marker.get('contents_unknown')
                 for marker in env.get(reference['source'] + '$state', [])):
@@ -261,6 +362,15 @@ class ContainersMixin:
             return 'unknown'
         return 'absent'
 
+    ## Model a dict setdefault call with guarded existing and default alternatives.
+    ## 建模字典 setdefault 调用，并保留带条件的已有值与默认值候选。
+    #
+    #  @param node setdefault call expression supplying the key and evidence.
+    #  @param receiver Receiver values expected to resolve to one exact dict.
+    #  @param call Current call record receiving argument sources and effects.
+    #  @param env Abstract environment whose slot and key markers are updated.
+    #  @param actuals Protocol argument values keyed by position; index 1 is the default.
+    #  @return Result source values for the call, including the endpoint.
     def mapping_setdefault(self, node, receiver, call, env, actuals):
         reference = self.exact_container(receiver, ('dict',), env)
         literal = self.literal_fact(node.args[0], env)
@@ -337,6 +447,14 @@ class ContainersMixin:
         call.result_sources = [endpoint] if obj else [endpoint] + selected
         return call.result_sources
 
+    ## Prove an inherited dict setdefault binding and record its conditional mapping effect.
+    ## 证明继承的字典 setdefault 绑定并记录其条件映射效果。
+    #
+    #  @param node setdefault call expression made by the current method.
+    #  @param receiver Values bound to the current method's first parameter.
+    #  @param call Current call record receiving bindings and effects.
+    #  @param env Abstract environment used to classify affected values.
+    #  @return None
     def inherited_setdefault(self, node, receiver, call, env):
         if (not isinstance(node.func, ast.Attribute) or node.func.attr != 'setdefault'
                 or node.keywords or any(isinstance(item, ast.Starred) for item in node.args)
@@ -390,6 +508,16 @@ class ContainersMixin:
             self.add_boundary('container_effect_unknown', node, env, receiver,
                               call_id=call.id, detail='dynamic_key_protocol_unconfirmed')
 
+    ## Dispatch a supported builtin container method call and update the environment.
+    ## 分派受支持的内置容器方法调用并更新抽象环境。
+    #
+    #  @param node Call expression using an attribute container method.
+    #  @param receiver Receiver values before container normalization.
+    #  @param call Current call record receiving bindings, effects and results.
+    #  @param env Abstract environment updated by supported mutations.
+    #  @param actuals Optional protocol argument values keyed by position.
+    #  @return Container result values for copy and setdefault, otherwise None;
+    #  an out-of-range list pop returns an empty list.
     def container_call(self, node, receiver, call, env, actuals=None):
         receiver = self.container_values(receiver)
         if (not isinstance(node.func, ast.Attribute) or not receiver or not all(

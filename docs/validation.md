@@ -82,6 +82,15 @@ version, analyzer/evaluator hashes, fixture hashes, every declared check, and
 diagnostic boundary counts. They are reproducible build artifacts rather than
 maintained documentation.
 
+## Source comment gate
+
+CI runs `python scripts/check_comment_coverage.py`, which enforces the
+production comment convention across `src/pcresolve`: a `## @package` header,
+bilingual `##` summaries, a `#` separator before tags, one `@param` per
+declared parameter and exactly one `@return` tag. The gate fails on any
+reported gap. The checker also accepts explicit paths and a `--baseline PATH`
+mode for temporary debt tracking; neither is used by the CI step.
+
 ## Interpretation boundary
 
 - Ownership measures primary call-site classification; it does not score every
@@ -107,5 +116,9 @@ outputs, Windows uses the checked-in frozen fingerprints; Linux captures the
 same fixed pre-refactor revision on Linux before comparing. The reference and
 corpus identities are documented in the [baseline README](../tests/baselines/architecture_1_0_8/README.md).
 These comparisons detect changes from the reference; the reviewed ownership
-corpus and value-flow matrix check specified behavior separately. A performance
-sample affected by resource interference is diagnostic, not a passing result.
+corpus and value-flow matrix check specified behavior separately. The performance
+gate requires five interference-free sample pairs per workload size. CI records
+both measurements from each affected pair for diagnosis and tries to replace
+the pair up to twice. If collection still falls short, the gate reports
+resource interference. It evaluates performance thresholds after collecting
+all required pairs.

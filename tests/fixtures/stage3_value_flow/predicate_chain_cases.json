@@ -1,0 +1,185 @@
+{
+ "cases": [
+  {
+   "id": "chain-proven-input",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "expected": {
+    "q@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ],
+    "p@4": []
+   },
+   "source_sha256": "96e1b1b7ee9c50f1de5a12a149a4712e9c0f18c14014308fa5cb009369d00f7c",
+   "class": "chain"
+  },
+  {
+   "id": "chain-proven-input-by-predicate",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "expected": {
+    "q@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ],
+    "p@4": [],
+    "p@6": []
+   },
+   "source_sha256": "98683f9f2cd9cfe26b07b5cb3a1a80c329eeef937edbbbcf7b986bbf93c34db2",
+   "class": "chain"
+  },
+  {
+   "id": "chain-two-results",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    b = q(a)\n    if q(b):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "expected": {
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@5": [],
+    "p@4": []
+   },
+   "source_sha256": "826796ff0ce0c1dddbed5b6ef0f1a5886f6d2ab3d205c8a0cebd3f1ff2db42b9",
+   "class": "chain"
+  },
+  {
+   "id": "chain-known-parameter-then-saved-result",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if p(x):\n        if q(a):\n            return 2\n        return 1\n    return 0\n",
+   "expected": {
+    "p@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ],
+    "p@4": [],
+    "q@6": []
+   },
+   "source_sha256": "96b3ac8dec39ca31f24e3c24221270813ee7ef946c069b9cc545a695d477e66f",
+   "class": "chain"
+  },
+  {
+   "id": "chain-non-boolean-control",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "expected": {
+    "q@5": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ]
+    ],
+    "p@4": []
+   },
+   "source_sha256": "185c3ffedd65f19f8138a2a7f9e34c0275dfa83f265c34ec45fd05ff4dc71845",
+   "class": "chain"
+  }
+ ]
+}

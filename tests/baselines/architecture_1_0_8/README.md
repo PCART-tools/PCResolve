@@ -1,9 +1,9 @@
 # Architecture 1.0.8 compatibility baselines
 
 These are comparison inputs, not generated reports. The source reference is
-commit `7444cc9d4e75f0e71575f4d38e95423c45f60a3f`, before the package
-reorganization. Its `src/pcresolve` Python files have SHA-256
-`e77ca58d9d175e0ef06d177f523d0ecb697694211faf229f5becbe0f27dc510f`,
+commit `b79a58fead5790aed50d01119e108cfff8bdae3f`, after the value-flow
+precision changes. Its `src/pcresolve` Python files have SHA-256
+`5bb448605ab3606ee0fb9c114c091ff611c31f948672fbb932a775d40aeb61c2`,
 computed from Git archive bytes in sorted relative-path order, hashing each
 relative path followed by its file bytes.
 

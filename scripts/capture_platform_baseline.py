@@ -1,5 +1,5 @@
 ## @package scripts.capture_platform_baseline
-# Capture the fixed pre-refactor analysis on the current platform.
+# Capture the fixed reference analysis on the current platform.
 
 import argparse
 import io
@@ -14,7 +14,7 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REFERENCE = '7444cc9d4e75f0e71575f4d38e95423c45f60a3f'
+REFERENCE = 'b79a58fead5790aed50d01119e108cfff8bdae3f'
 CORPUS = {
     'ground_truth/projects.json': '9c81fcd0f2faaa1d3b9513d5a7e63220ce34c981',
     'tests/fixtures/value_flow_matrix': '48d2eb5b2170f80fd3971d8e9d041c8cb5a7fbdb',

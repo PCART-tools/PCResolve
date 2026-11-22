@@ -134,15 +134,19 @@ def run_benchmark(script, output, sizes, repeats, samples):
 
 
 def run_paired_benchmarks(before_script, after_script, output_dir,
-                          sizes, repeats, samples):
-    """Measure baseline and candidate in alternating, paired worker runs."""
-    before_report = dict(samples=[])
-    after_report = dict(samples=[])
-    before_report_path = output_dir / 'performance-before.json'
-    after_report_path = output_dir / 'performance-after.json'
+                          sizes, repeats, samples, interference_retries=0):
+    """Collect clean baseline and candidate pairs in alternating worker order."""
+    reports = {label: dict(samples=[], independent_samples=samples, samples_completed=0)
+               for label in ('before', 'after')}
+    report_paths = {label: output_dir / ('performance-%s.json' % label)
+                    for label in reports}
+    for label, report in reports.items():
+        report_paths[label].write_text(json.dumps(report, indent=2), encoding='utf-8')
+
     environment_report = dict(
         sampling_strategy='alternating paired isolated-process samples',
         ignored_processes='monitor process and its parent process chain',
+        interference_retries_per_pair=interference_retries,
         interference_thresholds=dict(
             heavy_process_markers=list(_HEAVY_COMMAND_MARKERS),
             high_cpu_percent=_HIGH_CPU_PERCENT,
@@ -157,57 +161,62 @@ def run_paired_benchmarks(before_script, after_script, output_dir,
     initial_assessment = load_interference(initial_state, initial_state)
     environment_report['initial_state'] = initial_state
     environment_report['initial_assessment'] = initial_assessment
-    environment_report['environment_valid'] = not initial_assessment['interference_detected']
+    environment_report['environment_valid'] = False
     environment_path = output_dir / 'performance-environment.json'
-    if not environment_report['environment_valid']:
+    if initial_assessment['interference_detected']:
         environment_report['status'] = 'not_started_due_to_resource_interference'
         environment_path.write_text(json.dumps(environment_report, indent=2),
                                     encoding='utf-8')
-        return None, None, environment_report
+        return reports['before'], reports['after'], environment_report
     environment_report['status'] = 'running'
     environment_path.write_text(json.dumps(environment_report, indent=2), encoding='utf-8')
     with tempfile.TemporaryDirectory(prefix='pcresolve-perf-pairs-') as temp:
         sample_dir = Path(temp)
         for size in sizes:
             for sample_index in range(samples):
-                pair_before = capture_system_state()
                 order = (('before', before_script), ('after', after_script))
                 if sample_index % 2:
                     order = tuple(reversed(order))
-                for label, script in order:
-                    output = sample_dir / ('%s-%s-%s.json' %
-                                           (label, size, sample_index))
-                    result = run_benchmark(script, output, [size], repeats, 1)
-                    report = before_report if label == 'before' else after_report
+                for attempt in range(1, interference_retries + 2):
+                    pair_before = capture_system_state()
+                    pair = {}
+                    for label, script in order:
+                        output = sample_dir / ('%s-%s-%s-%s.json' %
+                                               (label, size, sample_index, attempt))
+                        pair[label] = run_benchmark(script, output, [size], repeats, 1)
+                    pair_after = capture_system_state()
+                    assessment = load_interference(pair_before, pair_after)
+                    accepted = not assessment['interference_detected']
+                    snapshot = dict(modules=size + 1, sample=sample_index,
+                                    attempt=attempt, accepted=accepted,
+                                    before=pair_before, after=pair_after,
+                                    assessment=assessment)
+                    environment_report['snapshots'].append(snapshot)
+                    if not accepted:
+                        snapshot['discarded_samples'] = {
+                            label: result['samples'][0] for label, result in pair.items()}
+                        if attempt > interference_retries:
+                            environment_report['status'] = 'interference_retries_exhausted'
+                    environment_path.write_text(json.dumps(environment_report, indent=2),
+                                                encoding='utf-8')
+                    if accepted:
+                        break
+                else:
+                    return reports['before'], reports['after'], environment_report
+                # Only complete, interference-free pairs contribute to the comparison.
+                for label, result in pair.items():
+                    report = reports[label]
                     if 'python' not in report:
                         report.update({key: result[key] for key in
-                                       ('python', 'platform', 'analyzer_sha256',
-                                        'repeats', 'independent_samples')
+                                       ('python', 'platform', 'analyzer_sha256', 'repeats')
                                        if key in result})
-                    sample = result['samples'][0]
-                    report['samples'].append(sample)
-                # Keep complete partial evidence if a later worker fails.
-                completed = len(before_report['samples'])
-                for report in (before_report, after_report):
-                    report['independent_samples'] = samples
-                    report['samples_completed'] = completed
-                before_report_path.write_text(
-                    json.dumps(before_report, indent=2), encoding='utf-8')
-                after_report_path.write_text(
-                    json.dumps(after_report, indent=2), encoding='utf-8')
-                pair_after = capture_system_state()
-                assessment = load_interference(pair_before, pair_after)
-                environment_report['snapshots'].append(dict(
-                    modules=size + 1, sample=sample_index,
-                    before=pair_before, after=pair_after, assessment=assessment))
-                if assessment['interference_detected']:
-                    environment_report['environment_valid'] = False
-                environment_report['status'] = (
-                    'complete' if environment_report['environment_valid'] else
-                    'complete_but_interfered')
-                environment_path.write_text(json.dumps(environment_report, indent=2),
-                                            encoding='utf-8')
-    return before_report, after_report, environment_report
+                    report['samples'].append(result['samples'][0])
+                    report['samples_completed'] = len(report['samples'])
+                    report_paths[label].write_text(json.dumps(report, indent=2),
+                                                   encoding='utf-8')
+    environment_report.update(status='complete', environment_valid=True)
+    environment_path.write_text(json.dumps(environment_report, indent=2), encoding='utf-8')
+    return reports['before'], reports['after'], environment_report
 
 
 def medians(report):
@@ -260,41 +269,11 @@ def sample_medians(report):
     return result
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--baseline-ref', default='HEAD')
-    parser.add_argument('--sizes', type=int, nargs='+', default=[10, 100, 500])
-    parser.add_argument('--repeats', type=int, default=5)
-    parser.add_argument('--independent-samples', type=int, default=5)
-    parser.add_argument('--output-dir', type=Path,
-                        default=Path('reports/architecture-1.0.8'))
-    args = parser.parse_args()
-    output_dir = args.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    before_path = output_dir / 'performance-before.json'
-    after_path = output_dir / 'performance-after.json'
-    with tempfile.TemporaryDirectory(prefix='pcresolve-perf-baseline-') as directory:
-        archive = subprocess.run(['git', 'archive', '--format=tar', args.baseline_ref],
-                                 cwd=ROOT, check=True, capture_output=True).stdout
-        with tarfile.open(fileobj=__import__('io').BytesIO(archive), mode='r:') as bundle:
-            if sys.version_info >= (3, 12):
-                bundle.extractall(directory, filter='data')
-            else:
-                bundle.extractall(directory)
-        baseline_root = Path(directory)
-        baseline_script = baseline_root / 'scripts' / 'perf_scalability.py'
-        baseline_script.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / 'scripts' / 'perf_scalability.py', baseline_script)
-        before, after, environment_report = run_paired_benchmarks(
-            baseline_script, ROOT / 'scripts' / 'perf_scalability.py',
-            output_dir, args.sizes, args.repeats, args.independent_samples)
-    if before is None or after is None:
-        print('performance measurement not started: resource interference detected')
-        return 2
+def compare_reports(before, after, sizes):
     old, new = medians(before), medians(after)
     old_samples, new_samples = sample_medians(before), sample_medians(after)
     comparisons = []
-    for size in args.sizes:
+    for size in sizes:
         modules = size + 1
         old_row, new_row = old[modules], new[modules]
         for variant, old_seconds in old_row['wall'].items():
@@ -324,26 +303,65 @@ def main():
         comparisons.append(dict(modules=modules, metric='output_reuse_equivalence',
                                 before=old_row['outputs_equal'], after=new_row['outputs_equal'],
                                 passed=old_row['outputs_equal'] and new_row['outputs_equal']))
+    return comparisons
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--baseline-ref', default='HEAD')
+    parser.add_argument('--sizes', type=int, nargs='+', default=[10, 100, 500])
+    parser.add_argument('--repeats', type=int, default=5)
+    parser.add_argument('--independent-samples', type=int, default=5)
+    parser.add_argument('--interference-retries', type=int, default=0,
+                        help='additional attempts per pair rejected for resource interference')
+    parser.add_argument('--output-dir', type=Path,
+                        default=Path('reports/architecture-1.0.8'))
+    args = parser.parse_args()
+    if args.interference_retries < 0:
+        parser.error('--interference-retries must be nonnegative')
+    output_dir = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    before_path = output_dir / 'performance-before.json'
+    after_path = output_dir / 'performance-after.json'
+    with tempfile.TemporaryDirectory(prefix='pcresolve-perf-baseline-') as directory:
+        archive = subprocess.run(['git', 'archive', '--format=tar', args.baseline_ref],
+                                 cwd=ROOT, check=True, capture_output=True).stdout
+        with tarfile.open(fileobj=__import__('io').BytesIO(archive), mode='r:') as bundle:
+            if sys.version_info >= (3, 12):
+                bundle.extractall(directory, filter='data')
+            else:
+                bundle.extractall(directory)
+        baseline_root = Path(directory)
+        baseline_script = baseline_root / 'scripts' / 'perf_scalability.py'
+        baseline_script.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / 'scripts' / 'perf_scalability.py', baseline_script)
+        before, after, environment_report = run_paired_benchmarks(
+            baseline_script, ROOT / 'scripts' / 'perf_scalability.py',
+            output_dir, args.sizes, args.repeats, args.independent_samples,
+            interference_retries=args.interference_retries)
+    environment_valid = environment_report['environment_valid']
+    comparisons = compare_reports(before, after, args.sizes) if environment_valid else []
     report = dict(baseline_ref=args.baseline_ref, python=sys.version,
                   sizes=args.sizes, repeats=args.repeats,
                   independent_samples=args.independent_samples,
                   sampling_strategy='alternating paired isolated-process samples',
                   regression_rule='candidate median <= baseline median + original allowance',
-                  environment_valid=environment_report['environment_valid'],
+                  environment_valid=environment_valid,
+                  environment_status=environment_report['status'],
                   environment_report=str(output_dir / 'performance-environment.json'),
                   benchmark_environment=dict(hash_seed='0',
                                              removed_inherited_python_path=True,
                                              user_site_disabled=True),
                   before=str(before_path), after=str(after_path),
-                  passed=(environment_report['environment_valid']
-                          and all(row['passed'] for row in comparisons)),
+                  passed=environment_valid and all(row['passed'] for row in comparisons),
                   comparisons=comparisons)
     comparison_path = output_dir / 'performance-comparison.json'
     comparison_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
     print('performance thresholds passed: %s; comparisons=%d' %
           (report['passed'], len(comparisons)))
-    if not environment_report['environment_valid']:
-        print('results are diagnostic only: concurrent resource interference detected')
+    if not environment_valid:
+        print('performance measurement incomplete (%s): resource interference detected' %
+              environment_report['status'])
         return 2
     return 0 if report['passed'] else 1
 

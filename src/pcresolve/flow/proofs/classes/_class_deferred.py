@@ -73,6 +73,26 @@ def _within_function_budget(analyzer, function):
 ## Mutable state owned by one deferred-class proof attempt.
 ## 一次延后类证明尝试独占的可变状态。
 class _DeferredClassProofState:
+    ## Initialize one proof attempt with optional pre-supplied mutable state.
+    ## 使用可选的外部可变状态初始化一次证明尝试。
+    #
+    #  @param declarations Evidence for deferred function declarations.
+    #  @param invocations Evidence for factory invocations.
+    #  @param stores Evidence for stores into the protected class namespace.
+    #  @param metadata_writes Evidence for fresh function metadata writes.
+    #  @param generated_members Records of members generated for the class.
+    #  @param published_tokens Tokens already published for generated members.
+    #  @param token_nodes Generated function nodes keyed by their token.
+    #  @param class_write_sites Evidence for direct class-namespace writes.
+    #  @param expression_helper_calls Evidence for inlined helper calls.
+    #  @param expression_budget Remaining bounded expression rewrite budget.
+    #  @param namespace_queries Native namespace read premises collected so far.
+    #  @param namespace_guard Cached builtin-namespace stability result.
+    #  @param exception_branches Evidence for native exception branches.
+    #  @param module_native Cached module `__name__` stability result.
+    #  @param class_aliases Names currently bound to the protected class.
+    #  @param dirty_class_names Class attributes written during the proof.
+    #  @return None
     def __init__(self, declarations=None, invocations=None, stores=None,
                  metadata_writes=None, generated_members=None, published_tokens=None,
                  token_nodes=None, class_write_sites=None, expression_helper_calls=None,
@@ -193,6 +213,9 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
 
     ## Charge the bounded expansion budget for one helper inline.
     ## 扣减一次辅助函数内联所需的有界展开预算。
+    #
+    #  @param helper Helper function whose AST nodes are charged to both budgets.
+    #  @return None; raises ValueError when either remaining budget turns negative.
     def consume_helper_budget(helper):
         count = sum(1 for _ in ast.walk(helper))
         proof.expression_budget -= count
@@ -204,6 +227,11 @@ def prepare(analyzer, target, parameter, class_target=None, decorations=()):
 
     ## Rewrite one expression and merge its local evidence into this proof.
     ## 改写单个表达式，并将该次改写证据并入本次证明。
+    #
+    #  @param node Expression to rewrite; None is returned unchanged.
+    #  @param state Current helper/function binding state.
+    #  @param values Known local string values.
+    #  @return Rewritten expression, or None when the input is None.
     def expression(node, state, values=None):
         if node is None:
             return None

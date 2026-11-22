@@ -9,6 +9,8 @@
 
 
 ## Compare the complete source generation and ordered module naming roots.
+## 比较完整的源码代际与有序的模块命名根目录。
+#
 #  @param previous Previously indexed snapshot, if any.
 #  @param current Newly captured source snapshot.
 #  @param previous_roots Roots used for the prior index.

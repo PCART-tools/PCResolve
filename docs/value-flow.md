@@ -465,7 +465,49 @@ are recorded as condition references. Relations distinguish direct transfer,
 derived values, and container inclusion. Conditions are syntactic evidence,
 not runtime path-feasibility proofs. A found path does not promise execution.
 
+### Predicate control of return sites
+
+`describe_call_flow(call_id)["control_flows"]` reports the return sites that
+the selected call helps choose. Each record identifies the predicate, its
+branch, the ordered guard path and the complete source span of the return.
+The path can contain other calls and guards whose outcomes are already known
+on that path. A call that controls a return site can have an empty
+`return_flows` list when the return expression uses a constant.
+
+For a local identity predicate such as `def p(a): return a is True`, storing
+`t = p(a)` before testing `t` preserves the dependency on the reaching value
+of `a`. Two calls that test the same unchanged object can yield equal Boolean
+results and still have distinct source IDs. Copying or negating a saved
+Boolean preserves its relationship to the original evaluation. Testing the
+original object again can invoke user code again. Unresolved calls, unsupported
+operations and analysis budgets retain the usual value-flow boundaries.
+
 ## Current supported subset and boundaries
+
+Instance-field write records identify a source-level receiver, field, value,
+conditions and evidence. `instance_field_state_candidates` groups possible writes
+and their known ordering; partial or unproven completion is not a runtime final
+state. A value marked `exception_write_candidate` and `value_incomplete` may
+have been written before a call raised. The prior field value remains possible;
+the marker does not prove that the write completed or identify the exception.
+Dynamic method dispatch and incomplete effects retain their own boundaries.
+For a direct receiver field assignment, `unsupported_assignment` with
+`partial_support: "instance_field_state"` means the field-state candidate is
+recorded while descriptor and custom assignment effects remain unmodeled.
+It does not establish that the candidate was stored at runtime.
+Resolved source functions that assign a receiver field retain the prior field
+candidate unless ordinary attribute storage is proved: a descriptor or custom
+`__setattr__` can intercept the write. Unproved effects report
+`field_store_unproven`. The bounded `fresh_plain_receiver_straight_line` proof
+recognizes a fresh simple source class and an unexposed straight-line sequence
+of single-write helpers; it reports the receiver class, allocation evidence and
+source-binding assumptions with an exact write. Other cases remain candidates.
+For a direct named call used as a statement expression, assignment value, return,
+guard or loop head, a resolved no-argument source function whose sole statement
+raises a confirmed builtin exception class, optionally constructed from constants, stops evaluation
+of later arguments when earlier arguments are only names or constants. The raised
+type remains unknown where construction may itself fail. Conditional raises and
+other unproved completion paths remain conservative.
 
 ### Explicit source classmethod bindings
 

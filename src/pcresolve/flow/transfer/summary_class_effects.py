@@ -26,7 +26,18 @@ from pcresolve.flow.proofs.protocols.class_attribute_effects import (
 from pcresolve.flow.transfer._summary_support import _class_origin_key, _unique
 
 
+## Provide class lookup evidence and class or receiver invalidation to mixins.
+## 向混入类提供类查找证据以及类与接收者状态失效能力。
 class ClassEffectsMixin:
+    ## Prove bounded class-attribute writes for one class-typed argument.
+    ## 为一个类类型实参证明有界的类属性写入效果。
+    #
+    #  @param definition Resolved target reference and its AST definition.
+    #  @param call Call record supplying bindings, arguments and effect storage.
+    #  @param captures Lexical capture values visible to the target.
+    #  @param env Call environment used to materialize argument values.
+    #  @param node Call expression used for boundary evidence.
+    #  @return Receiver class identities whose effects were registered.
     def class_attribute_effect(self, definition, call, captures, env, node):
         if (call.binding_status == 'invalid' or call.target != definition[0]
                 or (definition[0].module, definition[0].qualname) in self.modified_return_callables
@@ -215,6 +226,13 @@ class ClassEffectsMixin:
             preserved.append(identity)
         return preserved
 
+    ## Decide whether exposed values or the environment invalidate a class origin.
+    ## 判断暴露值或环境状态是否使类来源失效。
+    #
+    #  @param identity Receiver class identity to test.
+    #  @param env Call environment holding class-origin invalidation keys.
+    #  @param exposed Class identities invalidated by the current operation.
+    #  @return True when the class or one of its MRO owners is invalidated.
     def class_origin_invalid(self, identity, env, exposed=()):
         if not exposed and not any(key.startswith('$class_origin_invalid:') for key in env):
             return False
@@ -222,6 +240,13 @@ class ClassEffectsMixin:
         owners = [asdict(ref) for ref, _ in hierarchy] if hierarchy else [identity]
         return any(owner in exposed or env.get(_class_origin_key(owner)) for owner in owners)
 
+    ## Invalidate class origins for values passed to an unmodeled call or write.
+    ## 使传入未建模调用或写入的值的类来源失效。
+    #
+    #  @param values Values whose class origins may be invalidated.
+    #  @param env Call environment updated in place.
+    #  @param call Call causing the invalidation, or None for a plain write.
+    #  @return None
     def invalidate_class_origins(self, values, env, call=None):
         identities = [value['class_type'] for value in values + self.materialize(values, env)
                       if value.get('source_class_origin') and value.get('class_type')]
@@ -239,6 +264,14 @@ class ClassEffectsMixin:
                     if value.get('class_type') and self.class_origin_invalid(
                         value['class_type'], env, identities) else value for value in sources]
 
+    ## Record required source-state conditions instead of invalidating origins.
+    ## 记录必需的源码状态条件，而不是直接使类来源失效。
+    #
+    #  @param identities Receiver class identities affected by the call.
+    #  @param values Argument values that must stay complete.
+    #  @param env Call environment receiving the condition predicates.
+    #  @param call Call whose target and evidence gate the condition.
+    #  @return True when conditions were recorded instead of invalidation.
     def condition_class_state(self, identities, values, env, call):
         # A state predicate describes a required source lookup, never an effect
         # proof or a runtime target. Explicit writes still use normal invalidation.
@@ -300,6 +333,12 @@ class ClassEffectsMixin:
                 if value.get('class_type') else value for value in sources]
         return True
 
+    ## Clear instance candidates for receivers exposed to an unmodeled call.
+    ## 清空暴露给未建模调用的接收者实例候选。
+    #
+    #  @param values Values passed to the call that may expose instance types.
+    #  @param env Call environment updated in place.
+    #  @return None
     def invalidate_instance_receivers(self, values, env):
         exposed = {(value.get('source'), repr(value['instance_type']))
                    for value in values + self.materialize(values, env)
@@ -310,6 +349,14 @@ class ClassEffectsMixin:
                     if value.get('instance_type') and (value.get('source'),
                         repr(value['instance_type'])) in exposed else value for value in sources]
 
+    ## Convert an implicit receiver parameter into a proven duplicate keyword.
+    ## 将隐式接收者形参转换为已证明的重复关键字绑定。
+    #
+    #  @param call Call record whose bindings and status are rewritten.
+    #  @param parameter Parameter name targeted by the implicit receiver.
+    #  @param slot Binding slot recorded as the conflict source.
+    #  @param positional_only Parameter names that cannot be passed by keyword.
+    #  @return True when a duplicate keyword binding was reported.
     def implicit_keyword_conflict(self, call, parameter, slot, positional_only):
         if parameter in positional_only:
             return False
@@ -335,6 +382,13 @@ class ClassEffectsMixin:
         self.result.boundaries.append({'call_id': call.id, 'reason': 'duplicate_argument_binding'})
         return True
 
+    ## Prove a source classmethod binding for one method call receiver.
+    ## 为单个方法调用接收者证明源码 classmethod 绑定。
+    #
+    #  @param node Call expression whose method attribute is being bound.
+    #  @param target Resolved callee reference and definition, or None.
+    #  @param receiver Receiver values used to identify the class.
+    #  @return Binding fact dictionary, or None when not a classmethod call.
     def class_method_binding(self, node, target, receiver):
         if not isinstance(node.func, ast.Attribute):
             return None

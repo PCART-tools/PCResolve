@@ -32,6 +32,8 @@ from pcresolve.flow.transfer.call_binding_state import (
 )
 
 
+## Implement call-expression transfer phases for flow summaries.
+## 实现数据流摘要中的调用表达式转移阶段。
 class CallExpressionMixin(CallEntryMixin):
     # Query-local state provided by the composed summary, not by each phase.
 
@@ -460,6 +462,10 @@ class CallExpressionMixin(CallEntryMixin):
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
     #  @param fresh_instance_method_bindings Facts returned by callable binding.
+    #  @param nominal_target Callable target before any global rebinding check.
+    #  @param decoration Decoration facts and candidates from callable binding.
+    #  @param global_declarations Module globals that may rebind the target.
+    #  @param global_rebound Whether those declarations leave the target unconfirmed.
     #  @return Constructor values consumed by the effects phase.
     def _create_flow_call_record(self, state, fresh_instance_method_bindings,
                                  nominal_target, decoration, global_declarations,
@@ -478,6 +484,7 @@ class CallExpressionMixin(CallEntryMixin):
                         state.node.end_lineno, state.node.end_col_offset, state.target[0] if state.target else None)
         state.call.instance_method_bindings = fresh_instance_method_bindings
         state.call.implicit_protocol = copy.deepcopy(state.protocol)
+        self._record_dynamic_getattr_call(state.node, state.env)
         if global_rebound:
             self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'module_callable_binding_unconfirmed',
@@ -592,10 +599,50 @@ class CallExpressionMixin(CallEntryMixin):
                 'evidence': self.evidence(state.node)})
         return constructor_values
 
+    ## Record the receiver and name inputs of a dynamic getattr call used as a callee.
+    ## 记录作为动态调用目标的 getattr 接收者与属性名实参。
+    #
+    #  @param node Outer call whose callable expression is a getattr call.
+    #  @param env Abstract environment at the callable evaluation point.
+    #  @return None
+    def _record_dynamic_getattr_call(self, node, env):
+        if (not isinstance(node.func, ast.Call) or not isinstance(node.func.func, ast.Name)
+                or node.func.func.id != 'getattr' or len(node.func.args) not in (2, 3)
+                or node.func.keywords):
+            return
+        lookup = node.func
+        call_id = _call_key(self.ref.file_path, lookup)
+        if any(call.id == call_id for call in self.calls):
+            return
+        arguments = []
+        for index, expression in enumerate(lookup.args):
+            parameter = ('object', 'name', 'default')[index]
+            sources = self.expression(expression, env)
+            arguments.append({'argument': {'position': index}, 'parameter': parameter,
+                              'sources': copy.deepcopy(sources)})
+        call = FlowCall(call_id, self.ref, 'getattr', lookup.lineno, lookup.col_offset,
+            lookup.end_lineno, lookup.end_col_offset,
+            analysis_status='partial', target_status='dynamic_attribute_lookup',
+            binding_status='complete')
+        call.argument_sources = arguments
+        call.receiver_sources = copy.deepcopy(arguments[0]['sources'])
+        call.argument_flows = [dict(value, argument=record['argument'],
+            target_parameter=record['parameter'], target_path=[], status='flow_found')
+            for record in arguments for value in record['sources']]
+        self.calls.append(call)
+        self.result.boundaries.append({'call_id': call_id,
+            'reason': 'dynamic_attribute_lookup',
+            'evidence': self.evidence(lookup),
+            'attribute_name_sources': copy.deepcopy(arguments[1]['sources'])})
+
     ## Finalize target status and attach bounded call metadata.
     ## 确定目标状态并附加有界调用元数据。
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
+    #  @param current_descriptor Descriptor kind of the enclosing function, if any.
+    #  @param callable_instance_cause Reason a callable instance stayed unresolved.
+    #  @param decoration Decoration facts used for decorator boundary evidence.
+    #  @param field_evidence Constructor field source selected by receiver dispatch.
     #  @return Whether the call is a literal string join, consumed by argument mapping.
     def _complete_call_target_metadata(self, state, current_descriptor,
                                        callable_instance_cause, decoration,
@@ -1187,6 +1234,7 @@ class CallExpressionMixin(CallEntryMixin):
     #
     #  @param state Mutable state shared by the ordered call-analysis phases.
     #  @param effects Result produced by the effects phase.
+    #  @param allocation_values Class values used as allocation evidence.
     #  @return Resolved call-result facts, possibly empty.
     def _resolve_return_sources(self, state, effects,
                                 allocation_values):

@@ -198,6 +198,10 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             is_direct_import_cb=self._is_direct_import_base,
             dedupe_cb=self._dedupe_list)
 
+    ## Return constructor-only field names for the active run.
+    ## 返回当前运行使用的仅构造函数字段名。
+    #
+    #  @return Field-name set of the run, or the pre-run compatibility value.
     @property
     def _constructor_only_fields(self):
         # Compatibility view of the active run's lazy constructor evidence.
@@ -205,6 +209,11 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             return self._initial_constructor_only_fields
         return self._ownership_run.constructor_only_fields
 
+    ## Replace constructor-only field names for the active run.
+    ## 替换当前运行使用的仅构造函数字段名。
+    #
+    #  @param value New constructor-only field-name set.
+    #  @return None
     @_constructor_only_fields.setter
     def _constructor_only_fields(self, value):
         if self._ownership_run is None:
@@ -212,12 +221,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.constructor_only_fields = value
 
+    ## Return the cross-file symbol table of the active run.
+    ## 返回当前运行使用的跨文件符号表。
+    #
+    #  @return Global symbol table of the active run, or the pre-run value.
     @property
     def global_symbols(self):
         if self._ownership_run is None:
             return self._initial_global_symbols
         return self._ownership_run.global_symbols
 
+    ## Replace the cross-file symbol table of the active run.
+    ## 替换当前运行使用的跨文件符号表。
+    #
+    #  @param value New symbol table keyed by module name.
+    #  @return None
     @global_symbols.setter
     def global_symbols(self, value):
         if self._ownership_run is None:
@@ -225,12 +243,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.global_symbols = value
 
+    ## Return symbol explanation chains of the active run.
+    ## 返回当前运行使用的符号解释链。
+    #
+    #  @return Explanation chains keyed by module, or the pre-run value.
     @property
     def symbol_chains(self):
         if self._ownership_run is None:
             return self._initial_symbol_chains
         return self._ownership_run.symbol_chains
 
+    ## Replace symbol explanation chains of the active run.
+    ## 替换当前运行使用的符号解释链。
+    #
+    #  @param value New explanation chains keyed by module name.
+    #  @return None
     @symbol_chains.setter
     def symbol_chains(self, value):
         if self._ownership_run is None:
@@ -238,12 +265,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.symbol_chains = value
 
+    ## Return classified call records of the active run.
+    ## 返回当前运行使用的已分类调用记录。
+    #
+    #  @return Call records grouped by module, or the pre-run value.
     @property
     def all_calls(self):
         if self._ownership_run is None:
             return self._initial_all_calls
         return self._ownership_run.all_calls
 
+    ## Replace classified call records of the active run.
+    ## 替换当前运行使用的已分类调用记录。
+    #
+    #  @param value New call records grouped by module name.
+    #  @return None
     @all_calls.setter
     def all_calls(self, value):
         if self._ownership_run is None:
@@ -251,12 +287,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.all_calls = value
 
+    ## Return the project call graph of the active run.
+    ## 返回当前运行使用的项目调用图。
+    #
+    #  @return Project call graph of the active run, or the pre-run value.
     @property
     def project_cg(self):
         if self._ownership_run is None:
             return self._initial_project_cg
         return self._ownership_run.program.call_graph
 
+    ## Replace the project call graph of the active run.
+    ## 替换当前运行使用的项目调用图。
+    #
+    #  @param value New project call graph.
+    #  @return None
     @project_cg.setter
     def project_cg(self, value):
         if self._ownership_run is None:
@@ -264,18 +309,33 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.program.call_graph = value
 
+    ## Return the read-only source snapshot captured by the active run.
+    ## 返回当前运行捕获的只读源码快照。
+    #
+    #  Reading it before analysis starts raises AttributeError.
+    #
+    #  @return SourceSnapshot holding the run's parsed source documents.
     @property
     def _source_snapshot(self):
         if self._ownership_run is None:
             raise AttributeError('source snapshot is not available before analysis')
         return self._ownership_run.snapshot.sources
 
+    ## Return active Python-shape queries of the active run.
+    ## 返回当前运行中活跃的 Python 形状查询。
+    #
+    #  @return Query keys used to stop recursive shape resolution, or the pre-run value.
     @property
     def _python_shape_in_progress(self):
         if self._ownership_run is None:
             return self._initial_python_shape_in_progress
         return self._ownership_run.python_shape_in_progress
 
+    ## Replace active Python-shape queries of the active run.
+    ## 替换当前运行中活跃的 Python 形状查询。
+    #
+    #  @param value New set of active shape query keys.
+    #  @return None
     @_python_shape_in_progress.setter
     def _python_shape_in_progress(self, value):
         if self._ownership_run is None:
@@ -283,12 +343,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.python_shape_in_progress = value
 
+    ## Return active callable-field queries of the active run.
+    ## 返回当前运行中活跃的可调用字段查询。
+    #
+    #  @return Query keys used to stop recursive field resolution, or the pre-run value.
     @property
     def _callable_field_in_progress(self):
         if self._ownership_run is None:
             return self._initial_callable_field_in_progress
         return self._ownership_run.callable_field_in_progress
 
+    ## Replace active callable-field queries of the active run.
+    ## 替换当前运行中活跃的可调用字段查询。
+    #
+    #  @param value New set of active callable-field query keys.
+    #  @return None
     @_callable_field_in_progress.setter
     def _callable_field_in_progress(self, value):
         if self._ownership_run is None:
@@ -296,12 +365,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.callable_field_in_progress = value
 
+    ## Return active call-edge target queries of the active run.
+    ## 返回当前运行中活跃的调用边目标查询。
+    #
+    #  @return Query keys used to stop recursive target resolution, or the pre-run value.
     @property
     def _edge_target_in_progress(self):
         if self._ownership_run is None:
             return self._initial_edge_target_in_progress
         return self._ownership_run.edge_target_in_progress
 
+    ## Replace active call-edge target queries of the active run.
+    ## 替换当前运行中活跃的调用边目标查询。
+    #
+    #  @param value New set of active edge-target query keys.
+    #  @return None
     @_edge_target_in_progress.setter
     def _edge_target_in_progress(self, value):
         if self._ownership_run is None:
@@ -309,12 +387,21 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.edge_target_in_progress = value
 
+    ## Return the proof budget of the active run.
+    ## 返回当前运行使用的证明预算。
+    #
+    #  @return Proof budget of the active run, or the pre-run budget.
     @property
     def _ownership_proof_budget(self):
         if self._ownership_run is None:
             return self._initial_ownership_proof_budget
         return self._ownership_run.proof_budget
 
+    ## Replace the proof budget of the active run.
+    ## 替换当前运行使用的证明预算。
+    #
+    #  @param value New proof budget shared by nested ownership queries.
+    #  @return None
     @_ownership_proof_budget.setter
     def _ownership_proof_budget(self, value):
         if self._ownership_run is None:
@@ -322,6 +409,10 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
         else:
             self._ownership_run.proof_budget = value
 
+    ## Return the cooperative analysis budget of the active run.
+    ## 返回当前运行使用的协作式分析预算。
+    #
+    #  @return Analysis budget of the run, or None when no budget is active.
     @property
     def _analysis_budget(self):
         # Compatibility view of the active run's cooperative analysis budget.
@@ -329,6 +420,10 @@ class ProjectAnalyzer(CallResultResolutionMixin, InstanceMethodResolutionMixin,
             return None
         return self._ownership_run.analysis_budget
 
+    ## Drop pre-run compatibility aliases once a new analysis run starts.
+    ## 在新的分析运行开始后清除运行前的兼容别名。
+    #
+    #  @return None
     def _clear_pre_run_compat_state(self):
         # Pre-run aliases support direct resolver use, but are not inputs to a run.
         for name in (

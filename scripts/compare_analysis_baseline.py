@@ -26,7 +26,8 @@ def _fingerprint(payload):
 
 _PATH_FIELDS = frozenset(('file_path', 'source_files', 'import_roots', 'source',
                           'id', 'call_context', 'call_id', 'incoming_call_id',
-                          'output_container', 'object_sources', 'target_container'))
+                          'call_ids', 'output_container', 'object_sources',
+                          'target_container'))
 _PATH_KEY_FIELDS = frozenset(('sha256', 'source_hashes'))
 
 

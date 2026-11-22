@@ -298,6 +298,8 @@ def _source_module_initialized_member_metadata(analyzer, selected, attribute):
 ## 识别安装目标 lambda 成员的赋值语句。
 #
 #  @param statement Candidate hook statement.
+#  @param receiver Name bound to the class whose member would be installed.
+#  @param member_name Member name the assignment must install.
 #  @return True when it assigns a lambda to the receiver's member.
 def _installs_member(statement, receiver, member_name):
     return (isinstance(statement, ast.Assign) and len(statement.targets) == 1
@@ -308,6 +310,8 @@ def _installs_member(statement, receiver, member_name):
         and isinstance(statement.value, ast.Lambda))
 
 
+## Mutable evidence for one bounded class-creation proof.
+## 一次有界类创建证明的可变证据。
 class _CreationCallsRun:
     ## Initialize the source proof context and mutable evidence.
     ## 初始化源码证明上下文与可变证据。
@@ -829,6 +833,14 @@ class _CreationCallsRun:
                             self.analyzer, classes[0], call_node, creation_calls)
         return _NO_MODULE_METADATA
 
+    ## Prove a native hasattr query for a class method's metadata attribute.
+    ## 证明针对类方法元数据属性的原生 hasattr 查询。
+    #
+    #  @param ref Source reference of the function containing the query.
+    #  @param function Function AST that owns the candidate call.
+    #  @param parameter Implicit class receiver that supplies the method.
+    #  @param call Candidate builtin hasattr call.
+    #  @return Proven boolean AST, or None when presence cannot be proved.
     def callable_hasattr(self, ref, function, parameter, call):
         if (not isinstance(call.func, ast.Name) or call.func.id != 'hasattr'
                 or self.analyzer._builtin_name_status(ref, function, 'hasattr') != 'confirmed_builtin'
@@ -1059,6 +1071,8 @@ class _CreationCallsRun:
         method_documentation_write = self.method_documentation_write
         generated_member_metadata_write = self.generated_member_metadata_write
         native_query = self.native_query
+        ## Transform method AST nodes while replacing proven metadata queries.
+        ## 在替换已证明元数据查询的同时转换方法 AST 节点。
         class NativeQueries(ast.NodeTransformer):
             ## Initialize the guard that excludes nested function bodies.
             ## 初始化用于排除嵌套函数体的标志。
@@ -1210,6 +1224,11 @@ class _CreationCallsRun:
 
         return NativeQueries().visit(copy.deepcopy(function))
 
+    ## Prove one selected classmethod reaches only bounded creation effects.
+    ## 证明一个选中的类方法只产生有界创建效果。
+    #
+    #  @param selected Method reference and AST definition to prove.
+    #  @return True when the method and its callees stay bounded; otherwise False.
     def visit(self, selected):
         ref, function = selected
         if ref in self.active:

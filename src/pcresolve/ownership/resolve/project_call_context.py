@@ -48,6 +48,10 @@ class ProjectCallContextMixin(TargetMetadataMixin):
                 self._initial_definition_index = cached
         return cached
 
+    ## Expose the definition records cached for the current call graph generation.
+    ## 暴露当前调用图代所缓存的定义记录。
+    #
+    #  @return Definition index backing ownership candidate lookups.
     def _get_definition_index(self):
         return self._get_ownership_definition_index().definitions
 
@@ -208,6 +212,11 @@ class ProjectCallContextMixin(TargetMetadataMixin):
             names.setdefault(name, set()).add(ordinal)
         cached.edge_names[ordinal] = current
 
+    ## Store the ownership edge index for the current analysis generation.
+    ## 保存当前分析代的归属调用边索引。
+    #
+    #  @param index Edge index to cache, or None to clear the cached index.
+    #  @return None
     def _set_edge_index(self, index):
         if self._ownership_run is not None:
             self._ownership_run.edge_index = index
@@ -229,6 +238,10 @@ class ProjectCallContextMixin(TargetMetadataMixin):
             self._set_edge_index(cached)
         return cached
 
+    ## Expose the cached edge lookup buckets for the current call graph.
+    ## 暴露当前调用图缓存的调用边查找桶。
+    #
+    #  @return Ordered edges, name buckets, mapping edges, and location buckets.
     def _get_edge_lookup(self):
         return self._get_ownership_edge_index().data
 

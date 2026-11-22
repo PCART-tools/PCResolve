@@ -46,6 +46,12 @@ class _CallExpressionState:
         'call_id',
     )
 
+    ## Initialize the shared call state with its node and environment.
+    ## 使用调用节点和环境初始化共享的调用状态。
+    #
+    #  @param node Call expression syntax analyzed by later phases.
+    #  @param env Abstract environment in which the call is evaluated.
+    #  @return None
     def __init__(self, node, env):
         self.node = node
         self.env = env

@@ -7,11 +7,24 @@
 
 
 
+## Build cached source spans and snippets for flow evidence.
+## 为数据流证据构造带缓存的源码位置与片段。
 class SourceEvidenceMixin:
 
+    ## Build evidence for a node in the summary's own function.
+    ## 为摘要所属函数中的节点构造证据。
+    #
+    #  @param node AST node whose source span is captured.
+    #  @return Evidence record with file path, coordinates and source text.
     def evidence(self, node):
         return self.evidence_at(self.ref, node)
 
+    ## Build or reuse evidence for a node in a given function.
+    ## 为指定函数中的节点构造或复用证据。
+    #
+    #  @param ref Function identity whose source contains the node.
+    #  @param node AST node whose source span is captured.
+    #  @return Cached evidence record for the node's source span.
     def evidence_at(self, ref, node):
         first = getattr(node, 'lineno')
         start = getattr(node, 'col_offset')

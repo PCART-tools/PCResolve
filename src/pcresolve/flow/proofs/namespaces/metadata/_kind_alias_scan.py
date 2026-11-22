@@ -109,6 +109,7 @@ def kind_alias_uses_closed(module, aliases, nodes, parents, scopes, reference, *
 #  @param kind_comparison Accept a proven Parameter-kind comparison.
 #  @param kind_replacement Accept a proven metadata replacement use.
 #  @param stable_module_alias Confirm a module-level alias remains stable.
+#  @param debug_alias_use Optional callback for an unrecognized name use.
 #  @return Module-level aliases to check, or None when a use is open.
 def inspect_module_kind_aliases(module, nodes, parents, scopes, reference, *, canonical,
                                 identity_operand, kind_comparison, kind_replacement,
