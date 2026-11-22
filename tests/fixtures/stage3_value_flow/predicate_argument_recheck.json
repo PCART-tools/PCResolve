@@ -1,0 +1,2212 @@
+{
+ "cases": [
+  {
+   "id": "recheck-00",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d0b6b21f3ec22f6d6fbe9cb7ca1a79b7c948e86b35f5be8b16c5e8e2696802b0",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-01",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ee011b902e9a09ad18631c88b3a8947e8661ed78e7a2742c824abbd6df151718",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-02",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b8a27580fd90d80130b441e82a95b239e02cb6d385738fd1dfdbe52d667873e1",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-03",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7ea5c38459a3b0af2a59215f9ea3c07cab6825737959b38285e37580411c2d39",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-04",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "da9aa6a1629a434cfd3b4b5de5e00677875d14a4770ff2ff5463175df984e156",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-05",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b7f0189c9fec215590e9cae3523e2b49ba87ae69c9719dcfc1026995056b7b85",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-06",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "af8d914cac0a7c602c0ea4d2e8c2c9ee95712a72e0e472139d33f2ff7036b698",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-07",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "6b25c13060d91a5f9a7b1ccc3ff954d3525658722aed79a717ffd2af473b9db2",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-08",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "5af7a3518a5fdae6b6ae3c434b235794bf017bb37b8e884d158833ff5993c605",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-09",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "2aa8fd4186feb08f9b5ec98df19d763566bf8f29909b2b41d8bc6a43bb9c01bf",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-10",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "08a1a4738469d031d4256541c94e2c21b6c46251106562d0937d000731bfb99d",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-11",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "9e886c97d73176bc009abfdbddcf19169d986ecdae6c6154db33da6e4ae8b426",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-12",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8a9d72f822f85307b3e1466dc7477702b3aa53b05a7a970f7649c21bf0237960",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-13",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d7199e70caa54e1dd250c18c68aa1c6ef753b2371fce54761b15b374faab8694",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-14",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "2964e4008569fea9282e13ab03a15f4ff2ad2b3d25507d64aeec52d47a333913",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-15",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "0908c5f8d8dab358a363f7cd55c76f85b9dec3a7b934c4927c5f086660a6f571",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-16",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "20402fb28d83b6a2e1b47d41cb42d11d016a553b1484bb4b4a5a8c7e5f39e6d9",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-17",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "bc99c773e59fb7d5c9de2d1a55cb572f685e73554f95c349fce10b810c9ee1aa",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-18",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "4ba6502ff86f63db62b43c61a107925a59069ae13475e93f011566205bc3bf9a",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-19",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "754c3dffcc3f0f68106546f7d7b25b1c4e52c11fc15b18fe148106bbd6779b6f",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-20",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "983f6b6ad7f323807c53d76677dbf503b52cb001854738f9f46beb43ed9c8b87",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-21",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "4aa9a527883020f1cc1276fd557abe708b09d7ad4e55f13658da19331b7cbc53",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-22",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7338a1f6900474a7d8d008de30ba5594a64ef911ab68fc4f0cf44b58d329a335",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-23",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "49adc548a7d2ce7808f5b2af0cc880961b802d068280bed60709a033cecbe27c",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-24",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "e34f4ff7783985f79a828646e2b43e49d2fd065258ce6a49cb02e242d31ae957",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-25",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d93489ca14d9643ec9ddca57021eb74ba3ff2b1ee24123c2beb32d1881ac2d51",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-26",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "3fb53b6b1a1c1e9bb99a5c81dccfb9320041cd3e2f3426804ab4efce724e6b96",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-27",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    t = q(a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c25832b046596914ddea4128b32754c0a598c2516425a154e59129a4cfcde277",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-28",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7aa4f9d2d1e53a8b621c1171285b9a1636cf1679b0524e9ecc4ccebca28a99f1",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        true
+       ]
+      ],
+      7
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      7
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-29",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(not a):\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "bc2e499fe0a1844899ebf635018a55ab3080f29166358b9c2f8743f08eb1f1ab",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        6,
+        false
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        5,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        6,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        5,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      9
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-30",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "72fed5ba06b26a5766aedbdc8f7d55caa72a43e368e0f234302a2c3464b0d91e",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        true,
+        [
+         "p"
+        ]
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  },
+  {
+   "id": "recheck-31",
+   "class": "predicate-argument",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    t = q(not a)\n    if t:\n        if not a:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "78a53732a7fd35ccb08d9da6f67361e5d9e98573a8929aa08752079166305d97",
+   "expected": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ]
+    ]
+   },
+   "expected_identity": {
+    "p": [],
+    "q": [
+     [
+      [
+       [
+        6,
+        true,
+        [
+         "q"
+        ]
+       ],
+       [
+        7,
+        false,
+        [
+         "p"
+        ]
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false,
+        [
+         "q"
+        ]
+       ]
+      ],
+      10
+     ]
+    ]
+   }
+  }
+ ]
+}

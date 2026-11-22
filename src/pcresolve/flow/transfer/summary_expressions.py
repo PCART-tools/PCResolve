@@ -13,6 +13,7 @@ from dataclasses import asdict
 from pcresolve.flow.model.results import FunctionRef
 from pcresolve.flow.transfer._summary_support import _unique
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
+from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified as namespace_unmodified
 
 
 ## Dispatch expression syntax into dependency alternatives.
@@ -30,6 +31,57 @@ class ExpressionsMixin:
         if node is None:
             return []
         self._expression_preflight(node, env)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            values = self.expression(node.operand, env)
+            if (isinstance(node.operand, ast.Constant)
+                    and type(node.operand.value) is bool):
+                literal = node.operand.value
+                values = [{'kind': 'literal', 'source': repr(literal),
+                           'literal': {'type': 'bool', 'value': literal},
+                           'relation': 'direct', 'evidence': [self.evidence(node.operand)],
+                           'conditions': []}]
+            marked = self.marked(values, node, 'derived')
+            base_token = '$not:%s:%s:%s' % (
+                self.ref.file_path, node.lineno, node.col_offset)
+            tokens = {}
+            for value, original in zip(marked, values):
+                key = (original.get('truth_token'), original.get('kind'),
+                       original.get('source'),
+                       bool(original.get('boolean_negated')),
+                       bool(original.get('truth_converted')))
+                token = tokens.get(key)
+                if token is None:
+                    token = '%s:v%d' % (base_token, len(tokens))
+                    tokens[key] = token
+                if (original.get('kind') == 'literal'
+                        and original.get('relation') == 'direct'
+                        and original.get('literal', {}).get('type') == 'bool'
+                        and not any(original.get(flag) for flag in (
+                            'value_incomplete', 'projection', 'output_path'))):
+                    value['literal'] = {'type': 'bool',
+                                        'value': not original['literal']['value']}
+                    value['source'] = repr(value['literal']['value'])
+                    value['relation'] = 'direct'
+                if (original.get('kind') in ('call_result', 'parameter')
+                        and (original.get('relation') == 'direct'
+                             or original.get('boolean_negated') is not None)):
+                    value['boolean_negated'] = not original.get('boolean_negated', False)
+                    value['truth_converted'] = True
+                    if original.get('truth_token'):
+                        value['truth_parent_token'] = original.get('truth_token')
+                    # This token identifies this evaluation, not the source
+                    # object. A later guard on the source may call __bool__
+                    # again; a saved copy of this value may reuse the result.
+                    # 该标记标识本次求值而不是原对象。之后对原对象的判断可能
+                    # 再次调用 __bool__；保存后的结果副本才可复用本次结果。
+                    value['truth_token'] = token
+                    parents = getattr(self, '_truth_parents', None)
+                    if parents is None:
+                        parents = {}
+                        self._truth_parents = parents
+                    if value.get('truth_parent_token'):
+                        parents[token] = value['truth_parent_token']
+            return marked
         result = self._expression_part_01(node, env)
         if result is not None:
             return result
@@ -150,6 +202,19 @@ class ExpressionsMixin:
                 values = self.marked(env[attribute[0]], node)
                 return [dict(value, attribute_provenance=[dict(fact, read=self.evidence(node))
                             for fact in value.get('attribute_provenance', [])]) for value in values]
+            if isinstance(node.value, ast.Name):
+                receivers = self.expression(node.value, env)
+                keys = self.instance_field_keys(
+                    receivers, node.attr, preserve_identity=True)
+                if keys:
+                    values = [value for key in keys for value in env.get(key, [])]
+                    if values:
+                        if any(value.get('value_incomplete') for value in receivers):
+                            values = [dict(value, value_incomplete=True) for value in values]
+                        return [dict(value, instance_field_provenance=dict(
+                            copy.deepcopy(value.get('instance_field_provenance', {})),
+                            field=node.attr, read_receiver=self.evidence(node.value),
+                            read=self.evidence(node))) for value in self.marked(values, node)]
             name = ast.unparse(node)
             first, dot, rest = name.partition('.')
             binding = env.get(first)
@@ -450,8 +515,11 @@ class ExpressionsMixin:
             before = list(self.conditions)
             values = []
             exits = []
+            missing_value = False
             for operand in node.values:
-                values.extend(self.marked(self.materialize(self.expression(operand, current), current), operand))
+                sources = self.materialize(self.expression(operand, current), current)
+                values.extend(self.marked(sources, operand))
+                missing_value = missing_value or not sources
                 exits.append(copy.deepcopy(current))
                 self.conditions = self.conditions + [{'test': self.evidence(operand), 'branch': isinstance(node.op, ast.And)}]
                 if not self.refine_guard(operand, current, positive=isinstance(node.op, ast.And)):
@@ -459,7 +527,9 @@ class ExpressionsMixin:
             env.clear()
             env.update(_merge_env(exits))
             self.conditions = before
-            return values
+            # An untracked operand can be the value of the whole expression.
+            # 缺少来源记录的操作数也可能成为整个表达式的结果。
+            return [dict(value, value_incomplete=True) for value in values] if missing_value else values
         return None
 
     ## Evaluate one syntax-specific expression form when applicable.
@@ -480,7 +550,122 @@ class ExpressionsMixin:
     #  @param env Current abstract environment.
     #  @return Dependency alternatives or None when another handler should run.
     def _expression_part_13(self, node, env):
+        if isinstance(node, ast.GeneratorExp):
+            consumer = self._generator_consumer(node, env)
+            if consumer is not None:
+                return self._consumed_generator(node, consumer, env)
         if isinstance(node, (ast.Lambda, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
             self.result.boundaries.append({'function': asdict(self.ref), 'reason': 'unsupported_expression', 'evidence': self.evidence(node)})
             return []
         return None
+
+    ## Find a confirmed builtin consumer for a generator expression.
+    ## 查找生成器表达式的已确认内建消费调用。
+    #
+    #  @param generator Generator expression being evaluated.
+    #  @param env Abstract environment used to confirm the builtin consumer.
+    #  @return Confirmed any/all call, or None when its consumer is unknown.
+    def _generator_consumer(self, generator, env):
+        parents = {}
+        for parent in ast.walk(self.node):
+            for child in ast.iter_child_nodes(parent):
+                parents[child] = parent
+        parent = parents.get(generator)
+        if (not isinstance(parent, ast.Call) or generator not in parent.args
+                or len(parent.args) != 1 or parent.keywords
+                or not isinstance(parent.func, ast.Name) or parent.func.id not in ('any', 'all')
+                or self.analyzer._builtin_name_status(
+                    self.ref, self.node, parent.func.id, env) != 'confirmed_builtin'):
+            return None
+        return parent
+
+    ## Analyze yielded expressions for reachable generator elements.
+    ## 分析生成器可达元素的产出表达式。
+    #
+    #  @param generator Generator expression being consumed.
+    #  @param consumer Confirmed builtin any/all call.
+    #  @param env Current abstract environment.
+    #  @return Element dependencies with an explicit may-execute condition.
+    def _consumed_generator(self, generator, consumer, env):
+        if (len(generator.generators) != 1 or generator.generators[0].is_async
+                or generator.generators[0].ifs
+                or not isinstance(generator.generators[0].target, ast.Name)):
+            self.result.boundaries.append({'function': asdict(self.ref),
+                'reason': 'generator_shape_unsupported', 'evidence': self.evidence(generator)})
+            return []
+        clause = generator.generators[0]
+        if isinstance(clause.iter, (ast.List, ast.Tuple, ast.Set)) and not clause.iter.elts:
+            self.result.boundaries.append({'function': asdict(self.ref),
+                'reason': 'generator_empty_input', 'evidence': self.evidence(clause.iter),
+                'consumer': self.evidence(consumer)})
+            return []
+        if (isinstance(clause.iter, (ast.Tuple, ast.List))
+                and not any(isinstance(item, ast.Starred) for item in clause.iter.elts)):
+            # Evaluate all positions before consumption, including those with no value sources.
+            groups = [self.expression(item, env) for item in clause.iter.elts]
+        else:
+            values = self.marked(self.project(self.expression(clause.iter, env), '*', env),
+                                 clause.iter, 'derived')
+            if not values:
+                self.result.boundaries.append({'function': asdict(self.ref),
+                    'reason': 'generator_iterable_unresolved', 'evidence': self.evidence(clause.iter)})
+                return []
+            groups = [values]
+        previous = list(self.conditions)
+        self.conditions = previous + [{
+            'generator_iteration': self.evidence(generator),
+            'consumer': self.evidence(consumer),
+            'consumer_kind': consumer.func.id,
+            'execution': 'may_execute',
+            'later_iterations_may_be_skipped': True,
+        }]
+        result = []
+        stop_value = consumer.func.id == 'any'
+        try:
+            for group in groups:
+                iteration = copy.deepcopy(env)
+                self.assign_target(clause.target, group, iteration, clause.target)
+                constant = self._generator_predicate_constant(generator, iteration)
+                result.extend(self.expression(generator.elt, iteration))
+                if constant is stop_value:
+                    break
+        finally:
+            self.conditions = previous
+        return result
+
+    ## Resolve an unconditional boolean return from a unique local predicate.
+    ## 解析唯一局部谓词中无条件返回的布尔常量。
+    #
+    #  @param generator Generator expression whose element must call a predicate.
+    #  @param env Current abstract environment and callable bindings.
+    #  @return Boolean constant, or None when source evidence is insufficient.
+    def _generator_predicate_constant(self, generator, env):
+        element = generator.elt
+        if not isinstance(element, ast.Call) or not isinstance(element.func, ast.Name):
+            return None
+        if element.func.id in env:
+            matches, complete = self.callable_targets(env[element.func.id])
+            if not complete:
+                return None
+        else:
+            if (not namespace_unmodified(self.analyzer, self.ref.module + '.' + element.func.id)
+                    or element.func.id in self.analyzer._builtin_scope_facts(self.node).bound):
+                return None
+            target = self.analyzer._resolve(self.ref, element.func.id)
+            matches = [target] if target else []
+        if len(matches) != 1:
+            return None
+        payload = matches[0]
+        if not isinstance(payload, tuple) or len(payload) != 2:
+            return None
+        ref, function = payload
+        if (self.analyzer._module_global_declarations(ref)
+                or not namespace_unmodified(self.analyzer, ref.module + '.' + ref.qualname)):
+            return None
+        if (not isinstance(function, ast.FunctionDef)
+                or function.decorator_list or len(function.body) != 1
+                or not isinstance(function.body[0], ast.Return)
+                or not isinstance(function.body[0].value, ast.Constant)
+                or not isinstance(function.body[0].value.value, bool)):
+            return None
+        return function.body[0].value.value

@@ -10,17 +10,205 @@
 import ast
 import copy
 from dataclasses import asdict
-from pcresolve.facts.effect_facts import FunctionEffect, finite_key_delete_sites
+from pcresolve.facts.effect_facts import (FunctionEffect, finite_key_delete_sites,
+                                          instance_field_write_sites)
 from pcresolve.flow.proofs.containers.mapping_remainders import (
     _ProofLimit,
     mapping_remainder,
 )
-from pcresolve.flow.transfer._summary_support import _loop_env, _unique
+from pcresolve.flow.proofs.callables._fresh_receiver import _closed_layout
+from pcresolve.flow.transfer._summary_support import _call_key, _loop_env, _unique
 
 
 ## Apply supported function and mapping effects inside flow summaries.
 ## 在流摘要中应用受支持的函数效果和映射效果。
 class EffectsMixin:
+    ## Prove a narrow fresh plain-object field store on a straight-line prefix.
+    ## 证明直线语句前缀中新建普通对象的字段存储。
+    #
+    #  @param node Current call expression.
+    #  @param target_ref Resolved source function.
+    #  @param target Source definition for the function.
+    #  @param effect Indexed field write.
+    #  @param receivers Bound receiver values.
+    #  @param env Current abstract environment.
+    #  @return True only when the bounded source proof succeeds.
+    def plain_fresh_field_store(self, node, target_ref, target, effect, receivers, env):
+        if (len(receivers) != 1 or not isinstance(node.func, ast.Name)
+                or not isinstance(target, ast.FunctionDef) or target.decorator_list
+                or effect.attribute in ('__class__', '__dict__', '__weakref__')
+                or len(target.body) != 1 or not isinstance(target.body[0], ast.Assign)
+                or len(target.body[0].targets) != 1
+                or not isinstance(target.body[0].value, ast.Name)
+                or not isinstance(effect.statement, ast.Assign)
+                or not isinstance(node.args[0] if node.args else None, ast.Name)):
+            return False
+        receiver = receivers[0]
+        identity = receiver.get('instance_type')
+        if (receiver.get('kind') != 'call_result' or not identity
+                or receiver.get('value_incomplete') or receiver.get('conditions')
+                or receiver.get('projection') or receiver.get('output_path')
+                or self.class_origin_invalid(identity, env)):
+            return False
+        ref = type(target_ref)(**identity)
+        matches = self.analyzer._definition_index.find(ref.module, ref.qualname, kind='class')
+        if (len(matches) != 1 or matches[0][0] != ref
+                or not self.analyzer._ordinary_construction(ref)):
+            return False
+        cls = matches[0][1]
+        if (cls.bases or cls.keywords or cls.decorator_list
+                or not all(isinstance(statement, ast.Pass) for statement in cls.body)
+                or not self.analyzer._stable_import_name(ref.module + '.' + ref.qualname)
+                or not _closed_layout(self.analyzer, [(ref, cls)], effect.attribute)):
+            return False
+        body = self.node.body
+        if not body or not isinstance(body[0], ast.Assign) or len(body[0].targets) != 1:
+            return False
+        allocation = body[0]
+        obj = node.args[0].id
+        if (not isinstance(allocation.targets[0], ast.Name)
+                or allocation.targets[0].id != obj or not isinstance(allocation.value, ast.Call)
+                or not isinstance(allocation.value.func, ast.Name)
+                or allocation.value.args or allocation.value.keywords
+                or allocation.value.func.id != ref.qualname
+                or receiver.get('source') != _call_key(self.ref.file_path, allocation.value)
+                or ref.module != self.ref.module):
+            return False
+        for statement in body[1:]:
+            if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+                return False
+            invocation = statement.value
+            if (not isinstance(invocation.func, ast.Name) or invocation.func.id != node.func.id
+                    or invocation.keywords or len(invocation.args) != len(node.args)
+                    or not all(isinstance(arg, ast.Name) for arg in invocation.args)
+                    or invocation.args[0].id != obj):
+                return False
+            if invocation is node:
+                return True
+        return False
+
+    ## Describe unmodeled alternatives where a candidate field write may not apply.
+    ## 描述候选字段写入可能未生效且尚未建模的替代路径。
+    #
+    #  @param target_ref Function containing the candidate write sites.
+    #  @param conditions Ordered caller and callee source guards.
+    #  @param contexts Syntactic exception or execution contexts around the write.
+    #  @param call Call whose target and binding status bound the summary.
+    #  @param partial Whether the method summary omitted unsupported behavior.
+    #  @param class_method Whether the selected source definition is a class method.
+    #  @return Possible guard complements and explicit unresolved alternatives.
+    def field_write_alternatives(self, target_ref, conditions, contexts, call, partial,
+                                 class_method):
+        alternatives = []
+        prefix = []
+        for condition in conditions:
+            if type(condition.get('branch')) is bool and 'test' in condition:
+                alternatives.append({
+                    'kind': 'guard_not_satisfied',
+                    'status': 'possible',
+                    'guard_path': copy.deepcopy(prefix) + [dict(
+                        condition, branch=not condition['branch'])]})
+            prefix.append(condition)
+        if call.target_status != 'resolved':
+            alternatives.append({'kind': 'target_or_dispatch_unresolved',
+                'status': 'unproven', 'target_status': call.target_status})
+        if class_method:
+            alternatives.append({'kind': 'dynamic_method_dispatch_unproven',
+                'status': 'unproven', 'resolved_source_target': True})
+        alternatives.append({'kind': 'field_store_unproven', 'status': 'unproven',
+                             'detail': 'descriptor_or_custom_setattr'})
+        if partial:
+            alternatives.append({'kind': 'method_effects_incomplete',
+                'status': 'unproven'})
+        if contexts:
+            alternatives.append({'kind': 'execution_completion_unproven',
+                'status': 'unproven', 'contexts': [
+                    {'kind': kind, 'evidence': self.evidence_at(target_ref, context)}
+                    for kind, context in contexts]})
+        return alternatives
+
+    ## Summarize ordered candidate values for each instance field written by a call.
+    ## 汇总一次调用中每个实例字段的有序候选写入值。
+    #  This is a source-order summary, not a runtime heap postcondition.
+    #
+    #  @param call Call record containing the extracted field writes.
+    #  @param partial Whether the source method has unsupported behavior.
+    #  @return None. Appends one bounded candidate-state record per field.
+    def append_field_state_candidates(self, call, partial):
+        groups = {}
+        for effect in call.effects:
+            if effect.get('kind') != 'instance_field_write':
+                continue
+            groups.setdefault(effect.get('field_key'), []).append(effect)
+        for field_key, writes in groups.items():
+            alternatives = []
+            for index, write in enumerate(writes):
+                write_contexts = tuple((item.get('kind'),
+                    item.get('evidence', {}).get('file_path'),
+                    item.get('evidence', {}).get('lineno'))
+                    for item in write.get('contexts', []))
+                write_conditions = {(
+                    item.get('test', {}).get('file_path'),
+                    item.get('test', {}).get('lineno'),
+                    item.get('test', {}).get('col_offset')): item.get('branch')
+                    for item in write.get('conditions', [])}
+                later_writes = []
+                for later in writes[index + 1:]:
+                    later_contexts = tuple((item.get('kind'),
+                        item.get('evidence', {}).get('file_path'),
+                        item.get('evidence', {}).get('lineno'))
+                        for item in later.get('contexts', []))
+                    if later_contexts != write_contexts:
+                        continue
+                    survival_paths = []
+                    compatible = True
+                    additional_conditions = 0
+                    prefix = []
+                    for condition in later.get('conditions', []):
+                        test = condition.get('test', {})
+                        identity = (test.get('file_path'), test.get('lineno'),
+                                    test.get('col_offset'))
+                        branch = condition.get('branch')
+                        if identity in write_conditions:
+                            if write_conditions[identity] != branch:
+                                compatible = False
+                                break
+                        elif type(branch) is bool:
+                            additional_conditions += 1
+                            survival_paths.append(copy.deepcopy(prefix) + [dict(
+                                condition, branch=not branch)])
+                        prefix.append(condition)
+                    if not compatible:
+                        continue
+                    later_writes.append({
+                        'write': copy.deepcopy(later.get('evidence', [{}])[0]),
+                        'conditions': copy.deepcopy(later.get('conditions', [])),
+                        'survives_when': survival_paths,
+                        'unconditional_after': additional_conditions == 0})
+                alternatives.append({
+                    'write': copy.deepcopy(write.get('evidence', [{}])[0]),
+                    'value_expression': copy.deepcopy(write.get('value_expression')),
+                    'conditions': copy.deepcopy(write.get('conditions', [])),
+                    'contexts': copy.deepcopy(write.get('contexts', [])),
+                    'write_order': write.get('write_order'),
+                    'later_same_route_writes': later_writes})
+            call.effects.append({
+                'kind': 'instance_field_state_candidates',
+                'field_key': field_key,
+                'field': writes[0].get('field'),
+                'receiver': copy.deepcopy(writes[0].get('receiver')),
+                'status': 'source_candidate',
+                'completeness': 'partial' if partial else 'source_summary',
+                'completion': 'unproven' if partial or any(
+                    write.get('completion') != 'normal_return' for write in writes)
+                    else 'normal_return',
+                'uncertainty_reasons': sorted({alternative.get('kind')
+                    for write in writes
+                    for alternative in write.get('non_write_alternatives', [])
+                    if alternative.get('status') == 'unproven'}),
+                'candidate_values': alternatives,
+                'call_id': call.id})
+
     ## Apply a resolved function's supported effects to the caller environment.
     ## 将已解析函数支持的效果应用到调用方环境。
     #
@@ -36,6 +224,13 @@ class EffectsMixin:
         # Unsupported mapping effects widen exclusions without inventing writes.
         target_ref, target = definition
         effects, cause = self.analyzer._function_effects(definition)
+        partial_field_effects = False
+        if effects is None and cause not in (
+                'mapping_effect_budget', 'recursive_helper_effects', 'literal_branch_budget'):
+            field_sites = instance_field_write_sites(target)
+            if field_sites:
+                effects = field_sites
+                partial_field_effects = True
         mapping_candidate = any(
             isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
             and child.func.attr == 'pop' or
@@ -48,6 +243,9 @@ class EffectsMixin:
         impact = {'affected_values': affected_roots,
                   'affected_scope': 'unknown' if affected_unknown else
                                     'known' if affected_roots else 'none'}
+        if partial_field_effects:
+            self.add_boundary('instance_field_effect_partial', node, env, affected,
+                call_id=call.id, detail=cause, write_sites=len(effects))
         if effects is None:
             if cause != 'mapping_effect_budget' and self.mapping_remainder_effect(
                     definition, actuals, call, env, node):
@@ -148,10 +346,15 @@ class EffectsMixin:
         values_by_name = dict(captures)
         values_by_name.update({name: self.container_values(values)
                                for name, values in actuals.items()})
+        all_values_by_name = dict(captures)
+        all_values_by_name.update(actuals)
         if effects:
             owner = target_ref.qualname.rpartition('.')[0]
+            field_only = all(effect.kind == 'instance_field_write' for effect in effects)
+            class_method = bool(owner and self.analyzer._definition_index.find(
+                target_ref.module, owner, kind='class'))
             if (call.binding_status != 'complete' or target.decorator_list
-                    or self.analyzer._definition_index.find(target_ref.module, owner, kind='class')
+                    or class_method and not field_only
                     or (not owner and not self.analyzer._stable_import_name(
                         target_ref.module + '.' + target_ref.qualname))
                     or (target_ref.module, target_ref.qualname) in self.modified_return_callables):
@@ -189,7 +392,8 @@ class EffectsMixin:
                                   call_id=call.id, detail=cause, **impact)
                 self.widen_mapping_exclusions(actuals, env)
                 return False
-        complete = True
+        complete = not partial_field_effects
+        field_write_history = {}
         for effect in effects:
             kind = effect.kind
             target_name = effect.target
@@ -204,6 +408,192 @@ class EffectsMixin:
                 call.mutation_flows.extend(dict(value, target_binding=target_name,
                                                 effect_summary='nonlocal_write')
                                            for value in self.materialize(values, env))
+                continue
+            if kind == 'instance_field_write':
+                receivers = all_values_by_name.get(target_name, [])
+                receiver_parameters = target.args.posonlyargs + target.args.args
+                if (not receivers and receiver_parameters
+                        and receiver_parameters[0].arg == target_name):
+                    receivers = call.receiver_sources
+                field_keys = self.instance_field_keys(receivers, effect.attribute)
+                if len(field_keys) != 1:
+                    complete = False
+                    self.add_boundary('instance_field_effect_unproven', node, env, receivers,
+                        call_id=call.id, detail='receiver_identity_unproven',
+                        field=effect.attribute)
+                    continue
+                source_expression = effect.source_expression
+                if isinstance(source_name, str):
+                    source_values = all_values_by_name.get(source_name, [])
+                elif isinstance(source_expression, ast.Name):
+                    source_values = all_values_by_name.get(source_expression.id, [])
+                elif isinstance(source_expression, (ast.Constant, ast.Tuple, ast.List)):
+                    try:
+                        literal_value = ast.literal_eval(source_expression)
+                        literal_valid = True
+                    except (ValueError, TypeError, SyntaxError):
+                        literal_value = None
+                        literal_valid = False
+                    if not literal_valid:
+                        source_values = []
+                    else:
+                        source_values = [{'kind': 'literal',
+                            'source': repr(literal_value),
+                            'literal': self.literal_fact(source_expression, env),
+                            'relation': 'direct',
+                            'evidence': [self.evidence_at(target_ref, source_expression)],
+                            'conditions': []}]
+                else:
+                    source_values = []
+                    receiver_names = {argument.arg for argument in receiver_parameters[:1]}
+                    if isinstance(source_expression, ast.AST):
+                        for expression in ast.walk(source_expression):
+                            if (isinstance(expression, ast.Attribute)
+                                    and isinstance(expression.value, ast.Name)
+                                    and expression.value.id in receiver_names):
+                                keys = self.instance_field_keys(receivers, expression.attr)
+                                for source_key in keys:
+                                    existing = env.get(source_key, [])
+                                    if not existing:
+                                        existing = [{'kind': 'instance_field',
+                                            'source': source_key, 'field': expression.attr,
+                                            'receiver': copy.deepcopy(receivers[0]),
+                                            'relation': 'direct',
+                                            'evidence': [self.evidence_at(
+                                                target_ref, expression)],
+                                            'conditions': []}]
+                                    source_values.extend(existing)
+                    for expression in ast.walk(source_expression) if isinstance(
+                            source_expression, ast.AST) else ():
+                        if (isinstance(expression, ast.Name)
+                                and expression.id in all_values_by_name
+                                and expression.id not in receiver_names):
+                            source_values.extend(all_values_by_name[expression.id])
+                    if not source_values:
+                        source_values = [{'kind': 'derived_expression',
+                            'source': ast.unparse(source_expression),
+                            'relation': 'derived',
+                            'evidence': [self.evidence_at(target_ref, source_expression)],
+                            'conditions': []}]
+                if not source_values:
+                    complete = False
+                    self.add_boundary('instance_field_effect_unproven', node, env, receivers,
+                        call_id=call.id, detail='write_value_unresolved',
+                        field=effect.attribute)
+                    continue
+                field_key = field_keys[0]
+                previous = env.get(field_key, [])
+                if not previous:
+                    previous = [{'kind': 'instance_field', 'source': field_key,
+                        'field': effect.attribute, 'receiver': copy.deepcopy(receivers[0]),
+                        'relation': 'direct', 'evidence': [self.evidence(node)],
+                        'conditions': []}]
+                effect_conditions = [
+                    {'test': self.evidence_at(target_ref, test), 'branch': branch}
+                    for test, branch in effect.conditions]
+                conditions = _unique(copy.deepcopy(self.conditions) + effect_conditions)
+                history = field_write_history.get(field_key, [])
+                exact_write = (not partial_field_effects and not class_method
+                    and not effect.contexts and not effect.conditions
+                    and call.target_status == 'resolved' and call.binding_status == 'complete'
+                    and self.plain_fresh_field_store(
+                        node, target_ref, target, effect, receivers, env))
+                non_write_alternatives = self.field_write_alternatives(
+                    target_ref, conditions, effect.contexts, call, partial_field_effects,
+                    class_method)
+                if exact_write:
+                    non_write_alternatives = [item for item in non_write_alternatives
+                                              if item['kind'] != 'field_store_unproven']
+                write_provenance = {
+                    'receiver': copy.deepcopy(receivers[0]),
+                    'field': effect.attribute,
+                    'write': self.evidence_at(target_ref, effect.statement),
+                    'call': self.evidence(node),
+                    'status': 'exact' if exact_write else 'source_candidate',
+                    'write_order': len(history) + 1,
+                    'may_overwrite': copy.deepcopy(history),
+                    'conditions': copy.deepcopy(conditions),
+                    'contexts': [{'kind': kind,
+                        'evidence': self.evidence_at(target_ref, context)}
+                        for kind, context in effect.contexts],
+                    'value_expression': self.evidence_at(target_ref, source_expression)
+                        if isinstance(source_expression, ast.AST) else None}
+                if exact_write:
+                    write_provenance['store_proof'] = {
+                        'kind': 'fresh_plain_receiver_straight_line',
+                        'receiver_class': copy.deepcopy(receivers[0]['instance_type']),
+                        'allocation': self.evidence(self.node.body[0]),
+                        'assumptions': ['source_snapshot_bindings_hold',
+                                        'no_external_monkeypatch_or_import_hook']}
+                tuple_argument = (source_expression.args[0]
+                    if isinstance(source_expression, ast.Call) and source_expression.args else None)
+                tuple_from_field = (isinstance(tuple_argument, ast.AST)
+                    and any(isinstance(item, ast.Attribute)
+                        and isinstance(item.value, ast.Name)
+                        and item.value.id in {argument.arg for argument in receiver_parameters[:1]}
+                        for item in ast.walk(tuple_argument)))
+                source_is_tuple = (isinstance(source_expression, ast.Call)
+                    and isinstance(source_expression.func, ast.Name)
+                    and source_expression.func.id == 'tuple'
+                    and len(source_expression.args) == 1 and not source_expression.keywords
+                    and tuple_from_field)
+                if source_is_tuple:
+                    container_key = '$instance-field-value:%s:%s' % (
+                        call.id, self.evidence_at(target_ref, effect.statement)['lineno'])
+                    env[container_key] = _unique([dict(value, relation='contained',
+                        output_path=['*'], evidence=_unique(copy.deepcopy(
+                            value.get('evidence', [])) + [self.evidence_at(
+                                target_ref, source_expression)]),
+                        instance_field_provenance=dict(copy.deepcopy(write_provenance),
+                            prior=copy.deepcopy(value.get('instance_field_provenance'))))
+                        for value in source_values])
+                    source_values = [{'kind': 'container', 'source': container_key,
+                        'container_shape': 'tuple', 'relation': 'derived',
+                        'evidence': [self.evidence_at(target_ref, source_expression)],
+                        'conditions': []}]
+                written = [dict(value, relation='direct' if isinstance(
+                    source_expression, (ast.Name, ast.Constant, ast.Tuple, ast.List))
+                    else 'derived',
+                    evidence=_unique(copy.deepcopy(value.get('evidence', [])) +
+                                     [self.evidence(node), self.evidence_at(
+                                         target_ref, effect.statement)]),
+                    conditions=_unique(copy.deepcopy(value.get('conditions', [])) + conditions),
+                    instance_field_provenance=dict(copy.deepcopy(write_provenance),
+                        prior=copy.deepcopy(value.get('instance_field_provenance'))))
+                    for value in source_values]
+                env[field_key] = (_unique(written) if exact_write else
+                                  _unique(copy.deepcopy(previous) + written))
+                effect_record = {'kind': 'instance_field_write',
+                    'receiver': copy.deepcopy(receivers[0]), 'field': effect.attribute,
+                    'field_key': field_key, 'source': source_name if isinstance(source_name, str)
+                        else ast.unparse(source_expression)
+                        if isinstance(source_expression, ast.AST) else None,
+                    'status': 'exact' if exact_write else 'source_candidate',
+                    'completion': 'normal_return' if exact_write else 'unproven',
+                    'conditions': conditions,
+                    'preserved_value': {'kind': 'instance_field', 'source': field_key,
+                        'field': effect.attribute,
+                        'receiver': copy.deepcopy(receivers[0])},
+                    'non_write_alternatives': non_write_alternatives,
+                    'contexts': [{'kind': kind,
+                        'evidence': self.evidence_at(target_ref, context)}
+                        for kind, context in effect.contexts],
+                    'value_expression': self.evidence_at(target_ref, source_expression)
+                        if isinstance(source_expression, ast.AST) else None,
+                    'evidence': [self.evidence_at(target_ref, effect.statement)],
+                    'call_evidence': self.evidence(node), 'call_id': call.id}
+                history = field_write_history.setdefault(field_key, [])
+                effect_record['write_order'] = len(history) + 1
+                if exact_write:
+                    effect_record['store_proof'] = copy.deepcopy(write_provenance['store_proof'])
+                effect_record['may_overwrite'] = copy.deepcopy(history)
+                history.append(effect_record['evidence'][0])
+                call.effects.append(effect_record)
+                call.mutation_flows.extend(dict(value, target_field=effect.attribute,
+                    target_field_key=field_key,
+                    target_receiver=copy.deepcopy(receivers[0]),
+                    effect_summary='instance_field_write')
+                    for value in self.materialize(written, env))
                 continue
             receivers = values_by_name.get(target_name, [])
             self.invalidate_literals(receivers, env)
@@ -307,6 +697,7 @@ class EffectsMixin:
                                  'source': source_name, 'status': 'exact',
                                  'evidence': [self.evidence_at(
                                      target_ref, effect.statement)]})
+        self.append_field_state_candidates(call, partial_field_effects)
         return complete
 
     ## Prove and apply the unaffected-key remainder of a mapping helper call.

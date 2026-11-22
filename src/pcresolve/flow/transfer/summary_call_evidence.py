@@ -80,6 +80,7 @@ class CallEvidenceMixin(CallBindingMixin, SourceEvidenceMixin):
             for value in result:
                 value.pop('python_shape', None)
                 value.pop('container_object', None)
+                value.pop('boolean_negated', None)
         return result
 
     ## Collect the parameter and capture roots reached by the given values.

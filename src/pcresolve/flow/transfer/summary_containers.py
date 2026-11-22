@@ -139,6 +139,8 @@ class ContainersMixin:
     def materialize(self, values, env, visited=()):
         result = []
         for value in values:
+            if value.get('kind') == 'control_path':
+                continue
             if value.get('container_object'):
                 converted = self.container_values([value], allow_contained=True)[0]
                 if converted['kind'] == 'container':
@@ -181,6 +183,21 @@ class ContainersMixin:
                     continue
                 content = [item for item in env.get(value['source'], [])
                            if item.get('container_role') != 'key']
+                field_provenance = value.get('instance_field_provenance')
+
+                ## Keep enclosing field-write evidence on projected elements.
+                ## 在投影后的元素上保留外层字段写入证据。
+                #
+                #  @param items Selected element dependencies.
+                #  @return None
+                def append_projected(items):
+                    for item in items:
+                        if field_provenance:
+                            inherited = copy.deepcopy(item.get('container_provenance', []))
+                            inherited.append(copy.deepcopy(field_provenance))
+                            item['container_provenance'] = inherited
+                        result.append(item)
+
                 if value.get('parameter_container') and index != '*':
                     for item in content:
                         if item.get('output_path') == ['*']:
@@ -189,11 +206,11 @@ class ContainersMixin:
                             projected = dict(
                                 item, projection=item.get('projection', []) + [index])
                             projected.pop('output_path', None)
-                            result.append(projected)
+                            append_projected([projected])
                         else:
-                            result.extend(select_dependencies([item], [index]))
+                            append_projected(select_dependencies([item], [index]))
                 else:
-                    result.extend(select_dependencies(content, [index]))
+                    append_projected(select_dependencies(content, [index]))
             else:
                 result.extend(select_dependencies([value], [index]))
         return result

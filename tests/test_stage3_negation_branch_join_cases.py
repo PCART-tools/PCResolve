@@ -1,0 +1,78 @@
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from pcresolve import FlowAnalyzer, FunctionRef
+
+
+FIXTURE = (
+    Path(__file__).resolve().parent / "fixtures" / "stage3_value_flow"
+    / "negation_branch_join_cases.json"
+)
+CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))["cases"]
+CALLER = FunctionRef(module="probe", qualname="entry")
+
+
+def rows(entries):
+    return {(tuple((int(line), bool(branch)) for line, branch in path), int(ret))
+            for path, ret in entries}
+
+
+def observed(call):
+    return {(tuple((step["test"]["lineno"], bool(step["branch"]))
+                   for step in flow["path"]), flow["return"]["lineno"])
+            for flow in call.control_flows}
+
+
+@pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
+def test_negation_branch_join_keeps_branch_specific_parents(tmp_path, case):
+    source = tmp_path / "probe.py"
+    source.write_text(case["source"], encoding="utf-8")
+    analysis = FlowAnalyzer(source_files=[source], import_roots=[tmp_path]).analyze(
+        CALLER, max_depth=2)
+    calls = {(call.callee_name, call.lineno): call
+             for call in analysis.find_calls(caller=CALLER)}
+    union = set().union(*(observed(call) for call in calls.values()))
+    assert union == rows(case["expected_union"])
+    assert not (union & rows(case["forbidden"])), "contradictory path retained"
+    assert rows(case["required"]) <= union, "real path missing"
+    for label, entries in case["expected_calls"].items():
+        callee, lineno = label.split("@")
+        call = calls.get((callee, int(lineno)))
+        assert call is not None, "missing call %s" % label
+        assert observed(call) == rows(entries), "%s per-call rows" % label
+    assert analysis.to_dict().get("boundaries") == []
+    command = [sys.executable, "-m", "pcresolve", "--source-file", str(source),
+               "--import-root", str(tmp_path), "--value-flow", "--entry", "probe:entry",
+               "--depth", "2", "--json"]
+    assert json.loads(subprocess.check_output(command, encoding="utf-8")) == analysis.to_dict()
+
+
+def test_negation_branch_join_fixture_shape():
+    assert len(CASES) == 15
+    for case in CASES:
+        digest = hashlib.sha256(case["source"].encode("utf-8")).hexdigest()
+        assert digest == case["source_sha256"]
+
+
+def test_outer_call_controls_the_join_choice(tmp_path):
+    required = {"v/w if b then a", "v/w if a then b",
+                "w/v if b then a", "w/v if a then b"}
+    for case in CASES:
+        root = tmp_path / case["id"].replace("/", "_")
+        root.mkdir()
+        source = root / "probe.py"
+        source.write_text(case["source"], encoding="utf-8")
+        analysis = FlowAnalyzer(source_files=[source], import_roots=[root]).analyze(
+            CALLER, max_depth=2)
+        outer = next((call for call in analysis.find_calls(caller=CALLER)
+                      if call.callee_name == "p" and call.lineno == 5), None)
+        assert outer is not None
+        if case["id"] in required:
+            assert outer.control_flows, "%s lost outer control" % case["id"]
+        elif case["id"].startswith("v/v"):
+            assert not outer.control_flows, "%s folded equivalent branches" % case["id"]

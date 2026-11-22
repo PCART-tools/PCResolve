@@ -154,6 +154,14 @@ class FunctionEffect:
     sequence_loop: object = None
     ## Membership guard protecting an element deletion.
     membership_test: object = None
+    ## Instance attribute written by a source-bound method effect.
+    attribute: object = None
+    ## Source guards that must hold for the effect site.
+    conditions: tuple = ()
+    ## Original right-hand-side expression for an instance-field write.
+    source_expression: object = None
+    ## Non-boolean execution contexts such as a try handler or loop.
+    contexts: tuple = ()
 
 
 ## Match a builtin container method by receiver shapes and positional arity.
@@ -281,12 +289,45 @@ def function_effects(node, call_effects=None):
                               statement, 'dict', (value.args[0].value,),
                               'KeyError' if len(value.args) == 1 else None)
 
+    ## Extract a flat instance-field assignment with a directly traceable value.
+    ## 提取右值可直接追踪的单层实例字段赋值。
+    #
+    #  @param statement Candidate assignment statement.
+    #  @param conditions Source guards enclosing the assignment.
+    #  @return FunctionEffect or None for unsupported receiver or value syntax.
+    def instance_field_write(statement, conditions=()):
+        if (not isinstance(statement, ast.Assign) or len(statement.targets) != 1
+                or not isinstance(statement.targets[0], ast.Attribute)
+                or not isinstance(statement.targets[0].value, ast.Name)
+                or statement.targets[0].value.id not in aliases):
+            return None
+        value = statement.value
+        if not ((isinstance(value, ast.Name) and value.id in aliases)
+                or isinstance(value, ast.Constant)):
+            return None
+        source = aliases[value.id] if isinstance(value, ast.Name) else value
+        return FunctionEffect('instance_field_write',
+            aliases[statement.targets[0].value.id], source, statement,
+            attribute=statement.targets[0].attr, conditions=tuple(conditions),
+            source_expression=value)
+
     # Reject the entire summary on an unsupported statement, never a partial write set.
     # 遇到不支持的语句时拒绝整个摘要，避免输出不完整的写入集合。
     effects = []
     for statement in body:
         if isinstance(statement, (ast.Nonlocal, ast.Pass)):
             continue
+        field_effect = instance_field_write(statement)
+        if field_effect is not None:
+            effects.append(field_effect)
+            continue
+        if (isinstance(statement, ast.If) and not statement.orelse
+                and len(statement.body) == 1):
+            field_effect = instance_field_write(
+                statement.body[0], ((statement.test, True),))
+            if field_effect is not None:
+                effects.append(field_effect)
+                continue
         if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
                 and isinstance(statement.targets[0], ast.Name)
                 and statement.targets[0].id not in nonlocal_names
@@ -375,6 +416,102 @@ def function_effects(node, call_effects=None):
                 continue
         return None
     return tuple(effects)
+
+
+## Collect direct receiver-field write sites without claiming completeness.
+## 收集直接接收者字段写入位置，但不声称副作用摘要完整。
+#
+#  @param node Candidate source method.
+#  @return Field write sites with syntactic conditions and exception contexts.
+def instance_field_write_sites(node):
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return ()
+    parameters = node.args.posonlyargs + node.args.args
+    if not parameters:
+        return ()
+    receiver = parameters[0].arg
+    aliases = {receiver}
+    sites = []
+
+    ## Decide whether a suite has no normal continuation.
+    ## 判断语句组是否不存在正常后续路径。
+    #
+    #  @param statements Suite to inspect.
+    #  @return True when every represented path exits abruptly.
+    def terminates(statements):
+        if not statements:
+            return False
+        last = statements[-1]
+        if isinstance(last, (ast.Raise, ast.Return, ast.Break, ast.Continue)):
+            return True
+        if isinstance(last, ast.If):
+            return terminates(last.body) and terminates(last.orelse)
+        return False
+
+    ## Visit immediate statements while recording enclosing control syntax.
+    ## 遍历当前执行体的语句，并记录外围控制语法。
+    #
+    #  @param statements Statements in one execution suite.
+    #  @param conditions Boolean guards enclosing the suite.
+    #  @param contexts Non-boolean execution contexts enclosing the suite.
+    #  @param receiver_aliases Names already known to alias the receiver.
+    #  @return None
+    def visit(statements, conditions=(), contexts=(), receiver_aliases=None):
+        receiver_aliases = set(receiver_aliases or (receiver,))
+        active_conditions = tuple(conditions)
+        for statement in statements:
+            if isinstance(statement, (ast.Raise, ast.Return, ast.Break, ast.Continue)):
+                break
+            if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and isinstance(statement.value, ast.Name)
+                    and statement.value.id in receiver_aliases):
+                receiver_aliases.add(statement.targets[0].id)
+                continue
+            target = (statement.targets[0] if isinstance(statement, ast.Assign)
+                      and len(statement.targets) == 1 else
+                      statement.target if isinstance(statement, ast.AnnAssign) else None)
+            if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                    and target.value.id in receiver_aliases):
+                sites.append(FunctionEffect('instance_field_write', receiver, None,
+                    statement, attribute=target.attr, conditions=active_conditions,
+                    source_expression=(statement.value if isinstance(statement, ast.Assign)
+                                       else statement.value), contexts=tuple(contexts)))
+                continue
+            if isinstance(statement, ast.If):
+                visit(statement.body, active_conditions + ((statement.test, True),), contexts,
+                      receiver_aliases)
+                visit(statement.orelse, active_conditions + ((statement.test, False),), contexts,
+                      receiver_aliases)
+                true_terminates = terminates(statement.body)
+                false_terminates = terminates(statement.orelse)
+                if true_terminates and false_terminates:
+                    break
+                if true_terminates != false_terminates:
+                    active_conditions += ((statement.test, not true_terminates),)
+                continue
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                                      ast.Lambda)):
+                continue
+            if isinstance(statement, ast.Try):
+                visit(statement.body, active_conditions,
+                      contexts + (('try_body', statement),), receiver_aliases)
+                for handler in statement.handlers:
+                    visit(handler.body, active_conditions,
+                          contexts + (('exception_handler', handler),), receiver_aliases)
+                visit(statement.orelse, active_conditions,
+                      contexts + (('try_else', statement),), receiver_aliases)
+                visit(statement.finalbody, active_conditions,
+                      contexts + (('finally', statement),), receiver_aliases)
+                continue
+            if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+                visit(statement.body, active_conditions,
+                      contexts + (('loop', statement),), receiver_aliases)
+                visit(statement.orelse, active_conditions,
+                      contexts + (('loop_else', statement),), receiver_aliases)
+                continue
+    visit(node.body)
+    return tuple(sites)
 
 
 ## Extract guarded deletion sites without claiming a complete effect summary.

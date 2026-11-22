@@ -281,6 +281,28 @@ class ValuesMixin:
             attribute = '_' + owner + attribute
         return '$attribute:%s:%s:%s' % (identity['module'], identity['qualname'], attribute), identity
 
+    ## Build field-state keys for a uniquely identified instance receiver.
+    ## 为身份唯一的实例接收者构造字段状态键。
+    #
+    #  @param values Abstract receiver values at the current program point.
+    #  @param attribute Direct instance attribute name.
+    #  @param preserve_identity Allow field reads through an incomplete receiver value
+    #                           when its source-level object identity is retained.
+    #  @return Field keys when every alternative has a stable object identity.
+    def instance_field_keys(self, values, attribute, preserve_identity=False):
+        identities = []
+        for value in values:
+            if (value.get('kind') not in ('parameter', 'call_result', 'constructor_instance')
+                    or (value.get('value_incomplete') and not preserve_identity)
+                    or value.get('import_incomplete')
+                    or value.get('projection') or value.get('output_path')):
+                return []
+            identities.append((value['kind'], value.get('source')))
+        if not identities or any(not source for _, source in identities):
+            return []
+        return _unique('$instance-field:%s:%s:%s' % (kind, source, attribute)
+                       for kind, source in identities)
+
     ## Clear every attribute state key after an unknown mutation.
     ## 在未知变更之后清空所有属性状态键。
     #

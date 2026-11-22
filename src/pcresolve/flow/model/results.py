@@ -67,6 +67,7 @@ class FlowCall:
     conditional_source_bindings: list = field(default_factory=list)
     candidate_paths: list = field(default_factory=list)
     conditions: list = field(default_factory=list)
+    control_flows: list = field(default_factory=list, init=False)
 
 
 ## An immutable-by-convention analysis snapshot with JSON-safe views.

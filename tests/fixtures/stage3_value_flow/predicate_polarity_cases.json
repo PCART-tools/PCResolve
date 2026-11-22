@@ -1,0 +1,2770 @@
+{
+ "cases": [
+  {
+   "id": "identity_chain-00",
+   "family": "identity_chain",
+   "label": "x is False; y is False; q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "45c8fb76dc544c8a1e0f3aea80e3c8a470c55ec9ae5f928c59500f036511dde7",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-01",
+   "family": "identity_chain",
+   "label": "x is False; y is False; q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "e04e3b6efacb3569dc936b6e44a830e8c655ef00e0a85fc044916bb303e47c04",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-02",
+   "family": "identity_chain",
+   "label": "x is False; y is False; not q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "4af12f89bb8a8b5a9b9b507e6b5866bc9d04ecbbc311e960acb51aa38e2d90dd",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-03",
+   "family": "identity_chain",
+   "label": "x is False; y is False; not q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "1d69d7e8cafffa39260965404e63e4b70b48bc45cfcaaae8d53f725ecaf3eee7",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-04",
+   "family": "identity_chain",
+   "label": "x is False; y is not False; q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "69d47e478d4add27c95bd6c2c36f65c46082c8586dbcddc561c02b41b402187f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-05",
+   "family": "identity_chain",
+   "label": "x is False; y is not False; q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7b24a5703b3f84854ce5667b0279bca5e39a408db4e9e0695da234eaf741b3bc",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-06",
+   "family": "identity_chain",
+   "label": "x is False; y is not False; not q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8903bdeb5e230d250c9e8f8bab024a384916f3cb6d2c558611f70bec59f193af",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-07",
+   "family": "identity_chain",
+   "label": "x is False; y is not False; not q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "1622c81cb51620520a6815101bfeeb668a3b04bf697f0c1dea749a7d217b6a0f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-08",
+   "family": "identity_chain",
+   "label": "x is False; y is True; q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "cfbae926c23db1d621490b714a0a4fe0f89fd7f1cba74aac8840038330b45f67",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-09",
+   "family": "identity_chain",
+   "label": "x is False; y is True; q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "0cae25e4420cc6000dac78418758bc53543ffb2f2596004b0870e77642f6d07f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-10",
+   "family": "identity_chain",
+   "label": "x is False; y is True; not q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "3716219c2d6314b243ea1de33b5a9a0b3b9752b2b200924ac4cbf0e67476a684",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-11",
+   "family": "identity_chain",
+   "label": "x is False; y is True; not q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "267441cbd7e3598be23524f833d8a189ee35e403d960a644413fc137a06f1289",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-12",
+   "family": "identity_chain",
+   "label": "x is False; y is not True; q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "32c7faf01d04c1c4fc204e5fd840b9936b024cc3644a5987c501a6226cc67e56",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-13",
+   "family": "identity_chain",
+   "label": "x is False; y is not True; q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b86068fe7331e64c060ed34342d115c551bacd74e81066dbaf3dc9b371358e71",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-14",
+   "family": "identity_chain",
+   "label": "x is False; y is not True; not q(a); x",
+   "source": "def p(x): return x is False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "442930417951743f42a6a72a1ca3b4fd9b400de3709bdb4a553659333d9b784f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-15",
+   "family": "identity_chain",
+   "label": "x is False; y is not True; not q(a); p(x)",
+   "source": "def p(x): return x is False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "337a910aa13990725d1c6384a21747a47356082f8d399a192fe80bb69f692cf4",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-16",
+   "family": "identity_chain",
+   "label": "x is not False; y is False; q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ab514fdc353b3147277ae6546455ce72d220bb763256f45542f10d7489ce954f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-17",
+   "family": "identity_chain",
+   "label": "x is not False; y is False; q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b8b654e34ee2ebfa93ad1994528cbcd772bad85e79275fe5cab012d847bd8611",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-18",
+   "family": "identity_chain",
+   "label": "x is not False; y is False; not q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d6bf1f6f2e286aefdc64e5826e83aa20c7e7d7b7f9777d67c465def9832b7aec",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-19",
+   "family": "identity_chain",
+   "label": "x is not False; y is False; not q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c31ab7894fa0eea566368b088cf33085f79278aa40b7de0e7d30129294c2b1db",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-20",
+   "family": "identity_chain",
+   "label": "x is not False; y is not False; q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "426111002df2adf9cc8c98d066e7206a5e132c34f337ad9b92478fd3318b798f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-21",
+   "family": "identity_chain",
+   "label": "x is not False; y is not False; q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "96c1ecdd5a8550de8f78b3a1c972f28e814bd2f3119f7edbd4156c0aea0a7742",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-22",
+   "family": "identity_chain",
+   "label": "x is not False; y is not False; not q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d314f99f4860cc70c14f019e5dcbbdf61fab3f8ded696e20d1e6ba8ed522ecf8",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-23",
+   "family": "identity_chain",
+   "label": "x is not False; y is not False; not q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ddc81dc008fbab3a3037e529ab498c1c6086725578ac39629d7889014b01d8fd",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-24",
+   "family": "identity_chain",
+   "label": "x is not False; y is True; q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "106fa993b4c19a11244ee924a09adc3c85fbf7f68740cbfb4b4e52b0f59317ae",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-25",
+   "family": "identity_chain",
+   "label": "x is not False; y is True; q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "f080aed8e50c826c8f3c84e143a8f8bb346f48c5543901d543df85dfa2e7d4a7",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-26",
+   "family": "identity_chain",
+   "label": "x is not False; y is True; not q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "583ba51fc6f602abf6d638156106bee62dad69d573202b3937677c9abc5351a3",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-27",
+   "family": "identity_chain",
+   "label": "x is not False; y is True; not q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "9122b6b2bb689a7e304663e731f1f5a66a6c1299b8628fda2fb39a8d3c880fd7",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-28",
+   "family": "identity_chain",
+   "label": "x is not False; y is not True; q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "460befb278ca190d95b66b14d0e9999ef0ed64bd29c22253ce4eaa1340ac5f4c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-29",
+   "family": "identity_chain",
+   "label": "x is not False; y is not True; q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "e654b10b7c575369275df5174686c5145897555307ecb2d681eafc16da6050d7",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-30",
+   "family": "identity_chain",
+   "label": "x is not False; y is not True; not q(a); x",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7b4b8f1bbfa47e8716fe44a7e6f3e9552cb3cfac59d87d12700492b2139f096e",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-31",
+   "family": "identity_chain",
+   "label": "x is not False; y is not True; not q(a); p(x)",
+   "source": "def p(x): return x is not False\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "059280872786c4da9376065af0b506bcac13d1c48292ffd37df08315798602cf",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-32",
+   "family": "identity_chain",
+   "label": "x is True; y is False; q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c9dc1c07573fddecf82e07ed1692a6d27a5269b67eaa96d3e479a80b11210509",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-33",
+   "family": "identity_chain",
+   "label": "x is True; y is False; q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "637a03411c71c9b686bc43aea92a69e38298dd414cfd61effed4ce4c6b34c76a",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-34",
+   "family": "identity_chain",
+   "label": "x is True; y is False; not q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c1a95c9bca6303c0ab0f71f0c026d8667b63f3906c18e100abf330d46e5dedb5",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-35",
+   "family": "identity_chain",
+   "label": "x is True; y is False; not q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "9e3b858aa3325ab6d0eeb6c16d102a44fcc4cd3d1dc56520ec0b6907dc5802f1",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-36",
+   "family": "identity_chain",
+   "label": "x is True; y is not False; q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "e6a165deae8039baf28cccb1eb7243b6aea3f8aa33fe85ea3bc8a1449877db54",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-37",
+   "family": "identity_chain",
+   "label": "x is True; y is not False; q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8eedc8d443eda0a5c08cf42eb16ab95fa43e74221b2daf9174df317594eb1c77",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-38",
+   "family": "identity_chain",
+   "label": "x is True; y is not False; not q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c0cfa8e5e9050c8ffc96b4193599a86912c38e9cd9bfb815c2e45db08c9f45e8",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-39",
+   "family": "identity_chain",
+   "label": "x is True; y is not False; not q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "bd75ce42cb3ba7392ac6b70b991b8c135cd91ad764e94ddc18a9c83b8bdbd185",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-40",
+   "family": "identity_chain",
+   "label": "x is True; y is True; q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "96e1b1b7ee9c50f1de5a12a149a4712e9c0f18c14014308fa5cb009369d00f7c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-41",
+   "family": "identity_chain",
+   "label": "x is True; y is True; q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "98683f9f2cd9cfe26b07b5cb3a1a80c329eeef937edbbbcf7b986bbf93c34db2",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-42",
+   "family": "identity_chain",
+   "label": "x is True; y is True; not q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "185c3ffedd65f19f8138a2a7f9e34c0275dfa83f265c34ec45fd05ff4dc71845",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-43",
+   "family": "identity_chain",
+   "label": "x is True; y is True; not q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "73483289a97066a4bc7ba89b9677f118313e85857398f370343092c792d1c637",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-44",
+   "family": "identity_chain",
+   "label": "x is True; y is not True; q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "058741f1cf9b1b78affe6057f534ac034dc75d5134b54ffcccf15076ee0a3358",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-45",
+   "family": "identity_chain",
+   "label": "x is True; y is not True; q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c64eafa3372b8f476f4c18499a5c21a26c3ed3b7068c41baa0a5d5c3fe5da2e0",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-46",
+   "family": "identity_chain",
+   "label": "x is True; y is not True; not q(a); x",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "131aebda8c631562035499df5d6921126b03a95a3a0b54eb2964f8005ac0f65d",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-47",
+   "family": "identity_chain",
+   "label": "x is True; y is not True; not q(a); p(x)",
+   "source": "def p(x): return x is True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c3fd3b457594bf0cc6eaadd59a7fc3ab23c8a6ee5bcde1e1ef708c7d96d6185f",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-48",
+   "family": "identity_chain",
+   "label": "x is not True; y is False; q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "6a98862176df584bd6074b44624d16b7a1ae1cb579a9e3cbfed55dd1b27608e5",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-49",
+   "family": "identity_chain",
+   "label": "x is not True; y is False; q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "335c7553ff9030402d28e993eb80dbcd4eaa51358db07dc8def11a71c17fc246",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-50",
+   "family": "identity_chain",
+   "label": "x is not True; y is False; not q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "10af96b1f36fc4f350b56c4ad9bfabe19cbbdf0c1621538e2a8b48dbebeae0b9",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-51",
+   "family": "identity_chain",
+   "label": "x is not True; y is False; not q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ddcb8b210cb804078caec4fc03cca2b4d532e1604385a8c0f5b90c360e26089e",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-52",
+   "family": "identity_chain",
+   "label": "x is not True; y is not False; q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "29c12ed5998f32e131471ac40fb6fa9faee2a7e26e22e6ffe9e9d7acd1a3145d",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-53",
+   "family": "identity_chain",
+   "label": "x is not True; y is not False; q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "38e0f9deddb01c10530b6079936197f77da773aacdb3e6f034c3fa015e2b2f85",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-54",
+   "family": "identity_chain",
+   "label": "x is not True; y is not False; not q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "83e5ca319b9defb0be85b5c7253560b66e093b6f4cfdc57dc26aee8ba4e8420e",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-55",
+   "family": "identity_chain",
+   "label": "x is not True; y is not False; not q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not False\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "15914bdcd9d571b2f344a3fdcf6c7fe0b46a1f201b0a4a3d2e59a839575efc8d",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-56",
+   "family": "identity_chain",
+   "label": "x is not True; y is True; q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "52dcca23be103dbb8cdfbd282e36cf947c361d6f415bcd93eb28e90f861ae3df",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-57",
+   "family": "identity_chain",
+   "label": "x is not True; y is True; q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "0db3804f011565f351cda8b7f08636031d30b1546af57711a5d66b33e8bdf33c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-58",
+   "family": "identity_chain",
+   "label": "x is not True; y is True; not q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b36830fc62570506140cf3023ae1bd112a0b5f127db0eaee4ab3d502d216629d",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-59",
+   "family": "identity_chain",
+   "label": "x is not True; y is True; not q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "95df2e98f398f86e54e0d7271e0ba7718556f220dd8fdb8dabaaa5487e84b03a",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-60",
+   "family": "identity_chain",
+   "label": "x is not True; y is not True; q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "4e774703364d315e03fe1e1938a49588bed454015673d1f075f7f3cc760bbb00",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-61",
+   "family": "identity_chain",
+   "label": "x is not True; y is not True; q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "a193790fd3549be82c4bdd60a9db520a077294c64deccce000b4f1216c5fc0b6",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-62",
+   "family": "identity_chain",
+   "label": "x is not True; y is not True; not q(a); x",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if x:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "259e25d3b00069ae309925cd9291f63bb0fc1e67be8b6d145cb91d88755e2c67",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "identity_chain-63",
+   "family": "identity_chain",
+   "label": "x is not True; y is not True; not q(a); p(x)",
+   "source": "def p(x): return x is not True\ndef q(y): return y is not True\ndef entry(x,y):\n    a = p(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ce33ea898cceee2d388be5e56ebc34de109c1e93282287b096190c83329562ac",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-00",
+   "family": "truth_conversion",
+   "label": "x; a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(x)\n    if a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "16c1a6868f60089d4ec71e576d7333cfbf74d564ebc8c158e295cc2bbd4a4bb9",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-01",
+   "family": "truth_conversion",
+   "label": "x; not a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(x)\n    if not a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7119205a91b6c5918017347a023d7e97b8ab43a6dc7202ea2577bf1f132481f6",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-02",
+   "family": "truth_conversion",
+   "label": "x; q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8b36df081c9e0156d0cf1bb4d55cf9611a490856d2bdd129b4bcb038d72c87e4",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-03",
+   "family": "truth_conversion",
+   "label": "x; not q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "f21aa952da6c56ffc38b6f52bb4a1a838c9c3d1f3c40b57c067486e3fdd095f3",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-04",
+   "family": "truth_conversion",
+   "label": "not x; a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not x)\n    if a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c8f25649577c5c560ddc2b4f4403e348dac693674f66fc4b6f45449043d19382",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-05",
+   "family": "truth_conversion",
+   "label": "not x; not a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not x)\n    if not a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "2d75e915f81fa0b18733313ec980a964f0520f2e375e8586ecf9ffc111c47a3c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-06",
+   "family": "truth_conversion",
+   "label": "not x; q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b8cdb3f7935fd00c1743d868a4da944cc627f37d19a965131d4767f1f57dd31c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-07",
+   "family": "truth_conversion",
+   "label": "not x; not q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "d73272dc5a0e5605198497a8f01f14634783d80dec08a052ff561250c183a555",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-08",
+   "family": "truth_conversion",
+   "label": "not not x; a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not x)\n    if a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "58bab39104efcb8f37646dec877d0bb6b5aecd418fa2633dc389d4a5258e7834",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-09",
+   "family": "truth_conversion",
+   "label": "not not x; not a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not x)\n    if not a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "2077310d2e7c849a13827efd64a82b2135238bb816b92dd46ae2577f353a7e01",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-10",
+   "family": "truth_conversion",
+   "label": "not not x; q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "5fa2e99f27117ae20edff3c68a0bd9802bef4d3f597e9150932f3abb41ee506b",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-11",
+   "family": "truth_conversion",
+   "label": "not not x; not q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "812aea9d82d24aa86a995a5e0343135463111c54739f22f511fb1055e361b873",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-12",
+   "family": "truth_conversion",
+   "label": "not not not x; a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not not x)\n    if a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "271a53da54aaa9c46eadec066b9d915844c888fa0920cfffeec06bd0bdf6ac9c",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-13",
+   "family": "truth_conversion",
+   "label": "not not not x; not a",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not not x)\n    if not a:\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "5a19e94639b8923a46c709eb0432416fd75549ddc671a455c2929951c710a4fe",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-14",
+   "family": "truth_conversion",
+   "label": "not not not x; q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not not x)\n    if q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c5b5c721570d4c16f1f6d9f93d84592341b2172678302f2090f28c3a5c1c6ad6",
+   "expected": [
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "truth_conversion-15",
+   "family": "truth_conversion",
+   "label": "not not not x; not q(a)",
+   "source": "def p(x): return x is True\ndef q(y): return y is True\ndef entry(x,y):\n    a = q(not not not x)\n    if not q(a):\n        if p(x):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "181f1e0e768c05bc9760be9e65272799e4a12a5aff0f9144bbb0a9192732225d",
+   "expected": [
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       true
+      ]
+     ],
+     7
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       6,
+       false
+      ]
+     ],
+     8
+    ]
+   ]
+  }
+ ]
+}

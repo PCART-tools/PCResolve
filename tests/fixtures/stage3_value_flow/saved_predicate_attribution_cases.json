@@ -1,0 +1,5620 @@
+{
+ "cases": [
+  {
+   "id": "predicate-0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = v\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "ea2d65d3d2e16df39cfad4b0dfc3ec5e0fcf3b1a22f264f84b3f0e14dc23ee3d",
+   "expected_calls": {
+    "p@4": [],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     1,
+     1
+    ],
+    [
+     true,
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "direct-0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = v\n    else:\n        a = v\n    if a:\n        return 1\n    return 0\n",
+   "source_sha256": "5f83fb26ccb5d1020e6bffb9dd12287ede40e264c83459b1de4d3a50238f25cb",
+   "expected_calls": {
+    "p@4": []
+   },
+   "expected_union": [],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     1,
+     1
+    ],
+    [
+     true,
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "negated_direct-0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = v\n    else:\n        a = v\n    if not a:\n        return 1\n    return 0\n",
+   "source_sha256": "4ecab4246b0aaaf478804f0be95f940b6076c86c0d6336b0bb5e01b9c284352e",
+   "expected_calls": {
+    "p@4": []
+   },
+   "expected_union": [],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     0,
+     0
+    ],
+    [
+     true,
+     1,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "predicate-1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not v\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "7cbe9c99f4ec6e6358142404cd52e6ad4ca2b06c48cb88aeceddb5a9c6221c39",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     1,
+     0
+    ],
+    [
+     true,
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "direct-1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not v\n    else:\n        a = v\n    if a:\n        return 1\n    return 0\n",
+   "source_sha256": "749e5704a3d27909f306b0cd067029c7ba872debc65afca9d7de7452c809c158",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     1,
+     0
+    ],
+    [
+     true,
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "negated_direct-1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not v\n    else:\n        a = v\n    if not a:\n        return 1\n    return 0\n",
+   "source_sha256": "36ccb00ef3689b0ef4b1d8930f7c4c5d679fcd9b8b72885cf02eea303c10fe78",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     0,
+     1
+    ],
+    [
+     true,
+     1,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "predicate-2",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not v\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "be51be2d111da25cb9f79badaf6a2aa2963828bb31565822aea0a193c5bf61fc",
+   "expected_calls": {
+    "p@4": [],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     1,
+     1
+    ],
+    [
+     true,
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "direct-2",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not v\n    else:\n        a = v\n    if a:\n        return 1\n    return 0\n",
+   "source_sha256": "192405ec23ff147a2280bee6f18f75cc6d30b1d56c55ba82a50c0b83a34c1e9b",
+   "expected_calls": {
+    "p@4": []
+   },
+   "expected_union": [],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     1,
+     1
+    ],
+    [
+     true,
+     0,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "negated_direct-2",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not v\n    else:\n        a = v\n    if not a:\n        return 1\n    return 0\n",
+   "source_sha256": "b9c620e7d22f2bd2c85ff5015c0a62af6f1cca27ef54fba380ddd7307ad2a396",
+   "expected_calls": {
+    "p@4": []
+   },
+   "expected_union": [],
+   "expected_outer_records": 0,
+   "python_runs": [
+    [
+     false,
+     0,
+     0
+    ],
+    [
+     true,
+     1,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "predicate-3",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not not v\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "7ebb453acb203629d75eb49931dec504c94bdf512159513b980fc7c56fa30b2a",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     1,
+     0
+    ],
+    [
+     true,
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "direct-3",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not not v\n    else:\n        a = v\n    if a:\n        return 1\n    return 0\n",
+   "source_sha256": "da13382be74076ce3f4bc0e9f61f6be5db9384d4f07ef112de428a31866d298c",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     1,
+     0
+    ],
+    [
+     true,
+     0,
+     1
+    ]
+   ]
+  },
+  {
+   "id": "negated_direct-3",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not not v\n    else:\n        a = v\n    if not a:\n        return 1\n    return 0\n",
+   "source_sha256": "439d4e8219cfabcd58183dc2527aa8ea3b09704787e2d666cf0f9e84c344ca4f",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        true
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        8,
+        false
+       ]
+      ],
+      10
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       8,
+       true
+      ]
+     ],
+     9
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    [
+     false,
+     0,
+     1
+    ],
+    [
+     true,
+     1,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "saved_guard0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = v\n    else:\n        a = v\n    t = p(a)\n    if t:\n        return 1\n    return 0\n",
+   "source_sha256": "c4e4102adb367d1bb2507870bfc7011435ead0c06fe6dc0404a789f36242ad57",
+   "expected_calls": {
+    "p@4": [],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "saved_guard1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not v\n    else:\n        a = v\n    t = p(a)\n    if t:\n        return 1\n    return 0\n",
+   "source_sha256": "278a3cb0e223253bb3ad1181917b7f9a0ef7f65e369bd8f384584410b6bd21de",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "saved_guard2",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not v\n    else:\n        a = v\n    t = p(a)\n    if t:\n        return 1\n    return 0\n",
+   "source_sha256": "91d45c5bb754be0955a3d9c52e4cb86fad33d013b7b6460db5057cb52617864a",
+   "expected_calls": {
+    "p@4": [],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "saved_guard3",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    if p(y):\n        a = not not not v\n    else:\n        a = v\n    t = p(a)\n    if t:\n        return 1\n    return 0\n",
+   "source_sha256": "8983ab86397e689623bfc75c3d2c06100c562454b829233a6fcd193d283f79b1",
+   "expected_calls": {
+    "p@4": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@8": [
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        4,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        4,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       4,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "two_pure_calls0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = p(x)\n    w = p(x)\n    if p(y):\n        a = w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "92822935431d3cbbea83c7c2beb5b7d66c315dab3fbe92dd05df404a1f095eed",
+   "expected_calls": {
+    "p@3": [],
+    "p@4": [],
+    "p@5": [],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "two_pure_calls1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = p(x)\n    w = p(x)\n    if p(y):\n        a = not w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "8a53d04cc60df2bbfdf326315f0f3501aad034649feda290dfe8e41d4224db84",
+   "expected_calls": {
+    "p@3": [],
+    "p@4": [],
+    "p@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "pure_call_alias0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = p(x)\n    w = v\n    if p(y):\n        a = w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "32d60c9506bfbdbb5773b2829c952895ca5894d6888a972f0ba1ced2f729a5cf",
+   "expected_calls": {
+    "p@3": [],
+    "p@5": [],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 0,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "pure_call_alias1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = p(x)\n    w = v\n    if p(y):\n        a = not w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "03b6e5c2e33ddb5766f562fbeb0e89172075c8056d89ee0da2aa7d14d10caff6",
+   "expected_calls": {
+    "p@3": [],
+    "p@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "two_truth_tests0",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    w = not x\n    if p(y):\n        a = w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "b4516344e4d1e710c28063b6e2e6db84d78958181d617fa886846db1b89e6d28",
+   "expected_calls": {
+    "p@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "two_truth_tests1",
+   "source": "def p(x): return x is True\ndef entry(x,y):\n    v = not x\n    w = not x\n    if p(y):\n        a = not w\n    else:\n        a = v\n    if p(a):\n        return 1\n    return 0\n",
+   "source_sha256": "72069d1cc483ce71a84de0297e08e805aa38e9be274a2cffd5acb923dcd63277",
+   "expected_calls": {
+    "p@5": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ],
+    "p@9": [
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        5,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        5,
+        false
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ],
+    [
+     [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "expected_outer_records": 4,
+   "python_runs": [
+    {
+     "y": false,
+     "input": "True",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "False",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "None",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": false,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": false,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       false
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "True",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "False",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "None",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "int(1)",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "zero",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "truthy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    },
+    {
+     "y": true,
+     "input": "falsy",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/T",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     "return_line": 11,
+     "value": 0
+    },
+    {
+     "y": true,
+     "input": "flip/F",
+     "path": [
+      [
+       5,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     "return_line": 10,
+     "value": 1
+    }
+   ]
+  }
+ ]
+}

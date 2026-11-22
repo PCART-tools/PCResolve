@@ -1,0 +1,1781 @@
+{
+  "version": 1,
+  "baseline_commit": "e812a963ca6fa2c9c503244be87925305b421608",
+  "query": {
+    "max_depth": 2,
+    "max_functions": 500,
+    "max_call_contexts": 2000,
+    "max_class_effect_steps": 8000,
+    "conditional_source_state": false
+  },
+  "pandas": {
+    "version": "0.21.0",
+    "archive_url": "https://files.pythonhosted.org/packages/source/p/pandas/pandas-0.21.0.tar.gz",
+    "archive_sha256": "5cd5cb30e72eeaf202f0e5e180780b897570e889d2db328c689a5a263405c559",
+    "files": {
+      "pandas/core/frame.py": "ba185b96868d9406597b52b9ca9bf6f2ed645f2b7fd67ac447de6c3133dcc2a3",
+      "pandas/core/internals.py": "c6edd7c35364b3a5e486c41edda4524c55f175d055bae76e123f1f5484a2866f",
+      "pandas/io/pytables.py": "39b855dcc57528685ad0acd2d537a445cd22c1c77e05d12f632645415c41279f",
+      "pandas/core/dtypes/cast.py": "eb498a64a50c771da8a33b71a3a3edb88ca3dc823fb0a4cf3a64e66134598a64",
+      "pandas/core/dtypes/common.py": "6bdf505354c931a52330a002a792ffd6c5cf3a3d2637a1635d52393b6956ddaf",
+      "pandas/core/base.py": "26d44c464404e4ae04588a532d011a9a9d47f24b547db67742f94b13e3a3edd2",
+      "pandas/tseries/frequencies.py": "fc44172e915bcd4ab0b78983d05d9543a45e6ae1db8dc7ad9e6bfae3190b93a9",
+      "pandas/core/strings.py": "a1088e37acebadaa54cc10acbfac4905e57505a0b075f370e75851540e388d98",
+      "pandas/core/generic.py": "9fd87123956a6b94ddc29574013456b2b3a4373c7bbbdab235ae4a76efa92133",
+      "pandas/core/resample.py": "c0172673f80661ad50bd1cf0e6b8d30f2811a9738fd5579a2a10bda6c08384bf"
+    },
+    "cases": [
+      {
+        "id": "frame",
+        "module": "pandas.core.frame",
+        "entry": "DataFrame.__init__",
+        "files": [
+          "pandas/core/frame.py"
+        ],
+        "calls": [
+          {
+            "callee": "self._init_dict",
+            "span": [
+              357,
+              22,
+              358,
+              50
+            ],
+            "target": {
+              "module": "pandas.core.frame",
+              "qualname": "DataFrame._init_dict"
+            },
+            "guards": [
+              [
+                349,
+                true
+              ],
+              [
+                350,
+                false
+              ],
+              [
+                356,
+                true
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      351,
+                      354
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 351
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "self._init_ndarray",
+            "span": [
+              360,
+              22,
+              361,
+              51
+            ],
+            "target": {
+              "module": "pandas.core.frame",
+              "qualname": "DataFrame._init_ndarray"
+            },
+            "guards": [
+              [
+                349,
+                true
+              ],
+              [
+                350,
+                false
+              ],
+              [
+                356,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "values",
+                "required": {
+                  "kind": "parameter",
+                  "source": "data",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      352
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 352
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "self._init_ndarray",
+            "span": [
+              384,
+              26,
+              385,
+              55
+            ],
+            "target": {
+              "module": "pandas.core.frame",
+              "qualname": "DataFrame._init_ndarray"
+            },
+            "guards": [
+              [
+                362,
+                true
+              ],
+              [
+                365,
+                true
+              ],
+              [
+                366,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "self._init_dict",
+            "span": [
+              387,
+              22,
+              387,
+              70
+            ],
+            "target": {
+              "module": "pandas.core.frame",
+              "qualname": "DataFrame._init_dict"
+            },
+            "guards": [
+              [
+                362,
+                true
+              ],
+              [
+                365,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "self._init_ndarray",
+            "span": [
+              401,
+              22,
+              402,
+              72
+            ],
+            "target": {
+              "module": "pandas.core.frame",
+              "qualname": "DataFrame._init_ndarray"
+            },
+            "guards": [
+              [
+                362,
+                false
+              ],
+              [
+                398,
+                true
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "values",
+                "required": {
+                  "kind": "call_result",
+                  "relation": "direct",
+                  "evidence_lines": [
+                    399
+                  ],
+                  "source_span": [
+                    399,
+                    25,
+                    400,
+                    64
+                  ]
+                },
+                "forbidden": []
+              },
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    316
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      370,
+                      379
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 370
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 379
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "keyword": "dtype"
+                },
+                "formal": "dtype",
+                "required": {
+                  "kind": "call_result",
+                  "relation": "derived",
+                  "evidence_lines": [
+                    399,
+                    402
+                  ],
+                  "text": "values.dtype",
+                  "source_span": [
+                    399,
+                    25,
+                    400,
+                    64
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "kind": "parameter",
+                    "source": "dtype",
+                    "relation": "direct"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "common-type",
+        "module": "pandas.core.dtypes.cast",
+        "entry": "find_common_type",
+        "files": [
+          "pandas/core/dtypes/cast.py",
+          "pandas/core/dtypes/common.py"
+        ],
+        "calls": [
+          {
+            "callee": "is_bool_dtype",
+            "span": [
+              1088,
+              20,
+              1088,
+              36
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "arr_or_dtype",
+                "required": {
+                  "kind": "parameter",
+                  "source": "types",
+                  "evidence_lines": [
+                    1088
+                  ],
+                  "text": "t",
+                  "projection": [
+                    "*"
+                  ],
+                  "evidence_spans": [
+                    [
+                      1088,
+                      41,
+                      1088,
+                      42
+                    ],
+                    [
+                      1088,
+                      34,
+                      1088,
+                      35
+                    ]
+                  ]
+                },
+                "forbidden": [],
+                "gap": {
+                  "capability": "generator element → predicate argument",
+                  "source_evidence": [
+                    1088
+                  ],
+                  "reason": "flow_not_analyzed",
+                  "expected_target": {
+                    "module": "pandas.core.dtypes.common",
+                    "qualname": "is_bool_dtype"
+                  },
+                  "consumer_evidence": {
+                    "kind": "any",
+                    "consumer": [
+                      1088,
+                      16,
+                      1088,
+                      52
+                    ],
+                    "generator_iteration": [
+                      1088,
+                      19,
+                      1088,
+                      52
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "callee": "any",
+            "span": [
+              1088,
+              16,
+              1088,
+              52
+            ],
+            "gaps": [
+              {
+                "capability": "generator predicate result → any → selection of result dtype",
+                "source_evidence": [
+                  1088,
+                  1089,
+                  1093,
+                  1094
+                ],
+                "reason": "control_dependency_unmodeled",
+                "control_file": "pandas/core/dtypes/cast.py",
+                "control_guard_calls": [
+                  {"guard": [1074, 7, 1074, 55], "calls": [[1074, 7, 1074, 55]]},
+                  {"guard": [1077, 7, 1077, 56], "calls": [[1077, 7, 1077, 56]]},
+                  {"guard": [1081, 7, 1081, 49], "calls": [[1081, 7, 1081, 49]]},
+                  {"guard": [1083, 7, 1083, 50], "calls": [[1083, 7, 1083, 50]]},
+                  {"guard": [1089, 7, 1089, 16], "calls": [[1088, 16, 1088, 52]]},
+                  {"guard": [1093, 11, 1093, 48], "calls": []}
+                ],
+                "control_prefix": [
+                  {"span": [1074, 7, 1074, 55], "branch": false},
+                  {"span": [1077, 7, 1077, 56], "branch": false},
+                  {"span": [1081, 7, 1081, 49], "branch": false},
+                  {"span": [1083, 7, 1083, 50], "branch": false}
+                ],
+                "control_paths": [
+                  {
+                    "conditions": [
+                      [
+                        1089,
+                        true
+                      ],
+                      [
+                        1093,
+                        true
+                      ]
+                    ],
+                    "return_line": 1094,
+                    "return_text": "return np.object",
+                    "predicate_span": [
+                      1089,
+                      7,
+                      1089,
+                      16
+                    ],
+                    "return_span": [
+                      1094,
+                      12,
+                      1094,
+                      28
+                    ],
+                    "condition_spans": [
+                      [
+                        1089,
+                        7,
+                        1089,
+                        16
+                      ],
+                      [
+                        1093,
+                        11,
+                        1093,
+                        48
+                      ]
+                    ]
+                  },
+                  {
+                    "conditions": [
+                      [
+                        1089,
+                        false
+                      ]
+                    ],
+                    "return_line": 1096,
+                    "return_text": "return np.find_common_type(types, [])",
+                    "predicate_span": [
+                      1089,
+                      7,
+                      1089,
+                      16
+                    ],
+                    "return_span": [
+                      1096,
+                      4,
+                      1096,
+                      41
+                    ],
+                    "condition_spans": [
+                      [
+                        1089,
+                        7,
+                        1089,
+                        16
+                      ]
+                    ]
+                  },
+                  {
+                    "conditions": [
+                      [
+                        1089,
+                        true
+                      ],
+                      [
+                        1093,
+                        false
+                      ]
+                    ],
+                    "return_line": 1096,
+                    "return_text": "return np.find_common_type(types, [])",
+                    "predicate_span": [
+                      1089,
+                      7,
+                      1089,
+                      16
+                    ],
+                    "return_span": [
+                      1096,
+                      4,
+                      1096,
+                      41
+                    ],
+                    "condition_spans": [
+                      [
+                        1089,
+                        7,
+                        1089,
+                        16
+                      ],
+                      [
+                        1093,
+                        11,
+                        1093,
+                        48
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tolist",
+        "module": "pandas.core.base",
+        "entry": "IndexOpsMixin.tolist",
+        "files": [
+          "pandas/core/base.py",
+          "pandas/core/dtypes/common.py"
+        ],
+        "calls": [
+          {
+            "callee": "is_datetimelike",
+            "span": [
+              812,
+              11,
+              812,
+              32
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "arr",
+                "required": {
+                  "kind": "parameter",
+                  "source": "self",
+                  "evidence_lines": [
+                    799
+                  ]
+                },
+                "forbidden": []
+              }
+            ],
+            "gaps": [
+              {
+                "capability": "predicate result → return branch → result[*]",
+                "source_evidence": [
+                  812,
+                  813,
+                  815
+                ],
+                "reason": "control_dependency_unmodeled",
+                "control_file": "pandas/core/base.py",
+                "control_guard_calls": [
+                  {"guard": [812, 11, 812, 32], "calls": [[812, 11, 812, 32]]}
+                ],
+                "control_paths": [
+                  {
+                    "conditions": [
+                      [
+                        812,
+                        true
+                      ]
+                    ],
+                    "return_line": 813,
+                    "return_text": "return [_maybe_box_datetimelike(x) for x in self._values]",
+                    "predicate_span": [
+                      812,
+                      11,
+                      812,
+                      32
+                    ],
+                    "return_span": [
+                      813,
+                      12,
+                      813,
+                      69
+                    ],
+                    "condition_spans": [
+                      [
+                        812,
+                        11,
+                        812,
+                        32
+                      ]
+                    ]
+                  },
+                  {
+                    "conditions": [
+                      [
+                        812,
+                        false
+                      ]
+                    ],
+                    "return_line": 815,
+                    "return_text": "return self._values.tolist()",
+                    "predicate_span": [
+                      812,
+                      11,
+                      812,
+                      32
+                    ],
+                    "return_span": [
+                      815,
+                      12,
+                      815,
+                      40
+                    ],
+                    "condition_spans": [
+                      [
+                        812,
+                        11,
+                        812,
+                        32
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "blocks",
+        "module": "pandas.core.internals",
+        "entry": "BlockManager.apply",
+        "files": [
+          "pandas/core/internals.py"
+        ],
+        "calls": [
+          {
+            "callee": "self._consolidate_inplace",
+            "span": [
+              3280,
+              12,
+              3280,
+              39
+            ],
+            "target": {
+              "module": "pandas.core.internals",
+              "qualname": "BlockManager._consolidate_inplace"
+            },
+            "gaps": [
+              {
+                "capability": "conditional receiver.blocks write → subsequent read → iteration element",
+                "source_evidence": [
+                  3279,
+                  3280,
+                  3309,
+                  3825,
+                  3826
+                ],
+                "reason": "instance_field_write_read_unmodeled",
+                "review_fields": [
+                  "mutation_flows",
+                  "effects"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "fixed",
+        "module": "pandas.io.pytables",
+        "entry": "Fixed.set_object_info",
+        "files": [
+          "pandas/io/pytables.py"
+        ],
+        "calls": [
+          {
+            "callee": "self.set_version",
+            "span": [
+              2270,
+              8,
+              2270,
+              26
+            ],
+            "target": {
+              "module": "pandas.io.pytables",
+              "qualname": "Fixed.set_version"
+            },
+            "gaps": [
+              {
+                "capability": "receiver.version write; no downstream read established",
+                "source_evidence": [
+                  2241,
+                  2243,
+                  2245,
+                  2270
+                ],
+                "reason": "instance_field_write_unmodeled",
+                "review_fields": [
+                  "mutation_flows",
+                  "effects"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "offset",
+        "module": "pandas.tseries.frequencies",
+        "entry": "get_offset",
+        "files": [
+          "pandas/tseries/frequencies.py",
+          "pandas/core/strings.py"
+        ],
+        "calls": [
+          {
+            "callee": "name.split",
+            "span": [
+              526,
+              20,
+              526,
+              35
+            ],
+            "unconfirmed_target": {
+              "candidate": "StringMethods.split",
+              "reason": "receiver_unresolved",
+              "source_evidence": [
+                526
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "equals",
+        "module": "pandas.core.generic",
+        "entry": "NDFrame._indexed_same",
+        "files": [
+          "pandas/core/generic.py",
+          "pandas/core/resample.py"
+        ],
+        "calls": [
+          {
+            "callee": "self._get_axis(a).equals",
+            "span": [
+              1008,
+              20,
+              1008,
+              64
+            ],
+            "unconfirmed_target": {
+              "candidate": "Index.equals",
+              "reason": "receiver_unresolved",
+              "source_evidence": [
+                1008
+              ]
+            }
+          },
+          {
+            "callee": "all",
+            "span": [
+              1008,
+              15,
+              1009,
+              48
+            ],
+            "return_flow": true
+          }
+        ]
+      }
+    ]
+  },
+  "fixture": {
+    "cases": [
+      {
+        "id": "frame",
+        "module": "probe",
+        "entry": "frame",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "sink",
+            "span": [
+              16,
+              19,
+              16,
+              45
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "sink"
+            },
+            "guards": [
+              [
+                10,
+                true
+              ],
+              [
+                11,
+                false
+              ],
+              [
+                15,
+                true
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      12
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 12
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "sink",
+            "span": [
+              18,
+              19,
+              18,
+              45
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "sink"
+            },
+            "guards": [
+              [
+                10,
+                true
+              ],
+              [
+                11,
+                false
+              ],
+              [
+                15,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "data",
+                "required": {
+                  "kind": "parameter",
+                  "source": "data",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      13
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 13
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "sink",
+            "span": [
+              26,
+              23,
+              26,
+              49
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "sink"
+            },
+            "guards": [
+              [
+                19,
+                true
+              ],
+              [
+                20,
+                true
+              ],
+              [
+                21,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "sink",
+            "span": [
+              28,
+              19,
+              28,
+              43
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "sink"
+            },
+            "guards": [
+              [
+                19,
+                true
+              ],
+              [
+                20,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "callee": "sink",
+            "span": [
+              31,
+              15,
+              31,
+              63
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "sink"
+            },
+            "guards": [
+              [
+                19,
+                false
+              ]
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "data",
+                "required": {
+                  "kind": "call_result",
+                  "relation": "direct",
+                  "evidence_lines": [
+                    30
+                  ],
+                  "source_span": [
+                    30,
+                    17,
+                    30,
+                    30
+                  ]
+                },
+                "forbidden": []
+              },
+              {
+                "argument": {
+                  "position": 1
+                },
+                "formal": "index",
+                "required": {
+                  "kind": "parameter",
+                  "source": "index",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "position": 2
+                },
+                "formal": "columns",
+                "required": {
+                  "kind": "parameter",
+                  "source": "columns",
+                  "evidence_lines": [
+                    9
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "evidence_lines": [
+                      22,
+                      23
+                    ],
+                    "any_evidence_line": true
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 22
+                  },
+                  {
+                    "kind": "call_result",
+                    "source_line": 23
+                  }
+                ]
+              },
+              {
+                "argument": {
+                  "keyword": "dtype"
+                },
+                "formal": "dtype",
+                "required": {
+                  "kind": "call_result",
+                  "relation": "derived",
+                  "evidence_lines": [
+                    30,
+                    31
+                  ],
+                  "text": "values.dtype",
+                  "source_span": [
+                    30,
+                    17,
+                    30,
+                    30
+                  ]
+                },
+                "forbidden": [
+                  {
+                    "kind": "parameter",
+                    "source": "dtype",
+                    "relation": "direct"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "common-type",
+        "module": "probe",
+        "entry": "common_type",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "predicate",
+            "span": [
+              39,
+              20,
+              39,
+              32
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "arr",
+                "required": {
+                  "kind": "parameter",
+                  "source": "types",
+                  "evidence_lines": [
+                    39
+                  ],
+                  "text": "t",
+                  "projection": [
+                    "*"
+                  ],
+                  "evidence_spans": [
+                    [
+                      39,
+                      37,
+                      39,
+                      38
+                    ],
+                    [
+                      39,
+                      30,
+                      39,
+                      31
+                    ]
+                  ]
+                },
+                "forbidden": [],
+                "gap": {
+                  "capability": "generator element → predicate argument",
+                  "source_evidence": [
+                    39
+                  ],
+                  "reason": "flow_not_analyzed",
+                  "expected_target": {
+                    "module": "probe",
+                    "qualname": "predicate"
+                  },
+                  "consumer_evidence": {
+                    "kind": "any",
+                    "consumer": [
+                      39,
+                      16,
+                      39,
+                      48
+                    ],
+                    "generator_iteration": [
+                      39,
+                      19,
+                      39,
+                      48
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "callee": "any",
+            "span": [
+              39,
+              16,
+              39,
+              48
+            ],
+            "gaps": [
+              {
+                "capability": "generator predicate result → any → selection of result dtype",
+                "source_evidence": [
+                  39,
+                  40,
+                  42
+                ],
+                "reason": "control_dependency_unmodeled",
+                "control_file": "probe.py",
+                "control_guard_calls": [
+                  {"guard": [40, 7, 40, 16], "calls": [[39, 16, 39, 48]]}
+                ],
+                "control_paths": [
+                  {
+                    "conditions": [
+                      [
+                        40,
+                        true
+                      ]
+                    ],
+                    "return_line": 41,
+                    "return_text": "return object",
+                    "predicate_span": [
+                      40,
+                      7,
+                      40,
+                      16
+                    ],
+                    "return_span": [
+                      41,
+                      8,
+                      41,
+                      21
+                    ],
+                    "condition_spans": [
+                      [
+                        40,
+                        7,
+                        40,
+                        16
+                      ]
+                    ]
+                  },
+                  {
+                    "conditions": [
+                      [
+                        40,
+                        false
+                      ]
+                    ],
+                    "return_line": 42,
+                    "return_text": "return float",
+                    "predicate_span": [
+                      40,
+                      7,
+                      40,
+                      16
+                    ],
+                    "return_span": [
+                      42,
+                      4,
+                      42,
+                      16
+                    ],
+                    "condition_spans": [
+                      [
+                        40,
+                        7,
+                        40,
+                        16
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tolist",
+        "module": "probe",
+        "entry": "Index.tolist",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "predicate",
+            "span": [
+              47,
+              11,
+              47,
+              26
+            ],
+            "slots": [
+              {
+                "argument": {
+                  "position": 0
+                },
+                "formal": "arr",
+                "required": {
+                  "kind": "parameter",
+                  "source": "self",
+                  "evidence_lines": [
+                    46
+                  ]
+                },
+                "forbidden": []
+              }
+            ],
+            "gaps": [
+              {
+                "capability": "predicate result → return branch → result[*]",
+                "source_evidence": [
+                  47,
+                  48,
+                  49
+                ],
+                "reason": "control_dependency_unmodeled",
+                "control_file": "probe.py",
+                "control_guard_calls": [
+                  {"guard": [47, 11, 47, 26], "calls": [[47, 11, 47, 26]]}
+                ],
+                "control_paths": [
+                  {
+                    "conditions": [
+                      [
+                        47,
+                        true
+                      ]
+                    ],
+                    "return_line": 48,
+                    "return_text": "return [object()]",
+                    "predicate_span": [
+                      47,
+                      11,
+                      47,
+                      26
+                    ],
+                    "return_span": [
+                      48,
+                      12,
+                      48,
+                      29
+                    ],
+                    "condition_spans": [
+                      [
+                        47,
+                        11,
+                        47,
+                        26
+                      ]
+                    ]
+                  },
+                  {
+                    "conditions": [
+                      [
+                        47,
+                        false
+                      ]
+                    ],
+                    "return_line": 49,
+                    "return_text": "return [0]",
+                    "predicate_span": [
+                      47,
+                      11,
+                      47,
+                      26
+                    ],
+                    "return_span": [
+                      49,
+                      8,
+                      49,
+                      18
+                    ],
+                    "condition_spans": [
+                      [
+                        47,
+                        11,
+                        47,
+                        26
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "blocks",
+        "module": "probe",
+        "entry": "Manager.apply",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "self.consolidate",
+            "span": [
+              61,
+              12,
+              61,
+              34
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "Manager.consolidate"
+            },
+            "gaps": [
+              {
+                "capability": "conditional receiver.blocks write → subsequent read → iteration element",
+                "source_evidence": [
+                  60,
+                  61,
+                  62,
+                  66,
+                  67
+                ],
+                "reason": "instance_field_write_read_unmodeled",
+                "review_fields": [
+                  "mutation_flows",
+                  "effects"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "fixed",
+        "module": "probe",
+        "entry": "Fixed.update",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "self.set_version",
+            "span": [
+              72,
+              8,
+              72,
+              31
+            ],
+            "target": {
+              "module": "probe",
+              "qualname": "Fixed.set_version"
+            },
+            "gaps": [
+              {
+                "capability": "receiver.version write; no downstream read established",
+                "source_evidence": [
+                  72,
+                  75
+                ],
+                "reason": "instance_field_write_unmodeled",
+                "review_fields": [
+                  "mutation_flows",
+                  "effects"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "offset",
+        "module": "probe",
+        "entry": "offset",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "name.split",
+            "span": [
+              84,
+              11,
+              84,
+              26
+            ],
+            "unconfirmed_target": {
+              "candidate": "StringMethods.split",
+              "reason": "receiver_unresolved",
+              "source_evidence": [
+                84
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "equals",
+        "module": "probe",
+        "entry": "Index.indexed_same",
+        "files": [
+          "probe.py"
+        ],
+        "calls": [
+          {
+            "callee": "self.axis(a).equals",
+            "span": [
+              52,
+              20,
+              52,
+              54
+            ],
+            "unconfirmed_target": {
+              "candidate": "Index.equals",
+              "reason": "receiver_unresolved",
+              "source_evidence": [
+                52
+              ]
+            }
+          },
+          {
+            "callee": "all",
+            "span": [
+              52,
+              15,
+              52,
+              75
+            ],
+            "return_flow": true
+          }
+        ]
+      }
+    ]
+  }
+}

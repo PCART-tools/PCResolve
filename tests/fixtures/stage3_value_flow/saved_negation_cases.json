@@ -1,0 +1,1621 @@
+{
+ "cases": [
+  {
+   "id": "copy / p(a) / p(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if p(a):\n        if p(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7a7fb216f4c225a100ea94f8860f0888425f1b5f0976cd5cd5bcdca35e595da7",
+   "expected_calls": {
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / p(a) / p(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if p(a):\n        if p(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "7c2fae135d1b7127f6cc94ab68af8a4408452c48866ca580f94db9c5f3c8a5ed",
+   "expected_calls": {
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / p(a) / q(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if p(a):\n        if q(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "5696ed84d8ba154a4c0abb5beecd334d084d19389ec9e73bcb717865dab2da09",
+   "expected_calls": {
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / p(a) / q(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if p(a):\n        if q(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "c35101be8bce35c4765c30f21ae5abead3f03e6acf7bf5f8af154ff728fc1465",
+   "expected_calls": {
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / q(a) / p(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if q(a):\n        if p(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8216d46f9832ac902e6f385ccfbf4ef8fdeceb9df381d308a73e75af4fd7783e",
+   "expected_calls": {
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / q(a) / p(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if q(a):\n        if p(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "580ab15363f263141895a63259788647e10dc25515f850b6e4a33021b6ca5eec",
+   "expected_calls": {
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / q(a) / q(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if q(a):\n        if q(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "73061e42fb86a8f22461231985a2a91503a1fae80db5e2f7408f4b4c87aae3ad",
+   "expected_calls": {
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "copy / q(a) / q(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = x\n    if q(a):\n        if q(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "bb929a4b849ad6e850205b1f0abc5f71cb2ea3dee1c94ef2455607d94cef39ad",
+   "expected_calls": {
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "echo / p(a) / p(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if p(a):\n        if p(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "b6fd61283a1852027079461bf8b8421fea3f6ef3d373c461235fda8bf79ff395",
+   "expected_calls": {
+    "echo@5": [],
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "echo / p(a) / p(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if p(a):\n        if p(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "def552bdec56bfbcf17fc7cde7489331cb4c8490d80d2813412293e3ecad68d5",
+   "expected_calls": {
+    "echo@5": [],
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "required": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "echo / p(a) / q(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if p(a):\n        if q(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "adbc2c758094d486ddc1fff3175c19411646b639d8886de02cf1f3bb4ad357c4",
+   "expected_calls": {
+    "echo@5": [],
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "echo / p(a) / q(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if p(a):\n        if q(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "9a855d3381cc309d721d8d52e3586cc4163bc777c07ac72f0adbb0e8b2a98959",
+   "expected_calls": {
+    "echo@5": [],
+    "p@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "required": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "echo / q(a) / p(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if q(a):\n        if p(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "9187be8ff1a58b1cd17bb0c6415bd70147c237f38d641605649a210c1f000037",
+   "expected_calls": {
+    "echo@5": [],
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "echo / q(a) / p(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if q(a):\n        if p(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "8e8733e3fd1c8c6c7d4b60a38d5814f46625049a2d8aace4a59e39013746924c",
+   "expected_calls": {
+    "echo@5": [],
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "p@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "required": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ]
+  },
+  {
+   "id": "echo / q(a) / q(a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if q(a):\n        if q(a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "fd60773b59bf259241769e16925312adec1235196760d0c5a30a8f8c918d290c",
+   "expected_calls": {
+    "echo@5": [],
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        true
+       ]
+      ],
+      8
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "echo / q(a) / q(not a)",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    a = echo(x)\n    if q(a):\n        if q(not a):\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "cfa833fe88776188577c37eb2d1c02555e0b6cadafe3e9451025314a3b4b313f",
+   "expected_calls": {
+    "echo@5": [],
+    "q@6": [
+     [
+      [
+       [
+        6,
+        true
+       ],
+       [
+        7,
+        false
+       ]
+      ],
+      9
+     ],
+     [
+      [
+       [
+        6,
+        false
+       ]
+      ],
+      10
+     ]
+    ],
+    "q@7": []
+   },
+   "expected_union": [
+    [
+     [
+      [
+       6,
+       false
+      ]
+     ],
+     10
+    ],
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       true
+      ]
+     ],
+     8
+    ]
+   ],
+   "required": [
+    [
+     [
+      [
+       6,
+       true
+      ],
+      [
+       7,
+       false
+      ]
+     ],
+     9
+    ]
+   ]
+  },
+  {
+   "id": "saved / v / v",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(v):\n        if v:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "dc723911136efdd30887a90207e240ce8d390c596e6500f70e7f7b6a005bb755",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "saved / v / w",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(v):\n        if w:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "0f68069f304ba695ad94b6a3cbf5bca817f18d24ff308e153773bac45a5409a2",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "saved / v / z",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(v):\n        if z:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "77d1651d45fcf85e90d4c0504c44900685ce2b3fac933ae69df64e7c6fd146ce",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "required": []
+  },
+  {
+   "id": "saved / w / v",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(w):\n        if v:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "00861f249d31e5d1e596aefa052c4611a994ef150e411c62ad58426f6a6dcc2f",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "required": []
+  },
+  {
+   "id": "saved / w / w",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(w):\n        if w:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "49e6f27e62c8a227428289fa50e496e658e6e508566005ef848b7331a41871ee",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "saved / w / z",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(w):\n        if z:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "ee6662fc0df89cca2bdae399bd382fc7600cdd9c6e7ca62495527d685b3939d6",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  },
+  {
+   "id": "saved / z / v",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(z):\n        if v:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "1a378e730b2731260e944f966b8fee678972e3e81757e044af6865d1201b2603",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "required": []
+  },
+  {
+   "id": "saved / z / w",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(z):\n        if w:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "1e24de9f2870d78e66d10ecd4222532b7b8814a88365a3f86e449431edd2bbbf",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        false
+       ]
+      ],
+      11
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       false
+      ]
+     ],
+     11
+    ]
+   ],
+   "forbidden": [
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "required": []
+  },
+  {
+   "id": "saved / z / z",
+   "source": "def p(x): return x is True\ndef q(x): return x is False\ndef echo(x): return x\ndef entry(x,y):\n    v = not x\n    w = not v\n    z = not w\n    if p(z):\n        if z:\n            return 2\n        return 1\n    return 0\n",
+   "source_sha256": "77c0cebd12a17108d40ff8f937dfc4e75f738a61245482cd41cae79433f1a9ec",
+   "expected_calls": {
+    "p@8": [
+     [
+      [
+       [
+        8,
+        true
+       ],
+       [
+        9,
+        true
+       ]
+      ],
+      10
+     ],
+     [
+      [
+       [
+        8,
+        false
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "expected_union": [
+    [
+     [
+      [
+       8,
+       false
+      ]
+     ],
+     12
+    ],
+    [
+     [
+      [
+       8,
+       true
+      ],
+      [
+       9,
+       true
+      ]
+     ],
+     10
+    ]
+   ],
+   "forbidden": [],
+   "required": []
+  }
+ ]
+}

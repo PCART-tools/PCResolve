@@ -484,6 +484,7 @@ class CallExpressionMixin(CallEntryMixin):
                         state.node.end_lineno, state.node.end_col_offset, state.target[0] if state.target else None)
         state.call.instance_method_bindings = fresh_instance_method_bindings
         state.call.implicit_protocol = copy.deepcopy(state.protocol)
+        self._record_dynamic_getattr_call(state.node, state.env)
         if global_rebound:
             self.result.boundaries.append({'call_id': state.call_id,
                 'reason': 'module_callable_binding_unconfirmed',
@@ -597,6 +598,42 @@ class CallExpressionMixin(CallEntryMixin):
                 'affected_values': [], 'conditions': list(self.conditions),
                 'evidence': self.evidence(state.node)})
         return constructor_values
+
+    ## Record the receiver and name inputs of a dynamic getattr call used as a callee.
+    ## 记录作为动态调用目标的 getattr 接收者与属性名实参。
+    #
+    #  @param node Outer call whose callable expression is a getattr call.
+    #  @param env Abstract environment at the callable evaluation point.
+    #  @return None
+    def _record_dynamic_getattr_call(self, node, env):
+        if (not isinstance(node.func, ast.Call) or not isinstance(node.func.func, ast.Name)
+                or node.func.func.id != 'getattr' or len(node.func.args) not in (2, 3)
+                or node.func.keywords):
+            return
+        lookup = node.func
+        call_id = _call_key(self.ref.file_path, lookup)
+        if any(call.id == call_id for call in self.calls):
+            return
+        arguments = []
+        for index, expression in enumerate(lookup.args):
+            parameter = ('object', 'name', 'default')[index]
+            sources = self.expression(expression, env)
+            arguments.append({'argument': {'position': index}, 'parameter': parameter,
+                              'sources': copy.deepcopy(sources)})
+        call = FlowCall(call_id, self.ref, 'getattr', lookup.lineno, lookup.col_offset,
+            lookup.end_lineno, lookup.end_col_offset,
+            analysis_status='partial', target_status='dynamic_attribute_lookup',
+            binding_status='complete')
+        call.argument_sources = arguments
+        call.receiver_sources = copy.deepcopy(arguments[0]['sources'])
+        call.argument_flows = [dict(value, argument=record['argument'],
+            target_parameter=record['parameter'], target_path=[], status='flow_found')
+            for record in arguments for value in record['sources']]
+        self.calls.append(call)
+        self.result.boundaries.append({'call_id': call_id,
+            'reason': 'dynamic_attribute_lookup',
+            'evidence': self.evidence(lookup),
+            'attribute_name_sources': copy.deepcopy(arguments[1]['sources'])})
 
     ## Finalize target status and attach bounded call metadata.
     ## 确定目标状态并附加有界调用元数据。
