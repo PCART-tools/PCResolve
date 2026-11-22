@@ -8,7 +8,7 @@ import pytest
 from pcresolve import FlowAnalyzer, FunctionRef
 from pcresolve.facts.effect_facts import instance_field_write_sites
 from scripts.evaluate_stage4_instance_fields import (
-    check_exception_summaries, evaluate, verify_injections,
+    ARCHIVE, check_exception_summaries, evaluate, verify_injections,
 )
 
 
@@ -27,6 +27,8 @@ def _summary(name):
 
 @pytest.fixture(scope="module")
 def pandas_reports():
+    if not ARCHIVE.is_file():
+        pytest.skip("Optional pandas 0.21.0 source archive is unavailable")
     return evaluate(repeat=2)
 
 

@@ -10,15 +10,15 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINES = ROOT / 'tests' / 'baselines' / 'architecture_1_0_8'
-REVISION = '7444cc9d4e75f0e71575f4d38e95423c45f60a3f'
-SOURCE_SHA256 = 'e77ca58d9d175e0ef06d177f523d0ecb697694211faf229f5becbe0f27dc510f'
+REVISION = 'b79a58fead5790aed50d01119e108cfff8bdae3f'
+SOURCE_SHA256 = '5bb448605ab3606ee0fb9c114c091ff611c31f948672fbb932a775d40aeb61c2'
 CORPUS = {'ground_truth/projects.json': '9c81fcd0f2faaa1d3b9513d5a7e63220ce34c981',
           'tests/fixtures/value_flow_matrix': '48d2eb5b2170f80fd3971d8e9d041c8cb5a7fbdb',
           'tests/fixtures/tested_projects': '9c17e82a30f427c51ef7b5c206abf66ace49af40'}
 
 
 def check_baselines(directory=BASELINES):
-    """Require the complete, versioned pre-refactor baseline inventory."""
+    """Require the complete, versioned fixed-reference baseline inventory."""
     analysis = json.loads((directory / 'analysis.json').read_text(encoding='utf-8'))
     api = json.loads((directory / 'api.json').read_text(encoding='utf-8'))
     for record in (analysis, api):
