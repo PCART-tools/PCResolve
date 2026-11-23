@@ -325,31 +325,38 @@ class FlowRunMixin:
             summary.run()
             calls = summary.calls
             if context.edge is not None:
+                # Every call in this summary shares the same incoming parameter
+                # facts, so the context record is copied once instead of once
+                # per call. Per-call fields are already final records and are
+                # referenced rather than duplicated again.
+                # 同一摘要内所有调用共享同一组入参事实，因此上下文记录只复制一次；
+                # 每个调用自身的字段已是最终记录，直接引用而不再复制。
+                parameter_facts = copy.deepcopy(incoming)
                 for call in calls:
                     call.analysis_contexts.append({
                         'incoming_call_id': context.edge.id,
-                        'parameter_facts': copy.deepcopy(incoming),
+                        'parameter_facts': parameter_facts,
                         'target': asdict(call.target) if call.target else None,
-                        'target_candidates': copy.deepcopy(call.target_candidates),
+                        'target_candidates': call.target_candidates,
                         'target_status': call.target_status,
                         'binding_status': call.binding_status,
-                        'argument_sources': copy.deepcopy(call.argument_sources),
-                        'callable_sources': copy.deepcopy(call.callable_sources)})
+                        'argument_sources': call.argument_sources,
+                        'callable_sources': call.callable_sources})
                     call.analysis_contexts[-1].update(
-                        result_sources=copy.deepcopy(call.result_sources),
-                        capture_bindings=copy.deepcopy(call.capture_bindings),
-                        effects=copy.deepcopy(call.effects),
-                        callable_instance_evidence=copy.deepcopy(call.callable_instance_evidence),
-                        conditional_returns=copy.deepcopy(call.conditional_returns),
-                        class_method_bindings=copy.deepcopy(call.class_method_bindings),
-                        class_metadata_bindings=copy.deepcopy(call.class_metadata_bindings),
-                        class_read_bindings=copy.deepcopy(call.class_read_bindings),
-                        conditional_source_bindings=copy.deepcopy(call.conditional_source_bindings),
-                        candidate_paths=copy.deepcopy(call.candidate_paths),
-                        constructor_bindings=copy.deepcopy(call.constructor_bindings),
-                        instance_method_bindings=copy.deepcopy(call.instance_method_bindings),
-                        implicit_protocol=copy.deepcopy(call.implicit_protocol),
-                        conditions=copy.deepcopy(call.conditions if self._conditional_source_state
+                        result_sources=call.result_sources,
+                        capture_bindings=call.capture_bindings,
+                        effects=call.effects,
+                        callable_instance_evidence=call.callable_instance_evidence,
+                        conditional_returns=call.conditional_returns,
+                        class_method_bindings=call.class_method_bindings,
+                        class_metadata_bindings=call.class_metadata_bindings,
+                        class_read_bindings=call.class_read_bindings,
+                        conditional_source_bindings=call.conditional_source_bindings,
+                        candidate_paths=call.candidate_paths,
+                        constructor_bindings=call.constructor_bindings,
+                        instance_method_bindings=call.instance_method_bindings,
+                        implicit_protocol=call.implicit_protocol,
+                        conditions=(call.conditions if self._conditional_source_state
                             else getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
             self._context_call_count += len(calls)

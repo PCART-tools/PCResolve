@@ -50,9 +50,12 @@ class _Summary(CallExpressionMixin, ValuesMixin, ClassEffectsMixin, CallEvidence
         self.evaluated_calls = set()
         self.loops = []
         self.yields = []
-        self.source_lines = [line.encode('utf-8') for line in
-                             self.analyzer.texts[ref.file_path].split('\n')]
-        self.evidence_cache = {}
+        # Source lines and span evidence depend only on the immutable source
+        # generation; sharing them across summaries keeps one record per span
+        # instead of one per summary that touches it.
+        # 源码行与跨度证据只依赖不可变源码代次；跨摘要共享后每个跨度只保留一条记录。
+        self.source_lines = self.analyzer._source_lines(ref.file_path)
+        self.evidence_cache = self.analyzer._source_evidence_cache
         self.mapping_effects = []
         self.cached_local_imports = []
         self.receiver_class = receiver_class

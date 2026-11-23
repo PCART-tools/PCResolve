@@ -67,6 +67,7 @@ class SourceIndexMixin:
         # when the source facts are unchanged.
         source_fact_cache_names = (
             '_scope_fact_cache', '_syntax_fact_cache', '_module_syntax_index_cache', '_kind_alias_module_cache',
+            '_source_line_cache', '_source_evidence_cache',
             '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
             '_class_creation_cache', '_module_class_prefix_cache', '_native_class_protocol_cache',
@@ -101,6 +102,8 @@ class SourceIndexMixin:
         self._syntax_fact_cache = {}
         self._module_syntax_index_cache = {}
         self._kind_alias_module_cache = {}
+        self._source_line_cache = {}
+        self._source_evidence_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
         self._context_summaries = {}
@@ -241,6 +244,18 @@ class SourceIndexMixin:
              for ref, node in self.classes])
         self._indexed_snapshot = self._source_snapshot
         self._indexed_roots = tuple(self.roots)
+
+    ## Encode one source file for span extraction once per source generation.
+    ## 每个源码文件在当前源码代次内只编码一次，供跨度提取复用。
+    #
+    #  @param path Source file path captured by the current generation.
+    #  @return UTF-8 encoded source lines.
+    def _source_lines(self, path):
+        cached = self._source_line_cache.get(path)
+        if cached is None:
+            cached = [line.encode('utf-8') for line in self.texts[path].split('\n')]
+            self._source_line_cache[path] = cached
+        return cached
 
     ## Collect immutable file facts independently of query state.
     ## 独立于查询状态收集不可变文件事实。
