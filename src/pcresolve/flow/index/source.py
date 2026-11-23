@@ -85,6 +85,15 @@ class SourceIndexMixin:
             runtime_namespace_cache
             if self._analysis_budget is None and runtime_namespace_cache is not False
             else False)
+        # Syntax facts depend only on this source generation. They stay valid
+        # across unbudgeted queries even though every query owns its propagation
+        # budget and incoming contexts.
+        # 语法事实只依赖当前源码代次；在无协作预算时，不同查询可复用它们。
+        generation_fact_names = ('_scope_fact_cache', '_builtin_scope_cache',
+                                 '_builtin_module_cache')
+        previous_generation_facts = (
+            {name: getattr(self, name) for name in generation_fact_names if hasattr(self, name)}
+            if self._analysis_budget is None else {})
         previous_source_facts = ({name: getattr(self, name) for name in source_fact_cache_names
                                   if hasattr(self, name)} if preserve_source_facts else {})
         self._scope_fact_cache = {}
@@ -106,6 +115,7 @@ class SourceIndexMixin:
         self._fact_calls = 2000
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
+        self._class_binding_escape_scan = False
         self._callable_instance_binding_cache = {}
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
@@ -159,6 +169,8 @@ class SourceIndexMixin:
             # 源码版本不变时可复用事实；有预算的查询仍须重新计量工作量。
             if self._analysis_budget is None:
                 self._runtime_namespace_cache = previous_runtime_namespace
+                for name, value in previous_generation_facts.items():
+                    setattr(self, name, value)
             return
         # Clear the reusable generation before construction so an interrupted
         # or failed build cannot expose partially rebuilt facts on the next query.

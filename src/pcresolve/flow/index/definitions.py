@@ -684,6 +684,33 @@ class ClassFactsMixin:
         cached = self._class_binding_escape_cache if include_escapes else self._class_binding_write_cache
         if cached is not None and private_result is None:
             return cached
+        # The escape scan asks class-identity and decorator proofs whether a call
+        # can expose a class, and those proofs can need this same scan. Starting
+        # another whole-source scan there recurses once per decoration layer, so
+        # a nested request reports an explicit truncation instead.
+        # 逃逸扫描会咨询类身份与装饰器证明，而这些证明可能需要同一扫描。嵌套请求
+        # 若再次全量扫描会按装饰层数递归，因此改为返回显式截断。
+        if include_escapes and self._class_binding_escape_scan:
+            return [], True
+        self._class_binding_escape_scan = include_escapes
+        try:
+            result = self._class_binding_write_scan(include_escapes, private_result)
+        finally:
+            self._class_binding_escape_scan = False
+        if private_result is None:
+            if include_escapes:
+                self._class_binding_escape_cache = result
+            else:
+                self._class_binding_write_cache = result
+        return result
+
+    ## Traverse the fixed source set once for class-binding writes and escapes.
+    ## 对固定源码集合执行一次类绑定写入与逃逸遍历。
+    #
+    #  @param include_escapes Include possible class escapes in the scan.
+    #  @param private_result Optional private-result projection callback.
+    #  @return Pair of write records and truncation flag.
+    def _class_binding_write_scan(self, include_escapes, private_result):
         writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
         closure_bindings = {}
 
@@ -947,11 +974,4 @@ class ClassFactsMixin:
                 aliases, held = {}, {}
                 for statement in body:
                     walk(statement, FunctionRef(module, '', path), aliases, held)
-        result = writes, remaining[0] < 0
-        if private_result is not None:
-            return result
-        if include_escapes:
-            self._class_binding_escape_cache = result
-        else:
-            self._class_binding_write_cache = result
-        return result
+        return writes, remaining[0] < 0
