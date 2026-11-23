@@ -9,6 +9,7 @@
 
 import ast
 import copy
+from pcresolve.flow.transfer.environment import copy_environment
 from dataclasses import asdict
 from pcresolve.facts.effect_facts import contains_yield
 from pcresolve.facts.import_facts import import_facts
@@ -1074,11 +1075,11 @@ class StatementsMixin:
                             'kind': 'instance_field',
                             'source': field_key,
                             'field': value.get('target_field'),
-                            'receiver': copy.deepcopy(value.get('target_receiver')),
+                            'receiver': value.get('target_receiver'),
                             'relation': 'direct',
-                            'evidence': copy.deepcopy(value.get('evidence', [])),
+                            'evidence': list(value.get('evidence', [])),
                             'conditions': []}]
-                    candidate = dict(copy.deepcopy(value),
+                    candidate = dict(value,
                         value_incomplete=True,
                         exception_write_candidate=True)
                     state[field_key] = _unique(state[field_key] + [candidate])
@@ -1133,11 +1134,11 @@ class StatementsMixin:
                 self.add_boundary('context_exit_guard_unresolved', node.test, env, affected_scope='unknown')
             if isinstance(node, ast.Return):
                 truth = self.context_truth(node.value, env) if node.value is not None else False
-                previous = copy.deepcopy(env)
+                previous = copy_environment(env)
                 values = self.marked(self.expression(node.value, env), node)
                 exceptional, possible = self.context_operation_exits(node.value, previous, env)
                 return exceptional + ([('return', env, values, {'truth': truth})] if possible else [])
-        previous = copy.deepcopy(env) if self.context_execution else None
+        previous = copy_environment(env) if self.context_execution else None
         exceptional = []
         # A possible exception uses the environment BEFORE evaluation. Simple
         # name/constant assignments cannot import a later definition into it.
@@ -1149,13 +1150,13 @@ class StatementsMixin:
             expressions = [node.test]
         if any(_may_raise(e) for e in expressions if e is not None) and not all(
                 self._expression_cannot_raise(e, env) for e in expressions if e is not None):
-            exceptional = [('raise', copy.deepcopy(env), [], None)]
+            exceptional = [('raise', copy_environment(env), [], None)]
         definite_raise = self.definite_argument_raise(node, env)
         if definite_raise is not None:
             first, exception = definite_raise
             self.expression(first, env)
             if not exceptional:
-                exceptional = [('raise', copy.deepcopy(env), [], None)]
+                exceptional = [('raise', copy_environment(env), [], None)]
             return exceptional + [('raise', env, [], exception)]
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             positional = node.args.posonlyargs + node.args.args
@@ -1204,13 +1205,13 @@ class StatementsMixin:
                 exceptional = []
             before = list(self.conditions)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
-            positive = copy.deepcopy(env)
+            positive = copy_environment(env)
             feasible = self._extend_control_paths(
                 positive, node.test, True, operand, inverted, proof, bool_sources)
             left = (self.block(node.body, positive)
                     if feasible and self.refine_guard(node.test, positive) else [])
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': False}]
-            negative = copy.deepcopy(env)
+            negative = copy_environment(env)
             feasible = self._extend_control_paths(
                 negative, node.test, False, operand, inverted, proof, bool_sources)
             right = (self.block(node.orelse, negative)
@@ -1249,14 +1250,14 @@ class StatementsMixin:
             self.add_boundary('async_with_unsupported', node, env, affected_scope='unknown')
             return [('unknown', env, [], None)]
         if isinstance(node, (ast.For, ast.While)):
-            before = copy.deepcopy(env)
-            head = copy.deepcopy(env)
+            before = copy_environment(env)
+            head = copy_environment(env)
             exits = []
             if isinstance(node, ast.For):
                 loop_exception = []
                 if (_may_raise(node.iter)
                         and not self._expression_cannot_raise(node.iter, env)):
-                    loop_exception = [('raise', copy.deepcopy(env), [], None)]
+                    loop_exception = [('raise', copy_environment(env), [], None)]
                 iterable = self.marked(self.project(self.expression(node.iter, env), '*', env), node.iter, 'derived')
                 exits.extend(self.preserve_call_field_writes_on_exception(
                     loop_exception, call_start))
@@ -1704,7 +1705,7 @@ class StatementsMixin:
     #  @param env Environment entering the try statement.
     #  @return Outcome tuples for normal completions, handled exceptions and escapes.
     def try_statement(self, node, env):
-        outcomes = self.block(node.body, copy.deepcopy(env))
+        outcomes = self.block(node.body, copy_environment(env))
         completed = []
         # Merge exception prefixes by known exception spelling. This bounds
         # repeated handler analysis and preserves definitions at raise sites.
@@ -1733,7 +1734,7 @@ class StatementsMixin:
                     exact = True
                 before = list(self.conditions)
                 self.conditions = before + [{'handler': self.evidence(handler), 'exception': exception or 'unknown'}]
-                handled = copy.deepcopy(state)
+                handled = copy_environment(state)
                 if handler.name:
                     handled[handler.name] = []
                 handler_exits = self.block(handler.body, handled)
@@ -1751,7 +1752,7 @@ class StatementsMixin:
             return completed
         finalized = []
         for kind, state, values, exception in completed:
-            for final_kind, final_env, final_values, final_exc in self.block(node.finalbody, copy.deepcopy(state)):
+            for final_kind, final_env, final_values, final_exc in self.block(node.finalbody, copy_environment(state)):
                 if final_kind == 'normal':
                     finalized.append((kind, final_env, values, exception))
                 else:

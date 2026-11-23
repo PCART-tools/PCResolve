@@ -196,7 +196,7 @@ class EffectsMixin:
                 'kind': 'instance_field_state_candidates',
                 'field_key': field_key,
                 'field': writes[0].get('field'),
-                'receiver': copy.deepcopy(writes[0].get('receiver')),
+                'receiver': dict(writes[0].get('receiver') or {}),
                 'status': 'source_candidate',
                 'completeness': 'partial' if partial else 'source_summary',
                 'completion': 'unproven' if partial or any(
@@ -457,7 +457,7 @@ class EffectsMixin:
                                     if not existing:
                                         existing = [{'kind': 'instance_field',
                                             'source': source_key, 'field': expression.attr,
-                                            'receiver': copy.deepcopy(receivers[0]),
+                                            'receiver': dict(receivers[0]),
                                             'relation': 'direct',
                                             'evidence': [self.evidence_at(
                                                 target_ref, expression)],
@@ -485,7 +485,7 @@ class EffectsMixin:
                 previous = env.get(field_key, [])
                 if not previous:
                     previous = [{'kind': 'instance_field', 'source': field_key,
-                        'field': effect.attribute, 'receiver': copy.deepcopy(receivers[0]),
+                        'field': effect.attribute, 'receiver': dict(receivers[0]),
                         'relation': 'direct', 'evidence': [self.evidence(node)],
                         'conditions': []}]
                 effect_conditions = [
@@ -505,13 +505,13 @@ class EffectsMixin:
                     non_write_alternatives = [item for item in non_write_alternatives
                                               if item['kind'] != 'field_store_unproven']
                 write_provenance = {
-                    'receiver': copy.deepcopy(receivers[0]),
+                    'receiver': dict(receivers[0]),
                     'field': effect.attribute,
                     'write': self.evidence_at(target_ref, effect.statement),
                     'call': self.evidence(node),
                     'status': 'exact' if exact_write else 'source_candidate',
                     'write_order': len(history) + 1,
-                    'may_overwrite': copy.deepcopy(history),
+                    'may_overwrite': list(history),
                     'conditions': copy.deepcopy(conditions),
                     'contexts': [{'kind': kind,
                         'evidence': self.evidence_at(target_ref, context)}
@@ -544,7 +544,7 @@ class EffectsMixin:
                         output_path=['*'], evidence=_unique(copy.deepcopy(
                             value.get('evidence', [])) + [self.evidence_at(
                                 target_ref, source_expression)]),
-                        instance_field_provenance=dict(copy.deepcopy(write_provenance),
+                        instance_field_provenance=dict(write_provenance,
                             prior=copy.deepcopy(value.get('instance_field_provenance'))))
                         for value in source_values])
                     source_values = [{'kind': 'container', 'source': container_key,
@@ -558,13 +558,13 @@ class EffectsMixin:
                                      [self.evidence(node), self.evidence_at(
                                          target_ref, effect.statement)]),
                     conditions=_unique(copy.deepcopy(value.get('conditions', [])) + conditions),
-                    instance_field_provenance=dict(copy.deepcopy(write_provenance),
+                    instance_field_provenance=dict(write_provenance,
                         prior=copy.deepcopy(value.get('instance_field_provenance'))))
                     for value in source_values]
                 env[field_key] = (_unique(written) if exact_write else
-                                  _unique(copy.deepcopy(previous) + written))
+                                  _unique(previous + written))
                 effect_record = {'kind': 'instance_field_write',
-                    'receiver': copy.deepcopy(receivers[0]), 'field': effect.attribute,
+                    'receiver': dict(receivers[0]), 'field': effect.attribute,
                     'field_key': field_key, 'source': source_name if isinstance(source_name, str)
                         else ast.unparse(source_expression)
                         if isinstance(source_expression, ast.AST) else None,
@@ -573,7 +573,7 @@ class EffectsMixin:
                     'conditions': conditions,
                     'preserved_value': {'kind': 'instance_field', 'source': field_key,
                         'field': effect.attribute,
-                        'receiver': copy.deepcopy(receivers[0])},
+                        'receiver': dict(receivers[0])},
                     'non_write_alternatives': non_write_alternatives,
                     'contexts': [{'kind': kind,
                         'evidence': self.evidence_at(target_ref, context)}
@@ -586,12 +586,12 @@ class EffectsMixin:
                 effect_record['write_order'] = len(history) + 1
                 if exact_write:
                     effect_record['store_proof'] = copy.deepcopy(write_provenance['store_proof'])
-                effect_record['may_overwrite'] = copy.deepcopy(history)
+                effect_record['may_overwrite'] = list(history)
                 history.append(effect_record['evidence'][0])
                 call.effects.append(effect_record)
                 call.mutation_flows.extend(dict(value, target_field=effect.attribute,
                     target_field_key=field_key,
-                    target_receiver=copy.deepcopy(receivers[0]),
+                    target_receiver=dict(receivers[0]),
                     effect_summary='instance_field_write')
                     for value in self.materialize(written, env))
                 continue
