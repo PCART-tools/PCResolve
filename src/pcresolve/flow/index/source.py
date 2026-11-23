@@ -66,7 +66,8 @@ class SourceIndexMixin:
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
         source_fact_cache_names = (
-            '_scope_fact_cache', '_syntax_fact_cache', '_class_binding_write_cache',
+            '_scope_fact_cache', '_syntax_fact_cache', '_module_syntax_index_cache', '_kind_alias_module_cache',
+            '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
             '_class_creation_cache', '_module_class_prefix_cache', '_native_class_protocol_cache',
             '_builtin_scope_cache', '_builtin_module_cache',
@@ -98,6 +99,8 @@ class SourceIndexMixin:
                                   if hasattr(self, name)} if preserve_source_facts else {})
         self._scope_fact_cache = {}
         self._syntax_fact_cache = {}
+        self._module_syntax_index_cache = {}
+        self._kind_alias_module_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
         self._context_summaries = {}
@@ -385,3 +388,4 @@ class SourceIndexMixin:
         return (tuple((name, tuple(nodes)) for name, nodes in bindings.items()),
                 tuple(aliases.items()), frozenset(module_bindings),
                 tuple(definitions), tuple(classes), tuple(definition_conditions))
+

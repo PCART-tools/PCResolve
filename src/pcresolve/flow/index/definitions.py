@@ -293,6 +293,37 @@ class ClassFactsMixin:
             self._scope_fact_cache[node] = facts
         return facts
 
+    ## Index one module's nodes, parents and lexical scopes once per source generation.
+    ## 在当前源码代次内，每个模块的节点、父节点与词法作用域只建立一次索引。
+    #
+    #  Proof queries walk every module repeatedly; the index depends only on the
+    #  immutable module bodies, so later queries reuse it instead of rebuilding.
+    #  证明查询会反复遍历所有模块；该索引只依赖不可变模块体，后续查询直接复用。
+    #
+    #  @param module Module name indexed by the current source generation.
+    #  @return Node order, parent mapping and lexical scope mapping.
+    def _module_syntax_index(self, module):
+        cached = self._module_syntax_index_cache.get(module)
+        if cached is not None:
+            return cached
+        nodes, parents, scopes = [], {}, {}
+        for _, body in self.module_bodies.get(module, ()):
+            pending = [(node, None) for node in body]
+            while pending:
+                node, scope = pending.pop()
+                if self._analysis_budget is not None:
+                    self._analysis_budget.checkpoint()
+                nodes.append(node)
+                scopes[node] = scope
+                for child in ast.iter_child_nodes(node):
+                    parents[child] = node
+                    pending.append((child, node if isinstance(
+                        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                               ast.Lambda)) else scope))
+        result = (nodes, parents, scopes)
+        self._module_syntax_index_cache[module] = result
+        return result
+
     ## Collect bindings relevant to builtin lookup, including definition inputs.
     ## 收集与内置名称查找相关的绑定，包括定义时求值的输入。
     #
