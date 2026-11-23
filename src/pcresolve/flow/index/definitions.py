@@ -15,7 +15,7 @@ import os
 
 from dataclasses import asdict, replace
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FunctionRef
 
 from pcresolve.flow.proofs.protocols import syntax_facts
 
@@ -26,7 +26,7 @@ from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 
 from pcresolve.flow.proofs.callables._constructor_entry import source_member as constructor_source_member
 
-from pcresolve.flow.proofs.classes._class_decoration import constructor_decorations, member_preservation
+from pcresolve.flow.proofs.classes._class_decoration import member_preservation
 
 from pcresolve.flow.proofs.classes._class_metadata_read import native_function_scalar
 

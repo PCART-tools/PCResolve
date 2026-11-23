@@ -9,10 +9,10 @@
 
 import ast
 import copy
-from pcresolve.flow.transfer.environment import copy_environment
 from dataclasses import asdict
 from pcresolve.flow.model.results import FunctionRef
 from pcresolve.flow.transfer._summary_support import _unique
+from pcresolve.flow.transfer.environment import copy_environment
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified as namespace_unmodified
 

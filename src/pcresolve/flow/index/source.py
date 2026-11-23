@@ -11,21 +11,20 @@ import ast
 
 import os
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FunctionRef
 
 from pcresolve.flow.index.generation import same_generation
 
-from pcresolve.facts.program_facts import SourceSpan, FunctionSignature, bind_ast_call
+from pcresolve.facts.program_facts import SourceSpan
 
-from pcresolve.frontend.source_snapshot import (SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
+from pcresolve.frontend.source_snapshot import (ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
                               module_name_for_path)
 
-from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex
 
-from pcresolve.facts.scope_facts import (FLOW_SCOPE, function_scope_facts,
-                          statement_scope_facts, transitive_captured_names)
+from pcresolve.facts.scope_facts import statement_scope_facts
 
 from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 
@@ -66,8 +65,8 @@ class SourceIndexMixin:
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
         source_fact_cache_names = (
-            '_scope_fact_cache', '_syntax_fact_cache', '_module_syntax_index_cache', '_kind_alias_module_cache',
-            '_source_line_cache', '_source_evidence_cache',
+            '_scope_fact_cache', '_syntax_fact_cache', '_module_syntax_index_cache',
+            '_kind_alias_module_cache', '_source_line_cache', '_source_evidence_cache',
             '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
             '_class_creation_cache', '_module_class_prefix_cache', '_native_class_protocol_cache',

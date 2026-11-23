@@ -1,7 +1,7 @@
 ## @package tests.test_flow_source_sharing
 #  Source lines and span evidence are shared per source generation.
 
-from pcresolve import FlowAnalyzer, FunctionRef
+from pcresolve import FlowAnalyzer
 from pcresolve.flow.model.results import FlowAnalysis
 from pcresolve.flow.transfer.summary import _Summary
 

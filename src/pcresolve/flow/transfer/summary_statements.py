@@ -9,8 +9,8 @@
 
 import ast
 import copy
-from pcresolve.flow.transfer.environment import copy_environment
 from dataclasses import asdict
+from pcresolve.flow.transfer.environment import copy_environment
 from pcresolve.facts.effect_facts import contains_yield
 from pcresolve.facts.import_facts import import_facts
 from pcresolve.flow.model.results import FlowCall, FunctionRef
@@ -1752,7 +1752,8 @@ class StatementsMixin:
             return completed
         finalized = []
         for kind, state, values, exception in completed:
-            for final_kind, final_env, final_values, final_exc in self.block(node.finalbody, copy_environment(state)):
+            for final_kind, final_env, final_values, final_exc in self.block(
+                    node.finalbody, copy_environment(state)):
                 if final_kind == 'normal':
                     finalized.append((kind, final_env, values, exception))
                 else:

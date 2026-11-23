@@ -9,8 +9,8 @@
 
 import ast
 import copy
-from pcresolve.flow.transfer.environment import copy_environment
 from dataclasses import asdict
+from pcresolve.flow.transfer.environment import copy_environment
 from pcresolve.facts.effect_facts import contains_yield
 from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
 from pcresolve.facts.scope_facts import statement_scope_facts
@@ -505,8 +505,9 @@ class ContextManagersMixin:
                     record['exit']['effects_status'] = 'unmodeled'
                     record['exit']['completion'] = 'unconfirmed'
                     record['exit']['executions'][-1].update(status='unmodeled', issues=issues)
-                    completed.extend([(kind, copy_environment(state), copy.deepcopy(pending), exception),
-                                      ('raise', copy_environment(state), [], None)])
+                    completed.extend([
+                        (kind, copy_environment(state), copy.deepcopy(pending), exception),
+                        ('raise', copy_environment(state), [], None)])
                     if kind in ('raise', 'unknown'):
                         completed.append(('normal', copy_environment(state), [], None))
                     if call:

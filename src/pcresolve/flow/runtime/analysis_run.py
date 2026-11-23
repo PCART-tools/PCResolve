@@ -11,22 +11,19 @@ import ast
 
 import copy
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FlowAnalysis, FunctionRef, _matches
 
 from pcresolve.flow.transfer.summary import _Summary
 
-from pcresolve.flow.transfer.environment import (
-    merge_environments as _merge_env, merge_result_sources as _merge_result_sources,
-)
+from pcresolve.flow.transfer.environment import merge_result_sources as _merge_result_sources
 
 from pcresolve.runtime.limits import AnalysisBudget
 
-from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from pcresolve.facts.call_resolution import CallContext
 
-from pcresolve.facts.scope_facts import (FLOW_SCOPE, function_scope_facts,
-                          statement_scope_facts, transitive_captured_names)
+from pcresolve.facts.scope_facts import transitive_captured_names
 
 from pcresolve.flow.proofs.namespaces.source._source_dependencies import publish as publish_source_dependencies
 
@@ -34,9 +31,7 @@ from pcresolve.flow.proofs.namespaces.source._source_dependencies import validat
 
 from pcresolve.flow.proofs.callables._constructor_entry import binding as constructor_entry_binding
 
-from pcresolve.flow.proofs.callables._fresh_receiver import (method_binding as fresh_method_binding,
-                              super_method_binding as fresh_super_method_binding,
-                              incoming_origin as fresh_incoming_origin)
+from pcresolve.flow.proofs.callables._fresh_receiver import incoming_origin as fresh_incoming_origin
 
 from pcresolve.flow.proofs.callables.dispatch.entry_alias import reference as source_entry_alias
 

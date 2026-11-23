@@ -3,7 +3,6 @@
 
 from pcresolve import FlowAnalyzer, FunctionRef
 from pcresolve.flow.index import definitions as index_definitions
-from tests.flow_test_support import set_class_binding_limit
 
 
 SOURCE = (
