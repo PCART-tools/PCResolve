@@ -103,12 +103,14 @@ chains that circle back).
 ## Cross-file trace boundaries
 
 `ProjectAnalyzer.trace_symbol()` is implemented by
-`project_source_tracing.py`. It delegates structured-source resolution to
-`_resolve_structured_source()`, which dispatches on source type.
+`pcresolve.ownership.resolve.project_source_tracing`. It delegates
+structured-source resolution to `_resolve_structured_source()`, which
+dispatches on source type.
 
 `_resolve_structured_source()` calls `_resolve_sourceset_primary()`
 for `SourceSet` inputs. That method delegates to
-`SourceSetResolver.resolve_primary()` in `source_resolution.py`.
+`SourceSetResolver.resolve_primary()` in
+`pcresolve.ownership.source_resolution`.
 
 The call graph:
 
@@ -126,13 +128,14 @@ trace_symbol()
 
 ## Classification result fields
 
-`classify_source()` in `project_call_classification.py` is the entry point for
-turning a `(base, top)` pair into a `ClassificationResult`:
+`classify_source()` in
+`pcresolve.ownership.resolve.project_call_classification` is the entry point
+for turning a `(base, top)` pair into a `ClassificationResult`:
 
 | field | default | notes |
 |-------|---------|-------|
 | `reason` | depends on base/top | `DIRECT_IMPORT`, `RETURN_PROPAGATION`, `FLOW_MERGE`, `LOCAL_DEFINITION`, etc. |
-| `confidence` | 1.0 | See `classification.py::classify_confidence()` and `docs/output-contract.md` confidence table.  local+SourceSet: 0.5; FLOW_MERGE single: 0.85; FLOW_MERGE multi: max(1/N, 0.2) |
+| `confidence` | 1.0 | See `pcresolve.ownership.classification::classify_confidence()` and `docs/output-contract.md` confidence table.  local+SourceSet: 0.5; FLOW_MERGE single: 0.85; FLOW_MERGE multi: max(1/N, 0.2) |
 | `alternatives` | `[]` | extracted via `_extract_alternatives()` when `expand_origins=True` |
 | `is_usage_library` | `True` for import-backed library | controls `library_usage` aggregation |
 
