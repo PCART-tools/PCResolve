@@ -122,6 +122,7 @@ class SourceIndexMixin:
         self._class_binding_escape_cache = None
         self._class_binding_escape_scan = False
         self._callable_instance_binding_cache = {}
+        self._private_observer_cache = {}
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
         self._fresh_decoration_fact_cache = {}
