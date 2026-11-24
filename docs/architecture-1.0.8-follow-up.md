@@ -55,28 +55,8 @@ state and limits; they do not add inference rules.
 
 | Previously implicit or broad mechanism | Current boundary | Remaining structure and reason |
 |---|---|---|
-| `_Summary` installed into sibling modules through `sys.modules` and `setattr` | Explicit `_make_child_summary()` method and typed child-summary port | `_Summary` still composes transfer mixins over one query-local state; a wholesale rewrite would widen the semantic diff |
-| Dynamic `SimpleNamespace` for call-transfer phases | Declared `_CallExpressionState` dataclass | Some phase-specific values use `object` because their values are heterogeneous; the declared field inventory makes additions reviewable without a new public schema |
+| `_Summary` installed into sibling modules through `sys.modules` and `setattr` | Explicit `_make_child_summary()` factory method | `_Summary` still composes transfer mixins over one query-local state; a wholesale rewrite would widen the semantic diff |
+| Dynamic `SimpleNamespace` for call-transfer phases | `_CallExpressionState` with an explicit `__slots__` field inventory | Phase-specific values are heterogeneous; the explicit field inventory makes additions reviewable without a new public schema |
 | Visitor-wide `__dict__` capture and exclusion lists | Declared `SingleFileVisitorFacts` fields | `_detach_visitor_callbacks()` still traverses nested fact-object attributes to find listener edges. That traversal detaches callbacks; it does not decide which visitor fields are cached |
-| Repeated module-local namespace injection | Direct implementation imports and declared protocol types at checked boundaries | Existing mixin composition remains in ownership and flow so lexical traversal and query state keep their current owners |
+| Repeated module-local namespace injection | Direct implementation imports at package boundaries | Existing mixin composition remains in ownership and flow so lexical traversal and query state keep their current owners |
 | Legacy flat import paths | Lazy compatibility registry and frozen 56-path comparison | The shim remains for 1.0.8 compatibility; internal imports target implementation modules directly |
-
-## Strict type-check coverage
-
-`python -m mypy` runs with `strict = true`, Python 3.9 syntax, and the following
-configured files. The probe module exercises the actual component contracts,
-not only standalone protocol declarations.
-
-| File | Coverage purpose |
-|---|---|
-| `src/pcresolve/flow/contracts.py` | Cooperative budget, source index, summary, recursive summary, and child factory protocols |
-| `tests/typecheck_flow_contracts.py` | Existing static compatibility probes for flow contracts |
-| `tests/typecheck_architecture_components.py` | Actual `_Summary` child factory, call state, and cached visitor fact access |
-| `src/pcresolve/flow/transfer/summary.py` | Typed summary state and recursive child construction |
-| `src/pcresolve/flow/transfer/call_expression_state.py` | Declared per-call phase state |
-| `src/pcresolve/ownership/source_fact_cache.py` | Capture, clone, callback-detachment, and declared ownership cache schema |
-
-This strict set is targeted to the changed architecture seams; it is not a
-claim that every implementation module in PCResolve is fully typed. The
-remaining untyped surface should be expanded component by component when its
-input, output, and state ownership can be stated without broad escape hatches.

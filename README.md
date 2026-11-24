@@ -6,11 +6,15 @@ Project-level Python static analysis for API ownership and library usage provena
 
 ## Status
 
-This checkout targets PCResolve 1.0.8, with stable ownership and symbol-provenance output plus an
+PCResolve 1.0.8 provides stable ownership and symbol-provenance output plus an
 opt-in experimental value-flow API for parameters, receivers, returns, and
-supported mutation effects. This release also supports single-file ownership
-analysis and keeps the ownership implementation aligned with the documented
-shared-facts architecture.
+supported mutation effects. It also supports single-file ownership analysis.
+The implementation is reorganized into frontend, shared-fact, ownership and
+value-flow packages while keeping the public Python API, legacy flat module
+paths, and ownership `schema_version="1.0"` compatible.
+
+This release adds optional analysis resource limits and repeated-analysis fact
+reuse, and improves value-flow precision and analysis performance.
 
 Existing Python callers can keep their package-level imports and earlier flat
 module paths such as `pcresolve.cross_file`. See the

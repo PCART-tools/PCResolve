@@ -12,6 +12,7 @@ import copy
 from dataclasses import asdict
 from pcresolve.flow.model.results import FunctionRef
 from pcresolve.flow.transfer._summary_support import _unique
+from pcresolve.flow.transfer.environment import copy_environment
 from pcresolve.flow.transfer.environment import merge_environments as _merge_env
 from pcresolve.flow.proofs.protocols._runtime_namespace import unmodified as namespace_unmodified
 
@@ -417,7 +418,7 @@ class ExpressionsMixin:
     #  @return Dependency alternatives or None when another handler should run.
     def _expression_part_08(self, node, env):
         if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp)) and not any(g.is_async for g in node.generators):
-            local = copy.deepcopy(env)
+            local = copy_environment(env)
             for generator in node.generators:
                 iterable = self.expression(generator.iter, local)
                 if iterable and all(v['kind'] == 'container' and
@@ -449,7 +450,7 @@ class ExpressionsMixin:
         if isinstance(node, ast.IfExp):
             self.expression(node.test, env)
             before = list(self.conditions)
-            positive, negative = copy.deepcopy(env), copy.deepcopy(env)
+            positive, negative = copy_environment(env), copy_environment(env)
             self.conditions = before + [{'test': self.evidence(node.test), 'branch': True}]
             possible_left = self.refine_guard(node.test, positive)
             left = self.marked(self.expression(node.body, positive), node.body) if possible_left else []
@@ -511,7 +512,7 @@ class ExpressionsMixin:
     #  @return Dependency alternatives or None when another handler should run.
     def _expression_part_11(self, node, env):
         if isinstance(node, ast.BoolOp):
-            current = copy.deepcopy(env)
+            current = copy_environment(env)
             before = list(self.conditions)
             values = []
             exits = []
@@ -520,7 +521,7 @@ class ExpressionsMixin:
                 sources = self.materialize(self.expression(operand, current), current)
                 values.extend(self.marked(sources, operand))
                 missing_value = missing_value or not sources
-                exits.append(copy.deepcopy(current))
+                exits.append(copy_environment(current))
                 self.conditions = self.conditions + [{'test': self.evidence(operand), 'branch': isinstance(node.op, ast.And)}]
                 if not self.refine_guard(operand, current, positive=isinstance(node.op, ast.And)):
                     break
@@ -623,7 +624,7 @@ class ExpressionsMixin:
         stop_value = consumer.func.id == 'any'
         try:
             for group in groups:
-                iteration = copy.deepcopy(env)
+                iteration = copy_environment(env)
                 self.assign_target(clause.target, group, iteration, clause.target)
                 constant = self._generator_predicate_constant(generator, iteration)
                 result.extend(self.expression(generator.elt, iteration))

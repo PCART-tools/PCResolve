@@ -11,21 +11,20 @@ import ast
 
 import os
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FunctionRef
 
 from pcresolve.flow.index.generation import same_generation
 
-from pcresolve.facts.program_facts import SourceSpan, FunctionSignature, bind_ast_call
+from pcresolve.facts.program_facts import SourceSpan
 
-from pcresolve.frontend.source_snapshot import (SourceStore, ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
+from pcresolve.frontend.source_snapshot import (ModuleIndex, FLOW_SOURCE, FLOW_MODULES,
                               module_name_for_path)
 
-from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex
 
-from pcresolve.facts.scope_facts import (FLOW_SCOPE, function_scope_facts,
-                          statement_scope_facts, transitive_captured_names)
+from pcresolve.facts.scope_facts import statement_scope_facts
 
 from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 
@@ -66,7 +65,9 @@ class SourceIndexMixin:
         # Budgets, contracts and incoming contexts belong to one query even
         # when the source facts are unchanged.
         source_fact_cache_names = (
-            '_scope_fact_cache', '_syntax_fact_cache', '_class_binding_write_cache',
+            '_scope_fact_cache', '_syntax_fact_cache', '_module_syntax_index_cache',
+            '_kind_alias_module_cache', '_source_line_cache', '_source_evidence_cache',
+            '_class_binding_write_cache',
             '_class_binding_escape_cache', '_class_decoration_cache',
             '_class_creation_cache', '_module_class_prefix_cache', '_native_class_protocol_cache',
             '_builtin_scope_cache', '_builtin_module_cache',
@@ -85,10 +86,23 @@ class SourceIndexMixin:
             runtime_namespace_cache
             if self._analysis_budget is None and runtime_namespace_cache is not False
             else False)
+        # Syntax facts depend only on this source generation. They stay valid
+        # across unbudgeted queries even though every query owns its propagation
+        # budget and incoming contexts.
+        # 语法事实只依赖当前源码代次；在无协作预算时，不同查询可复用它们。
+        generation_fact_names = ('_scope_fact_cache', '_builtin_scope_cache',
+                                 '_builtin_module_cache')
+        previous_generation_facts = (
+            {name: getattr(self, name) for name in generation_fact_names if hasattr(self, name)}
+            if self._analysis_budget is None else {})
         previous_source_facts = ({name: getattr(self, name) for name in source_fact_cache_names
                                   if hasattr(self, name)} if preserve_source_facts else {})
         self._scope_fact_cache = {}
         self._syntax_fact_cache = {}
+        self._module_syntax_index_cache = {}
+        self._kind_alias_module_cache = {}
+        self._source_line_cache = {}
+        self._source_evidence_cache = {}
         self._class_return_cache = {}
         self._class_return_stack = []
         self._context_summaries = {}
@@ -106,7 +120,9 @@ class SourceIndexMixin:
         self._fact_calls = 2000
         self._class_binding_write_cache = None
         self._class_binding_escape_cache = None
+        self._class_binding_escape_scan = False
         self._callable_instance_binding_cache = {}
+        self._private_observer_cache = {}
         self._capture_name_cache = {}
         self._decoration_fact_cache = {}
         self._fresh_decoration_fact_cache = {}
@@ -159,6 +175,8 @@ class SourceIndexMixin:
             # 源码版本不变时可复用事实；有预算的查询仍须重新计量工作量。
             if self._analysis_budget is None:
                 self._runtime_namespace_cache = previous_runtime_namespace
+                for name, value in previous_generation_facts.items():
+                    setattr(self, name, value)
             return
         # Clear the reusable generation before construction so an interrupted
         # or failed build cannot expose partially rebuilt facts on the next query.
@@ -226,6 +244,18 @@ class SourceIndexMixin:
              for ref, node in self.classes])
         self._indexed_snapshot = self._source_snapshot
         self._indexed_roots = tuple(self.roots)
+
+    ## Encode one source file for span extraction once per source generation.
+    ## 每个源码文件在当前源码代次内只编码一次，供跨度提取复用。
+    #
+    #  @param path Source file path captured by the current generation.
+    #  @return UTF-8 encoded source lines.
+    def _source_lines(self, path):
+        cached = self._source_line_cache.get(path)
+        if cached is None:
+            cached = [line.encode('utf-8') for line in self.texts[path].split('\n')]
+            self._source_line_cache[path] = cached
+        return cached
 
     ## Collect immutable file facts independently of query state.
     ## 独立于查询状态收集不可变文件事实。
@@ -373,3 +403,4 @@ class SourceIndexMixin:
         return (tuple((name, tuple(nodes)) for name, nodes in bindings.items()),
                 tuple(aliases.items()), frozenset(module_bindings),
                 tuple(definitions), tuple(classes), tuple(definition_conditions))
+

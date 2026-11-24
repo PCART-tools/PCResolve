@@ -15,7 +15,7 @@ import os
 
 from dataclasses import asdict, replace
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FunctionRef
 
 from pcresolve.flow.proofs.protocols import syntax_facts
 
@@ -26,7 +26,7 @@ from pcresolve.facts.import_facts import import_facts, resolve_relative_module
 
 from pcresolve.flow.proofs.callables._constructor_entry import source_member as constructor_source_member
 
-from pcresolve.flow.proofs.classes._class_decoration import constructor_decorations, member_preservation
+from pcresolve.flow.proofs.classes._class_decoration import member_preservation
 
 from pcresolve.flow.proofs.classes._class_metadata_read import native_function_scalar
 
@@ -292,6 +292,37 @@ class ClassFactsMixin:
             facts = function_scope_facts(node, FLOW_SCOPE)
             self._scope_fact_cache[node] = facts
         return facts
+
+    ## Index one module's nodes, parents and lexical scopes once per source generation.
+    ## 在当前源码代次内，每个模块的节点、父节点与词法作用域只建立一次索引。
+    #
+    #  Proof queries walk every module repeatedly; the index depends only on the
+    #  immutable module bodies, so later queries reuse it instead of rebuilding.
+    #  证明查询会反复遍历所有模块；该索引只依赖不可变模块体，后续查询直接复用。
+    #
+    #  @param module Module name indexed by the current source generation.
+    #  @return Node order, parent mapping and lexical scope mapping.
+    def _module_syntax_index(self, module):
+        cached = self._module_syntax_index_cache.get(module)
+        if cached is not None:
+            return cached
+        nodes, parents, scopes = [], {}, {}
+        for _, body in self.module_bodies.get(module, ()):
+            pending = [(node, None) for node in body]
+            while pending:
+                node, scope = pending.pop()
+                if self._analysis_budget is not None:
+                    self._analysis_budget.checkpoint()
+                nodes.append(node)
+                scopes[node] = scope
+                for child in ast.iter_child_nodes(node):
+                    parents[child] = node
+                    pending.append((child, node if isinstance(
+                        node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                               ast.Lambda)) else scope))
+        result = (nodes, parents, scopes)
+        self._module_syntax_index_cache[module] = result
+        return result
 
     ## Collect bindings relevant to builtin lookup, including definition inputs.
     ## 收集与内置名称查找相关的绑定，包括定义时求值的输入。
@@ -684,6 +715,33 @@ class ClassFactsMixin:
         cached = self._class_binding_escape_cache if include_escapes else self._class_binding_write_cache
         if cached is not None and private_result is None:
             return cached
+        # The escape scan asks class-identity and decorator proofs whether a call
+        # can expose a class, and those proofs can need this same scan. Starting
+        # another whole-source scan there recurses once per decoration layer, so
+        # a nested request reports an explicit truncation instead.
+        # 逃逸扫描会咨询类身份与装饰器证明，而这些证明可能需要同一扫描。嵌套请求
+        # 若再次全量扫描会按装饰层数递归，因此改为返回显式截断。
+        if include_escapes and self._class_binding_escape_scan:
+            return [], True
+        self._class_binding_escape_scan = include_escapes
+        try:
+            result = self._class_binding_write_scan(include_escapes, private_result)
+        finally:
+            self._class_binding_escape_scan = False
+        if private_result is None:
+            if include_escapes:
+                self._class_binding_escape_cache = result
+            else:
+                self._class_binding_write_cache = result
+        return result
+
+    ## Traverse the fixed source set once for class-binding writes and escapes.
+    ## 对固定源码集合执行一次类绑定写入与逃逸遍历。
+    #
+    #  @param include_escapes Include possible class escapes in the scan.
+    #  @param private_result Optional private-result projection callback.
+    #  @return Pair of write records and truncation flag.
+    def _class_binding_write_scan(self, include_escapes, private_result):
         writes, remaining = [], [_CLASS_BINDING_NODE_LIMIT]
         closure_bindings = {}
 
@@ -947,11 +1005,4 @@ class ClassFactsMixin:
                 aliases, held = {}, {}
                 for statement in body:
                     walk(statement, FunctionRef(module, '', path), aliases, held)
-        result = writes, remaining[0] < 0
-        if private_result is not None:
-            return result
-        if include_escapes:
-            self._class_binding_escape_cache = result
-        else:
-            self._class_binding_write_cache = result
-        return result
+        return writes, remaining[0] < 0

@@ -10,6 +10,7 @@
 import ast
 import copy
 from dataclasses import asdict
+from pcresolve.flow.transfer.environment import copy_environment
 from pcresolve.facts.effect_facts import contains_yield
 from pcresolve.facts.program_facts import FunctionSignature, bind_ast_call
 from pcresolve.facts.scope_facts import statement_scope_facts
@@ -376,7 +377,7 @@ class ContextManagersMixin:
         completed = []
         nonlocals = self.analyzer._scope_facts(method).nonlocals
         for kind, frame_state, values, payload in outcomes:
-            updated = copy.deepcopy(state)
+            updated = copy_environment(state)
             updated.update({key: copy.deepcopy(values) for key, values in frame_state.items()
                             if key.startswith('$') or key in nonlocals})
             completed.append((kind, updated, values, payload))
@@ -504,10 +505,11 @@ class ContextManagersMixin:
                     record['exit']['effects_status'] = 'unmodeled'
                     record['exit']['completion'] = 'unconfirmed'
                     record['exit']['executions'][-1].update(status='unmodeled', issues=issues)
-                    completed.extend([(kind, copy.deepcopy(state), copy.deepcopy(pending), exception),
-                                      ('raise', copy.deepcopy(state), [], None)])
+                    completed.extend([
+                        (kind, copy_environment(state), copy.deepcopy(pending), exception),
+                        ('raise', copy_environment(state), [], None)])
                     if kind in ('raise', 'unknown'):
-                        completed.append(('normal', copy.deepcopy(state), [], None))
+                        completed.append(('normal', copy_environment(state), [], None))
                     if call:
                         call.implicit_protocol.update(completion='unconfirmed',
                             exit_outcomes=_unique({'kind': item[0],
@@ -620,14 +622,14 @@ class ContextManagersMixin:
             temporary_effect = (bounded_temporary_receiver_attributes(self, item.context_expr, env)
                                 if item.optional_vars is None else None)
             if _may_raise(item.context_expr):
-                failed = copy.deepcopy(env)
+                failed = copy_environment(env)
                 if exits:
                     self.add_boundary('context_expression_exception_effects_unmodeled', item.context_expr,
                                       failed, affected_scope='unknown')
                     self.unknown_context_effects(failed)
                 exceptions.extend(self.cleanup_context_exits(node,
                     [('raise', failed, [], None)], exits, 'context_expression'))
-            before_expression = copy.deepcopy(env) if temporary_effect is not None else None
+            before_expression = copy_environment(env) if temporary_effect is not None else None
             values = self.marked(self.expression(item.context_expr, env), item.context_expr)
             if temporary_effect is not None:
                 env.clear()
@@ -729,7 +731,7 @@ class ContextManagersMixin:
                 record['bounded_temporary_receiver_effects'] = temporary_effect
             self.context_managers.append(record)
             self.conditions = prior_conditions
-            failed = copy.deepcopy(env)
+            failed = copy_environment(env)
             if exits and fact.get('exceptions', [None]) and fact.get('effects_status') != 'source_modeled':
                 self.add_boundary('context_enter_exception_effects_unmodeled', item.context_expr,
                                   failed, affected_scope='unknown', call_id=call.id if call else None)

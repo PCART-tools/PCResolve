@@ -66,6 +66,11 @@ def test_transfer_modules_use_explicit_imports():
 def test_child_summary_factory_isolates_query_state():
     class Analyzer:
         texts = {'sample.py': 'def f():\n    return 1\n'}
+        _source_evidence_cache = {}
+
+        ## Encode the fake file's lines for span evidence.
+        def _source_lines(self, path):
+            return [line.encode('utf-8') for line in self.texts[path].split('\n')]
 
     analyzer = Analyzer()
     ref = FunctionRef(module='sample', qualname='f', file_path='sample.py', lineno=1)

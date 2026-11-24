@@ -8,6 +8,7 @@
 
 
 import ast
+import copy
 from dataclasses import asdict
 
 from pcresolve.flow.proofs.callables._function_factory import _canonical
@@ -34,10 +35,38 @@ def _span(ref, node):
 ## Collect private observer result projections for one source class.
 ## 收集针对一个源码类的私有观察器结果投影。
 #
+#  Repeated metadata entries for the same observer class rediscover the same
+#  projections. The scan is deterministic and advances the shared class-effect
+#  allowance by a fixed amount, so a cached result replays that allowance and
+#  returns the same records without walking the source again.
+#  同一个观察器类的重复元数据入口会重新发现相同的投影。扫描是确定性的，且只按固定
+#  数量推进共享类效果额度；缓存结果只需重放该额度即可返回相同记录，无需重扫源码。
+#
 #  @param analyzer Analyzer providing class writes and observer evidence.
 #  @param owner Selected observer class and its source definition.
 #  @return Projected query records, or None if class identity may be invalidated.
 def _private_results(analyzer, owner):
+    cache = getattr(analyzer, '_private_observer_cache', None)
+    if cache is None or analyzer._analysis_budget is not None:
+        return _private_results_uncached(analyzer, owner)
+    key = owner[0]
+    if key in cache:
+        steps, result = cache[key]
+        analyzer._class_effect_fact_steps -= steps
+        return copy.deepcopy(result)
+    before = analyzer._class_effect_fact_steps
+    result = _private_results_uncached(analyzer, owner)
+    cache[key] = (before - analyzer._class_effect_fact_steps, copy.deepcopy(result))
+    return result
+
+
+## Scan one source set for private observer result projections.
+## 扫描一次源码集合以取得私有观察器结果投影。
+#
+#  @param analyzer Analyzer providing class writes and observer evidence.
+#  @param owner Selected observer class and its source definition.
+#  @return Projected query records, or None if class identity may be invalidated.
+def _private_results_uncached(analyzer, owner):
     # This is a projection for one observer class, not an exemption for class
     # construction in general. All actual argument escapes remain visible.
     records = {}

@@ -19,10 +19,10 @@ defined by [Output Contract](output-contract.md).
 
 ```text
 CallSite / SymbolRef and structured source evidence
-  → project_source_tracing.py
+  → pcresolve.ownership.resolve.project_source_tracing
   → call, result, container, and receiver resolvers
-  → project_call_classification.py
-  → classification.py
+  → pcresolve.ownership.resolve.project_call_classification
+  → pcresolve.ownership.classification
   → ApiCall / SymbolProvenance
 ```
 
@@ -79,7 +79,7 @@ bodies, or unsupported mutation.
 Return ownership is separate from callable ownership. `CallResult` identifies
 the producing call and may carry an independently resolved result source.
 Multiple return paths form an ordered `SourceSet`; convergence follows the
-rules in `source_resolution.py`.
+rules in `pcresolve.ownership.source_resolution`.
 
 Container ownership is also distinct from element ownership:
 

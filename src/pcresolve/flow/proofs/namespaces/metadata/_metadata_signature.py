@@ -646,33 +646,39 @@ def _kind_aliases_closed(analyzer, caller_ref, decorator_evidence=None, receiver
             signature_source_cache.get(scope), parameter_cache.get(parameter_key),
             flush=True)
 
+    receiver_key = None if receiver_class is None else (
+        receiver_class.module, receiver_class.qualname,
+        receiver_class.file_path, receiver_class.lineno)
+    # Passing the analyzer's own fresh-decoration provider is the same query as
+    # passing none; only an external provider makes the scan caller-specific.
+    # 传入分析器自身的 fresh-decoration 提供者与不传等价；只有外部提供者才使扫描依赖调用方。
+    provider = fresh_decoration
+    if provider is None or getattr(provider, '__self__', None) is analyzer:
+        module_cache = analyzer._kind_alias_module_cache
+    else:
+        module_cache = None
+
     for module, bodies in analyzer.module_bodies.items():
-        nodes, parents, scopes = [], {}, {}
-        for _, body in bodies:
-            pending = [(node, None) for node in body]
-            while pending:
-                node, scope = pending.pop()
-                inspected += 1
-                if inspected > 1000000:
-                    return False
-                if analyzer._analysis_budget is not None:
-                    analyzer._analysis_budget.checkpoint()
-                nodes.append(node)
-                scopes[node] = scope
-                for child in ast.iter_child_nodes(node):
-                    parents[child] = node
-                    pending.append((child, node if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                                                     ast.ClassDef, ast.Lambda)) else scope))
-        reference = type(caller_ref)(module, '', bodies[0][0])
-        aliases = inspect_module_kind_aliases(
-            module, nodes, parents, scopes, reference,
-            canonical=canonical,
-            identity_operand=identity_operand,
-            kind_comparison=native_kind_comparison,
-            kind_replacement=native_kind_replacement,
-            stable_module_alias=lambda source_module, local_name: unmodified(
-                analyzer, source_module + '.' + local_name),
-            debug_alias_use=debug_alias_use)
+        cache_key = (module, receiver_key)
+        if module_cache is not None and cache_key in module_cache:
+            aliases = module_cache[cache_key]
+        else:
+            nodes, parents, scopes = analyzer._module_syntax_index(module)
+            inspected += len(nodes)
+            if inspected > 1000000:
+                return False
+            reference = type(caller_ref)(module, '', bodies[0][0])
+            aliases = inspect_module_kind_aliases(
+                module, nodes, parents, scopes, reference,
+                canonical=canonical,
+                identity_operand=identity_operand,
+                kind_comparison=native_kind_comparison,
+                kind_replacement=native_kind_replacement,
+                stable_module_alias=lambda source_module, local_name: unmodified(
+                    analyzer, source_module + '.' + local_name),
+                debug_alias_use=debug_alias_use)
+            if module_cache is not None:
+                module_cache[cache_key] = aliases
         if aliases is None:
             return False
         module_aliases.update(aliases)

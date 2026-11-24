@@ -11,22 +11,19 @@ import ast
 
 import copy
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 
-from pcresolve.flow.model.results import FlowAnalysis, FlowCall, FunctionRef, _matches
+from pcresolve.flow.model.results import FlowAnalysis, FunctionRef, _matches
 
 from pcresolve.flow.transfer.summary import _Summary
 
-from pcresolve.flow.transfer.environment import (
-    merge_environments as _merge_env, merge_result_sources as _merge_result_sources,
-)
+from pcresolve.flow.transfer.environment import merge_result_sources as _merge_result_sources
 
 from pcresolve.runtime.limits import AnalysisBudget
 
-from pcresolve.facts.call_resolution import DefinitionRecord, DefinitionIndex, CallContext
+from pcresolve.facts.call_resolution import CallContext
 
-from pcresolve.facts.scope_facts import (FLOW_SCOPE, function_scope_facts,
-                          statement_scope_facts, transitive_captured_names)
+from pcresolve.facts.scope_facts import transitive_captured_names
 
 from pcresolve.flow.proofs.namespaces.source._source_dependencies import publish as publish_source_dependencies
 
@@ -34,9 +31,7 @@ from pcresolve.flow.proofs.namespaces.source._source_dependencies import validat
 
 from pcresolve.flow.proofs.callables._constructor_entry import binding as constructor_entry_binding
 
-from pcresolve.flow.proofs.callables._fresh_receiver import (method_binding as fresh_method_binding,
-                              super_method_binding as fresh_super_method_binding,
-                              incoming_origin as fresh_incoming_origin)
+from pcresolve.flow.proofs.callables._fresh_receiver import incoming_origin as fresh_incoming_origin
 
 from pcresolve.flow.proofs.callables.dispatch.entry_alias import reference as source_entry_alias
 
@@ -157,6 +152,9 @@ class FlowRunMixin:
         self._effect_fact_functions = max_functions
         self._effect_fact_steps = max_call_contexts
         self._class_effect_fact_steps = max_class_effect_steps
+        # Expansions of this snapshot re-run the same configured allowances.
+        # 该快照的后续展开沿用同一组配置额度。
+        self._query_fact_budgets = (max_functions, max_call_contexts)
         # Resolve entry aliases, constructors and inherited methods only with unique evidence.
         # 仅在证据唯一时解析入口别名、构造函数和继承方法。
         matches = [(r, n) for r, n in self.definitions if _matches(r, entry)]
@@ -322,31 +320,38 @@ class FlowRunMixin:
             summary.run()
             calls = summary.calls
             if context.edge is not None:
+                # Every call in this summary shares the same incoming parameter
+                # facts, so the context record is copied once instead of once
+                # per call. Per-call fields are already final records and are
+                # referenced rather than duplicated again.
+                # 同一摘要内所有调用共享同一组入参事实，因此上下文记录只复制一次；
+                # 每个调用自身的字段已是最终记录，直接引用而不再复制。
+                parameter_facts = copy.deepcopy(incoming)
                 for call in calls:
                     call.analysis_contexts.append({
                         'incoming_call_id': context.edge.id,
-                        'parameter_facts': copy.deepcopy(incoming),
+                        'parameter_facts': parameter_facts,
                         'target': asdict(call.target) if call.target else None,
-                        'target_candidates': copy.deepcopy(call.target_candidates),
+                        'target_candidates': call.target_candidates,
                         'target_status': call.target_status,
                         'binding_status': call.binding_status,
-                        'argument_sources': copy.deepcopy(call.argument_sources),
-                        'callable_sources': copy.deepcopy(call.callable_sources)})
+                        'argument_sources': call.argument_sources,
+                        'callable_sources': call.callable_sources})
                     call.analysis_contexts[-1].update(
-                        result_sources=copy.deepcopy(call.result_sources),
-                        capture_bindings=copy.deepcopy(call.capture_bindings),
-                        effects=copy.deepcopy(call.effects),
-                        callable_instance_evidence=copy.deepcopy(call.callable_instance_evidence),
-                        conditional_returns=copy.deepcopy(call.conditional_returns),
-                        class_method_bindings=copy.deepcopy(call.class_method_bindings),
-                        class_metadata_bindings=copy.deepcopy(call.class_metadata_bindings),
-                        class_read_bindings=copy.deepcopy(call.class_read_bindings),
-                        conditional_source_bindings=copy.deepcopy(call.conditional_source_bindings),
-                        candidate_paths=copy.deepcopy(call.candidate_paths),
-                        constructor_bindings=copy.deepcopy(call.constructor_bindings),
-                        instance_method_bindings=copy.deepcopy(call.instance_method_bindings),
-                        implicit_protocol=copy.deepcopy(call.implicit_protocol),
-                        conditions=copy.deepcopy(call.conditions if self._conditional_source_state
+                        result_sources=call.result_sources,
+                        capture_bindings=call.capture_bindings,
+                        effects=call.effects,
+                        callable_instance_evidence=call.callable_instance_evidence,
+                        conditional_returns=call.conditional_returns,
+                        class_method_bindings=call.class_method_bindings,
+                        class_metadata_bindings=call.class_metadata_bindings,
+                        class_read_bindings=call.class_read_bindings,
+                        conditional_source_bindings=call.conditional_source_bindings,
+                        candidate_paths=call.candidate_paths,
+                        constructor_bindings=call.constructor_bindings,
+                        instance_method_bindings=call.instance_method_bindings,
+                        implicit_protocol=call.implicit_protocol,
+                        conditions=(call.conditions if self._conditional_source_state
                             else getattr(selected[1], '_flow_conditions', [])))
             self._context_summaries[key] = calls
             self._context_call_count += len(calls)
@@ -690,6 +695,16 @@ class FlowRunMixin:
         # Expansion is part of the same query snapshot. Keep its class-effect
         # allowance aligned with the budget that produced the parent facts.
         self._class_effect_fact_steps = max_class_effect_steps
+        # Restore the fact allowances this snapshot was analyzed with. Inheriting
+        # their consumed remainder would weaken each later expansion and make the
+        # facts depend on expansion order.
+        # 恢复该快照分析时配置的事实额度。继承已消耗余额会让后续展开逐次变弱，
+        # 并使事实依赖展开顺序。
+        budgets = getattr(self, '_query_fact_budgets', None)
+        if budgets is not None:
+            self._fact_functions, self._fact_calls = budgets
+            self._object_fact_functions, self._object_fact_steps = budgets
+            self._effect_fact_functions, self._effect_fact_steps = budgets
         self._conditional_source_state = result.inputs.get('conditional_source_state') is True
         self._supporting_source_hashes.update(dependencies)
         # The parent snapshot and the expansion must use the same sources and contracts.
@@ -704,6 +719,9 @@ class FlowRunMixin:
                 raise ValueError('Isolated expansion requires a unique usable target')
             definition = next(d for d in self._definition_index.find(call.target.module, call.target.qualname)
                               if d[0] == call.target)
+            # Isolated expansion must not share mutable input records with the
+            # parent snapshot: callers may edit one expansion result in place.
+            # 隔离展开不能与父快照共享可变输入记录：调用方可能原地修改某次展开结果。
             inputs = copy.deepcopy(result.inputs)
             if not preserve_lineage:
                 inputs.pop('entry_binding', None)
@@ -734,7 +752,10 @@ class FlowRunMixin:
             # The selected edge starts a bounded context. Recursion below this
             # entry is still checked by _walk; no root facts are merged into it.
             # 选定边作为独立有界上下文，后续递归仍由 _walk 检查。
-            context = CallContext(call.caller.module, call.target, copy.deepcopy(call))
+            # The parent edge is read-only for this walk, so it is shared instead
+            # of duplicating the whole frozen record tree.
+            # 该父边在本轮遍历中只读，因此按引用共享，避免复制整棵冻结记录树。
+            context = CallContext(call.caller.module, call.target, call)
             self._walk(updated, definition, additional_depth, context, 500, 2000)
             updated.boundaries = _unique(updated.boundaries)
             publish_source_dependencies(self, updated)

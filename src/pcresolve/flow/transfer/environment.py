@@ -20,6 +20,35 @@ def _unique(values):
     return result
 
 
+## Copy one abstract value so a branch cannot change it in place.
+## 复制单个抽象值，使分支无法原地修改它。
+#
+#  @param value Abstract value, nested list or immutable scalar.
+#  @return One-level copy that isolates this branch's writes.
+def _copy_value(value):
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, list):
+        return list(value)
+    return value
+
+
+## Copy an abstract environment so one branch cannot change another's bindings.
+## 复制抽象环境，使一个分支不会改变另一个分支的绑定。
+#
+#  Value facts are immutable by convention: propagation builds new records
+#  instead of editing stored ones, so only the binding lists and the value
+#  records are copied while nested evidence stays shared.
+#  值事实按约定不可变：传播过程构造新记录而不修改已存储的记录，因此只复制
+#  绑定列表和值记录本身，嵌套证据保持共享。
+#
+#  @param env Abstract environment keyed by binding name.
+#  @return Environment with independent binding lists and value records.
+def copy_environment(env):
+    return {name: [_copy_value(value) for value in values]
+            for name, values in env.items()}
+
+
 ## Merge result alternatives while retaining incomplete container evidence.
 ## 合并结果候选，并保留不完整的容器证据。
 #
